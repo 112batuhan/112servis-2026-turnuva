@@ -1,0 +1,10 @@
+# Secrets / local config (matches .env in the root, backend/, and frontend/)
+.env
+.env.*
+!.env.example
+
+# Build artifacts
+/backend/target
+/frontend/node_modules
+/frontend/dist
+
