@@ -10,6 +10,7 @@ pub struct Stage {
     pub id: Uuid,
     pub name: String,
     pub position: i32,
+    pub published: bool,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -79,6 +80,16 @@ pub struct StageDetail {
     pub generic: Vec<GenericEntry>,
 }
 
+// Read-only view of a published stage for the public page: categories + their maps,
+// no generic pool.
+#[derive(Debug, Serialize)]
+pub struct PublicStageDetail {
+    #[serde(flatten)]
+    pub stage: Stage,
+    pub categories: Vec<Category>,
+    pub entries: Vec<PoolEntry>,
+}
+
 // Beatmap fields to cache, mapped from an osu! API response by the handler.
 pub struct NewBeatmap {
     pub id: i64,
@@ -132,6 +143,32 @@ pub async fn delete_stage(pool: &PgPool, id: Uuid) -> sqlx::Result<()> {
         .execute(pool)
         .await?;
     Ok(())
+}
+
+// Publishes or unpublishes a stage. Published stages are visible on the public page.
+pub async fn set_published(pool: &PgPool, id: Uuid, published: bool) -> sqlx::Result<Stage> {
+    sqlx::query_as::<_, Stage>(
+        "UPDATE stages SET published = $2, updated_at = now() WHERE id = $1 RETURNING *",
+    )
+    .bind(id)
+    .bind(published)
+    .fetch_one(pool)
+    .await
+}
+
+// Published stages only (for the public page).
+pub async fn list_published_stages(pool: &PgPool) -> sqlx::Result<Vec<Stage>> {
+    sqlx::query_as::<_, Stage>("SELECT * FROM stages WHERE published ORDER BY position, created_at")
+        .fetch_all(pool)
+        .await
+}
+
+// A single stage, only if it's published.
+pub async fn get_published_stage(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<Stage>> {
+    sqlx::query_as::<_, Stage>("SELECT * FROM stages WHERE id = $1 AND published")
+        .bind(id)
+        .fetch_optional(pool)
+        .await
 }
 
 // ---------- categories ----------

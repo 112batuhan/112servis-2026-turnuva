@@ -2,11 +2,13 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./AuthContext.jsx";
 import { hasRole } from "./roles.js";
 import NavBar from "./components/NavBar.jsx";
-import LoginPage from "./pages/LoginPage.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
+import ProfilePage from "./pages/ProfilePage.jsx";
 import DiscordLoginPage from "./pages/DiscordLoginPage.jsx";
 import AdminPage from "./pages/AdminPage.jsx";
+import UsersPage from "./pages/UsersPage.jsx";
 import MapPoolPage from "./pages/MapPoolPage.jsx";
+import PublicPoolPage from "./pages/PublicPoolPage.jsx";
 
 export default function App() {
   const { user, error } = useAuth();
@@ -29,14 +31,17 @@ export default function App() {
 
   return (
     <>
-      {user && <NavBar />}
+      <NavBar />
       <Routes>
-        <Route path="/login" element={user ? <Navigate to="/" replace /> : <LoginPage />} />
+        {/* Public — accessible signed out. */}
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/mappool" element={<PublicPoolPage />} />
+        {/* Signed-in only. */}
         <Route
-          path="/"
+          path="/profile"
           element={
             <RequireAuth>
-              <LandingPage />
+              <ProfilePage />
             </RequireAuth>
           }
         />
@@ -48,33 +53,43 @@ export default function App() {
             </RequireAuth>
           }
         />
-        <Route
-          path="/mappool"
-          element={
-            <RequireAuth minRole="map_pooler">
-              <MapPoolPage />
-            </RequireAuth>
-          }
-        />
+        {/* Admin console — map_pooler+ reach it; the Users tab is host-only. */}
         <Route
           path="/admin"
           element={
-            <RequireAuth minRole="host">
+            <RequireAuth minRole="map_pooler">
               <AdminPage />
             </RequireAuth>
           }
-        />
+        >
+          <Route index element={<AdminIndex />} />
+          <Route
+            path="users"
+            element={
+              <RequireAuth minRole="host" redirect="/admin/mappool">
+                <UsersPage />
+              </RequireAuth>
+            }
+          />
+          <Route path="mappool" element={<MapPoolPage />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </>
   );
 }
 
-// Redirects to the osu! login page when signed out, and home when the user's role
-// is below `minRole` for a gated route.
-function RequireAuth({ children, minRole }) {
+// Sends guests and under-privileged users to `redirect` (the public landing page by
+// default). Guests sign in via the "Log in with osu!" button in the nav bar.
+function RequireAuth({ children, minRole, redirect = "/" }) {
   const { user } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
-  if (minRole && !hasRole(user, minRole)) return <Navigate to="/" replace />;
+  if (!user) return <Navigate to="/" replace />;
+  if (minRole && !hasRole(user, minRole)) return <Navigate to={redirect} replace />;
   return children;
+}
+
+// Default admin tab: hosts land on Users, map poolers on Map Pool.
+function AdminIndex() {
+  const { user } = useAuth();
+  return <Navigate to={hasRole(user, "host") ? "/admin/users" : "/admin/mappool"} replace />;
 }

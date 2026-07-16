@@ -4,6 +4,7 @@ import {
   createStage,
   deleteStage,
   fetchStage,
+  setStagePublished,
   createCategory,
   deleteCategory,
   addToGenericPool,
@@ -12,7 +13,7 @@ import {
   moveEntry,
   deleteEntry,
 } from "../api.js";
-import { applyMods, formatLength } from "../utils/mods.js";
+import MapCard from "../components/MapCard.jsx";
 
 const MODIFIERS = ["", "HD", "HR", "DT", "HT", "EZ", "FL", "HDHR", "HDDT"];
 
@@ -123,6 +124,12 @@ export default function MapPoolPage() {
     await reload();
   });
 
+  const handleTogglePublish = () => run(async () => {
+    await setStagePublished(selectedId, !detail.published);
+    await reload();
+    await loadStages();
+  });
+
   // Drop onto a category: a generic map gets categorised; an entry moves category.
   const onDropCategory = (categoryId) => (e) => {
     e.preventDefault();
@@ -158,8 +165,7 @@ export default function MapPoolPage() {
   const generic = detail?.generic ?? [];
 
   return (
-    <div className="content mappool">
-      <h1>Map pool</h1>
+    <div className="mappool">
       {error && <p className="status status-error">{error}</p>}
 
       <div className="stage-tabs">
@@ -170,6 +176,7 @@ export default function MapPoolPage() {
             onClick={() => setSelectedId(s.id)}
           >
             {s.name}
+            {!s.published && <span className="draft-dot" title="Draft — not visible publicly" />}
           </button>
         ))}
         <form className="stage-new" onSubmit={handleCreateStage}>
@@ -186,10 +193,24 @@ export default function MapPoolPage() {
         <>
           <div className="panel mappool-settings">
             <div className="panel-head">
-              <h2>{detail.name} · settings</h2>
-              <button className="danger-btn" onClick={handleDeleteStage} disabled={busy}>
-                Delete stage
-              </button>
+              <h2>
+                {detail.name} · settings
+                <span className={`stage-status ${detail.published ? "is-published" : ""}`}>
+                  {detail.published ? "Published" : "Draft"}
+                </span>
+              </h2>
+              <div className="settings-actions">
+                <button
+                  className={`publish-btn ${detail.published ? "is-published" : ""}`}
+                  onClick={handleTogglePublish}
+                  disabled={busy}
+                >
+                  {detail.published ? "Unpublish" : "Publish"}
+                </button>
+                <button className="danger-btn" onClick={handleDeleteStage} disabled={busy}>
+                  Delete stage
+                </button>
+              </div>
             </div>
             <form className="cat-form" onSubmit={handleAddCategory}>
               <input
@@ -295,45 +316,4 @@ function readDrag(e) {
   } catch {
     return null;
   }
-}
-
-function MapCard({ bm, modifier, drag, onRemove }) {
-  const s = modifier ? applyMods(bm, modifier) : bm;
-  const changed = (a, b) => modifier && Math.abs(a - b) > 0.05;
-  const statClass = (a, b) => (changed(a, b) ? "stat stat-mod" : "stat");
-
-  return (
-    <div
-      className="map-card"
-      draggable
-      onDragStart={(e) => e.dataTransfer.setData("text/plain", JSON.stringify(drag))}
-    >
-      {bm.cover_url && <img className="map-cover" src={bm.cover_url} alt="" />}
-      <div className="map-body">
-        <a
-          className="map-title"
-          href={`https://osu.ppy.sh/beatmaps/${bm.beatmap_id}`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          {bm.artist} — {bm.title}
-        </a>
-        <div className="map-sub">
-          [{bm.version}]{bm.creator ? ` · ${bm.creator}` : ""}
-        </div>
-        <div className="map-stats">
-          <span className="stat">★{bm.star_rating.toFixed(2)}</span>
-          <span className={statClass(s.bpm, bm.bpm)}>{Math.round(s.bpm)} bpm</span>
-          <span className={statClass(s.total_length, bm.total_length)}>{formatLength(s.total_length)}</span>
-          <span className={statClass(s.cs, bm.cs)}>CS {s.cs.toFixed(1)}</span>
-          <span className={statClass(s.ar, bm.ar)}>AR {s.ar.toFixed(1)}</span>
-          <span className={statClass(s.od, bm.od)}>OD {s.od.toFixed(1)}</span>
-          <span className={statClass(s.hp, bm.hp)}>HP {s.hp.toFixed(1)}</span>
-        </div>
-      </div>
-      <button className="map-remove" onClick={onRemove} aria-label="remove map">
-        ×
-      </button>
-    </div>
-  );
 }

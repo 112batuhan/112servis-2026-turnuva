@@ -116,7 +116,9 @@ async fn main() {
         )
         .route(
             "/api/stages/:id",
-            get(handlers::mappool::get_stage).delete(handlers::mappool::delete_stage),
+            get(handlers::mappool::get_stage)
+                .delete(handlers::mappool::delete_stage)
+                .patch(handlers::mappool::set_published),
         )
         .route(
             "/api/stages/:id/categories",
@@ -140,6 +142,15 @@ async fn main() {
         .route(
             "/api/entries/:id",
             patch(handlers::mappool::move_entry).delete(handlers::mappool::delete_entry),
+        )
+        // Public, unauthenticated: published stages only.
+        .route(
+            "/api/public/stages",
+            get(handlers::mappool::list_public_stages),
+        )
+        .route(
+            "/api/public/stages/:id",
+            get(handlers::mappool::get_public_stage),
         )
         .layer(cors)
         .with_state(state);

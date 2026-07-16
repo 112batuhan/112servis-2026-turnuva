@@ -76,6 +76,24 @@ pub async fn delete_stage(
 }
 
 #[derive(Debug, Deserialize)]
+pub struct SetPublishedBody {
+    published: bool,
+}
+
+// PATCH /api/stages/:id — publish or unpublish a stage.
+pub async fn set_published(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<SetPublishedBody>,
+) -> Result<impl IntoResponse, AppError> {
+    guard(&user)?;
+    Ok(Json(
+        db::mappool::set_published(&state.db, id, body.published).await?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
 pub struct CreateCategoryBody {
     name: String,
     #[serde(default)]
@@ -223,4 +241,32 @@ pub async fn delete_entry(
     guard(&user)?;
     db::mappool::delete_entry(&state.db, id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// ---- public (unauthenticated) — published stages only ----
+// These take no AuthUser, so they run for anyone, and only ever expose stages that
+// have been published.
+
+// GET /api/public/stages — published stages (for the public stage selector).
+pub async fn list_public_stages(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, AppError> {
+    Ok(Json(db::mappool::list_published_stages(&state.db).await?))
+}
+
+// GET /api/public/stages/:id — a published stage's categories and their maps.
+pub async fn get_public_stage(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<impl IntoResponse, AppError> {
+    let stage = db::mappool::get_published_stage(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let categories = db::mappool::list_categories(&state.db, id).await?;
+    let entries = db::mappool::list_entries(&state.db, id).await?;
+    Ok(Json(db::mappool::PublicStageDetail {
+        stage,
+        categories,
+        entries,
+    }))
 }

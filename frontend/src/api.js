@@ -63,6 +63,8 @@ export const fetchStages = () => request("/api/stages");
 export const createStage = (name) => request("/api/stages", jsonBody("POST", { name }));
 export const deleteStage = (id) => request(`/api/stages/${id}`, { method: "DELETE" });
 export const fetchStage = (id) => request(`/api/stages/${id}`);
+export const setStagePublished = (id, published) =>
+  request(`/api/stages/${id}`, jsonBody("PATCH", { published }));
 
 export const createCategory = (stageId, name, modifier) =>
   request(`/api/stages/${stageId}/categories`, jsonBody("POST", { name, modifier: modifier || null }));
@@ -78,3 +80,7 @@ export const categorize = (stageId, beatmapId, categoryId) =>
 export const moveEntry = (entryId, categoryId) =>
   request(`/api/entries/${entryId}`, jsonBody("PATCH", { category_id: categoryId }));
 export const deleteEntry = (entryId) => request(`/api/entries/${entryId}`, { method: "DELETE" });
+
+// Public (unauthenticated) — published stages only.
+export const fetchPublicStages = () => request("/api/public/stages");
+export const fetchPublicStage = (id) => request(`/api/public/stages/${id}`);
