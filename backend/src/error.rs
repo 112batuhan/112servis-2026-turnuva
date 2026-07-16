@@ -11,6 +11,12 @@ pub enum AppError {
     #[error("not authenticated")]
     Unauthenticated,
 
+    #[error("insufficient permissions")]
+    Forbidden,
+
+    #[error("discord verification required")]
+    DiscordVerificationRequired,
+
     #[error("invalid or expired login attempt")]
     InvalidLoginAttempt,
 
@@ -43,14 +49,26 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, message): (StatusCode, &'static str) = match &self {
             AppError::Unauthenticated => (StatusCode::UNAUTHORIZED, "not authenticated"),
-            AppError::InvalidLoginAttempt => (StatusCode::BAD_REQUEST, "invalid or expired login attempt"),
-            AppError::OsuTokenExchange(_) | AppError::OsuProfileRequest(_) | AppError::OsuProfileDecode(_) => {
+            AppError::Forbidden => (StatusCode::FORBIDDEN, "insufficient permissions"),
+            AppError::DiscordVerificationRequired => {
+                (StatusCode::FORBIDDEN, "discord verification required")
+            }
+            AppError::InvalidLoginAttempt => {
+                (StatusCode::BAD_REQUEST, "invalid or expired login attempt")
+            }
+            AppError::OsuTokenExchange(_)
+            | AppError::OsuProfileRequest(_)
+            | AppError::OsuProfileDecode(_) => {
                 (StatusCode::BAD_GATEWAY, "could not complete osu! login")
             }
-            AppError::DiscordTokenExchange(_) | AppError::DiscordProfileRequest(_) | AppError::DiscordProfileDecode(_) => {
+            AppError::DiscordTokenExchange(_)
+            | AppError::DiscordProfileRequest(_)
+            | AppError::DiscordProfileDecode(_) => {
                 (StatusCode::BAD_GATEWAY, "could not link Discord")
             }
-            AppError::Database(_) | AppError::Jwt(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal server error"),
+            AppError::Database(_) | AppError::Jwt(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
+            }
         };
 
         // Client only sees the generic message above; the real cause goes to the logs.

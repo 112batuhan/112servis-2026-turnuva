@@ -2,17 +2,11 @@ use axum::{
     extract::{Query, State},
     response::{IntoResponse, Redirect},
 };
-use axum_extra::extract::cookie::{Cookie, CookieJar, SameSite};
+use axum_extra::extract::cookie::CookieJar;
 use oauth2::{reqwest::async_http_client, AuthorizationCode, CsrfToken, Scope, TokenResponse};
 use serde::Deserialize;
-use time::Duration;
 
-use crate::{
-    auth::{current_user_id, AUTH_COOKIE},
-    db, discord_api,
-    error::AppError,
-    jwt, osu_api, AppState,
-};
+use crate::{auth, db, discord_api, error::AppError, jwt, osu_api, AppState};
 
 // Both OAuth providers redirect back with the same `?code=&state=` query shape.
 #[derive(Debug, Deserialize)]
@@ -28,7 +22,11 @@ pub async fn osu_login(State(state): State<AppState>) -> impl IntoResponse {
         .authorize_url(CsrfToken::new_random)
         .add_scope(Scope::new("identify".to_string()))
         .url();
-    state.csrf_tokens.lock().unwrap().insert(csrf_token.secret().clone(), ());
+    state
+        .csrf_tokens
+        .lock()
+        .unwrap()
+        .insert(csrf_token.secret().clone(), ());
     Redirect::to(auth_url.as_str())
 }
 
@@ -38,7 +36,13 @@ pub async fn osu_callback(
     Query(params): Query<CallbackParams>,
     jar: CookieJar,
 ) -> Result<impl IntoResponse, AppError> {
-    if state.csrf_tokens.lock().unwrap().remove(&params.state).is_none() {
+    if state
+        .csrf_tokens
+        .lock()
+        .unwrap()
+        .remove(&params.state)
+        .is_none()
+    {
         return Err(AppError::InvalidLoginAttempt);
     }
 
@@ -49,26 +53,29 @@ pub async fn osu_callback(
         .await
         .map_err(|err| AppError::OsuTokenExchange(err.to_string()))?;
 
-    let profile = osu_api::user::fetch_current(&state.http_client, token.access_token().secret()).await?;
+    let profile =
+        osu_api::user::fetch_current(&state.http_client, token.access_token().secret()).await?;
 
     let user = db::user::upsert_osu_user(&state.db, &profile).await?;
+    let discord_verified = db::user::is_discord_linked(&state.db, user.id).await?;
 
-    let token = jwt::encode_token(user.id, state.jwt_secret.as_bytes())?;
-
-    let mut cookie = Cookie::new(AUTH_COOKIE, token);
-    cookie.set_http_only(true);
-    cookie.set_path("/");
-    cookie.set_same_site(SameSite::Lax);
-    cookie.set_max_age(Duration::seconds(jwt::TOKEN_TTL_SECS as i64));
-    cookie.set_secure(false);
-
-    let jar = jar.add(cookie);
+    let token = jwt::encode_token(
+        user.id,
+        user.role,
+        user.token_version,
+        discord_verified,
+        state.jwt_secret.as_bytes(),
+    )?;
+    let jar = jar.add(auth::auth_cookie(token));
     Ok((jar, Redirect::to(&state.frontend_url)))
 }
 
 // GET /auth/discord/link — starts the optional Discord link flow; requires an osu! session already.
-pub async fn discord_link(State(state): State<AppState>, jar: CookieJar) -> Result<impl IntoResponse, AppError> {
-    if current_user_id(&jar, state.jwt_secret.as_bytes()).is_none() {
+pub async fn discord_link(
+    State(state): State<AppState>,
+    jar: CookieJar,
+) -> Result<impl IntoResponse, AppError> {
+    if auth::current_user_id(&jar, state.jwt_secret.as_bytes()).is_none() {
         return Err(AppError::Unauthenticated);
     }
 
@@ -77,7 +84,11 @@ pub async fn discord_link(State(state): State<AppState>, jar: CookieJar) -> Resu
         .authorize_url(CsrfToken::new_random)
         .add_scope(Scope::new("identify".to_string()))
         .url();
-    state.csrf_tokens.lock().unwrap().insert(csrf_token.secret().clone(), ());
+    state
+        .csrf_tokens
+        .lock()
+        .unwrap()
+        .insert(csrf_token.secret().clone(), ());
     Ok(Redirect::to(auth_url.as_str()))
 }
 
@@ -87,11 +98,17 @@ pub async fn discord_callback(
     Query(params): Query<CallbackParams>,
     jar: CookieJar,
 ) -> Result<impl IntoResponse, AppError> {
-    let Some(user_id) = current_user_id(&jar, state.jwt_secret.as_bytes()) else {
+    let Some(caller) = auth::current_user(&jar, state.jwt_secret.as_bytes()) else {
         return Err(AppError::Unauthenticated);
     };
 
-    if state.csrf_tokens.lock().unwrap().remove(&params.state).is_none() {
+    if state
+        .csrf_tokens
+        .lock()
+        .unwrap()
+        .remove(&params.state)
+        .is_none()
+    {
         return Err(AppError::InvalidLoginAttempt);
     }
 
@@ -102,9 +119,20 @@ pub async fn discord_callback(
         .await
         .map_err(|err| AppError::DiscordTokenExchange(err.to_string()))?;
 
-    let profile = discord_api::user::fetch_current(&state.http_client, token.access_token().secret()).await?;
+    let profile =
+        discord_api::user::fetch_current(&state.http_client, token.access_token().secret()).await?;
 
-    db::user::link_discord(&state.db, user_id, &profile).await?;
+    db::user::link_discord(&state.db, caller.id, &profile).await?;
 
-    Ok(Redirect::to(&state.frontend_url))
+    // Re-issue so the linked status takes effect immediately, without waiting for
+    // the next /api/me. Role and token_version are unchanged by linking.
+    let token = jwt::encode_token(
+        caller.id,
+        caller.role,
+        caller.token_version,
+        true,
+        state.jwt_secret.as_bytes(),
+    )?;
+    let jar = jar.add(auth::auth_cookie(token));
+    Ok((jar, Redirect::to(&state.frontend_url)))
 }

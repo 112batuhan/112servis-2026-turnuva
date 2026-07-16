@@ -20,7 +20,10 @@ pub struct OsuStatistics {
 }
 
 // GET /me — the authenticated user's own profile.
-pub async fn fetch_current(http: &reqwest::Client, access_token: &str) -> Result<OsuProfile, AppError> {
+pub async fn fetch_current(
+    http: &reqwest::Client,
+    access_token: &str,
+) -> Result<OsuProfile, AppError> {
     http.get(format!("{}/me", super::API_BASE))
         .bearer_auth(access_token)
         .send()

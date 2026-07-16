@@ -6,6 +6,7 @@ mod error;
 mod handlers;
 mod jwt;
 mod osu_api;
+mod role;
 
 use axum::{
     routing::{get, post},
@@ -98,6 +99,8 @@ async fn main() {
         )
         .route("/auth/logout", post(handlers::user::logout))
         .route("/api/me", get(handlers::user::me))
+        .route("/api/users", get(handlers::user::list_users))
+        .route("/api/users/:id/role", post(handlers::user::set_role))
         .layer(cors)
         .with_state(state);
 

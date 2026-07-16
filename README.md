@@ -81,9 +81,35 @@ Open `http://localhost:8080` — set your osu!/Discord OAuth app callback URLs t
 respectively (or whatever host you're deploying to). Migrations run automatically
 on container startup, same as `cargo run`.
 
+## Roles
+
+Every user has a role stored on `osu_users.role`: **host** (full access), **map_pooler**
+(map-pool work), or **basic** (the default). The role is embedded in the login JWT so
+most endpoints can authorize without a database hit.
+
+The JWT also carries `discord_verified` (true once the user has a linked Discord account),
+so endpoints can be gated on Discord linkage without a lookup — call
+`AuthUser::require_discord_verified()`. It fails closed (an unverified token never grants
+access) and is refreshed the moment Discord is linked, as well as on every `/api/me`.
+
+Because the role rides in a long-lived JWT, changing it has to invalidate the old token.
+Each user row carries a `token_version` that's also in the JWT; `POST /api/users/{id}/role`
+(host-only) changes the role and bumps `token_version`, so:
+
+- privileged handlers call `auth::require_role`, which does one indexed lookup to confirm
+  the token's `token_version` still matches the DB — a superseded token is rejected immediately;
+- `GET /api/me` re-issues the cookie from the DB row, so an active client's fast-path token
+  refreshes to the new role within one poll.
+
+There's no host yet to grant the first one through the API, so bootstrap it by hand:
+
+```sql
+UPDATE osu_users SET role = 'host', token_version = token_version + 1 WHERE osu_id = <your_osu_id>;
+```
+
 ## Notes for taking this further
 
-- **Discord bot integration**: query the `users` table by `discord_id` to look up a Discord member's linked osu! profile.
-- **Revocation**: JWTs can't be invalidated before they expire (7 days by default); add a `jti` denylist table if you need instant revocation.
-- **HTTPS in production**: set `cookie.set_secure(true)` in `auth/osu.rs` and update redirect URIs to `https://`.
-- **Unlinking Discord**: not included — add a `DELETE`-style route that nulls out the `discord_*` columns for the current user.
+- **Discord bot integration**: query `discord_accounts` by `discord_id`, joining to `osu_users` for the linked osu! profile.
+- **Log out everywhere**: `token_version` already supports it — bump it for a user to invalidate all their existing tokens, not just on role change.
+- **HTTPS in production**: set `set_secure(true)` in `auth::auth_cookie` and update redirect URIs to `https://`.
+- **Unlinking Discord**: not included — add a `DELETE`-style route that removes the user's `discord_accounts` row.

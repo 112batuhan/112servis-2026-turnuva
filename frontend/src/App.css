@@ -32,6 +32,7 @@ body {
 .card {
   width: 100%;
   max-width: 360px;
+  margin: 0 auto;
   background: var(--card-bg);
   border-radius: 12px;
   padding: 40px 32px;
@@ -117,4 +118,207 @@ h1 {
 .logout-btn:hover {
   color: var(--text);
   border-color: var(--muted);
+}
+
+/* ---- top navigation ---- */
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  background: var(--card-bg);
+  border-bottom: 1px solid #3a3c44;
+}
+
+.nav-left,
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-brand {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  margin-right: 12px;
+}
+
+.nav-brand-dim {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.nav-link {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--muted);
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.nav-link:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.nav-link-active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.nav-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+.nav-username {
+  font-size: 14px;
+  color: var(--text);
+  margin-right: 4px;
+}
+
+.nav-logout {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid #44464e;
+}
+
+.nav-logout:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+/* ---- page content ---- */
+.content {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.content-center {
+  padding-top: 64px;
+}
+
+/* Link styled as the discord button (used on the landing prompt). */
+a.discord-btn {
+  text-decoration: none;
+}
+
+.notice {
+  border: 1px solid #3a3c44;
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 8px;
+}
+
+.notice-text {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0 0 14px;
+}
+
+/* ---- admin panel ---- */
+.panel {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.panel-head h1 {
+  margin: 0;
+}
+
+.pill {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 10px;
+  border-radius: 999px;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.user-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.user-table th,
+.user-table td {
+  text-align: left;
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+
+.user-table thead th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid #3a3c44;
+}
+
+.user-table tbody tr {
+  border-bottom: 1px solid #2f313a;
+}
+
+.user-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.row-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: block;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.role {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.role-host {
+  background: rgba(255, 102, 171, 0.18);
+  color: var(--osu-pink);
+}
+
+.role-map_pooler {
+  background: rgba(88, 101, 242, 0.18);
+  color: #aab2ff;
 }

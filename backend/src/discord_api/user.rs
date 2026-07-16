@@ -11,7 +11,10 @@ pub struct DiscordProfile {
 }
 
 // GET /users/@me — the authenticated user's own Discord profile.
-pub async fn fetch_current(http: &reqwest::Client, access_token: &str) -> Result<DiscordProfile, AppError> {
+pub async fn fetch_current(
+    http: &reqwest::Client,
+    access_token: &str,
+) -> Result<DiscordProfile, AppError> {
     http.get(format!("{}/users/@me", super::API_BASE))
         .bearer_auth(access_token)
         .send()

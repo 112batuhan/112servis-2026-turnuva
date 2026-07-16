@@ -3,7 +3,7 @@ use sqlx::PgPool;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use crate::{discord_api::user::DiscordProfile, osu_api::user::OsuProfile};
+use crate::{discord_api::user::DiscordProfile, osu_api::user::OsuProfile, role::Role};
 
 // A row in the osu_users table.
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -15,6 +15,10 @@ pub struct OsuUser {
     pub country_code: Option<String>,
     pub global_rank: Option<i64>,
     pub country_rank: Option<i64>,
+    pub role: Role,
+    // Internal revocation counter; never sent to the client.
+    #[serde(skip_serializing)]
+    pub token_version: i32,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -69,8 +73,29 @@ pub async fn upsert_osu_user(pool: &PgPool, profile: &OsuProfile) -> sqlx::Resul
     .await
 }
 
+// Changes a user's role and bumps token_version, immediately invalidating any
+// JWT they were issued before the change. Returns the updated row.
+pub async fn set_role(pool: &PgPool, user_id: Uuid, role: Role) -> sqlx::Result<OsuUser> {
+    sqlx::query_as::<_, OsuUser>(
+        r#"
+        UPDATE osu_users
+        SET role = $2, token_version = token_version + 1, updated_at = now()
+        WHERE id = $1
+        RETURNING *
+        "#,
+    )
+    .bind(user_id)
+    .bind(role)
+    .fetch_one(pool)
+    .await
+}
+
 // Attaches a Discord profile to an already-existing osu! user, replacing any previous link.
-pub async fn link_discord(pool: &PgPool, osu_user_id: Uuid, profile: &DiscordProfile) -> sqlx::Result<DiscordAccount> {
+pub async fn link_discord(
+    pool: &PgPool,
+    osu_user_id: Uuid,
+    profile: &DiscordProfile,
+) -> sqlx::Result<DiscordAccount> {
     sqlx::query_as::<_, DiscordAccount>(
         r#"
         INSERT INTO discord_accounts (osu_user_id, discord_id, username, avatar)
@@ -101,10 +126,60 @@ pub async fn find_user(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Option<User
         return Ok(None);
     };
 
-    let discord = sqlx::query_as::<_, DiscordAccount>("SELECT * FROM discord_accounts WHERE osu_user_id = $1")
-        .bind(user_id)
-        .fetch_optional(pool)
-        .await?;
+    let discord = sqlx::query_as::<_, DiscordAccount>(
+        "SELECT * FROM discord_accounts WHERE osu_user_id = $1",
+    )
+    .bind(user_id)
+    .fetch_optional(pool)
+    .await?;
 
     Ok(Some(UserProfile { osu, discord }))
+}
+
+// A registered user for the admin list: the osu! profile with any linked Discord
+// account folded in. The discord_* fields are null when there's no linked account.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct AdminUser {
+    pub id: Uuid,
+    pub osu_id: i64,
+    pub username: String,
+    pub avatar_url: String,
+    pub country_code: Option<String>,
+    pub global_rank: Option<i64>,
+    pub country_rank: Option<i64>,
+    pub role: Role,
+    #[serde(with = "time::serde::rfc3339")]
+    pub created_at: OffsetDateTime,
+    pub discord_id: Option<String>,
+    pub discord_username: Option<String>,
+    pub discord_avatar: Option<String>,
+}
+
+// Every registered user, newest first. A single LEFT JOIN folds in the Discord
+// account so users who never linked Discord still appear (with null discord_*).
+pub async fn list_users(pool: &PgPool) -> sqlx::Result<Vec<AdminUser>> {
+    sqlx::query_as::<_, AdminUser>(
+        r#"
+        SELECT o.id, o.osu_id, o.username, o.avatar_url, o.country_code,
+               o.global_rank, o.country_rank, o.role, o.created_at,
+               d.discord_id AS discord_id,
+               d.username   AS discord_username,
+               d.avatar     AS discord_avatar
+        FROM osu_users o
+        LEFT JOIN discord_accounts d ON d.osu_user_id = o.id
+        ORDER BY o.created_at DESC
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+}
+
+// Whether the given osu! user has a linked Discord account (i.e. is "verified").
+pub async fn is_discord_linked(pool: &PgPool, osu_user_id: Uuid) -> sqlx::Result<bool> {
+    sqlx::query_scalar::<_, bool>(
+        "SELECT EXISTS(SELECT 1 FROM discord_accounts WHERE osu_user_id = $1)",
+    )
+    .bind(osu_user_id)
+    .fetch_one(pool)
+    .await
 }

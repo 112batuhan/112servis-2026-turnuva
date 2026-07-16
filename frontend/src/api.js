@@ -20,3 +20,10 @@ export async function fetchCurrentUser() {
 export async function logout() {
   await fetch(`${API_URL}/auth/logout`, { method: "POST", credentials: "include" });
 }
+
+// Host-only: the full list of registered users for the admin panel.
+export async function fetchUsers() {
+  const res = await fetch(`${API_URL}/api/users`, { credentials: "include" });
+  if (!res.ok) throw new Error(`Failed to load users (${res.status})`);
+  return res.json();
+}
