@@ -8,10 +8,7 @@ mod jwt;
 mod osu_api;
 mod role;
 
-use axum::{
-    routing::{delete, get, patch, post},
-    Router,
-};
+use axum::Router;
 use clap::Parser;
 use config::Config;
 use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
@@ -97,61 +94,14 @@ async fn main() {
         ])
         .allow_headers([axum::http::header::CONTENT_TYPE]);
 
+    let api = Router::new()
+        .merge(handlers::user::routes())
+        .merge(handlers::admin::routes())
+        .merge(handlers::mappool::routes());
+
     let mut app = Router::new()
-        .route("/auth/osu", get(handlers::auth::osu_login))
-        .route("/auth/osu/callback", get(handlers::auth::osu_callback))
-        .route("/auth/discord/link", get(handlers::auth::discord_link))
-        .route(
-            "/auth/discord/callback",
-            get(handlers::auth::discord_callback),
-        )
-        .route("/auth/logout", post(handlers::user::logout))
-        .route("/api/me", get(handlers::user::me))
-        .route("/api/users", get(handlers::admin::list_users))
-        .route("/api/users/:id/role", post(handlers::admin::set_role))
-        // Map pools (map_pooler+).
-        .route(
-            "/api/stages",
-            get(handlers::mappool::list_stages).post(handlers::mappool::create_stage),
-        )
-        .route(
-            "/api/stages/:id",
-            get(handlers::mappool::get_stage)
-                .delete(handlers::mappool::delete_stage)
-                .patch(handlers::mappool::set_published),
-        )
-        .route(
-            "/api/stages/:id/categories",
-            post(handlers::mappool::create_category),
-        )
-        .route(
-            "/api/categories/:id",
-            delete(handlers::mappool::delete_category),
-        )
-        // Global generic pool (shared library).
-        .route("/api/pool", post(handlers::mappool::add_to_generic))
-        .route(
-            "/api/pool/:beatmap_id",
-            delete(handlers::mappool::remove_from_generic),
-        )
-        // Per-stage categorised placements.
-        .route(
-            "/api/stages/:id/entries",
-            post(handlers::mappool::add_entry),
-        )
-        .route(
-            "/api/entries/:id",
-            patch(handlers::mappool::move_entry).delete(handlers::mappool::delete_entry),
-        )
-        // Public, unauthenticated: published stages only.
-        .route(
-            "/api/public/stages",
-            get(handlers::mappool::list_public_stages),
-        )
-        .route(
-            "/api/public/stages/:id",
-            get(handlers::mappool::get_public_stage),
-        )
+        .nest("/auth", handlers::auth::routes())
+        .nest("/api", api)
         .layer(cors)
         .with_state(state);
 

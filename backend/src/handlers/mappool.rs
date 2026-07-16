@@ -2,14 +2,34 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    routing::{delete, get, patch, post},
+    Json, Router,
 };
 use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{auth::AuthUser, db, error::AppError, osu_api, role::Role, AppState};
 
-// Every map pool endpoint requires the map_pooler role (host qualifies too).
+// Routes under the `/api` nest. The authed endpoints require map_pooler+; the two
+// `/public/*` ones take no AuthUser and only expose published stages.
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/stages", get(list_stages).post(create_stage))
+        .route(
+            "/stages/:id",
+            get(get_stage).delete(delete_stage).patch(set_published),
+        )
+        .route("/stages/:id/categories", post(create_category))
+        .route("/categories/:id", delete(delete_category))
+        .route("/pool", post(add_to_generic))
+        .route("/pool/:beatmap_id", delete(remove_from_generic))
+        .route("/stages/:id/entries", post(add_entry))
+        .route("/entries/:id", patch(move_entry).delete(delete_entry))
+        .route("/public/stages", get(list_public_stages))
+        .route("/public/stages/:id", get(get_public_stage))
+}
+
+// Every authed map pool endpoint requires the map_pooler role (host qualifies too).
 fn guard(user: &AuthUser) -> Result<(), AppError> {
     user.require_role(Role::MapPooler)
 }

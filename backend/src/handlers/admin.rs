@@ -1,12 +1,20 @@
 use axum::{
     extract::{Path, State},
     response::IntoResponse,
-    Json,
+    routing::{get, post},
+    Json, Router,
 };
 use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{auth::AuthUser, db, error::AppError, role::Role, AppState};
+
+// Routes under the `/api` nest.
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/users", get(list_users))
+        .route("/users/:id/role", post(set_role))
+}
 
 // GET /api/users — host-only. Lists every registered user with their linked
 // Discord account (if any) folded in.

@@ -1,6 +1,8 @@
 use axum::{
     extract::{Query, State},
     response::{IntoResponse, Redirect},
+    routing::{get, post},
+    Router,
 };
 use axum_extra::extract::cookie::CookieJar;
 use oauth2::{reqwest::async_http_client, AuthorizationCode, CsrfToken, Scope, TokenResponse};
@@ -12,6 +14,17 @@ use crate::{
     error::AppError,
     jwt, osu_api, AppState,
 };
+
+// Routes under the `/auth` nest. Logout lives in the `user` handler but is an auth
+// action, so it's grouped here.
+pub fn routes() -> Router<AppState> {
+    Router::new()
+        .route("/osu", get(osu_login))
+        .route("/osu/callback", get(osu_callback))
+        .route("/discord/link", get(discord_link))
+        .route("/discord/callback", get(discord_callback))
+        .route("/logout", post(super::user::logout))
+}
 
 // Both OAuth providers redirect back with the same `?code=&state=` query shape.
 #[derive(Debug, Deserialize)]

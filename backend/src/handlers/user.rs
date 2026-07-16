@@ -1,7 +1,8 @@
 use axum::{
     extract::State,
     response::{IntoResponse, Response},
-    Json,
+    routing::get,
+    Json, Router,
 };
 use axum_extra::extract::cookie::{Cookie, CookieJar};
 
@@ -11,6 +12,11 @@ use crate::{
     error::AppError,
     jwt, AppState,
 };
+
+// Routes under the `/api` nest. (Logout is routed in the `auth` handler.)
+pub fn routes() -> Router<AppState> {
+    Router::new().route("/me", get(me))
+}
 
 // GET /api/me — returns the caller's profile. This is also the single place a
 // token is reconciled: if the stored token_version has moved past the one in the
