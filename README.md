@@ -44,20 +44,27 @@ Migrations run automatically on backend startup — no separate migration step n
 2. Under **OAuth2 → Redirects**, add `http://localhost:8080/auth/discord/callback`.
 3. Copy the Client ID and Client Secret from **OAuth2 → General**.
 
-## 4. Backend setup
+## 4. Configure
+
+There's a single `.env` at the repo root, shared by the backend, frontend, and
+docker-compose. Copy it and fill in your OAuth credentials and `JWT_SECRET`:
+
+```bash
+cp .env.example .env
+# fill in OSU_CLIENT_ID/SECRET, DISCORD_CLIENT_ID/SECRET, DATABASE_URL, and JWT_SECRET
+```
+
+## 5. Run the backend
 
 ```bash
 cd backend
-cp .env.example .env
-# fill in OSU_CLIENT_ID/SECRET, DISCORD_CLIENT_ID/SECRET, DATABASE_URL, and JWT_SECRET
 cargo run
 ```
 
-## 5. Frontend setup
+## 6. Run the frontend
 
 ```bash
 cd frontend
-cp .env.example .env
 npm install
 npm run dev
 ```

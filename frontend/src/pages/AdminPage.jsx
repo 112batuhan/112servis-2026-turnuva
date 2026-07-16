@@ -1,15 +1,35 @@
 import { useEffect, useState } from "react";
-import { fetchUsers } from "../api.js";
+import { fetchUsers, updateUserRole } from "../api.js";
+
+const ROLES = ["host", "map_pooler", "basic"];
+const ROLE_LABELS = { host: "Host", map_pooler: "Map Pooler", basic: "Basic" };
 
 export default function AdminPage() {
   const [users, setUsers] = useState(null);
   const [error, setError] = useState(null);
+  const [savingId, setSavingId] = useState(null);
 
   useEffect(() => {
     fetchUsers()
       .then(setUsers)
       .catch((e) => setError(e.message));
   }, []);
+
+  async function handleRoleChange(userId, role) {
+    setError(null);
+    setSavingId(userId);
+    const snapshot = users;
+    // Optimistic: update the row now, revert if the request fails.
+    setUsers((us) => us.map((u) => (u.id === userId ? { ...u, role } : u)));
+    try {
+      await updateUserRole(userId, role);
+    } catch (e) {
+      setUsers(snapshot);
+      setError(e.message);
+    } finally {
+      setSavingId(null);
+    }
+  }
 
   return (
     <div className="content">
@@ -41,14 +61,41 @@ export default function AdminPage() {
                   <tr key={u.id}>
                     <td>{u.avatar_url && <img className="row-avatar" src={u.avatar_url} alt="" />}</td>
                     <td>
-                      {u.username} <span className="muted">#{u.osu_id}</span>
+                      <a
+                        className="user-link"
+                        href={`https://osu.ppy.sh/users/${u.osu_id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {u.username}
+                      </a>{" "}
+                      <span className="muted">#{u.osu_id}</span>
                     </td>
                     <td>{u.country_code ?? "—"}</td>
                     <td>{u.global_rank ? `#${u.global_rank.toLocaleString()}` : "—"}</td>
                     <td>
-                      <span className={`role role-${u.role}`}>{u.role}</span>
+                      <select
+                        className={`role-select role-${u.role}`}
+                        value={u.role}
+                        disabled={savingId === u.id}
+                        onChange={(e) => handleRoleChange(u.id, e.target.value)}
+                      >
+                        {ROLES.map((r) => (
+                          <option key={r} value={r}>
+                            {ROLE_LABELS[r]}
+                          </option>
+                        ))}
+                      </select>
                     </td>
-                    <td>{u.discord_username ? `@${u.discord_username}` : "—"}</td>
+                    <td>
+                      {u.discord_username ? (
+                        <>
+                          @{u.discord_username} <span className="muted">#{u.discord_id}</span>
+                        </>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
                     <td>{new Date(u.created_at).toLocaleDateString()}</td>
                   </tr>
                 ))}

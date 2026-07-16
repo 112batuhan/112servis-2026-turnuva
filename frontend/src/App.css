@@ -322,3 +322,39 @@ a.discord-btn {
   background: rgba(88, 101, 242, 0.18);
   color: #aab2ff;
 }
+
+.user-link {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.user-link:hover {
+  color: var(--osu-pink);
+  text-decoration: underline;
+}
+
+.role-select {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  border: 1px solid #44464e;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.role-select:hover {
+  border-color: var(--muted);
+}
+
+.role-select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.role-select option {
+  background: var(--card-bg);
+  color: var(--text);
+}

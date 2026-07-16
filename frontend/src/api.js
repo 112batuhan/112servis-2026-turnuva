@@ -27,3 +27,15 @@ export async function fetchUsers() {
   if (!res.ok) throw new Error(`Failed to load users (${res.status})`);
   return res.json();
 }
+
+// Host-only: change a user's role. Bumps their token_version server-side.
+export async function updateUserRole(userId, role) {
+  const res = await fetch(`${API_URL}/api/users/${userId}/role`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role }),
+  });
+  if (!res.ok) throw new Error(`Failed to update role (${res.status})`);
+  return res.json();
+}
