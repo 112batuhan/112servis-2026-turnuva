@@ -55,7 +55,7 @@ pub async fn get_stage(
         .ok_or(AppError::NotFound)?;
     let categories = db::mappool::list_categories(&state.db, id).await?;
     let entries = db::mappool::list_entries(&state.db, id).await?;
-    let generic = db::mappool::list_generic_for_stage(&state.db, id).await?;
+    let generic = db::mappool::list_generic(&state.db).await?;
     Ok(Json(db::mappool::StageDetail {
         stage,
         categories,

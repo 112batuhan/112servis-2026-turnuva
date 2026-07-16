@@ -245,18 +245,16 @@ pub async fn remove_from_generic(pool: &PgPool, beatmap_id: i64) -> sqlx::Result
     Ok(())
 }
 
-// The generic pool as seen from a stage: library maps not yet categorised there.
-pub async fn list_generic_for_stage(
-    pool: &PgPool,
-    stage_id: Uuid,
-) -> sqlx::Result<Vec<GenericEntry>> {
+// The generic pool: library maps not placed in any category, in any stage. A map
+// lives in exactly one place, so once it's categorised anywhere it disappears from
+// the generic pool in every stage. This is global, hence no stage parameter.
+pub async fn list_generic(pool: &PgPool) -> sqlx::Result<Vec<GenericEntry>> {
     let sql = format!(
         "SELECT {BEATMAP_COLS} FROM generic_pool g JOIN beatmaps b ON b.id = g.beatmap_id \
-         WHERE NOT EXISTS (SELECT 1 FROM pool_entries pe WHERE pe.stage_id = $1 AND pe.beatmap_id = g.beatmap_id) \
+         WHERE NOT EXISTS (SELECT 1 FROM pool_entries pe WHERE pe.beatmap_id = g.beatmap_id) \
          ORDER BY g.created_at"
     );
     sqlx::query_as::<_, GenericEntry>(&sql)
-        .bind(stage_id)
         .fetch_all(pool)
         .await
 }
@@ -287,8 +285,9 @@ pub async fn get_entry(pool: &PgPool, entry_id: Uuid) -> sqlx::Result<Option<Poo
         .await
 }
 
-// Categorises a library map within a stage (or moves it to another category if it
-// was already categorised there). Returns the entry id.
+// Places a generic-pool map into a stage category. A map can be placed in only one
+// category tournament-wide, so if it's somehow already placed elsewhere (e.g. two
+// poolers dropping it at once) this moves it. Returns the entry id.
 pub async fn add_entry(
     pool: &PgPool,
     stage_id: Uuid,
@@ -301,7 +300,8 @@ pub async fn add_entry(
         INSERT INTO pool_entries (stage_id, beatmap_id, category_id, added_by, position)
         VALUES ($1, $2, $3, $4,
                 (SELECT COALESCE(MAX(position), -1) + 1 FROM pool_entries WHERE stage_id = $1 AND category_id = $3))
-        ON CONFLICT (stage_id, beatmap_id) DO UPDATE SET category_id = EXCLUDED.category_id
+        ON CONFLICT (beatmap_id) DO UPDATE
+        SET stage_id = EXCLUDED.stage_id, category_id = EXCLUDED.category_id, position = EXCLUDED.position
         RETURNING id
         "#,
     )
