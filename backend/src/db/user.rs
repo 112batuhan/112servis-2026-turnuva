@@ -1,5 +1,5 @@
 use serde::Serialize;
-use sqlx::{postgres::PgPoolOptions, PgPool};
+use sqlx::PgPool;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -41,20 +41,6 @@ pub struct UserProfile {
     #[serde(flatten)]
     pub osu: OsuUser,
     pub discord: Option<DiscordAccount>,
-}
-
-// Connects to postgres and runs pending migrations.
-pub async fn connect(database_url: &str) -> PgPool {
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(database_url)
-        .await
-        .expect("failed to connect to postgres");
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .expect("failed to run migrations");
-    pool
 }
 
 // Creates a user on first osu! login, or refreshes their profile on later logins.

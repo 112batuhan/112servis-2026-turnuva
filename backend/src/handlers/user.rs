@@ -14,7 +14,7 @@ pub async fn me(State(state): State<AppState>, jar: CookieJar) -> Result<impl In
         return Err(AppError::Unauthenticated);
     };
 
-    let user = db::find_user(&state.db, user_id).await?.ok_or(AppError::Unauthenticated)?;
+    let user = db::user::find_user(&state.db, user_id).await?.ok_or(AppError::Unauthenticated)?;
     Ok(Json(user))
 }
 

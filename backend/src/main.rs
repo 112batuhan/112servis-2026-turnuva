@@ -50,7 +50,9 @@ async fn main() {
         AuthUrl::new("https://osu.ppy.sh/oauth/authorize".to_string()).unwrap(),
         Some(TokenUrl::new("https://osu.ppy.sh/oauth/token".to_string()).unwrap()),
     )
-    .set_redirect_uri(RedirectUrl::new(config.osu_redirect_uri.clone()).expect("invalid OSU_REDIRECT_URI"));
+    .set_redirect_uri(
+        RedirectUrl::new(config.osu_redirect_uri.clone()).expect("invalid OSU_REDIRECT_URI"),
+    );
 
     let discord_client = BasicClient::new(
         ClientId::new(config.discord_client_id.clone()),
@@ -58,7 +60,10 @@ async fn main() {
         AuthUrl::new("https://discord.com/api/oauth2/authorize".to_string()).unwrap(),
         Some(TokenUrl::new("https://discord.com/api/oauth2/token".to_string()).unwrap()),
     )
-    .set_redirect_uri(RedirectUrl::new(config.discord_redirect_uri.clone()).expect("invalid DISCORD_REDIRECT_URI"));
+    .set_redirect_uri(
+        RedirectUrl::new(config.discord_redirect_uri.clone())
+            .expect("invalid DISCORD_REDIRECT_URI"),
+    );
 
     let db_pool = db::connect(&config.database_url).await;
 
@@ -73,16 +78,24 @@ async fn main() {
     };
 
     let cors = CorsLayer::new()
-        .allow_origin(config.frontend_url.parse::<axum::http::HeaderValue>().unwrap())
+        .allow_origin(
+            config
+                .frontend_url
+                .parse::<axum::http::HeaderValue>()
+                .unwrap(),
+        )
         .allow_credentials(true)
         .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
         .allow_headers([axum::http::header::CONTENT_TYPE]);
 
     let mut app = Router::new()
-        .route("/auth/osu", get(handlers::osu::login))
-        .route("/auth/osu/callback", get(handlers::osu::callback))
-        .route("/auth/discord/link", get(handlers::discord::link))
-        .route("/auth/discord/callback", get(handlers::discord::callback))
+        .route("/auth/osu", get(handlers::auth::osu_login))
+        .route("/auth/osu/callback", get(handlers::auth::osu_callback))
+        .route("/auth/discord/link", get(handlers::auth::discord_link))
+        .route(
+            "/auth/discord/callback",
+            get(handlers::auth::discord_callback),
+        )
         .route("/auth/logout", post(handlers::user::logout))
         .route("/api/me", get(handlers::user::me))
         .layer(cors)
@@ -95,7 +108,9 @@ async fn main() {
         app = app.fallback_service(ServeDir::new(&config.static_dir).not_found_service(index_file));
     }
 
-    let listener = tokio::net::TcpListener::bind(&config.server_addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(&config.server_addr)
+        .await
+        .unwrap();
     tracing::info!("backend listening on http://{}", config.server_addr);
     axum::serve(listener, app).await.unwrap();
 }
