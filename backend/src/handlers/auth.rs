@@ -6,7 +6,12 @@ use axum_extra::extract::cookie::CookieJar;
 use oauth2::{reqwest::async_http_client, AuthorizationCode, CsrfToken, Scope, TokenResponse};
 use serde::Deserialize;
 
-use crate::{auth, db, discord_api, error::AppError, jwt, osu_api, AppState};
+use crate::{
+    auth::{self, AuthUser},
+    db, discord_api,
+    error::AppError,
+    jwt, osu_api, AppState,
+};
 
 // Both OAuth providers redirect back with the same `?code=&state=` query shape.
 #[derive(Debug, Deserialize)]
@@ -70,15 +75,12 @@ pub async fn osu_callback(
     Ok((jar, Redirect::to(&state.frontend_url)))
 }
 
-// GET /auth/discord/link — starts the optional Discord link flow; requires an osu! session already.
+// GET /auth/discord/link — starts the optional Discord link flow. The AuthUser
+// extractor rejects the request with 401 unless there's already an osu! session.
 pub async fn discord_link(
     State(state): State<AppState>,
-    jar: CookieJar,
+    _user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
-    if auth::current_user_id(&jar, state.jwt_secret.as_bytes()).is_none() {
-        return Err(AppError::Unauthenticated);
-    }
-
     let (auth_url, csrf_token) = state
         .discord_client
         .authorize_url(CsrfToken::new_random)
@@ -95,13 +97,10 @@ pub async fn discord_link(
 // GET /auth/discord/callback — links the Discord profile to the currently logged-in user.
 pub async fn discord_callback(
     State(state): State<AppState>,
-    Query(params): Query<CallbackParams>,
+    user: AuthUser,
     jar: CookieJar,
+    Query(params): Query<CallbackParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let Some(caller) = auth::current_user(&jar, state.jwt_secret.as_bytes()) else {
-        return Err(AppError::Unauthenticated);
-    };
-
     if state
         .csrf_tokens
         .lock()
@@ -122,14 +121,14 @@ pub async fn discord_callback(
     let profile =
         discord_api::user::fetch_current(&state.http_client, token.access_token().secret()).await?;
 
-    db::user::link_discord(&state.db, caller.id, &profile).await?;
+    db::user::link_discord(&state.db, user.id, &profile).await?;
 
     // Re-issue so the linked status takes effect immediately, without waiting for
     // the next /api/me. Role and token_version are unchanged by linking.
     let token = jwt::encode_token(
-        caller.id,
-        caller.role,
-        caller.token_version,
+        user.id,
+        user.role,
+        user.token_version,
         true,
         state.jwt_secret.as_bytes(),
     )?;

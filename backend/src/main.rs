@@ -99,8 +99,8 @@ async fn main() {
         )
         .route("/auth/logout", post(handlers::user::logout))
         .route("/api/me", get(handlers::user::me))
-        .route("/api/users", get(handlers::user::list_users))
-        .route("/api/users/:id/role", post(handlers::user::set_role))
+        .route("/api/users", get(handlers::admin::list_users))
+        .route("/api/users/:id/role", post(handlers::admin::set_role))
         .layer(cors)
         .with_state(state);
 
