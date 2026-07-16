@@ -69,10 +69,10 @@ pub async fn osu_callback(
         user.role,
         user.token_version,
         discord_verified,
-        state.jwt_secret.as_bytes(),
+        state.config.jwt_secret.as_bytes(),
     )?;
-    let jar = jar.add(auth::auth_cookie(token));
-    Ok((jar, Redirect::to(&state.frontend_url)))
+    let jar = jar.add(auth::auth_cookie(token, state.config.secure_cookies()));
+    Ok((jar, Redirect::to(&state.config.frontend_url)))
 }
 
 // GET /auth/discord/link — starts the optional Discord link flow. The AuthUser
@@ -130,8 +130,8 @@ pub async fn discord_callback(
         user.role,
         user.token_version,
         true,
-        state.jwt_secret.as_bytes(),
+        state.config.jwt_secret.as_bytes(),
     )?;
-    let jar = jar.add(auth::auth_cookie(token));
-    Ok((jar, Redirect::to(&state.frontend_url)))
+    let jar = jar.add(auth::auth_cookie(token, state.config.secure_cookies()));
+    Ok((jar, Redirect::to(&state.config.frontend_url)))
 }

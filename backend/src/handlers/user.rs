@@ -36,9 +36,13 @@ pub async fn me(
             profile.osu.role,
             profile.osu.token_version,
             discord_verified,
-            state.jwt_secret.as_bytes(),
+            state.config.jwt_secret.as_bytes(),
         )?;
-        return Ok((jar.add(auth::auth_cookie(token)), Json(profile)).into_response());
+        return Ok((
+            jar.add(auth::auth_cookie(token, state.config.secure_cookies())),
+            Json(profile),
+        )
+            .into_response());
     }
 
     Ok(Json(profile).into_response())

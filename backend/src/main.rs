@@ -34,8 +34,9 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     pub db: PgPool,
     pub csrf_tokens: Arc<Mutex<HashMap<String, ()>>>,
-    pub jwt_secret: Arc<str>,
-    pub frontend_url: String,
+    // Startup configuration (env-derived). Behind an Arc so cloning AppState — which
+    // axum does per request — is a cheap refcount bump rather than copying strings.
+    pub config: Arc<Config>,
     // osu! app access token (client-credentials grant) for public API calls.
     pub osu_app_token: Arc<Mutex<Option<osu_api::token::OsuAppToken>>>,
 }
@@ -45,7 +46,7 @@ async fn main() {
     dotenvy::dotenv().ok();
     tracing_subscriber::fmt::init();
 
-    let config = Config::parse();
+    let config = Arc::new(Config::parse());
 
     let osu_client = BasicClient::new(
         ClientId::new(config.osu_client_id.clone()),
@@ -76,8 +77,7 @@ async fn main() {
         http_client: reqwest::Client::new(),
         db: db_pool,
         csrf_tokens: Arc::new(Mutex::new(HashMap::new())),
-        jwt_secret: Arc::from(config.jwt_secret.as_str()),
-        frontend_url: config.frontend_url.clone(),
+        config: Arc::clone(&config),
         osu_app_token: Arc::new(Mutex::new(None)),
     };
 

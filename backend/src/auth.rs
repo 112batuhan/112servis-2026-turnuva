@@ -31,7 +31,7 @@ impl FromRequestParts<AppState> for AuthUser {
     ) -> Result<Self, Self::Rejection> {
         let jar = CookieJar::from_headers(&parts.headers);
         let cookie = jar.get(AUTH_COOKIE).ok_or(AppError::Unauthenticated)?;
-        let claims = jwt::decode_token(cookie.value(), state.jwt_secret.as_bytes())
+        let claims = jwt::decode_token(cookie.value(), state.config.jwt_secret.as_bytes())
             .map_err(|_| AppError::Unauthenticated)?;
         Ok(AuthUser {
             id: claims.sub,
@@ -65,14 +65,17 @@ impl AuthUser {
 }
 
 // Builds the httpOnly session cookie carrying a signed JWT. Shared by login and
-// the /api/me refresh so the cookie attributes stay in one place.
-pub fn auth_cookie(token: String) -> Cookie<'static> {
+// the /api/me refresh so the cookie attributes stay in one place. `secure` should
+// be true whenever the app is served over HTTPS (see AppState::secure_cookies,
+// derived from FRONTEND_URL's scheme) — browsers silently drop `Secure` cookies
+// set over plain HTTP, so this can't just always be true, and leaving it false in
+// production would let the session cookie travel unencrypted.
+pub fn auth_cookie(token: String, secure: bool) -> Cookie<'static> {
     let mut cookie = Cookie::new(AUTH_COOKIE, token);
     cookie.set_http_only(true);
     cookie.set_path("/");
     cookie.set_same_site(SameSite::Lax);
     cookie.set_max_age(Duration::seconds(jwt::TOKEN_TTL_SECS as i64));
-    // TODO: set_secure(true) once served over HTTPS.
-    cookie.set_secure(false);
+    cookie.set_secure(secure);
     cookie
 }

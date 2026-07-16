@@ -44,3 +44,13 @@ pub struct Config {
     #[arg(long, env = "DISCORD_REDIRECT_URI")]
     pub discord_redirect_uri: String,
 }
+
+impl Config {
+    /// Whether to mark the auth cookie `Secure`. Derived from FRONTEND_URL's scheme:
+    /// true in production (https://...), false for local http:// dev, where a
+    /// `Secure` cookie would be silently dropped by the browser. Kept as a derived
+    /// method so `frontend_url` stays the single source of truth.
+    pub fn secure_cookies(&self) -> bool {
+        self.frontend_url.starts_with("https://")
+    }
+}
