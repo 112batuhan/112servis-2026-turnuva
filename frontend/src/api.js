@@ -39,3 +39,42 @@ export async function updateUserRole(userId, role) {
   if (!res.ok) throw new Error(`Failed to update role (${res.status})`);
   return res.json();
 }
+
+// ---- map pools (map_pooler+) ----
+
+// Shared request helper: sends cookies, throws the server's error text on failure,
+// and returns null for 204 responses.
+async function request(path, options = {}) {
+  const res = await fetch(`${API_URL}${path}`, { credentials: "include", ...options });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Request failed (${res.status})`);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+const jsonBody = (method, data) => ({
+  method,
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(data),
+});
+
+export const fetchStages = () => request("/api/stages");
+export const createStage = (name) => request("/api/stages", jsonBody("POST", { name }));
+export const deleteStage = (id) => request(`/api/stages/${id}`, { method: "DELETE" });
+export const fetchStage = (id) => request(`/api/stages/${id}`);
+
+export const createCategory = (stageId, name, modifier) =>
+  request(`/api/stages/${stageId}/categories`, jsonBody("POST", { name, modifier: modifier || null }));
+export const deleteCategory = (id) => request(`/api/categories/${id}`, { method: "DELETE" });
+
+// Global generic pool (shared across all stages).
+export const addToGenericPool = (beatmapId) => request("/api/pool", jsonBody("POST", { beatmap_id: beatmapId }));
+export const removeFromGenericPool = (beatmapId) => request(`/api/pool/${beatmapId}`, { method: "DELETE" });
+
+// Per-stage categorised placements.
+export const categorize = (stageId, beatmapId, categoryId) =>
+  request(`/api/stages/${stageId}/entries`, jsonBody("POST", { beatmap_id: beatmapId, category_id: categoryId }));
+export const moveEntry = (entryId, categoryId) =>
+  request(`/api/entries/${entryId}`, jsonBody("PATCH", { category_id: categoryId }));
+export const deleteEntry = (entryId) => request(`/api/entries/${entryId}`, { method: "DELETE" });

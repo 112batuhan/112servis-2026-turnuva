@@ -1,10 +1,12 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./AuthContext.jsx";
+import { hasRole } from "./roles.js";
 import NavBar from "./components/NavBar.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
 import DiscordLoginPage from "./pages/DiscordLoginPage.jsx";
 import AdminPage from "./pages/AdminPage.jsx";
+import MapPoolPage from "./pages/MapPoolPage.jsx";
 
 export default function App() {
   const { user, error } = useAuth();
@@ -47,9 +49,17 @@ export default function App() {
           }
         />
         <Route
+          path="/mappool"
+          element={
+            <RequireAuth minRole="map_pooler">
+              <MapPoolPage />
+            </RequireAuth>
+          }
+        />
+        <Route
           path="/admin"
           element={
-            <RequireAuth requireHost>
+            <RequireAuth minRole="host">
               <AdminPage />
             </RequireAuth>
           }
@@ -60,11 +70,11 @@ export default function App() {
   );
 }
 
-// Redirects to the osu! login page when signed out, and home when a non-host
-// tries to reach a host-only route.
-function RequireAuth({ children, requireHost }) {
+// Redirects to the osu! login page when signed out, and home when the user's role
+// is below `minRole` for a gated route.
+function RequireAuth({ children, minRole }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  if (requireHost && user.role !== "host") return <Navigate to="/" replace />;
+  if (minRole && !hasRole(user, minRole)) return <Navigate to="/" replace />;
   return children;
 }

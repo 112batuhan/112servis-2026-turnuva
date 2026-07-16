@@ -9,7 +9,7 @@ mod osu_api;
 mod role;
 
 use axum::{
-    routing::{get, post},
+    routing::{delete, get, patch, post},
     Router,
 };
 use clap::Parser;
@@ -36,6 +36,8 @@ pub struct AppState {
     pub csrf_tokens: Arc<Mutex<HashMap<String, ()>>>,
     pub jwt_secret: Arc<str>,
     pub frontend_url: String,
+    // osu! app access token (client-credentials grant) for public API calls.
+    pub osu_app_token: Arc<Mutex<Option<osu_api::token::OsuAppToken>>>,
 }
 
 #[tokio::main]
@@ -76,6 +78,7 @@ async fn main() {
         csrf_tokens: Arc::new(Mutex::new(HashMap::new())),
         jwt_secret: Arc::from(config.jwt_secret.as_str()),
         frontend_url: config.frontend_url.clone(),
+        osu_app_token: Arc::new(Mutex::new(None)),
     };
 
     let cors = CorsLayer::new()
@@ -86,7 +89,12 @@ async fn main() {
                 .unwrap(),
         )
         .allow_credentials(true)
-        .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::PATCH,
+            axum::http::Method::DELETE,
+        ])
         .allow_headers([axum::http::header::CONTENT_TYPE]);
 
     let mut app = Router::new()
@@ -101,6 +109,38 @@ async fn main() {
         .route("/api/me", get(handlers::user::me))
         .route("/api/users", get(handlers::admin::list_users))
         .route("/api/users/:id/role", post(handlers::admin::set_role))
+        // Map pools (map_pooler+).
+        .route(
+            "/api/stages",
+            get(handlers::mappool::list_stages).post(handlers::mappool::create_stage),
+        )
+        .route(
+            "/api/stages/:id",
+            get(handlers::mappool::get_stage).delete(handlers::mappool::delete_stage),
+        )
+        .route(
+            "/api/stages/:id/categories",
+            post(handlers::mappool::create_category),
+        )
+        .route(
+            "/api/categories/:id",
+            delete(handlers::mappool::delete_category),
+        )
+        // Global generic pool (shared library).
+        .route("/api/pool", post(handlers::mappool::add_to_generic))
+        .route(
+            "/api/pool/:beatmap_id",
+            delete(handlers::mappool::remove_from_generic),
+        )
+        // Per-stage categorised placements.
+        .route(
+            "/api/stages/:id/entries",
+            post(handlers::mappool::add_entry),
+        )
+        .route(
+            "/api/entries/:id",
+            patch(handlers::mappool::move_entry).delete(handlers::mappool::delete_entry),
+        )
         .layer(cors)
         .with_state(state);
 

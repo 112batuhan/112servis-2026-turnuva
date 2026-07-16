@@ -1,12 +1,14 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
+import { hasRole } from "../roles.js";
 import { logout as apiLogout } from "../api.js";
 
 export default function NavBar() {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
 
-  const isHost = user.role === "host";
+  const isHost = hasRole(user, "host");
+  const canPool = hasRole(user, "map_pooler");
   const discordLinked = Boolean(user.discord);
 
   async function handleLogout() {
@@ -26,6 +28,11 @@ export default function NavBar() {
         <NavLink to="/" end className={linkClass}>
           Home
         </NavLink>
+        {canPool && (
+          <NavLink to="/mappool" className={linkClass}>
+            Map Pool
+          </NavLink>
+        )}
         {isHost && (
           <NavLink to="/admin" className={linkClass}>
             Admin

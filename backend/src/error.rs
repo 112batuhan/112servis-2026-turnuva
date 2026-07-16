@@ -38,6 +38,21 @@ pub enum AppError {
     #[error("could not read Discord profile")]
     DiscordProfileDecode(#[source] reqwest::Error),
 
+    #[error("not found")]
+    NotFound,
+
+    #[error("{0}")]
+    BadRequest(&'static str),
+
+    #[error("beatmap {0} not found")]
+    BeatmapNotFound(i64),
+
+    #[error("could not reach osu! API")]
+    OsuApiRequest(#[source] reqwest::Error),
+
+    #[error("could not read osu! API response")]
+    OsuApiDecode(#[source] reqwest::Error),
+
     #[error("database error")]
     Database(#[from] sqlx::Error),
 
@@ -66,6 +81,13 @@ impl IntoResponse for AppError {
             | AppError::DiscordProfileDecode(_) => {
                 (StatusCode::BAD_GATEWAY, "could not link Discord")
             }
+            AppError::NotFound => (StatusCode::NOT_FOUND, "not found"),
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
+            AppError::BeatmapNotFound(_) => (StatusCode::NOT_FOUND, "beatmap not found"),
+            AppError::OsuApiRequest(_) => (StatusCode::BAD_GATEWAY, "could not reach osu! API"),
+            AppError::OsuApiDecode(_) => {
+                (StatusCode::BAD_GATEWAY, "could not read osu! API response")
+            }
             AppError::Database(_) | AppError::Jwt(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
             }
@@ -78,4 +100,18 @@ impl IntoResponse for AppError {
 
         (status, message).into_response()
     }
+}
+
+// Formats an error together with its full source chain. Useful for otherwise
+// opaque transport failures like oauth2's "Request failed", whose real cause
+// (connection reset, DNS, TLS, ...) is only in the source.
+pub fn chain(err: &dyn std::error::Error) -> String {
+    let mut out = err.to_string();
+    let mut source = err.source();
+    while let Some(e) = source {
+        out.push_str(": ");
+        out.push_str(&e.to_string());
+        source = e.source();
+    }
+    out
 }

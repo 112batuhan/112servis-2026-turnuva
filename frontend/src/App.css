@@ -358,3 +358,275 @@ a.discord-btn {
   background: var(--card-bg);
   color: var(--text);
 }
+
+/* ---- map pool page ---- */
+.mappool {
+  max-width: 1200px;
+}
+
+.mappool h1 {
+  margin-bottom: 16px;
+}
+
+.stage-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.stage-tab {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #3a3c44;
+  background: var(--card-bg);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.stage-tab:hover {
+  color: var(--text);
+}
+
+.stage-tab-active {
+  color: var(--text);
+  border-color: var(--osu-pink);
+}
+
+.stage-new {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.stage-new input,
+.cat-form input,
+.cat-form select,
+.add-map input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid #44464e;
+  border-radius: 8px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.stage-new button,
+.cat-form button,
+.add-map button {
+  background: var(--osu-pink);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.stage-new button:disabled,
+.cat-form button:disabled,
+.add-map button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.mappool-settings {
+  margin-bottom: 20px;
+}
+
+.mappool-settings h2 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.cat-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.cat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+}
+
+.cat-chip button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.cat-chip button:hover {
+  color: var(--error);
+}
+
+.danger-btn {
+  background: transparent;
+  border: 1px solid #5a3a3a;
+  color: var(--error);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.danger-btn:hover {
+  background: rgba(242, 139, 130, 0.1);
+}
+
+.pool-board {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pool-section {
+  background: var(--card-bg);
+  border: 1px solid #3a3c44;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.pool-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.pool-section-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.mod-badge {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 102, 171, 0.18);
+  color: var(--osu-pink);
+}
+
+.map-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.add-map {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  max-width: 360px;
+}
+
+.add-map input {
+  flex: 1;
+  min-width: 0;
+}
+
+.map-card {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid #34363e;
+  border-radius: 8px;
+  padding: 8px;
+  cursor: grab;
+}
+
+.map-card:active {
+  cursor: grabbing;
+}
+
+.map-cover {
+  width: 48px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.map-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.map-title {
+  display: block;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.map-title:hover {
+  color: var(--osu-pink);
+}
+
+.map-sub {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.map-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.map-remove {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  align-self: flex-start;
+}
+
+.map-remove:hover {
+  color: var(--error);
+}
+
+.small {
+  font-size: 12px;
+}
+
+.stat {
+  white-space: nowrap;
+}
+
+/* A stat changed by the category's modifier (e.g. AR/OD/BPM under DT). */
+.stat-mod {
+  color: var(--osu-pink);
+  font-weight: 700;
+}
