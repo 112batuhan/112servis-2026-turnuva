@@ -220,6 +220,38 @@
   margin-bottom: 12px;
 }
 
+/* Category headers toggle their slots on click. */
+.pool-section-head-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Collapsed: hide the section body and drop the header's trailing gap. Explicit rules
+   are needed because these bodies are display:flex, which beats the UA [hidden] rule. */
+.pool-section.is-collapsed .pool-section-head {
+  margin-bottom: 0;
+}
+
+.pool-section.is-collapsed .slot-grid,
+.pool-section.is-collapsed .map-list,
+.pool-section.is-collapsed .add-map {
+  display: none;
+}
+
+/* Sits at the far right of the header (margin-left: auto). */
+.caret {
+  display: inline-block;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.pool-section.is-collapsed .caret {
+  transform: rotate(-90deg);
+}
+
 .pool-section-title {
   font-weight: 700;
   font-size: 15px;
@@ -245,6 +277,7 @@
 
 /* ---- category slots ---- */
 .slot-add {
+  margin-left: auto;
   background: transparent;
   border: 1px solid #44464e;
   color: var(--muted);

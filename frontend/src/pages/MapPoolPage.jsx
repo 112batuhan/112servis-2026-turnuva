@@ -17,6 +17,10 @@ import {
 } from "../api.js";
 import MapCard from "../components/MapCard.jsx";
 import EditableNote from "../components/EditableNote.jsx";
+import { useCollapsed } from "../useCollapsed.js";
+
+// Stable key for the generic pool section in the collapse set (categories use their id).
+const GENERIC_POOL = "generic-pool";
 
 const MODIFIERS = ["", "HD", "HR", "DT", "HT", "EZ", "FL", "HDHR", "HDDT"];
 
@@ -36,6 +40,7 @@ export default function MapPoolPage() {
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [collapsed, toggleCollapsed] = useCollapsed("mappool-collapsed");
 
   const [newStage, setNewStage] = useState("");
   const [mapId, setMapId] = useState("");
@@ -261,60 +266,89 @@ export default function MapPoolPage() {
           </div>
 
           <div className="pool-board">
-            <section className="pool-section" onDrop={onDrop(null)} onDragOver={allowDrop}>
-              <div className="pool-section-head">
-                <span className="pool-section-title">Generic pool</span>
-                <span className="muted small">add maps by id + mods, then drag them into a category</span>
-              </div>
-              <form className="add-map" onSubmit={handleAddMap}>
-                <input
-                  value={mapId}
-                  onChange={(e) => setMapId(e.target.value)}
-                  placeholder="Beatmap id…"
-                  inputMode="numeric"
-                />
-                <select value={mapMods} onChange={(e) => setMapMods(e.target.value)}>
-                  {MODIFIERS.map((m) => (
-                    <option key={m} value={m}>
-                      {m === "" ? "NoMod" : m}
-                    </option>
-                  ))}
-                </select>
-                <button type="submit" disabled={busy}>
-                  Add map
-                </button>
-              </form>
-              <div className="map-list">
-                {generic.map((m) => (
-                  <MapCard
-                    key={m.id}
-                    bm={m}
-                    drag={{ mapId: m.id }}
-                    onSaveNote={(field, value) => handleSaveMapNote(m.id, field, value)}
-                    onRemove={() => run(async () => {
-                      await deleteMap(m.id);
-                      await reload();
-                    })}
-                  />
-                ))}
-                {generic.length === 0 && <p className="muted small">No maps in the generic pool.</p>}
-              </div>
-            </section>
+            {(() => {
+              const isCollapsed = collapsed.has(GENERIC_POOL);
+              return (
+                <section
+                  className={`pool-section ${isCollapsed ? "is-collapsed" : ""}`}
+                  onDrop={onDrop(null)}
+                  onDragOver={allowDrop}
+                >
+                  <div
+                    className="pool-section-head pool-section-head-toggle"
+                    onClick={() => toggleCollapsed(GENERIC_POOL)}
+                  >
+                    <span className="pool-section-title">Generic pool</span>
+                    <span className="muted small">add maps by id + mods, then drag them into a category</span>
+                    <span className="caret" aria-hidden="true">
+                      ▾
+                    </span>
+                  </div>
+                  <form className="add-map" onSubmit={handleAddMap} hidden={isCollapsed}>
+                    <input
+                      value={mapId}
+                      onChange={(e) => setMapId(e.target.value)}
+                      placeholder="Beatmap id…"
+                      inputMode="numeric"
+                    />
+                    <select value={mapMods} onChange={(e) => setMapMods(e.target.value)}>
+                      {MODIFIERS.map((m) => (
+                        <option key={m} value={m}>
+                          {m === "" ? "NoMod" : m}
+                        </option>
+                      ))}
+                    </select>
+                    <button type="submit" disabled={busy}>
+                      Add map
+                    </button>
+                  </form>
+                  <div className="map-list" hidden={isCollapsed}>
+                    {generic.map((m) => (
+                      <MapCard
+                        key={m.id}
+                        bm={m}
+                        drag={{ mapId: m.id }}
+                        onSaveNote={(field, value) => handleSaveMapNote(m.id, field, value)}
+                        onRemove={() => run(async () => {
+                          await deleteMap(m.id);
+                          await reload();
+                        })}
+                      />
+                    ))}
+                    {generic.length === 0 && <p className="muted small">No maps in the generic pool.</p>}
+                  </div>
+                </section>
+              );
+            })()}
 
             {categories.map((c) => {
               const catSlots = slots.filter((s) => s.category_id === c.id);
+              const isCollapsed = collapsed.has(c.id);
               return (
-                <section key={c.id} className="pool-section">
-                  <div className="pool-section-head">
+                <section key={c.id} className={`pool-section ${isCollapsed ? "is-collapsed" : ""}`}>
+                  <div
+                    className="pool-section-head pool-section-head-toggle"
+                    onClick={() => toggleCollapsed(c.id)}
+                  >
                     <span className="pool-section-title">{c.name}</span>
                     <span className="muted small">
                       {catSlots.length} slot{catSlots.length === 1 ? "" : "s"}
                     </span>
-                    <button className="slot-add" onClick={() => handleAddSlot(c.id)} disabled={busy}>
+                    <button
+                      className="slot-add"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAddSlot(c.id);
+                      }}
+                      disabled={busy}
+                    >
                       + slot
                     </button>
+                    <span className="caret" aria-hidden="true">
+                      ▾
+                    </span>
                   </div>
-                  <div className="slot-grid">
+                  <div className="slot-grid" hidden={isCollapsed}>
                     {catSlots.length === 0 && <p className="muted small">Add slots to hold maps.</p>}
                     {catSlots.map((slot, i) => {
                       const slotMap = maps.find((m) => m.slot_id === slot.id);
