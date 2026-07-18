@@ -17,7 +17,12 @@ export default function MapCard({ bm, drag, onRemove, onSaveNote }) {
       draggable={Boolean(drag) && dragOn}
       onDragStart={drag ? (e) => e.dataTransfer.setData("text/plain", JSON.stringify(drag)) : undefined}
     >
-      {bm.cover_url && <img className="map-cover" src={bm.cover_url} alt="" />}
+      {bm.cover_url && (
+        <div className="map-cover-wrap">
+          <img className="map-cover" src={bm.cover_url} alt="" />
+          <img className="map-cover-zoom" src={bm.cover_url} alt="" loading="lazy" />
+        </div>
+      )}
       <div className="map-body">
         <a
           className="map-title"

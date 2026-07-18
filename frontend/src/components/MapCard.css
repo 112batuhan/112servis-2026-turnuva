@@ -18,12 +18,42 @@
   cursor: grabbing;
 }
 
+.map-cover-wrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .map-cover {
+  display: block;
   width: 48px;
   height: 34px;
   object-fit: cover;
   border-radius: 4px;
-  flex-shrink: 0;
+}
+
+/* Enlarged preview that grows in like a tooltip when the thumbnail is hovered. */
+.map-cover-zoom {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  z-index: 60;
+  width: 360px;
+  max-width: 60vw;
+  height: auto;
+  border-radius: 6px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.55);
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.6);
+  transform-origin: bottom left;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  pointer-events: none;
+}
+
+.map-cover-wrap:hover .map-cover-zoom {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
 }
 
 .map-body {
