@@ -2,6 +2,7 @@
 //!
 //! One submodule per endpoint group; functions take `&reqwest::Client` + a bearer
 //! token and surface failures as `crate::error::AppError`.
+pub mod attributes;
 pub mod beatmap;
 pub mod token;
 pub mod user;

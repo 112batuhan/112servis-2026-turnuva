@@ -516,15 +516,6 @@ a.discord-btn {
   font-size: 15px;
 }
 
-.mod-badge {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(255, 102, 171, 0.18);
-  color: var(--osu-pink);
-}
-
 .map-list {
   display: flex;
   flex-direction: column;

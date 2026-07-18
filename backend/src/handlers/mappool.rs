@@ -21,10 +21,8 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/stages/:id/categories", post(create_category))
         .route("/categories/:id", delete(delete_category))
-        .route("/pool", post(add_to_generic))
-        .route("/pool/:beatmap_id", delete(remove_from_generic))
-        .route("/stages/:id/entries", post(add_entry))
-        .route("/entries/:id", patch(move_entry).delete(delete_entry))
+        .route("/pool", post(add_map))
+        .route("/maps/:id", patch(move_map).delete(delete_map))
         .route("/public/stages", get(list_public_stages))
         .route("/public/stages/:id", get(get_public_stage))
 }
@@ -34,7 +32,8 @@ fn guard(user: &AuthUser) -> Result<(), AppError> {
     user.require_role(Role::MapPooler)
 }
 
-// GET /api/stages — the list of stages (for the stage selector).
+// ---------- stages ----------
+
 pub async fn list_stages(
     State(state): State<AppState>,
     user: AuthUser,
@@ -48,7 +47,6 @@ pub struct CreateStageBody {
     name: String,
 }
 
-// POST /api/stages — create a new stage.
 pub async fn create_stage(
     State(state): State<AppState>,
     user: AuthUser,
@@ -62,8 +60,8 @@ pub async fn create_stage(
     Ok(Json(db::mappool::create_stage(&state.db, name).await?))
 }
 
-// GET /api/stages/:id — a stage with its categories, categorised entries, and the
-// shared generic pool (minus maps already categorised in this stage).
+// GET /api/stages/:id — a stage with its categories and every relevant map (the
+// global generic pool plus this stage's categorised maps).
 pub async fn get_stage(
     State(state): State<AppState>,
     user: AuthUser,
@@ -74,17 +72,14 @@ pub async fn get_stage(
         .await?
         .ok_or(AppError::NotFound)?;
     let categories = db::mappool::list_categories(&state.db, id).await?;
-    let entries = db::mappool::list_entries(&state.db, id).await?;
-    let generic = db::mappool::list_generic(&state.db).await?;
+    let maps = db::mappool::list_stage_maps(&state.db, id).await?;
     Ok(Json(db::mappool::StageDetail {
         stage,
         categories,
-        entries,
-        generic,
+        maps,
     }))
 }
 
-// DELETE /api/stages/:id
 pub async fn delete_stage(
     State(state): State<AppState>,
     user: AuthUser,
@@ -100,7 +95,6 @@ pub struct SetPublishedBody {
     published: bool,
 }
 
-// PATCH /api/stages/:id — publish or unpublish a stage.
 pub async fn set_published(
     State(state): State<AppState>,
     user: AuthUser,
@@ -113,14 +107,13 @@ pub async fn set_published(
     ))
 }
 
+// ---------- categories ----------
+
 #[derive(Debug, Deserialize)]
 pub struct CreateCategoryBody {
     name: String,
-    #[serde(default)]
-    modifier: Option<String>,
 }
 
-// POST /api/stages/:id/categories — add a mod category to a stage.
 pub async fn create_category(
     State(state): State<AppState>,
     user: AuthUser,
@@ -132,17 +125,11 @@ pub async fn create_category(
     if name.is_empty() {
         return Err(AppError::BadRequest("category name is required"));
     }
-    let modifier = body
-        .modifier
-        .as_deref()
-        .map(str::trim)
-        .filter(|m| !m.is_empty());
     Ok(Json(
-        db::mappool::create_category(&state.db, stage_id, name, modifier).await?,
+        db::mappool::create_category(&state.db, stage_id, name).await?,
     ))
 }
 
-// DELETE /api/categories/:id
 pub async fn delete_category(
     State(state): State<AppState>,
     user: AuthUser,
@@ -153,19 +140,64 @@ pub async fn delete_category(
     Ok(StatusCode::NO_CONTENT)
 }
 
-#[derive(Debug, Deserialize)]
-pub struct AddBeatmapBody {
-    beatmap_id: i64,
+// ---------- pool maps ----------
+
+// Resolves a beatmap's firm mod stats: star rating / AR / OD from the osu! API's
+// difficulty attributes (skipped for nomod), and CS / HP / BPM / length computed
+// deterministically. Locked onto the map at add time — never recomputed afterwards.
+async fn resolve_stats(
+    state: &AppState,
+    beatmap: &db::mappool::Beatmap,
+    mods: &str,
+) -> Result<db::mappool::ModStats, AppError> {
+    let parsed = crate::mods::parse(mods);
+
+    let cs = crate::mods::modded_cs(beatmap.cs, &parsed);
+    let hp = crate::mods::modded_hp(beatmap.hp, &parsed);
+    let rate = crate::mods::rate(&parsed);
+    let bpm = beatmap.bpm * rate;
+    let total_length = (beatmap.total_length as f64 / rate).round() as i32;
+
+    let (star_rating, ar, od) = if parsed.is_empty() {
+        (beatmap.star_rating, beatmap.ar, beatmap.od)
+    } else {
+        let token = osu_api::token::app_token(&state.osu_client, &state.osu_app_token).await?;
+        let attr =
+            osu_api::attributes::fetch(&state.http_client, &token, beatmap.id, &parsed).await?;
+        (
+            attr.star_rating,
+            attr.approach_rate.unwrap_or(beatmap.ar),
+            attr.overall_difficulty.unwrap_or(beatmap.od),
+        )
+    };
+
+    Ok(db::mappool::ModStats {
+        star_rating,
+        ar,
+        od,
+        cs,
+        hp,
+        bpm,
+        total_length,
+    })
 }
 
-// POST /api/pool — add a beatmap (by osu! id) to the global generic pool. The
-// beatmap is fetched from the osu! API and cached before being added to the library.
-pub async fn add_to_generic(
+#[derive(Debug, Deserialize)]
+pub struct AddMapBody {
+    beatmap_id: i64,
+    #[serde(default)]
+    mods: String,
+}
+
+// POST /api/pool — add a map (beatmap id + mods) to the generic pool. The beatmap is
+// fetched from the osu! API and cached, and its mod stats are resolved and locked in.
+pub async fn add_map(
     State(state): State<AppState>,
     user: AuthUser,
-    Json(body): Json<AddBeatmapBody>,
+    Json(body): Json<AddMapBody>,
 ) -> Result<impl IntoResponse, AppError> {
     guard(&user)?;
+    let mods = body.mods.trim().to_uppercase();
 
     let token = osu_api::token::app_token(&state.osu_client, &state.osu_app_token).await?;
     let bm = osu_api::beatmap::fetch(&state.http_client, &token, body.beatmap_id).await?;
@@ -189,92 +221,61 @@ pub async fn add_to_generic(
         cover_url: set.and_then(|s| s.covers.cover.clone()),
     };
     db::mappool::upsert_beatmap(&state.db, &new).await?;
-    db::mappool::add_to_generic(&state.db, bm.id, user.id).await?;
-    Ok(StatusCode::NO_CONTENT)
-}
 
-// DELETE /api/pool/:beatmap_id — remove a beatmap from the library and every stage.
-pub async fn remove_from_generic(
-    State(state): State<AppState>,
-    user: AuthUser,
-    Path(beatmap_id): Path<i64>,
-) -> Result<impl IntoResponse, AppError> {
-    guard(&user)?;
-    db::mappool::remove_from_generic(&state.db, beatmap_id).await?;
-    Ok(StatusCode::NO_CONTENT)
-}
-
-#[derive(Debug, Deserialize)]
-pub struct AddEntryBody {
-    beatmap_id: i64,
-    category_id: Uuid,
-}
-
-// POST /api/stages/:id/entries — categorise a library map into a stage category.
-pub async fn add_entry(
-    State(state): State<AppState>,
-    user: AuthUser,
-    Path(stage_id): Path<Uuid>,
-    Json(body): Json<AddEntryBody>,
-) -> Result<impl IntoResponse, AppError> {
-    guard(&user)?;
-    let entry_id = db::mappool::add_entry(
-        &state.db,
-        stage_id,
-        body.beatmap_id,
-        body.category_id,
-        user.id,
-    )
-    .await?;
-    let entry = db::mappool::get_entry(&state.db, entry_id)
+    let beatmap = db::mappool::get_beatmap(&state.db, bm.id)
         .await?
         .ok_or(AppError::NotFound)?;
-    Ok(Json(entry))
+    let stats = resolve_stats(&state, &beatmap, &mods).await?;
+
+    let id = db::mappool::add_pool_map(&state.db, bm.id, &mods, &stats, user.id).await?;
+    let map = db::mappool::get_pool_map(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    Ok(Json(map))
 }
 
 #[derive(Debug, Deserialize)]
-pub struct MoveEntryBody {
-    category_id: Uuid,
+pub struct MoveMapBody {
+    // Target category, or null/absent for the generic pool.
+    #[serde(default)]
+    category_id: Option<Uuid>,
 }
 
-// PATCH /api/entries/:id — move an entry to another category.
-pub async fn move_entry(
+// PATCH /api/maps/:id — move a map into a category or back to the generic pool. Stats
+// and mods are locked, so nothing about them changes.
+pub async fn move_map(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
-    Json(body): Json<MoveEntryBody>,
+    Json(body): Json<MoveMapBody>,
 ) -> Result<impl IntoResponse, AppError> {
     guard(&user)?;
-    db::mappool::move_entry(&state.db, id, body.category_id).await?;
-    let entry = db::mappool::get_entry(&state.db, id)
+    db::mappool::move_pool_map(&state.db, id, body.category_id).await?;
+    let map = db::mappool::get_pool_map(&state.db, id)
         .await?
         .ok_or(AppError::NotFound)?;
-    Ok(Json(entry))
+    Ok(Json(map))
 }
 
-// DELETE /api/entries/:id — uncategorise (send the map back to the generic pool).
-pub async fn delete_entry(
+// DELETE /api/maps/:id — remove a map from the pool entirely.
+pub async fn delete_map(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     guard(&user)?;
-    db::mappool::delete_entry(&state.db, id).await?;
+    db::mappool::delete_pool_map(&state.db, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
-// ---- public (unauthenticated) — published stages only ----
-// These take no AuthUser, so they run for anyone, and only ever expose stages that
-// have been published.
+// ---------- public (unauthenticated) — published stages only ----------
 
-// GET /api/public/stages — published stages (for the public stage selector).
 pub async fn list_public_stages(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
     Ok(Json(db::mappool::list_published_stages(&state.db).await?))
 }
 
-// GET /api/public/stages/:id — a published stage's categories and their maps.
 pub async fn get_public_stage(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
@@ -283,10 +284,10 @@ pub async fn get_public_stage(
         .await?
         .ok_or(AppError::NotFound)?;
     let categories = db::mappool::list_categories(&state.db, id).await?;
-    let entries = db::mappool::list_entries(&state.db, id).await?;
+    let maps = db::mappool::list_public_maps(&state.db, id).await?;
     Ok(Json(db::mappool::PublicStageDetail {
         stage,
         categories,
-        entries,
+        maps,
     }))
 }

@@ -1,13 +1,8 @@
-import { applyMods, formatLength } from "../utils/mods.js";
-
 // A single beatmap card, shared by the map pool editor and the public pool page.
-// Interactive bits are opt-in: pass `drag` to make it draggable, `onRemove` to show
-// a remove button. With neither, it renders as a static, read-only card.
-export default function MapCard({ bm, modifier, drag, onRemove }) {
-  const s = modifier ? applyMods(bm, modifier) : bm;
-  const changed = (a, b) => modifier && Math.abs(a - b) > 0.05;
-  const statClass = (a, b) => (changed(a, b) ? "stat stat-mod" : "stat");
-
+// Stats are firm — already mod-adjusted for placed entries, nomod for generic-pool
+// maps — so the card just displays them (no client-side mod math). Interactive bits
+// are opt-in: pass `drag` to make it draggable, `onRemove` to show a remove button.
+export default function MapCard({ bm, drag, onRemove }) {
   return (
     <div
       className="map-card"
@@ -28,13 +23,14 @@ export default function MapCard({ bm, modifier, drag, onRemove }) {
           [{bm.version}]{bm.creator ? ` · ${bm.creator}` : ""}
         </div>
         <div className="map-stats">
+          {bm.mods && <span className="stat stat-mod">{bm.mods}</span>}
           <span className="stat">★{bm.star_rating.toFixed(2)}</span>
-          <span className={statClass(s.bpm, bm.bpm)}>{Math.round(s.bpm)} bpm</span>
-          <span className={statClass(s.total_length, bm.total_length)}>{formatLength(s.total_length)}</span>
-          <span className={statClass(s.cs, bm.cs)}>CS {s.cs.toFixed(1)}</span>
-          <span className={statClass(s.ar, bm.ar)}>AR {s.ar.toFixed(1)}</span>
-          <span className={statClass(s.od, bm.od)}>OD {s.od.toFixed(1)}</span>
-          <span className={statClass(s.hp, bm.hp)}>HP {s.hp.toFixed(1)}</span>
+          <span className="stat">{Math.round(bm.bpm)} bpm</span>
+          <span className="stat">{formatLength(bm.total_length)}</span>
+          <span className="stat">CS {bm.cs.toFixed(1)}</span>
+          <span className="stat">AR {bm.ar.toFixed(1)}</span>
+          <span className="stat">OD {bm.od.toFixed(1)}</span>
+          <span className="stat">HP {bm.hp.toFixed(1)}</span>
         </div>
       </div>
       {onRemove && (
@@ -44,4 +40,10 @@ export default function MapCard({ bm, modifier, drag, onRemove }) {
       )}
     </div>
   );
+}
+
+function formatLength(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }

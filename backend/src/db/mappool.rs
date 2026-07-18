@@ -17,41 +17,24 @@ pub struct Stage {
     pub updated_at: OffsetDateTime,
 }
 
+// A category is just a named group now — mods live on the maps, not the category.
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct Category {
     pub id: Uuid,
     pub stage_id: Uuid,
     pub name: String,
-    pub modifier: Option<String>,
     pub position: i32,
 }
 
-// A beatmap in the global generic pool (the shared library, no stage/category).
+// A map in the pool: a beatmap locked to a mod combination with the stats it had when
+// added. `category_id` NULL means it's in the (global) generic pool; otherwise it's in
+// that category. Metadata (title, artist, ...) is joined from the cached beatmap.
 #[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct GenericEntry {
-    pub beatmap_id: i64,
-    pub beatmapset_id: i64,
-    pub artist: String,
-    pub title: String,
-    pub version: String,
-    pub creator: Option<String>,
-    pub star_rating: f64,
-    pub bpm: f64,
-    pub total_length: i32,
-    pub cs: f64,
-    pub ar: f64,
-    pub od: f64,
-    pub hp: f64,
-    pub mode: String,
-    pub cover_url: Option<String>,
-}
-
-// A categorised placement of a beatmap within one stage, joined with its beatmap.
-#[derive(Debug, Serialize, sqlx::FromRow)]
-pub struct PoolEntry {
+pub struct PoolMap {
     pub id: Uuid,
-    pub category_id: Uuid,
+    pub category_id: Option<Uuid>,
     pub position: i32,
+    pub mods: String,
     pub beatmap_id: i64,
     pub beatmapset_id: i64,
     pub artist: String,
@@ -69,15 +52,38 @@ pub struct PoolEntry {
     pub cover_url: Option<String>,
 }
 
-// Everything the map pool page needs for one stage: its categories, the categorised
-// entries, and the shared generic pool minus whatever is already categorised here.
+// The mod-adjusted stats locked onto a map when it's added to the pool.
+pub struct ModStats {
+    pub star_rating: f64,
+    pub ar: f64,
+    pub od: f64,
+    pub cs: f64,
+    pub hp: f64,
+    pub bpm: f64,
+    pub total_length: i32,
+}
+
+// A beatmap's cached nomod stats, used to compute mod-adjusted CS/HP/BPM/length.
+#[derive(Debug, sqlx::FromRow)]
+pub struct Beatmap {
+    pub id: i64,
+    pub star_rating: f64,
+    pub bpm: f64,
+    pub total_length: i32,
+    pub cs: f64,
+    pub ar: f64,
+    pub od: f64,
+    pub hp: f64,
+}
+
+// Everything the editor needs for one stage: its categories, plus every relevant map
+// (the global generic pool + this stage's categorised maps).
 #[derive(Debug, Serialize)]
 pub struct StageDetail {
     #[serde(flatten)]
     pub stage: Stage,
     pub categories: Vec<Category>,
-    pub entries: Vec<PoolEntry>,
-    pub generic: Vec<GenericEntry>,
+    pub maps: Vec<PoolMap>,
 }
 
 // Read-only view of a published stage for the public page: categories + their maps,
@@ -87,7 +93,7 @@ pub struct PublicStageDetail {
     #[serde(flatten)]
     pub stage: Stage,
     pub categories: Vec<Category>,
-    pub entries: Vec<PoolEntry>,
+    pub maps: Vec<PoolMap>,
 }
 
 // Beatmap fields to cache, mapped from an osu! API response by the handler.
@@ -156,14 +162,12 @@ pub async fn set_published(pool: &PgPool, id: Uuid, published: bool) -> sqlx::Re
     .await
 }
 
-// Published stages only (for the public page).
 pub async fn list_published_stages(pool: &PgPool) -> sqlx::Result<Vec<Stage>> {
     sqlx::query_as::<_, Stage>("SELECT * FROM stages WHERE published ORDER BY position, created_at")
         .fetch_all(pool)
         .await
 }
 
-// A single stage, only if it's published.
 pub async fn get_published_stage(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<Stage>> {
     sqlx::query_as::<_, Stage>("SELECT * FROM stages WHERE id = $1 AND published")
         .bind(id)
@@ -175,40 +179,30 @@ pub async fn get_published_stage(pool: &PgPool, id: Uuid) -> sqlx::Result<Option
 
 pub async fn list_categories(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<Category>> {
     sqlx::query_as::<_, Category>(
-        "SELECT id, stage_id, name, modifier, position FROM stage_categories WHERE stage_id = $1 ORDER BY position, created_at",
+        "SELECT id, stage_id, name, position FROM stage_categories WHERE stage_id = $1 ORDER BY position, created_at",
     )
     .bind(stage_id)
     .fetch_all(pool)
     .await
 }
 
-pub async fn create_category(
-    pool: &PgPool,
-    stage_id: Uuid,
-    name: &str,
-    modifier: Option<&str>,
-) -> sqlx::Result<Category> {
+pub async fn create_category(pool: &PgPool, stage_id: Uuid, name: &str) -> sqlx::Result<Category> {
     sqlx::query_as::<_, Category>(
         r#"
-        INSERT INTO stage_categories (stage_id, name, modifier, position)
-        VALUES ($1, $2, $3, (SELECT COALESCE(MAX(position), -1) + 1 FROM stage_categories WHERE stage_id = $1))
-        RETURNING id, stage_id, name, modifier, position
+        INSERT INTO stage_categories (stage_id, name, position)
+        VALUES ($1, $2, (SELECT COALESCE(MAX(position), -1) + 1 FROM stage_categories WHERE stage_id = $1))
+        RETURNING id, stage_id, name, position
         "#,
     )
     .bind(stage_id)
     .bind(name)
-    .bind(modifier)
     .fetch_one(pool)
     .await
 }
 
-// Deletes a category; its entries return to the generic pool (their maps are still
-// in the global library, just no longer categorised in this stage).
+// Deletes a category. Its maps fall back to the generic pool via the ON DELETE SET
+// NULL foreign key, so they aren't lost.
 pub async fn delete_category(pool: &PgPool, id: Uuid) -> sqlx::Result<()> {
-    sqlx::query("DELETE FROM pool_entries WHERE category_id = $1")
-        .bind(id)
-        .execute(pool)
-        .await?;
     sqlx::query("DELETE FROM stage_categories WHERE id = $1")
         .bind(id)
         .execute(pool)
@@ -252,129 +246,115 @@ pub async fn upsert_beatmap(pool: &PgPool, b: &NewBeatmap) -> sqlx::Result<()> {
     Ok(())
 }
 
-// ---------- generic pool (global library) ----------
+// The cached nomod stats for a beatmap (for computing mod-adjusted stats).
+pub async fn get_beatmap(pool: &PgPool, id: i64) -> sqlx::Result<Option<Beatmap>> {
+    sqlx::query_as::<_, Beatmap>(
+        "SELECT id, star_rating, bpm, total_length, cs, ar, od, hp FROM beatmaps WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+}
 
-const BEATMAP_COLS: &str =
-    "b.id AS beatmap_id, b.beatmapset_id, b.artist, b.title, b.version, b.creator, \
-     b.star_rating, b.bpm, b.total_length, b.cs, b.ar, b.od, b.hp, b.mode, b.cover_url";
+// ---------- pool maps ----------
 
-pub async fn add_to_generic(pool: &PgPool, beatmap_id: i64, added_by: Uuid) -> sqlx::Result<()> {
-    sqlx::query(
-        "INSERT INTO generic_pool (beatmap_id, added_by) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+const POOL_MAP_COLS: &str = "pm.id, pm.category_id, pm.position, pm.mods, \
+     b.id AS beatmap_id, b.beatmapset_id, b.artist, b.title, b.version, b.creator, b.mode, b.cover_url, \
+     pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od, pm.hp";
+
+// Adds a map (beatmap + mods with locked stats) to the generic pool. Returns its id.
+pub async fn add_pool_map(
+    pool: &PgPool,
+    beatmap_id: i64,
+    mods: &str,
+    stats: &ModStats,
+    added_by: Uuid,
+) -> sqlx::Result<Uuid> {
+    sqlx::query_scalar::<_, Uuid>(
+        r#"
+        INSERT INTO pool_maps
+            (beatmap_id, mods, added_by, position,
+             star_rating, ar, od, cs, hp, bpm, total_length)
+        VALUES ($1, $2, $3,
+                (SELECT COALESCE(MAX(position), -1) + 1 FROM pool_maps WHERE category_id IS NULL),
+                $4, $5, $6, $7, $8, $9, $10)
+        RETURNING id
+        "#,
     )
     .bind(beatmap_id)
+    .bind(mods)
     .bind(added_by)
-    .execute(pool)
-    .await?;
-    Ok(())
+    .bind(stats.star_rating)
+    .bind(stats.ar)
+    .bind(stats.od)
+    .bind(stats.cs)
+    .bind(stats.hp)
+    .bind(stats.bpm)
+    .bind(stats.total_length)
+    .fetch_one(pool)
+    .await
 }
 
-// Removes a beatmap from the library and from every stage it was categorised in.
-pub async fn remove_from_generic(pool: &PgPool, beatmap_id: i64) -> sqlx::Result<()> {
-    sqlx::query("DELETE FROM pool_entries WHERE beatmap_id = $1")
-        .bind(beatmap_id)
-        .execute(pool)
-        .await?;
-    sqlx::query("DELETE FROM generic_pool WHERE beatmap_id = $1")
-        .bind(beatmap_id)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
-
-// The generic pool: library maps not placed in any category, in any stage. A map
-// lives in exactly one place, so once it's categorised anywhere it disappears from
-// the generic pool in every stage. This is global, hence no stage parameter.
-pub async fn list_generic(pool: &PgPool) -> sqlx::Result<Vec<GenericEntry>> {
-    let sql = format!(
-        "SELECT {BEATMAP_COLS} FROM generic_pool g JOIN beatmaps b ON b.id = g.beatmap_id \
-         WHERE NOT EXISTS (SELECT 1 FROM pool_entries pe WHERE pe.beatmap_id = g.beatmap_id) \
-         ORDER BY g.created_at"
-    );
-    sqlx::query_as::<_, GenericEntry>(&sql)
-        .fetch_all(pool)
+pub async fn get_pool_map(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<PoolMap>> {
+    let sql =
+        format!("SELECT {POOL_MAP_COLS} FROM pool_maps pm JOIN beatmaps b ON b.id = pm.beatmap_id WHERE pm.id = $1");
+    sqlx::query_as::<_, PoolMap>(&sql)
+        .bind(id)
+        .fetch_optional(pool)
         .await
 }
 
-// ---------- pool entries (categorised placements) ----------
-
-pub async fn list_entries(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<PoolEntry>> {
+// Maps the editor shows for a stage: the global generic pool (category_id NULL) plus
+// this stage's categorised maps.
+pub async fn list_stage_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<PoolMap>> {
     let sql = format!(
-        "SELECT pe.id, pe.category_id, pe.position, {BEATMAP_COLS} \
-         FROM pool_entries pe JOIN beatmaps b ON b.id = pe.beatmap_id \
-         WHERE pe.stage_id = $1 AND pe.category_id IS NOT NULL ORDER BY pe.position, pe.created_at"
+        "SELECT {POOL_MAP_COLS} FROM pool_maps pm JOIN beatmaps b ON b.id = pm.beatmap_id \
+         WHERE pm.category_id IS NULL \
+            OR pm.category_id IN (SELECT id FROM stage_categories WHERE stage_id = $1) \
+         ORDER BY pm.category_id NULLS FIRST, pm.position, pm.created_at"
     );
-    sqlx::query_as::<_, PoolEntry>(&sql)
+    sqlx::query_as::<_, PoolMap>(&sql)
         .bind(stage_id)
         .fetch_all(pool)
         .await
 }
 
-pub async fn get_entry(pool: &PgPool, entry_id: Uuid) -> sqlx::Result<Option<PoolEntry>> {
+// Maps the public page shows for a (published) stage: only its categorised maps.
+pub async fn list_public_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<PoolMap>> {
     let sql = format!(
-        "SELECT pe.id, pe.category_id, pe.position, {BEATMAP_COLS} \
-         FROM pool_entries pe JOIN beatmaps b ON b.id = pe.beatmap_id \
-         WHERE pe.id = $1 AND pe.category_id IS NOT NULL"
+        "SELECT {POOL_MAP_COLS} FROM pool_maps pm JOIN beatmaps b ON b.id = pm.beatmap_id \
+         WHERE pm.category_id IN (SELECT id FROM stage_categories WHERE stage_id = $1) \
+         ORDER BY pm.position, pm.created_at"
     );
-    sqlx::query_as::<_, PoolEntry>(&sql)
-        .bind(entry_id)
-        .fetch_optional(pool)
+    sqlx::query_as::<_, PoolMap>(&sql)
+        .bind(stage_id)
+        .fetch_all(pool)
         .await
 }
 
-// Places a generic-pool map into a stage category. A map can be placed in only one
-// category tournament-wide, so if it's somehow already placed elsewhere (e.g. two
-// poolers dropping it at once) this moves it. Returns the entry id.
-pub async fn add_entry(
-    pool: &PgPool,
-    stage_id: Uuid,
-    beatmap_id: i64,
-    category_id: Uuid,
-    added_by: Uuid,
-) -> sqlx::Result<Uuid> {
-    sqlx::query_scalar::<_, Uuid>(
-        r#"
-        INSERT INTO pool_entries (stage_id, beatmap_id, category_id, added_by, position)
-        VALUES ($1, $2, $3, $4,
-                (SELECT COALESCE(MAX(position), -1) + 1 FROM pool_entries WHERE stage_id = $1 AND category_id = $3))
-        ON CONFLICT (beatmap_id) DO UPDATE
-        SET stage_id = EXCLUDED.stage_id, category_id = EXCLUDED.category_id, position = EXCLUDED.position
-        RETURNING id
-        "#,
-    )
-    .bind(stage_id)
-    .bind(beatmap_id)
-    .bind(category_id)
-    .bind(added_by)
-    .fetch_one(pool)
-    .await
-}
-
-// Moves an entry to another category, appended at the end.
-pub async fn move_entry(pool: &PgPool, entry_id: Uuid, category_id: Uuid) -> sqlx::Result<()> {
+// Moves a map into a category, or back to the generic pool (None), appended at the end.
+pub async fn move_pool_map(pool: &PgPool, id: Uuid, category_id: Option<Uuid>) -> sqlx::Result<()> {
     sqlx::query(
         r#"
-        UPDATE pool_entries pe
+        UPDATE pool_maps
         SET category_id = $2,
             position = COALESCE(
-                (SELECT MAX(position) + 1 FROM pool_entries WHERE stage_id = pe.stage_id AND category_id = $2),
+                (SELECT MAX(position) + 1 FROM pool_maps WHERE category_id IS NOT DISTINCT FROM $2),
                 0
             )
-        WHERE pe.id = $1
+        WHERE id = $1
         "#,
     )
-    .bind(entry_id)
+    .bind(id)
     .bind(category_id)
     .execute(pool)
     .await?;
     Ok(())
 }
 
-// Uncategorises an entry — the map returns to this stage's generic view (it's still
-// in the global library).
-pub async fn delete_entry(pool: &PgPool, entry_id: Uuid) -> sqlx::Result<()> {
-    sqlx::query("DELETE FROM pool_entries WHERE id = $1")
-        .bind(entry_id)
+pub async fn delete_pool_map(pool: &PgPool, id: Uuid) -> sqlx::Result<()> {
+    sqlx::query("DELETE FROM pool_maps WHERE id = $1")
+        .bind(id)
         .execute(pool)
         .await?;
     Ok(())

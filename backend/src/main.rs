@@ -5,6 +5,7 @@ mod discord_api;
 mod error;
 mod handlers;
 mod jwt;
+mod mods;
 mod osu_api;
 mod role;
 

@@ -7,17 +7,23 @@ import {
   setStagePublished,
   createCategory,
   deleteCategory,
-  addToGenericPool,
-  removeFromGenericPool,
-  categorize,
-  moveEntry,
-  deleteEntry,
+  addMap,
+  moveMap,
+  deleteMap,
 } from "../api.js";
 import MapCard from "../components/MapCard.jsx";
 
 const MODIFIERS = ["", "HD", "HR", "DT", "HT", "EZ", "FL", "HDHR", "HDDT"];
 
 const allowDrop = (e) => e.preventDefault();
+
+function readDrag(e) {
+  try {
+    return JSON.parse(e.dataTransfer.getData("text/plain"));
+  } catch {
+    return null;
+  }
+}
 
 export default function MapPoolPage() {
   const [stages, setStages] = useState([]);
@@ -28,8 +34,8 @@ export default function MapPoolPage() {
 
   const [newStage, setNewStage] = useState("");
   const [mapId, setMapId] = useState("");
+  const [mapMods, setMapMods] = useState("");
   const [catName, setCatName] = useState("");
-  const [catMod, setCatMod] = useState("");
 
   useEffect(() => {
     loadStages();
@@ -96,25 +102,19 @@ export default function MapPoolPage() {
     });
   };
 
+  const handleTogglePublish = () => run(async () => {
+    await setStagePublished(selectedId, !detail.published);
+    await reload();
+    await loadStages();
+  });
+
   const handleAddCategory = (e) => {
     e.preventDefault();
     const name = catName.trim();
     if (!name || !selectedId) return;
     run(async () => {
-      await createCategory(selectedId, name, catMod || null);
+      await createCategory(selectedId, name);
       setCatName("");
-      setCatMod("");
-      await reload();
-    });
-  };
-
-  const handleAddMap = (e) => {
-    e.preventDefault();
-    const id = parseInt(mapId, 10);
-    if (!id) return;
-    run(async () => {
-      await addToGenericPool(id);
-      setMapId("");
       await reload();
     });
   };
@@ -124,45 +124,32 @@ export default function MapPoolPage() {
     await reload();
   });
 
-  const handleTogglePublish = () => run(async () => {
-    await setStagePublished(selectedId, !detail.published);
-    await reload();
-    await loadStages();
-  });
-
-  // Drop onto a category: a generic map gets categorised; an entry moves category.
-  const onDropCategory = (categoryId) => (e) => {
+  // Add a map by id + mods. It lands in the generic pool with its stats locked in.
+  const handleAddMap = (e) => {
     e.preventDefault();
-    const payload = readDrag(e);
-    if (!payload) return;
-    if (payload.kind === "generic") {
-      run(async () => {
-        await categorize(selectedId, payload.beatmapId, categoryId);
-        await reload();
-      });
-    } else if (payload.kind === "entry") {
-      run(async () => {
-        await moveEntry(payload.entryId, categoryId);
-        await reload();
-      });
-    }
+    const id = parseInt(mapId, 10);
+    if (!id) return;
+    run(async () => {
+      await addMap(id, mapMods);
+      setMapId("");
+      await reload();
+    });
   };
 
-  // Drop onto the generic pool: an entry gets uncategorised (returns to the pool).
-  const onDropGeneric = (e) => {
+  const handleMove = (mapPoolId, categoryId) => run(async () => {
+    await moveMap(mapPoolId, categoryId);
+    await reload();
+  });
+
+  const onDrop = (categoryId) => (e) => {
     e.preventDefault();
     const payload = readDrag(e);
-    if (payload?.kind === "entry") {
-      run(async () => {
-        await deleteEntry(payload.entryId);
-        await reload();
-      });
-    }
+    if (payload?.mapId) handleMove(payload.mapId, categoryId);
   };
 
   const categories = detail?.categories ?? [];
-  const entries = detail?.entries ?? [];
-  const generic = detail?.generic ?? [];
+  const maps = detail?.maps ?? [];
+  const generic = maps.filter((m) => !m.category_id);
 
   return (
     <div className="mappool">
@@ -218,13 +205,6 @@ export default function MapPoolPage() {
                 onChange={(e) => setCatName(e.target.value)}
                 placeholder="Category name (e.g. DoubleTime)"
               />
-              <select value={catMod} onChange={(e) => setCatMod(e.target.value)}>
-                {MODIFIERS.map((m) => (
-                  <option key={m} value={m}>
-                    {m === "" ? "No modifier" : m}
-                  </option>
-                ))}
-              </select>
               <button type="submit" disabled={busy}>
                 Add category
               </button>
@@ -234,7 +214,6 @@ export default function MapPoolPage() {
               {categories.map((c) => (
                 <span key={c.id} className="cat-chip">
                   {c.name}
-                  {c.modifier ? ` (${c.modifier})` : ""}
                   <button onClick={() => handleDeleteCategory(c.id)} aria-label="delete category">
                     ×
                   </button>
@@ -244,10 +223,10 @@ export default function MapPoolPage() {
           </div>
 
           <div className="pool-board">
-            <section className="pool-section" onDrop={onDropGeneric} onDragOver={allowDrop}>
+            <section className="pool-section" onDrop={onDrop(null)} onDragOver={allowDrop}>
               <div className="pool-section-head">
                 <span className="pool-section-title">Generic pool</span>
-                <span className="muted small">shared across all stages · drag a map into a category</span>
+                <span className="muted small">add maps by id + mods, then drag them into a category</span>
               </div>
               <form className="add-map" onSubmit={handleAddMap}>
                 <input
@@ -256,46 +235,47 @@ export default function MapPoolPage() {
                   placeholder="Beatmap id…"
                   inputMode="numeric"
                 />
+                <select value={mapMods} onChange={(e) => setMapMods(e.target.value)}>
+                  {MODIFIERS.map((m) => (
+                    <option key={m} value={m}>
+                      {m === "" ? "NoMod" : m}
+                    </option>
+                  ))}
+                </select>
                 <button type="submit" disabled={busy}>
                   Add map
                 </button>
               </form>
               <div className="map-list">
-                {generic.map((bm) => (
+                {generic.map((m) => (
                   <MapCard
-                    key={bm.beatmap_id}
-                    bm={bm}
-                    modifier={null}
-                    drag={{ kind: "generic", beatmapId: bm.beatmap_id }}
+                    key={m.id}
+                    bm={m}
+                    drag={{ mapId: m.id }}
                     onRemove={() => run(async () => {
-                      await removeFromGenericPool(bm.beatmap_id);
+                      await deleteMap(m.id);
                       await reload();
                     })}
                   />
                 ))}
-                {generic.length === 0 && <p className="muted small">Add maps by id — they'll be available in every stage.</p>}
+                {generic.length === 0 && <p className="muted small">No maps in the generic pool.</p>}
               </div>
             </section>
 
             {categories.map((c) => {
-              const items = entries.filter((en) => en.category_id === c.id);
+              const items = maps.filter((m) => m.category_id === c.id);
               return (
-                <section key={c.id} className="pool-section" onDrop={onDropCategory(c.id)} onDragOver={allowDrop}>
+                <section key={c.id} className="pool-section" onDrop={onDrop(c.id)} onDragOver={allowDrop}>
                   <div className="pool-section-head">
                     <span className="pool-section-title">{c.name}</span>
-                    {c.modifier && <span className="mod-badge">{c.modifier}</span>}
                   </div>
                   <div className="map-list">
-                    {items.map((en) => (
+                    {items.map((m) => (
                       <MapCard
-                        key={en.id}
-                        bm={en}
-                        modifier={c.modifier}
-                        drag={{ kind: "entry", entryId: en.id }}
-                        onRemove={() => run(async () => {
-                          await deleteEntry(en.id);
-                          await reload();
-                        })}
+                        key={m.id}
+                        bm={m}
+                        drag={{ mapId: m.id }}
+                        onRemove={() => handleMove(m.id, null)}
                       />
                     ))}
                     {items.length === 0 && <p className="muted small">Drop maps here.</p>}
@@ -308,12 +288,4 @@ export default function MapPoolPage() {
       )}
     </div>
   );
-}
-
-function readDrag(e) {
-  try {
-    return JSON.parse(e.dataTransfer.getData("text/plain"));
-  } catch {
-    return null;
-  }
 }

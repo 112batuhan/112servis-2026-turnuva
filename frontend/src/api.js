@@ -66,20 +66,17 @@ export const fetchStage = (id) => request(`/api/stages/${id}`);
 export const setStagePublished = (id, published) =>
   request(`/api/stages/${id}`, jsonBody("PATCH", { published }));
 
-export const createCategory = (stageId, name, modifier) =>
-  request(`/api/stages/${stageId}/categories`, jsonBody("POST", { name, modifier: modifier || null }));
+export const createCategory = (stageId, name) =>
+  request(`/api/stages/${stageId}/categories`, jsonBody("POST", { name }));
 export const deleteCategory = (id) => request(`/api/categories/${id}`, { method: "DELETE" });
 
-// Global generic pool (shared across all stages).
-export const addToGenericPool = (beatmapId) => request("/api/pool", jsonBody("POST", { beatmap_id: beatmapId }));
-export const removeFromGenericPool = (beatmapId) => request(`/api/pool/${beatmapId}`, { method: "DELETE" });
-
-// Per-stage categorised placements.
-export const categorize = (stageId, beatmapId, categoryId) =>
-  request(`/api/stages/${stageId}/entries`, jsonBody("POST", { beatmap_id: beatmapId, category_id: categoryId }));
-export const moveEntry = (entryId, categoryId) =>
-  request(`/api/entries/${entryId}`, jsonBody("PATCH", { category_id: categoryId }));
-export const deleteEntry = (entryId) => request(`/api/entries/${entryId}`, { method: "DELETE" });
+// A map is a beatmap + mods with locked stats. It sits in the generic pool or a
+// category; its stats never change after it's added.
+export const addMap = (beatmapId, mods) =>
+  request("/api/pool", jsonBody("POST", { beatmap_id: beatmapId, mods: mods || "" }));
+export const moveMap = (mapId, categoryId) =>
+  request(`/api/maps/${mapId}`, jsonBody("PATCH", { category_id: categoryId ?? null }));
+export const deleteMap = (mapId) => request(`/api/maps/${mapId}`, { method: "DELETE" });
 
 // Public (unauthenticated) — published stages only.
 export const fetchPublicStages = () => request("/api/public/stages");
