@@ -109,17 +109,18 @@ pub struct ModStats {
     pub total_length: i32,
 }
 
-// A beatmap's cached nomod stats, used to compute mod-adjusted CS/HP/BPM/length.
-#[derive(Debug, sqlx::FromRow)]
-pub struct Beatmap {
-    pub id: i64,
-    pub star_rating: f64,
-    pub bpm: f64,
-    pub total_length: i32,
-    pub cs: f64,
-    pub ar: f64,
-    pub od: f64,
-    pub hp: f64,
+// A new map to store in the pool: osu! metadata (from the API) + its locked mod stats.
+pub struct NewPoolMap {
+    pub beatmap_id: i64,
+    pub beatmapset_id: i64,
+    pub artist: String,
+    pub title: String,
+    pub version: String,
+    pub creator: Option<String>,
+    pub mode: String,
+    pub cover_url: Option<String>,
+    pub mods: String,
+    pub stats: ModStats,
 }
 
 // Everything the editor needs for one stage: its categories, plus every relevant map
@@ -142,25 +143,6 @@ pub struct PublicStageDetail {
     pub categories: Vec<Category>,
     pub slots: Vec<PublicSlot>,
     pub maps: Vec<PublicPoolMap>,
-}
-
-// Beatmap fields to cache, mapped from an osu! API response by the handler.
-pub struct NewBeatmap {
-    pub id: i64,
-    pub beatmapset_id: i64,
-    pub artist: String,
-    pub title: String,
-    pub version: String,
-    pub creator: Option<String>,
-    pub star_rating: f64,
-    pub bpm: f64,
-    pub total_length: i32,
-    pub cs: f64,
-    pub ar: f64,
-    pub od: f64,
-    pub hp: f64,
-    pub mode: String,
-    pub cover_url: Option<String>,
 }
 
 // ---------- stages ----------
@@ -316,99 +298,54 @@ pub async fn delete_slot(pool: &PgPool, id: Uuid) -> sqlx::Result<()> {
     Ok(())
 }
 
-// ---------- beatmaps ----------
-
-pub async fn upsert_beatmap(pool: &PgPool, b: &NewBeatmap) -> sqlx::Result<()> {
-    sqlx::query(
-        r#"
-        INSERT INTO beatmaps (id, beatmapset_id, artist, title, version, creator,
-                              star_rating, bpm, total_length, cs, ar, od, hp, mode, cover_url, fetched_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now())
-        ON CONFLICT (id) DO UPDATE
-        SET beatmapset_id = EXCLUDED.beatmapset_id, artist = EXCLUDED.artist, title = EXCLUDED.title,
-            version = EXCLUDED.version, creator = EXCLUDED.creator, star_rating = EXCLUDED.star_rating,
-            bpm = EXCLUDED.bpm, total_length = EXCLUDED.total_length, cs = EXCLUDED.cs, ar = EXCLUDED.ar,
-            od = EXCLUDED.od, hp = EXCLUDED.hp, mode = EXCLUDED.mode, cover_url = EXCLUDED.cover_url,
-            fetched_at = now()
-        "#,
-    )
-    .bind(b.id)
-    .bind(b.beatmapset_id)
-    .bind(&b.artist)
-    .bind(&b.title)
-    .bind(&b.version)
-    .bind(&b.creator)
-    .bind(b.star_rating)
-    .bind(b.bpm)
-    .bind(b.total_length)
-    .bind(b.cs)
-    .bind(b.ar)
-    .bind(b.od)
-    .bind(b.hp)
-    .bind(&b.mode)
-    .bind(&b.cover_url)
-    .execute(pool)
-    .await?;
-    Ok(())
-}
-
-// The cached nomod stats for a beatmap (for computing mod-adjusted stats).
-pub async fn get_beatmap(pool: &PgPool, id: i64) -> sqlx::Result<Option<Beatmap>> {
-    sqlx::query_as::<_, Beatmap>(
-        "SELECT id, star_rating, bpm, total_length, cs, ar, od, hp FROM beatmaps WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(pool)
-    .await
-}
-
 // ---------- pool maps ----------
 
 const POOL_MAP_COLS: &str = "pm.id, pm.slot_id, pm.position, pm.mods, \
-     b.id AS beatmap_id, b.beatmapset_id, b.artist, b.title, b.version, b.creator, b.mode, b.cover_url, \
+     pm.beatmap_id, pm.beatmapset_id, pm.artist, pm.title, pm.version, pm.creator, pm.mode, pm.cover_url, \
      pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od, pm.hp, pm.public_notes, pm.editor_notes";
 
 // Public column list: same as above but without editor_notes.
 const PUBLIC_MAP_COLS: &str = "pm.id, pm.slot_id, pm.position, pm.mods, \
-     b.id AS beatmap_id, b.beatmapset_id, b.artist, b.title, b.version, b.creator, b.mode, b.cover_url, \
+     pm.beatmap_id, pm.beatmapset_id, pm.artist, pm.title, pm.version, pm.creator, pm.mode, pm.cover_url, \
      pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od, pm.hp, pm.public_notes";
 
-// Adds a map (beatmap + mods with locked stats) to the generic pool. Returns its id.
-pub async fn add_pool_map(
-    pool: &PgPool,
-    beatmap_id: i64,
-    mods: &str,
-    stats: &ModStats,
-    added_by: Uuid,
-) -> sqlx::Result<Uuid> {
+// Adds a map (osu! metadata + mods with locked stats) to the generic pool. Returns its id.
+pub async fn add_pool_map(pool: &PgPool, m: &NewPoolMap, added_by: Uuid) -> sqlx::Result<Uuid> {
     sqlx::query_scalar::<_, Uuid>(
         r#"
         INSERT INTO pool_maps
-            (beatmap_id, mods, added_by, position,
+            (beatmap_id, beatmapset_id, artist, title, version, creator, mode, cover_url,
+             mods, added_by, position,
              star_rating, ar, od, cs, hp, bpm, total_length)
-        VALUES ($1, $2, $3,
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
                 (SELECT COALESCE(MAX(position), -1) + 1 FROM pool_maps WHERE slot_id IS NULL),
-                $4, $5, $6, $7, $8, $9, $10)
+                $11, $12, $13, $14, $15, $16, $17)
         RETURNING id
         "#,
     )
-    .bind(beatmap_id)
-    .bind(mods)
+    .bind(m.beatmap_id)
+    .bind(m.beatmapset_id)
+    .bind(&m.artist)
+    .bind(&m.title)
+    .bind(&m.version)
+    .bind(&m.creator)
+    .bind(&m.mode)
+    .bind(&m.cover_url)
+    .bind(&m.mods)
     .bind(added_by)
-    .bind(stats.star_rating)
-    .bind(stats.ar)
-    .bind(stats.od)
-    .bind(stats.cs)
-    .bind(stats.hp)
-    .bind(stats.bpm)
-    .bind(stats.total_length)
+    .bind(m.stats.star_rating)
+    .bind(m.stats.ar)
+    .bind(m.stats.od)
+    .bind(m.stats.cs)
+    .bind(m.stats.hp)
+    .bind(m.stats.bpm)
+    .bind(m.stats.total_length)
     .fetch_one(pool)
     .await
 }
 
 pub async fn get_pool_map(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<PoolMap>> {
-    let sql =
-        format!("SELECT {POOL_MAP_COLS} FROM pool_maps pm JOIN beatmaps b ON b.id = pm.beatmap_id WHERE pm.id = $1");
+    let sql = format!("SELECT {POOL_MAP_COLS} FROM pool_maps pm WHERE pm.id = $1");
     sqlx::query_as::<_, PoolMap>(&sql)
         .bind(id)
         .fetch_optional(pool)
@@ -419,7 +356,7 @@ pub async fn get_pool_map(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<PoolMa
 // maps assigned to this stage's slots.
 pub async fn list_stage_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<PoolMap>> {
     let sql = format!(
-        "SELECT {POOL_MAP_COLS} FROM pool_maps pm JOIN beatmaps b ON b.id = pm.beatmap_id \
+        "SELECT {POOL_MAP_COLS} FROM pool_maps pm \
          WHERE pm.slot_id IS NULL OR pm.slot_id IN ( \
              SELECT s.id FROM category_slots s JOIN stage_categories c ON c.id = s.category_id \
              WHERE c.stage_id = $1) \
@@ -435,7 +372,7 @@ pub async fn list_stage_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<
 // and without editor notes.
 pub async fn list_public_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<PublicPoolMap>> {
     let sql = format!(
-        "SELECT {PUBLIC_MAP_COLS} FROM pool_maps pm JOIN beatmaps b ON b.id = pm.beatmap_id \
+        "SELECT {PUBLIC_MAP_COLS} FROM pool_maps pm \
          WHERE pm.slot_id IN ( \
              SELECT s.id FROM category_slots s JOIN stage_categories c ON c.id = s.category_id \
              WHERE c.stage_id = $1) \

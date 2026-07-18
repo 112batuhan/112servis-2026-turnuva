@@ -193,27 +193,28 @@ pub async fn delete_slot(
 // deterministically. Locked onto the map at add time — never recomputed afterwards.
 async fn resolve_stats(
     state: &AppState,
-    beatmap: &db::mappool::Beatmap,
+    bm: &osu_api::beatmap::Beatmap,
     mods: &str,
 ) -> Result<db::mappool::ModStats, AppError> {
     let parsed = crate::mods::parse(mods);
 
-    let cs = crate::mods::modded_cs(beatmap.cs, &parsed);
-    let hp = crate::mods::modded_hp(beatmap.hp, &parsed);
+    let cs = crate::mods::modded_cs(bm.cs, &parsed);
+    let hp = crate::mods::modded_hp(bm.drain, &parsed);
     let rate = crate::mods::rate(&parsed);
-    let bpm = beatmap.bpm * rate;
-    let total_length = (beatmap.total_length as f64 / rate).round() as i32;
+    let bpm = bm.bpm.unwrap_or(0.0) * rate;
+    let total_length = (bm.total_length as f64 / rate).round() as i32;
 
+    // osu! names OD `accuracy`. SR/AR/OD come from the difficulty-attributes API under
+    // mods; nomod uses the values already on the beatmap response.
     let (star_rating, ar, od) = if parsed.is_empty() {
-        (beatmap.star_rating, beatmap.ar, beatmap.od)
+        (bm.difficulty_rating, bm.ar, bm.accuracy)
     } else {
         let token = osu_api::token::app_token(&state.osu_client, &state.osu_app_token).await?;
-        let attr =
-            osu_api::attributes::fetch(&state.http_client, &token, beatmap.id, &parsed).await?;
+        let attr = osu_api::attributes::fetch(&state.http_client, &token, bm.id, &parsed).await?;
         (
             attr.star_rating,
-            attr.approach_rate.unwrap_or(beatmap.ar),
-            attr.overall_difficulty.unwrap_or(beatmap.od),
+            attr.approach_rate.unwrap_or(bm.ar),
+            attr.overall_difficulty.unwrap_or(bm.accuracy),
         )
     };
 
@@ -236,7 +237,8 @@ pub struct AddMapBody {
 }
 
 // POST /api/pool — add a map (beatmap id + mods) to the generic pool. The beatmap is
-// fetched from the osu! API and cached, and its mod stats are resolved and locked in.
+// fetched from the osu! API, its mod stats are resolved, and the whole thing (metadata +
+// locked stats) is stored self-contained in one pool_maps row.
 pub async fn add_map(
     State(state): State<AppState>,
     user: AuthUser,
@@ -247,33 +249,22 @@ pub async fn add_map(
 
     let token = osu_api::token::app_token(&state.osu_client, &state.osu_app_token).await?;
     let bm = osu_api::beatmap::fetch(&state.http_client, &token, body.beatmap_id).await?;
+    let stats = resolve_stats(&state, &bm, &mods).await?;
 
     let set = bm.beatmapset.as_ref();
-    let new = db::mappool::NewBeatmap {
-        id: bm.id,
+    let new = db::mappool::NewPoolMap {
+        beatmap_id: bm.id,
         beatmapset_id: bm.beatmapset_id,
         artist: set.map(|s| s.artist.clone()).unwrap_or_default(),
         title: set.map(|s| s.title.clone()).unwrap_or_default(),
         version: bm.version.clone(),
         creator: set.map(|s| s.creator.clone()),
-        star_rating: bm.difficulty_rating,
-        bpm: bm.bpm.unwrap_or(0.0),
-        total_length: bm.total_length,
-        cs: bm.cs,
-        ar: bm.ar,
-        od: bm.accuracy,
-        hp: bm.drain,
         mode: bm.mode.clone(),
         cover_url: set.and_then(|s| s.covers.cover.clone()),
+        mods,
+        stats,
     };
-    db::mappool::upsert_beatmap(&state.db, &new).await?;
-
-    let beatmap = db::mappool::get_beatmap(&state.db, bm.id)
-        .await?
-        .ok_or(AppError::NotFound)?;
-    let stats = resolve_stats(&state, &beatmap, &mods).await?;
-
-    let id = db::mappool::add_pool_map(&state.db, bm.id, &mods, &stats, user.id).await?;
+    let id = db::mappool::add_pool_map(&state.db, &new, user.id).await?;
     let map = db::mappool::get_pool_map(&state.db, id)
         .await?
         .ok_or(AppError::NotFound)?;
