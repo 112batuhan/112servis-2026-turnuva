@@ -96,6 +96,17 @@ export default function MapCard({ bm, drag, onRemove, onSaveNote }) {
         )
       )}
 
+      <a
+        className="map-dl"
+        href={`https://beatconnect.io/b/${bm.beatmapset_id}`}
+        target="_blank"
+        rel="noreferrer"
+        draggable={false}
+        aria-label="Download beatmap"
+        title="Download beatmap (Beatconnect)"
+      >
+        <DownloadGlyph />
+      </a>
       {onRemove && (
         <button className="map-remove" onClick={onRemove} aria-label="remove map">
           ×
@@ -130,6 +141,26 @@ function StopGlyph() {
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
       <rect x="5" y="5" width="14" height="14" rx="2" />
+    </svg>
+  );
+}
+
+function DownloadGlyph() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 3v12" />
+      <path d="M7 11l5 5 5-5" />
+      <path d="M5 21h14" />
     </svg>
   );
 }

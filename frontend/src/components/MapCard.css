@@ -18,8 +18,9 @@
   cursor: grabbing;
 }
 
-/* Preview play/stop button. Turns pink while its track is playing. */
-.map-play {
+/* Round card controls: preview play/stop and beatmap download. */
+.map-play,
+.map-dl {
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
@@ -30,15 +31,18 @@
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.04);
   color: var(--muted);
+  text-decoration: none;
   cursor: pointer;
   transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 
-.map-play:hover {
+.map-play:hover,
+.map-dl:hover {
   color: var(--text);
   border-color: var(--muted);
 }
 
+/* Play button turns pink while its track is playing. */
 .map-play.is-playing {
   color: #fff;
   background: var(--osu-pink);
@@ -138,7 +142,6 @@
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
-  align-self: flex-start;
 }
 
 .map-remove:hover {
