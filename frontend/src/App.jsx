@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./AuthContext.jsx";
 import { hasRole } from "./roles.js";
+import { readAdminTab } from "./adminTab.js";
 import NavBar from "./components/NavBar.jsx";
 import MiniPlayer from "./components/MiniPlayer.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
@@ -90,8 +91,14 @@ function RequireAuth({ children, minRole, redirect = "/" }) {
   return children;
 }
 
-// Default admin tab: hosts land on Users, map poolers on Map Pool.
+// Admin landing tab: the user's last-visited tab if it's still allowed, otherwise the
+// role default (hosts → Users, map poolers → Map Pool).
 function AdminIndex() {
   const { user } = useAuth();
-  return <Navigate to={hasRole(user, "host") ? "/admin/users" : "/admin/mappool"} replace />;
+  const isHost = hasRole(user, "host");
+  const saved = readAdminTab(user);
+  // The Users tab is host-only, so ignore a saved Users tab for non-hosts.
+  const allowed = saved === "/admin/mappool" || (saved === "/admin/users" && isHost);
+  const target = allowed ? saved : isHost ? "/admin/users" : "/admin/mappool";
+  return <Navigate to={target} replace />;
 }

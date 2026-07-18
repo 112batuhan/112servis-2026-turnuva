@@ -1,6 +1,8 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { useEffect } from "react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
 import { hasRole } from "../roles.js";
+import { saveAdminTab } from "../adminTab.js";
 import "./AdminPage.css";
 
 // Admin console layout: a tab bar over nested routes. The Users tab is host-only;
@@ -8,6 +10,12 @@ import "./AdminPage.css";
 export default function AdminPage() {
   const { user } = useAuth();
   const isHost = hasRole(user, "host");
+
+  // Remember the active tab so the next visit to /admin lands back on it.
+  const { pathname } = useLocation();
+  useEffect(() => {
+    saveAdminTab(user, pathname);
+  }, [pathname, user]);
 
   const tabClass = ({ isActive }) => (isActive ? "admin-tab admin-tab-active" : "admin-tab");
 
