@@ -70,12 +70,18 @@ export const createCategory = (stageId, name) =>
   request(`/api/stages/${stageId}/categories`, jsonBody("POST", { name }));
 export const deleteCategory = (id) => request(`/api/categories/${id}`, { method: "DELETE" });
 
+// Category slots (a category's size) with editor-only notes.
+export const addSlot = (categoryId) => request(`/api/categories/${categoryId}/slots`, { method: "POST" });
+export const updateSlotNotes = (slotId, editorNotes) =>
+  request(`/api/slots/${slotId}`, jsonBody("PATCH", { editor_notes: editorNotes }));
+export const deleteSlot = (slotId) => request(`/api/slots/${slotId}`, { method: "DELETE" });
+
 // A map is a beatmap + mods with locked stats. It sits in the generic pool or a
 // category; its stats never change after it's added.
 export const addMap = (beatmapId, mods) =>
   request("/api/pool", jsonBody("POST", { beatmap_id: beatmapId, mods: mods || "" }));
-export const moveMap = (mapId, categoryId) =>
-  request(`/api/maps/${mapId}`, jsonBody("PATCH", { category_id: categoryId ?? null }));
+export const moveMap = (mapId, slotId) =>
+  request(`/api/maps/${mapId}`, jsonBody("PATCH", { slot_id: slotId ?? null }));
 export const deleteMap = (mapId) => request(`/api/maps/${mapId}`, { method: "DELETE" });
 
 // Public (unauthenticated) — published stages only.

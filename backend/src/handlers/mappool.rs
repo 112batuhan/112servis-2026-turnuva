@@ -21,6 +21,8 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/stages/:id/categories", post(create_category))
         .route("/categories/:id", delete(delete_category))
+        .route("/categories/:id/slots", post(add_slot))
+        .route("/slots/:id", patch(update_slot).delete(delete_slot))
         .route("/pool", post(add_map))
         .route("/maps/:id", patch(move_map).delete(delete_map))
         .route("/public/stages", get(list_public_stages))
@@ -72,10 +74,12 @@ pub async fn get_stage(
         .await?
         .ok_or(AppError::NotFound)?;
     let categories = db::mappool::list_categories(&state.db, id).await?;
+    let slots = db::mappool::list_slots(&state.db, id).await?;
     let maps = db::mappool::list_stage_maps(&state.db, id).await?;
     Ok(Json(db::mappool::StageDetail {
         stage,
         categories,
+        slots,
         maps,
     }))
 }
@@ -137,6 +141,47 @@ pub async fn delete_category(
 ) -> Result<impl IntoResponse, AppError> {
     guard(&user)?;
     db::mappool::delete_category(&state.db, id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// ---------- category slots ----------
+
+// POST /api/categories/:id/slots — add a slot to a category.
+pub async fn add_slot(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(category_id): Path<Uuid>,
+) -> Result<impl IntoResponse, AppError> {
+    guard(&user)?;
+    Ok(Json(db::mappool::add_slot(&state.db, category_id).await?))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSlotBody {
+    editor_notes: String,
+}
+
+// PATCH /api/slots/:id — update a slot's editor notes.
+pub async fn update_slot(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateSlotBody>,
+) -> Result<impl IntoResponse, AppError> {
+    guard(&user)?;
+    Ok(Json(
+        db::mappool::update_slot_notes(&state.db, id, &body.editor_notes).await?,
+    ))
+}
+
+// DELETE /api/slots/:id — remove a slot.
+pub async fn delete_slot(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<impl IntoResponse, AppError> {
+    guard(&user)?;
+    db::mappool::delete_slot(&state.db, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -236,13 +281,13 @@ pub async fn add_map(
 
 #[derive(Debug, Deserialize)]
 pub struct MoveMapBody {
-    // Target category, or null/absent for the generic pool.
+    // Target slot, or null/absent for the generic pool.
     #[serde(default)]
-    category_id: Option<Uuid>,
+    slot_id: Option<Uuid>,
 }
 
-// PATCH /api/maps/:id — move a map into a category or back to the generic pool. Stats
-// and mods are locked, so nothing about them changes.
+// PATCH /api/maps/:id — assign a map to a slot or back to the generic pool. Stats and
+// mods are locked, so nothing about them changes.
 pub async fn move_map(
     State(state): State<AppState>,
     user: AuthUser,
@@ -250,7 +295,7 @@ pub async fn move_map(
     Json(body): Json<MoveMapBody>,
 ) -> Result<impl IntoResponse, AppError> {
     guard(&user)?;
-    db::mappool::move_pool_map(&state.db, id, body.category_id).await?;
+    db::mappool::move_pool_map(&state.db, id, body.slot_id).await?;
     let map = db::mappool::get_pool_map(&state.db, id)
         .await?
         .ok_or(AppError::NotFound)?;
@@ -284,10 +329,12 @@ pub async fn get_public_stage(
         .await?
         .ok_or(AppError::NotFound)?;
     let categories = db::mappool::list_categories(&state.db, id).await?;
+    let slots = db::mappool::list_public_slots(&state.db, id).await?;
     let maps = db::mappool::list_public_maps(&state.db, id).await?;
     Ok(Json(db::mappool::PublicStageDetail {
         stage,
         categories,
+        slots,
         maps,
     }))
 }

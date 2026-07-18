@@ -829,3 +829,97 @@ a.osu-btn {
   margin-left: 6px;
   vertical-align: middle;
 }
+
+/* ---- category slots ---- */
+.slot-add {
+  background: transparent;
+  border: 1px solid #44464e;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.slot-add:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.slot-add:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.slot-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* One slot: the slot number on the far left, then the body (notes + remove, and the
+   assigned map or an empty target). */
+.slot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #34363e;
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.slot-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.slot-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.slot-label {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.slot-notes {
+  flex: 1;
+  min-width: 0;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid #34363e;
+  border-radius: 6px;
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.slot-empty {
+  border: 1px dashed #3a3c44;
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+}
+
+.slot-notes:focus {
+  outline: none;
+  border-color: var(--osu-pink);
+}
+
+.slot-del {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.slot-del:hover {
+  color: var(--error);
+}

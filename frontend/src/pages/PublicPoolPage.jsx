@@ -52,7 +52,9 @@ export default function PublicPoolPage() {
         </div>
       )}
 
-      {detail && <PoolCategories categories={detail.categories} maps={detail.maps} />}
+      {detail && (
+        <PoolCategories categories={detail.categories} slots={detail.slots} maps={detail.maps} />
+      )}
     </div>
   );
 }

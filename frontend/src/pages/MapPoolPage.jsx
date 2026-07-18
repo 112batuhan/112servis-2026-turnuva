@@ -7,6 +7,9 @@ import {
   setStagePublished,
   createCategory,
   deleteCategory,
+  addSlot,
+  updateSlotNotes,
+  deleteSlot,
   addMap,
   moveMap,
   deleteMap,
@@ -124,6 +127,26 @@ export default function MapPoolPage() {
     await reload();
   });
 
+  const handleAddSlot = (categoryId) => run(async () => {
+    await addSlot(categoryId);
+    await reload();
+  });
+
+  const handleDeleteSlot = (slotId) => run(async () => {
+    await deleteSlot(slotId);
+    await reload();
+  });
+
+  // Save notes on blur; update local state so the field keeps its value without a reload.
+  const handleUpdateSlotNotes = (slot, value) => {
+    if (value === slot.editor_notes) return;
+    setDetail((d) => ({
+      ...d,
+      slots: d.slots.map((s) => (s.id === slot.id ? { ...s, editor_notes: value } : s)),
+    }));
+    updateSlotNotes(slot.id, value).catch((e) => setError(e.message));
+  };
+
   // Add a map by id + mods. It lands in the generic pool with its stats locked in.
   const handleAddMap = (e) => {
     e.preventDefault();
@@ -136,20 +159,22 @@ export default function MapPoolPage() {
     });
   };
 
-  const handleMove = (mapPoolId, categoryId) => run(async () => {
-    await moveMap(mapPoolId, categoryId);
+  const handleMove = (mapPoolId, slotId) => run(async () => {
+    await moveMap(mapPoolId, slotId);
     await reload();
   });
 
-  const onDrop = (categoryId) => (e) => {
+  // Drop onto a slot (slotId) assigns the map there; onto the generic pool (null) frees it.
+  const onDrop = (slotId) => (e) => {
     e.preventDefault();
     const payload = readDrag(e);
-    if (payload?.mapId) handleMove(payload.mapId, categoryId);
+    if (payload?.mapId) handleMove(payload.mapId, slotId);
   };
 
   const categories = detail?.categories ?? [];
+  const slots = detail?.slots ?? [];
   const maps = detail?.maps ?? [];
-  const generic = maps.filter((m) => !m.category_id);
+  const generic = maps.filter((m) => !m.slot_id);
 
   return (
     <div className="mappool">
@@ -263,22 +288,54 @@ export default function MapPoolPage() {
             </section>
 
             {categories.map((c) => {
-              const items = maps.filter((m) => m.category_id === c.id);
+              const catSlots = slots.filter((s) => s.category_id === c.id);
               return (
-                <section key={c.id} className="pool-section" onDrop={onDrop(c.id)} onDragOver={allowDrop}>
+                <section key={c.id} className="pool-section">
                   <div className="pool-section-head">
                     <span className="pool-section-title">{c.name}</span>
+                    <span className="muted small">
+                      {catSlots.length} slot{catSlots.length === 1 ? "" : "s"}
+                    </span>
+                    <button className="slot-add" onClick={() => handleAddSlot(c.id)} disabled={busy}>
+                      + slot
+                    </button>
                   </div>
-                  <div className="map-list">
-                    {items.map((m) => (
-                      <MapCard
-                        key={m.id}
-                        bm={m}
-                        drag={{ mapId: m.id }}
-                        onRemove={() => handleMove(m.id, null)}
-                      />
-                    ))}
-                    {items.length === 0 && <p className="muted small">Drop maps here.</p>}
+                  <div className="slot-grid">
+                    {catSlots.length === 0 && <p className="muted small">Add slots to hold maps.</p>}
+                    {catSlots.map((slot, i) => {
+                      const slotMap = maps.find((m) => m.slot_id === slot.id);
+                      return (
+                        <div key={slot.id} className="slot" onDrop={onDrop(slot.id)} onDragOver={allowDrop}>
+                          <span className="slot-label">#{i + 1}</span>
+                          <div className="slot-body">
+                            <div className="slot-head">
+                              <input
+                                className="slot-notes"
+                                defaultValue={slot.editor_notes}
+                                placeholder="Editor notes…"
+                                onBlur={(e) => handleUpdateSlotNotes(slot, e.target.value)}
+                              />
+                              <button
+                                className="slot-del"
+                                onClick={() => handleDeleteSlot(slot.id)}
+                                aria-label="remove slot"
+                              >
+                                ×
+                              </button>
+                            </div>
+                            {slotMap ? (
+                              <MapCard
+                                bm={slotMap}
+                                drag={{ mapId: slotMap.id }}
+                                onRemove={() => handleMove(slotMap.id, null)}
+                              />
+                            ) : (
+                              <div className="slot-empty muted small">Drop a map here</div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </section>
               );

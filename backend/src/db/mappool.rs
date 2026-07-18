@@ -17,7 +17,8 @@ pub struct Stage {
     pub updated_at: OffsetDateTime,
 }
 
-// A category is just a named group now — mods live on the maps, not the category.
+// A category is just a named group now — mods live on the maps, not the category. Its
+// size is the number of slots it has (see Slot).
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct Category {
     pub id: Uuid,
@@ -26,13 +27,31 @@ pub struct Category {
     pub position: i32,
 }
 
+// A slot in a category, with editor-only planning notes. Grouped by category_id on
+// the frontend.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct Slot {
+    pub id: Uuid,
+    pub category_id: Uuid,
+    pub position: i32,
+    pub editor_notes: String,
+}
+
+// Public view of a slot — the same, minus the editor notes.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PublicSlot {
+    pub id: Uuid,
+    pub category_id: Uuid,
+    pub position: i32,
+}
+
 // A map in the pool: a beatmap locked to a mod combination with the stats it had when
-// added. `category_id` NULL means it's in the (global) generic pool; otherwise it's in
-// that category. Metadata (title, artist, ...) is joined from the cached beatmap.
+// added. `slot_id` NULL means it's in the (global) generic pool; otherwise it fills
+// that slot. Metadata (title, artist, ...) is joined from the cached beatmap.
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct PoolMap {
     pub id: Uuid,
-    pub category_id: Option<Uuid>,
+    pub slot_id: Option<Uuid>,
     pub position: i32,
     pub mods: String,
     pub beatmap_id: i64,
@@ -83,16 +102,18 @@ pub struct StageDetail {
     #[serde(flatten)]
     pub stage: Stage,
     pub categories: Vec<Category>,
+    pub slots: Vec<Slot>,
     pub maps: Vec<PoolMap>,
 }
 
-// Read-only view of a published stage for the public page: categories + their maps,
-// no generic pool.
+// Read-only view of a published stage for the public page: categories + their slots
+// (no editor notes) + their maps, no generic pool.
 #[derive(Debug, Serialize)]
 pub struct PublicStageDetail {
     #[serde(flatten)]
     pub stage: Stage,
     pub categories: Vec<Category>,
+    pub slots: Vec<PublicSlot>,
     pub maps: Vec<PoolMap>,
 }
 
@@ -201,9 +222,67 @@ pub async fn create_category(pool: &PgPool, stage_id: Uuid, name: &str) -> sqlx:
 }
 
 // Deletes a category. Its maps fall back to the generic pool via the ON DELETE SET
-// NULL foreign key, so they aren't lost.
+// NULL foreign key, and its slots are removed via ON DELETE CASCADE.
 pub async fn delete_category(pool: &PgPool, id: Uuid) -> sqlx::Result<()> {
     sqlx::query("DELETE FROM stage_categories WHERE id = $1")
+        .bind(id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+// ---------- category slots ----------
+
+// Slots for every category in a stage (editors — includes notes).
+pub async fn list_slots(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<Slot>> {
+    sqlx::query_as::<_, Slot>(
+        "SELECT s.id, s.category_id, s.position, s.editor_notes FROM category_slots s \
+         JOIN stage_categories c ON c.id = s.category_id \
+         WHERE c.stage_id = $1 ORDER BY s.position, s.created_at",
+    )
+    .bind(stage_id)
+    .fetch_all(pool)
+    .await
+}
+
+// Slots for every category in a stage (public — no notes).
+pub async fn list_public_slots(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<PublicSlot>> {
+    sqlx::query_as::<_, PublicSlot>(
+        "SELECT s.id, s.category_id, s.position FROM category_slots s \
+         JOIN stage_categories c ON c.id = s.category_id \
+         WHERE c.stage_id = $1 ORDER BY s.position, s.created_at",
+    )
+    .bind(stage_id)
+    .fetch_all(pool)
+    .await
+}
+
+pub async fn add_slot(pool: &PgPool, category_id: Uuid) -> sqlx::Result<Slot> {
+    sqlx::query_as::<_, Slot>(
+        r#"
+        INSERT INTO category_slots (category_id, position)
+        VALUES ($1, (SELECT COALESCE(MAX(position), -1) + 1 FROM category_slots WHERE category_id = $1))
+        RETURNING id, category_id, position, editor_notes
+        "#,
+    )
+    .bind(category_id)
+    .fetch_one(pool)
+    .await
+}
+
+pub async fn update_slot_notes(pool: &PgPool, id: Uuid, notes: &str) -> sqlx::Result<Slot> {
+    sqlx::query_as::<_, Slot>(
+        "UPDATE category_slots SET editor_notes = $2, updated_at = now() \
+         WHERE id = $1 RETURNING id, category_id, position, editor_notes",
+    )
+    .bind(id)
+    .bind(notes)
+    .fetch_one(pool)
+    .await
+}
+
+pub async fn delete_slot(pool: &PgPool, id: Uuid) -> sqlx::Result<()> {
+    sqlx::query("DELETE FROM category_slots WHERE id = $1")
         .bind(id)
         .execute(pool)
         .await?;
@@ -258,7 +337,7 @@ pub async fn get_beatmap(pool: &PgPool, id: i64) -> sqlx::Result<Option<Beatmap>
 
 // ---------- pool maps ----------
 
-const POOL_MAP_COLS: &str = "pm.id, pm.category_id, pm.position, pm.mods, \
+const POOL_MAP_COLS: &str = "pm.id, pm.slot_id, pm.position, pm.mods, \
      b.id AS beatmap_id, b.beatmapset_id, b.artist, b.title, b.version, b.creator, b.mode, b.cover_url, \
      pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od, pm.hp";
 
@@ -276,7 +355,7 @@ pub async fn add_pool_map(
             (beatmap_id, mods, added_by, position,
              star_rating, ar, od, cs, hp, bpm, total_length)
         VALUES ($1, $2, $3,
-                (SELECT COALESCE(MAX(position), -1) + 1 FROM pool_maps WHERE category_id IS NULL),
+                (SELECT COALESCE(MAX(position), -1) + 1 FROM pool_maps WHERE slot_id IS NULL),
                 $4, $5, $6, $7, $8, $9, $10)
         RETURNING id
         "#,
@@ -304,14 +383,15 @@ pub async fn get_pool_map(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<PoolMa
         .await
 }
 
-// Maps the editor shows for a stage: the global generic pool (category_id NULL) plus
-// this stage's categorised maps.
+// Maps the editor shows for a stage: the global generic pool (slot_id NULL) plus the
+// maps assigned to this stage's slots.
 pub async fn list_stage_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<PoolMap>> {
     let sql = format!(
         "SELECT {POOL_MAP_COLS} FROM pool_maps pm JOIN beatmaps b ON b.id = pm.beatmap_id \
-         WHERE pm.category_id IS NULL \
-            OR pm.category_id IN (SELECT id FROM stage_categories WHERE stage_id = $1) \
-         ORDER BY pm.category_id NULLS FIRST, pm.position, pm.created_at"
+         WHERE pm.slot_id IS NULL OR pm.slot_id IN ( \
+             SELECT s.id FROM category_slots s JOIN stage_categories c ON c.id = s.category_id \
+             WHERE c.stage_id = $1) \
+         ORDER BY pm.slot_id NULLS FIRST, pm.position, pm.created_at"
     );
     sqlx::query_as::<_, PoolMap>(&sql)
         .bind(stage_id)
@@ -319,11 +399,13 @@ pub async fn list_stage_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<
         .await
 }
 
-// Maps the public page shows for a (published) stage: only its categorised maps.
+// Maps the public page shows for a (published) stage: only the ones assigned to slots.
 pub async fn list_public_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<PoolMap>> {
     let sql = format!(
         "SELECT {POOL_MAP_COLS} FROM pool_maps pm JOIN beatmaps b ON b.id = pm.beatmap_id \
-         WHERE pm.category_id IN (SELECT id FROM stage_categories WHERE stage_id = $1) \
+         WHERE pm.slot_id IN ( \
+             SELECT s.id FROM category_slots s JOIN stage_categories c ON c.id = s.category_id \
+             WHERE c.stage_id = $1) \
          ORDER BY pm.position, pm.created_at"
     );
     sqlx::query_as::<_, PoolMap>(&sql)
@@ -332,21 +414,27 @@ pub async fn list_public_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec
         .await
 }
 
-// Moves a map into a category, or back to the generic pool (None), appended at the end.
-pub async fn move_pool_map(pool: &PgPool, id: Uuid, category_id: Option<Uuid>) -> sqlx::Result<()> {
+// Assigns a map to a slot, or back to the generic pool (None). Since a slot holds at
+// most one map, assigning first evicts whatever occupied the target slot back to the
+// generic pool.
+pub async fn move_pool_map(pool: &PgPool, id: Uuid, slot_id: Option<Uuid>) -> sqlx::Result<()> {
+    if let Some(target) = slot_id {
+        sqlx::query("UPDATE pool_maps SET slot_id = NULL WHERE slot_id = $1 AND id <> $2")
+            .bind(target)
+            .bind(id)
+            .execute(pool)
+            .await?;
+    }
     sqlx::query(
         r#"
         UPDATE pool_maps
-        SET category_id = $2,
-            position = COALESCE(
-                (SELECT MAX(position) + 1 FROM pool_maps WHERE category_id IS NOT DISTINCT FROM $2),
-                0
-            )
+        SET slot_id = $2,
+            position = COALESCE((SELECT MAX(position) + 1 FROM pool_maps WHERE slot_id IS NULL), 0)
         WHERE id = $1
         "#,
     )
     .bind(id)
-    .bind(category_id)
+    .bind(slot_id)
     .execute(pool)
     .await?;
     Ok(())
