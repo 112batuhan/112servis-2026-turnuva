@@ -136,6 +136,20 @@
   font-size: 13px;
 }
 
+/* Grip handle for dragging a category chip to reorder it. */
+.cat-drag {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: grab;
+  user-select: none;
+}
+
+.cat-drag:active {
+  cursor: grabbing;
+}
+
 /* Round colour swatch used to pick a category's colour. */
 .cat-color {
   flex-shrink: 0;

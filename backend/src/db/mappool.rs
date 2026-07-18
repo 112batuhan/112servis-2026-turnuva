@@ -201,6 +201,18 @@ pub async fn update_stage(
     .await
 }
 
+// Sets each stage's position to its index in `ids` (one statement via WITH ORDINALITY).
+pub async fn reorder_stages(pool: &PgPool, ids: &[Uuid]) -> sqlx::Result<()> {
+    sqlx::query(
+        "UPDATE stages s SET position = v.ord - 1, updated_at = now() \
+         FROM unnest($1::uuid[]) WITH ORDINALITY AS v(id, ord) WHERE s.id = v.id",
+    )
+    .bind(ids)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn list_published_stages(pool: &PgPool) -> sqlx::Result<Vec<Stage>> {
     sqlx::query_as::<_, Stage>("SELECT * FROM stages WHERE published ORDER BY position, created_at")
         .fetch_all(pool)
@@ -255,6 +267,18 @@ pub async fn update_category(
     .bind(color)
     .fetch_one(pool)
     .await
+}
+
+// Sets each category's position to its index in `ids` (see reorder_stages).
+pub async fn reorder_categories(pool: &PgPool, ids: &[Uuid]) -> sqlx::Result<()> {
+    sqlx::query(
+        "UPDATE stage_categories c SET position = v.ord - 1, updated_at = now() \
+         FROM unnest($1::uuid[]) WITH ORDINALITY AS v(id, ord) WHERE c.id = v.id",
+    )
+    .bind(ids)
+    .execute(pool)
+    .await?;
+    Ok(())
 }
 
 // Deletes a category. Its maps fall back to the generic pool via the ON DELETE SET

@@ -15,11 +15,13 @@ use crate::{auth::AuthUser, db, error::AppError, osu_api, role::Role, AppState};
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/stages", get(list_stages).post(create_stage))
+        .route("/stages/reorder", post(reorder_stages))
         .route(
             "/stages/:id",
             get(get_stage).delete(delete_stage).patch(update_stage),
         )
         .route("/stages/:id/categories", post(create_category))
+        .route("/categories/reorder", post(reorder_categories))
         .route(
             "/categories/:id",
             delete(delete_category).patch(update_category),
@@ -126,6 +128,23 @@ pub async fn update_stage(
     ))
 }
 
+// A new ordering for a set of items, most-first, given by their ids.
+#[derive(Debug, Deserialize)]
+pub struct ReorderBody {
+    ids: Vec<Uuid>,
+}
+
+// POST /api/stages/reorder — persist a new stage order.
+pub async fn reorder_stages(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(body): Json<ReorderBody>,
+) -> Result<impl IntoResponse, AppError> {
+    guard(&user)?;
+    db::mappool::reorder_stages(&state.db, &body.ids).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 // ---------- categories ----------
 
 #[derive(Debug, Deserialize)]
@@ -156,6 +175,17 @@ pub struct UpdateCategoryBody {
     name: Option<String>,
     #[serde(default)]
     color: Option<String>,
+}
+
+// POST /api/categories/reorder — persist a new category order.
+pub async fn reorder_categories(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(body): Json<ReorderBody>,
+) -> Result<impl IntoResponse, AppError> {
+    guard(&user)?;
+    db::mappool::reorder_categories(&state.db, &body.ids).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // PATCH /api/categories/:id — rename and/or recolour a category.

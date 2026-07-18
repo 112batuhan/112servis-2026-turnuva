@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   fetchStages,
   createStage,
@@ -6,9 +6,11 @@ import {
   fetchStage,
   setStagePublished,
   renameStage,
+  reorderStages,
   createCategory,
   renameCategory,
   setCategoryColor,
+  reorderCategories,
   deleteCategory,
   addSlot,
   updateSlotNotes,
@@ -40,6 +42,18 @@ function readDrag(e) {
   }
 }
 
+// New id order with `srcId` moved to `targetId`'s slot; null if nothing should change.
+function reordered(ids, srcId, targetId) {
+  if (!srcId || srcId === targetId) return null;
+  const next = [...ids];
+  const from = next.indexOf(srcId);
+  const to = next.indexOf(targetId);
+  if (from < 0 || to < 0) return null;
+  next.splice(from, 1);
+  next.splice(to, 0, srcId);
+  return next;
+}
+
 export default function MapPoolPage() {
   const { user } = useAuth();
   const [stages, setStages] = useState([]);
@@ -55,6 +69,26 @@ export default function MapPoolPage() {
   const [mapId, setMapId] = useState("");
   const [mapMods, setMapMods] = useState("");
   const [catName, setCatName] = useState("");
+
+  // Ids being dragged for reordering (kept in refs so dragging doesn't re-render).
+  const dragStage = useRef(null);
+  const dragCat = useRef(null);
+
+  const handleStageDrop = (targetId) => {
+    const ids = reordered(stages.map((s) => s.id), dragStage.current, targetId);
+    dragStage.current = null;
+    if (!ids) return;
+    setStages((cur) => ids.map((id) => cur.find((s) => s.id === id)));
+    reorderStages(ids).catch((e) => setError(e.message));
+  };
+
+  const handleCategoryDrop = (targetId) => {
+    const ids = reordered((detail?.categories ?? []).map((c) => c.id), dragCat.current, targetId);
+    dragCat.current = null;
+    if (!ids) return;
+    setDetail((d) => ({ ...d, categories: ids.map((id) => d.categories.find((c) => c.id === id)) }));
+    reorderCategories(ids).catch((e) => setError(e.message));
+  };
 
   useEffect(() => {
     loadStages();
@@ -244,6 +278,11 @@ export default function MapPoolPage() {
             key={s.id}
             className={`stage-tab ${s.id === selectedId ? "stage-tab-active" : ""}`}
             onClick={() => setSelectedId(s.id)}
+            draggable
+            onDragStart={() => (dragStage.current = s.id)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => handleStageDrop(s.id)}
+            title="Drag to reorder"
           >
             {s.name}
             <span
@@ -311,7 +350,21 @@ export default function MapPoolPage() {
             <div className="cat-chips">
               {categories.length === 0 && <span className="muted">No categories yet.</span>}
               {categories.map((c) => (
-                <span key={c.id} className="cat-chip">
+                <span
+                  key={c.id}
+                  className="cat-chip"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => handleCategoryDrop(c.id)}
+                >
+                  <span
+                    className="cat-drag"
+                    draggable
+                    onDragStart={() => (dragCat.current = c.id)}
+                    title="Drag to reorder"
+                    aria-hidden="true"
+                  >
+                    ⠿
+                  </span>
                   <input
                     type="color"
                     className="cat-color"
