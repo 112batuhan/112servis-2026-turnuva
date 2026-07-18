@@ -18,6 +18,33 @@
   cursor: grabbing;
 }
 
+/* Preview play/stop button. Turns pink while its track is playing. */
+.map-play {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #34363e;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.map-play:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.map-play.is-playing {
+  color: #fff;
+  background: var(--osu-pink);
+  border-color: var(--osu-pink);
+}
+
 .map-cover-wrap {
   position: relative;
   flex-shrink: 0;

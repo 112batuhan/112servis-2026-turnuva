@@ -1,0 +1,63 @@
+/* Floating preview player, bottom-right, above page content. */
+.mini-player {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 300px;
+  max-width: calc(100vw - 40px);
+  padding: 10px 14px;
+  background: var(--card-bg);
+  border: 1px solid #3a3c44;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.mini-player-stop {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: var(--osu-pink);
+  color: #fff;
+  cursor: pointer;
+}
+
+.mini-player-stop:hover {
+  background: var(--osu-pink-hover);
+}
+
+.mini-player-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mini-player-title {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-player-sub {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-player-volume {
+  flex-shrink: 0;
+  width: 80px;
+  accent-color: var(--osu-pink);
+  cursor: pointer;
+}

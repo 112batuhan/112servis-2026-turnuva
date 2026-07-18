@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./AuthContext.jsx";
 import { hasRole } from "./roles.js";
 import NavBar from "./components/NavBar.jsx";
+import MiniPlayer from "./components/MiniPlayer.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
 import ProfilePage from "./pages/ProfilePage.jsx";
 import DiscordLoginPage from "./pages/DiscordLoginPage.jsx";
@@ -75,6 +76,7 @@ export default function App() {
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <MiniPlayer />
     </>
   );
 }

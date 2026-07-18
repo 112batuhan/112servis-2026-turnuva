@@ -1,5 +1,6 @@
 import { useState } from "react";
 import EditableNote from "./EditableNote.jsx";
+import { usePlayer } from "../PlayerContext.jsx";
 import "./MapCard.css";
 
 // A single beatmap card, shared by the map pool editor and the public pool page.
@@ -11,12 +12,28 @@ import "./MapCard.css";
 // Interactive bits are opt-in: `drag` makes the card draggable, `onRemove` shows an ×.
 export default function MapCard({ bm, drag, onRemove, onSaveNote }) {
   const [dragOn, setDragOn] = useState(true);
+  const { track, toggle } = usePlayer();
+  const isPlaying = track?.id === bm.beatmapset_id;
   return (
     <div
       className="map-card"
       draggable={Boolean(drag) && dragOn}
       onDragStart={drag ? (e) => e.dataTransfer.setData("text/plain", JSON.stringify(drag)) : undefined}
     >
+      <button
+        className={`map-play ${isPlaying ? "is-playing" : ""}`}
+        onClick={() =>
+          toggle({
+            id: bm.beatmapset_id,
+            title: `${bm.artist} — ${bm.title}`,
+            sub: `[${bm.version}]`,
+          })
+        }
+        aria-label={isPlaying ? "Stop preview" : "Play preview"}
+        title={isPlaying ? "Stop preview" : "Play preview"}
+      >
+        {isPlaying ? <StopGlyph /> : <SpeakerGlyph />}
+      </button>
       {bm.cover_url && (
         <div className="map-cover-wrap">
           <img className="map-cover" src={bm.cover_url} alt="" />
@@ -92,4 +109,27 @@ function formatLength(seconds) {
   const m = Math.floor(seconds / 60);
   const s = Math.round(seconds % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function SpeakerGlyph() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 9v6h4l5 4V5L8 9H4z" fill="currentColor" />
+      <path
+        d="M16 8.5a4.5 4.5 0 0 1 0 7M18.5 6a8 8 0 0 1 0 12"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function StopGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <rect x="5" y="5" width="14" height="14" rx="2" />
+    </svg>
+  );
 }
