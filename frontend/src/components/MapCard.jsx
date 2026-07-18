@@ -1,5 +1,6 @@
 import { useState } from "react";
 import EditableNote from "./EditableNote.jsx";
+import "./MapCard.css";
 
 // A single beatmap card, shared by the map pool editor and the public pool page.
 // Stats are firm (mod-adjusted, locked at add time) so the card just displays them.

@@ -1,0 +1,45 @@
+/* Design tokens, resets, base typography and small utilities used everywhere. */
+:root {
+  --blurple: #5865f2;
+  --blurple-hover: #4752c4;
+  --osu-pink: #ff66ab;
+  --osu-pink-hover: #e85a99;
+  --bg: #1e1f24;
+  --card-bg: #2b2d34;
+  --text: #f2f3f5;
+  --muted: #9a9ca3;
+  --error: #f28b82;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+h1 {
+  font-size: 20px;
+  margin: 0 0 8px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 12px;
+}
+
+.status {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.status-error {
+  color: var(--error);
+}

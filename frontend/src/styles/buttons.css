@@ -1,0 +1,53 @@
+/* Shared full-width auth/action buttons (also used as styled links via a.<class>). */
+.discord-btn,
+.logout-btn,
+.osu-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.osu-btn {
+  background: var(--osu-pink);
+  color: white;
+}
+
+.osu-btn:hover {
+  background: var(--osu-pink-hover);
+}
+
+.discord-btn {
+  background: var(--blurple);
+  color: white;
+  margin-bottom: 12px;
+}
+
+.discord-btn:hover {
+  background: var(--blurple-hover);
+}
+
+.logout-btn {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid #44464e;
+}
+
+.logout-btn:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+/* Links styled as buttons shouldn't carry the underline. */
+a.discord-btn,
+a.osu-btn {
+  text-decoration: none;
+}

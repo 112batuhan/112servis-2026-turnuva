@@ -1,0 +1,109 @@
+/* Sticky top navigation bar. */
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 24px;
+  background: var(--card-bg);
+  border-bottom: 1px solid #3a3c44;
+}
+
+.nav-left,
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-brand {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  margin-right: 12px;
+}
+
+.nav-brand-dim {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.nav-link {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--muted);
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.nav-link:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.nav-link-active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.nav-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+.nav-username {
+  font-size: 14px;
+  color: var(--text);
+  margin-right: 4px;
+}
+
+.nav-logout {
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid #44464e;
+}
+
+.nav-logout:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+/* Guest login button + logged-in user link. */
+.nav-login {
+  background: var(--osu-pink);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nav-login:hover {
+  background: var(--osu-pink-hover);
+}
+
+.nav-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--text);
+  padding: 4px 8px;
+  border-radius: 8px;
+}
+
+.nav-user:hover {
+  background: rgba(255, 255, 255, 0.05);
+}

@@ -1,0 +1,328 @@
+/* Map pool feature styles, shared by the editor (MapPoolPage) and the public
+   read-only view (PublicPoolPage / PoolCategories). The stage/category-management
+   and publish controls only appear in the editor but live here to keep the whole
+   pool layout in one place. */
+
+.mappool {
+  max-width: 1200px;
+}
+
+.mappool h1 {
+  margin-bottom: 16px;
+}
+
+/* ---- stage tabs ---- */
+.stage-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.stage-tab {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid #3a3c44;
+  background: var(--card-bg);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.stage-tab:hover {
+  color: var(--text);
+}
+
+.stage-tab-active {
+  color: var(--text);
+  border-color: var(--osu-pink);
+}
+
+.stage-new {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+/* Text inputs/selects used across the stage, category and add-map forms. */
+.stage-new input,
+.cat-form input,
+.cat-form select,
+.add-map input {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid #44464e;
+  border-radius: 8px;
+  color: var(--text);
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.stage-new button,
+.cat-form button,
+.add-map button {
+  background: var(--osu-pink);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.stage-new button:disabled,
+.cat-form button:disabled,
+.add-map button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---- settings + categories (editor only) ---- */
+.mappool-settings {
+  margin-bottom: 20px;
+}
+
+.mappool-settings h2 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.cat-form {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.cat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+}
+
+.cat-chip button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.cat-chip button:hover {
+  color: var(--error);
+}
+
+.danger-btn {
+  background: transparent;
+  border: 1px solid #5a3a3a;
+  color: var(--error);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.danger-btn:hover {
+  background: rgba(242, 139, 130, 0.1);
+}
+
+/* ---- publish / draft indicators (editor only) ---- */
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.publish-btn {
+  background: var(--osu-pink);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.publish-btn:hover {
+  background: var(--osu-pink-hover);
+}
+
+.publish-btn.is-published {
+  background: transparent;
+  border: 1px solid #44464e;
+  color: var(--muted);
+}
+
+.publish-btn.is-published:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.publish-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.stage-status {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #e0b341;
+  margin-left: 10px;
+  vertical-align: middle;
+}
+
+.stage-status.is-published {
+  color: #6bd18b;
+}
+
+.draft-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e0b341;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+/* ---- pool board + sections ---- */
+.pool-board {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pool-section {
+  background: var(--card-bg);
+  border: 1px solid #3a3c44;
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+
+.pool-section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.pool-section-title {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.map-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.add-map {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  max-width: 360px;
+}
+
+.add-map input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* ---- category slots ---- */
+.slot-add {
+  background: transparent;
+  border: 1px solid #44464e;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.slot-add:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.slot-add:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.slot-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* One slot: the slot number on the far left, then the body (notes + remove, and the
+   assigned map or an empty target). */
+.slot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid #34363e;
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.slot-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.slot-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.slot-label {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* The slot's editor note (an EditableNote) fills the row next to the delete button. */
+.slot-head > .note {
+  flex: 1;
+  min-width: 0;
+}
+
+.slot-empty {
+  border: 1px dashed #3a3c44;
+  border-radius: 8px;
+  padding: 14px;
+  text-align: center;
+}
+
+.slot-del {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.slot-del:hover {
+  color: var(--error);
+}

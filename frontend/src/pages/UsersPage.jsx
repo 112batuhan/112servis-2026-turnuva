@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchUsers, updateUserRole } from "../api.js";
+import "./UsersPage.css";
 
 const ROLES = ["host", "map_pooler", "basic"];
 const ROLE_LABELS = { host: "Host", map_pooler: "Map Pooler", basic: "Basic" };

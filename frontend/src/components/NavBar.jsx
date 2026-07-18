@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
 import { hasRole } from "../roles.js";
+import "./NavBar.css";
 import { logout as apiLogout, loginWithOsu } from "../api.js";
 
 export default function NavBar() {

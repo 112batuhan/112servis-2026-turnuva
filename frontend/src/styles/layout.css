@@ -1,0 +1,93 @@
+/* Page shell and shared surfaces (auth card, content wrapper, notices, panels)
+   reused across the login, profile, admin and map pool pages. */
+
+/* Centered auth/login card. */
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.card {
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 40px 32px;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  margin-bottom: 16px;
+}
+
+.subtitle {
+  color: var(--muted);
+  margin: 0 0 24px;
+  font-size: 14px;
+}
+
+.linked {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0 0 16px;
+}
+
+/* Main routed content wrapper. */
+.content {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.content-center {
+  padding-top: 64px;
+}
+
+.notice {
+  border: 1px solid #3a3c44;
+  border-radius: 10px;
+  padding: 16px;
+  margin-top: 8px;
+}
+
+.notice-text {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0 0 14px;
+}
+
+/* Card-like panel used by the admin and map pool settings areas. */
+.panel {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.panel-head h1 {
+  margin: 0;
+}
+
+.pill {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 10px;
+  border-radius: 999px;
+}

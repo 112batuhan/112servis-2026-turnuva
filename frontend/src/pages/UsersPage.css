@@ -1,0 +1,98 @@
+/* Users admin table: user rows, role badges and the role picker. */
+.table-scroll {
+  overflow-x: auto;
+}
+
+.user-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.user-table th,
+.user-table td {
+  text-align: left;
+  padding: 10px 12px;
+  white-space: nowrap;
+}
+
+.user-table thead th {
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid #3a3c44;
+}
+
+.user-table tbody tr {
+  border-bottom: 1px solid #2f313a;
+}
+
+.user-table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.row-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: block;
+}
+
+.role {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+}
+
+.role-host {
+  background: rgba(255, 102, 171, 0.18);
+  color: var(--osu-pink);
+}
+
+.role-map_pooler {
+  background: rgba(88, 101, 242, 0.18);
+  color: #aab2ff;
+}
+
+.user-link {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.user-link:hover {
+  color: var(--osu-pink);
+  text-decoration: underline;
+}
+
+.role-select {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  border: 1px solid #44464e;
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.role-select:hover {
+  border-color: var(--muted);
+}
+
+.role-select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.role-select option {
+  background: var(--card-bg);
+  color: var(--text);
+}

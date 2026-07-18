@@ -1,0 +1,118 @@
+/* Beatmap card: cover + info on the left, note fields on the right. */
+.map-card {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid #34363e;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+/* Grab cursor only on draggable (editor) cards, not the read-only public ones. */
+.map-card[draggable="true"] {
+  cursor: grab;
+}
+
+.map-card[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.map-cover {
+  width: 48px;
+  height: 34px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.map-body {
+  min-width: 0;
+  flex: 2;
+  align-self: center;
+}
+
+.map-title {
+  display: block;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.map-title:hover {
+  color: var(--osu-pink);
+}
+
+.map-sub {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.map-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.stat {
+  white-space: nowrap;
+}
+
+/* A stat changed by the mods the map was locked with (e.g. AR/OD/BPM under DT). */
+.stat-mod {
+  color: var(--osu-pink);
+  font-weight: 700;
+}
+
+.map-remove {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  align-self: flex-start;
+}
+
+.map-remove:hover {
+  color: var(--error);
+}
+
+/* Notes sit inside the card, right of the map info: labelled fields side by side.
+   flex-start so editing one note (which grows it) doesn't stretch its neighbour. */
+.map-notes {
+  display: flex;
+  gap: 8px;
+  flex: 3;
+  min-width: 0;
+  align-items: flex-start;
+}
+
+.map-note-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.map-note-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.map-note-label-hidden {
+  font-style: italic;
+}

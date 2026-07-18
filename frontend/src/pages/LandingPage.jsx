@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
 import { loginWithOsu } from "../api.js";
+import "./LandingPage.css";
 import { hasRole } from "../roles.js";
 
 // Public landing page — visible to everyone, signed in or not. More public pages

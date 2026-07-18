@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../AuthContext.jsx";
 import { hasRole } from "../roles.js";
+import "./AdminPage.css";
 
 // Admin console layout: a tab bar over nested routes. The Users tab is host-only;
 // the Map Pool tab is map_pooler+. The active tab renders in the <Outlet />.

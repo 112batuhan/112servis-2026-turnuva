@@ -1,0 +1,85 @@
+/* Compact, editable note that expands while editing and shows a tooltip when clipped. */
+
+/* Shared box look for a note in either state (idle view or editing textarea). */
+.note {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid #34363e;
+  border-radius: 6px;
+  color: var(--text);
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  line-height: 1.35;
+}
+
+/* Hidden (editor-only) note — dashed border signals it isn't public. */
+.note-hidden {
+  border-style: dashed;
+  color: var(--muted);
+}
+
+/* Idle: a single truncated line. Click to edit; hover shows the tooltip. */
+.note-view {
+  position: relative;
+  cursor: text;
+}
+
+.note-view-text {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note-view-empty .note-view-text {
+  color: var(--muted);
+  font-style: italic;
+  opacity: 0.7;
+}
+
+/* Editing: auto-grown by JS to fit the content — no manual resize, no scrollbar. */
+.note-edit {
+  display: block;
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.note-edit:focus {
+  outline: none;
+  border-color: var(--osu-pink);
+}
+
+/* Styled tooltip: a rectangle above the box showing the full note text on hover. */
+.note-tip {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 50;
+  width: max-content;
+  max-width: 260px;
+  padding: 6px 9px;
+  background: #1b1c22;
+  border: 1px solid #45474f;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  pointer-events: none;
+}
+
+.note-view:hover .note-tip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}

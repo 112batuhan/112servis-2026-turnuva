@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import "./EditableNote.css";
 
 // A note field that fits inside a tight map card yet handles arbitrarily long text.
 //   - Idle: shows one truncated line; hovering reveals a styled tooltip with the full text.
