@@ -286,6 +286,12 @@
   transform: rotate(-90deg);
 }
 
+/* When the + slot button is present it takes the auto margin; the caret then sits right
+   next to it (rather than the free space being split between the two). */
+.slot-add + .caret {
+  margin-left: 0;
+}
+
 .pool-section-title {
   font-weight: 700;
   font-size: 15px;

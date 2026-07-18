@@ -23,11 +23,6 @@ export default function PoolCategories({ categories, slots = [], maps }) {
               onClick={() => toggleCollapsed(c.id)}
             >
               <span className="pool-section-title">{c.name}</span>
-              {catSlots.length > 0 && (
-                <span className="muted small">
-                  {catSlots.length} slot{catSlots.length === 1 ? "" : "s"}
-                </span>
-              )}
               <span className="caret" aria-hidden="true">
                 ▾
               </span>
