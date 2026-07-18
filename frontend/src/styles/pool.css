@@ -45,6 +45,32 @@
   margin-left: auto;
 }
 
+/* Gear button beside the new-stage box: toggles the settings panel. */
+.settings-toggle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid #3a3c44;
+  border-radius: 8px;
+  background: var(--card-bg);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.settings-toggle:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.settings-toggle.is-active {
+  color: var(--osu-pink);
+  border-color: var(--osu-pink);
+}
+
 /* Text inputs/selects used across the stage, category and add-map forms. */
 .stage-new input,
 .cat-form input,
@@ -189,14 +215,22 @@
   color: #6bd18b;
 }
 
-.draft-dot {
+/* Per-stage status dot in the tab list: green when published, red while a draft. */
+.stage-dot {
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: #e0b341;
-  margin-left: 6px;
+  margin-left: 8px;
   vertical-align: middle;
+}
+
+.stage-dot.is-published {
+  background: #6bd18b;
+}
+
+.stage-dot.is-draft {
+  background: var(--error);
 }
 
 /* ---- pool board + sections ---- */
