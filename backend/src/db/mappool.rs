@@ -69,6 +69,33 @@ pub struct PoolMap {
     pub hp: f64,
     pub mode: String,
     pub cover_url: Option<String>,
+    pub public_notes: String,
+    pub editor_notes: String,
+}
+
+// Public view of a pool map — the same, minus the editor notes.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PublicPoolMap {
+    pub id: Uuid,
+    pub slot_id: Option<Uuid>,
+    pub position: i32,
+    pub mods: String,
+    pub beatmap_id: i64,
+    pub beatmapset_id: i64,
+    pub artist: String,
+    pub title: String,
+    pub version: String,
+    pub creator: Option<String>,
+    pub star_rating: f64,
+    pub bpm: f64,
+    pub total_length: i32,
+    pub cs: f64,
+    pub ar: f64,
+    pub od: f64,
+    pub hp: f64,
+    pub mode: String,
+    pub cover_url: Option<String>,
+    pub public_notes: String,
 }
 
 // The mod-adjusted stats locked onto a map when it's added to the pool.
@@ -107,14 +134,14 @@ pub struct StageDetail {
 }
 
 // Read-only view of a published stage for the public page: categories + their slots
-// (no editor notes) + their maps, no generic pool.
+// (no editor notes) + their maps (no editor notes), no generic pool.
 #[derive(Debug, Serialize)]
 pub struct PublicStageDetail {
     #[serde(flatten)]
     pub stage: Stage,
     pub categories: Vec<Category>,
     pub slots: Vec<PublicSlot>,
-    pub maps: Vec<PoolMap>,
+    pub maps: Vec<PublicPoolMap>,
 }
 
 // Beatmap fields to cache, mapped from an osu! API response by the handler.
@@ -339,7 +366,12 @@ pub async fn get_beatmap(pool: &PgPool, id: i64) -> sqlx::Result<Option<Beatmap>
 
 const POOL_MAP_COLS: &str = "pm.id, pm.slot_id, pm.position, pm.mods, \
      b.id AS beatmap_id, b.beatmapset_id, b.artist, b.title, b.version, b.creator, b.mode, b.cover_url, \
-     pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od, pm.hp";
+     pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od, pm.hp, pm.public_notes, pm.editor_notes";
+
+// Public column list: same as above but without editor_notes.
+const PUBLIC_MAP_COLS: &str = "pm.id, pm.slot_id, pm.position, pm.mods, \
+     b.id AS beatmap_id, b.beatmapset_id, b.artist, b.title, b.version, b.creator, b.mode, b.cover_url, \
+     pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od, pm.hp, pm.public_notes";
 
 // Adds a map (beatmap + mods with locked stats) to the generic pool. Returns its id.
 pub async fn add_pool_map(
@@ -399,19 +431,38 @@ pub async fn list_stage_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<
         .await
 }
 
-// Maps the public page shows for a (published) stage: only the ones assigned to slots.
-pub async fn list_public_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<PoolMap>> {
+// Maps the public page shows for a (published) stage: only the ones assigned to slots,
+// and without editor notes.
+pub async fn list_public_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<PublicPoolMap>> {
     let sql = format!(
-        "SELECT {POOL_MAP_COLS} FROM pool_maps pm JOIN beatmaps b ON b.id = pm.beatmap_id \
+        "SELECT {PUBLIC_MAP_COLS} FROM pool_maps pm JOIN beatmaps b ON b.id = pm.beatmap_id \
          WHERE pm.slot_id IN ( \
              SELECT s.id FROM category_slots s JOIN stage_categories c ON c.id = s.category_id \
              WHERE c.stage_id = $1) \
          ORDER BY pm.position, pm.created_at"
     );
-    sqlx::query_as::<_, PoolMap>(&sql)
+    sqlx::query_as::<_, PublicPoolMap>(&sql)
         .bind(stage_id)
         .fetch_all(pool)
         .await
+}
+
+// Updates a map's notes; each field is only changed when Some(..) is passed.
+pub async fn update_map_notes(
+    pool: &PgPool,
+    id: Uuid,
+    public_notes: Option<&str>,
+    editor_notes: Option<&str>,
+) -> sqlx::Result<PoolMap> {
+    sqlx::query("UPDATE pool_maps SET public_notes = COALESCE($2, public_notes), editor_notes = COALESCE($3, editor_notes) WHERE id = $1")
+        .bind(id)
+        .bind(public_notes)
+        .bind(editor_notes)
+        .execute(pool)
+        .await?;
+    get_pool_map(pool, id)
+        .await?
+        .ok_or(sqlx::Error::RowNotFound)
 }
 
 // Assigns a map to a slot, or back to the generic pool (None). Since a slot holds at

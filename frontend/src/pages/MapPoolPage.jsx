@@ -13,8 +13,10 @@ import {
   addMap,
   moveMap,
   deleteMap,
+  updateMapNotes,
 } from "../api.js";
 import MapCard from "../components/MapCard.jsx";
+import EditableNote from "../components/EditableNote.jsx";
 
 const MODIFIERS = ["", "HD", "HR", "DT", "HT", "EZ", "FL", "HDHR", "HDDT"];
 
@@ -164,6 +166,17 @@ export default function MapPoolPage() {
     await reload();
   });
 
+  // Save a map note on blur; update local state so the field keeps its value, no reload.
+  const handleSaveMapNote = (mapPoolId, field, value) => {
+    const map = maps.find((m) => m.id === mapPoolId);
+    if (map && map[field] === value) return;
+    setDetail((d) => ({
+      ...d,
+      maps: d.maps.map((m) => (m.id === mapPoolId ? { ...m, [field]: value } : m)),
+    }));
+    updateMapNotes(mapPoolId, { [field]: value }).catch((e) => setError(e.message));
+  };
+
   // Drop onto a slot (slotId) assigns the map there; onto the generic pool (null) frees it.
   const onDrop = (slotId) => (e) => {
     e.preventDefault();
@@ -277,6 +290,7 @@ export default function MapPoolPage() {
                     key={m.id}
                     bm={m}
                     drag={{ mapId: m.id }}
+                    onSaveNote={(field, value) => handleSaveMapNote(m.id, field, value)}
                     onRemove={() => run(async () => {
                       await deleteMap(m.id);
                       await reload();
@@ -309,11 +323,11 @@ export default function MapPoolPage() {
                           <span className="slot-label">#{i + 1}</span>
                           <div className="slot-body">
                             <div className="slot-head">
-                              <input
-                                className="slot-notes"
-                                defaultValue={slot.editor_notes}
+                              <EditableNote
+                                value={slot.editor_notes}
                                 placeholder="Editor notes…"
-                                onBlur={(e) => handleUpdateSlotNotes(slot, e.target.value)}
+                                hidden
+                                onSave={(v) => handleUpdateSlotNotes(slot, v)}
                               />
                               <button
                                 className="slot-del"
@@ -327,6 +341,7 @@ export default function MapPoolPage() {
                               <MapCard
                                 bm={slotMap}
                                 drag={{ mapId: slotMap.id }}
+                                onSaveNote={(field, value) => handleSaveMapNote(slotMap.id, field, value)}
                                 onRemove={() => handleMove(slotMap.id, null)}
                               />
                             ) : (

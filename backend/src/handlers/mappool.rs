@@ -25,6 +25,7 @@ pub fn routes() -> Router<AppState> {
         .route("/slots/:id", patch(update_slot).delete(delete_slot))
         .route("/pool", post(add_map))
         .route("/maps/:id", patch(move_map).delete(delete_map))
+        .route("/maps/:id/notes", patch(update_map_notes))
         .route("/public/stages", get(list_public_stages))
         .route("/public/stages/:id", get(get_public_stage))
 }
@@ -311,6 +312,33 @@ pub async fn delete_map(
     guard(&user)?;
     db::mappool::delete_pool_map(&state.db, id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateMapNotesBody {
+    // Each is optional — only the fields present are changed.
+    #[serde(default)]
+    public_notes: Option<String>,
+    #[serde(default)]
+    editor_notes: Option<String>,
+}
+
+// PATCH /api/maps/:id/notes — update a map's public and/or editor notes.
+pub async fn update_map_notes(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateMapNotesBody>,
+) -> Result<impl IntoResponse, AppError> {
+    guard(&user)?;
+    let map = db::mappool::update_map_notes(
+        &state.db,
+        id,
+        body.public_notes.as_deref(),
+        body.editor_notes.as_deref(),
+    )
+    .await?;
+    Ok(Json(map))
 }
 
 // ---------- public (unauthenticated) — published stages only ----------

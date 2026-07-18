@@ -1,12 +1,19 @@
+import { useState } from "react";
+import EditableNote from "./EditableNote.jsx";
+
 // A single beatmap card, shared by the map pool editor and the public pool page.
-// Stats are firm — already mod-adjusted for placed entries, nomod for generic-pool
-// maps — so the card just displays them (no client-side mod math). Interactive bits
-// are opt-in: pass `drag` to make it draggable, `onRemove` to show a remove button.
-export default function MapCard({ bm, drag, onRemove }) {
+// Stats are firm (mod-adjusted, locked at add time) so the card just displays them.
+// Notes live inside the card, to the right of the map info (see EditableNote):
+//   - editor: pass `onSaveNote(field, value)` for editable public + hidden notes.
+//   - public: no `onSaveNote` — the public note is shown read-only (editor note absent).
+// Editing a note suspends the card's own dragging so the field stays usable.
+// Interactive bits are opt-in: `drag` makes the card draggable, `onRemove` shows an ×.
+export default function MapCard({ bm, drag, onRemove, onSaveNote }) {
+  const [dragOn, setDragOn] = useState(true);
   return (
     <div
       className="map-card"
-      draggable={Boolean(drag)}
+      draggable={Boolean(drag) && dragOn}
       onDragStart={drag ? (e) => e.dataTransfer.setData("text/plain", JSON.stringify(drag)) : undefined}
     >
       {bm.cover_url && <img className="map-cover" src={bm.cover_url} alt="" />}
@@ -33,6 +40,39 @@ export default function MapCard({ bm, drag, onRemove }) {
           <span className="stat">HP {bm.hp.toFixed(1)}</span>
         </div>
       </div>
+
+      {onSaveNote ? (
+        <div className="map-notes">
+          <label className="map-note-field">
+            <span className="map-note-label">Public</span>
+            <EditableNote
+              value={bm.public_notes}
+              placeholder="Public note…"
+              onEditingChange={(on) => setDragOn(!on)}
+              onSave={(v) => onSaveNote("public_notes", v)}
+            />
+          </label>
+          <label className="map-note-field">
+            <span className="map-note-label map-note-label-hidden">Private</span>
+            <EditableNote
+              value={bm.editor_notes}
+              placeholder="Editor note (hidden)…"
+              hidden
+              onEditingChange={(on) => setDragOn(!on)}
+              onSave={(v) => onSaveNote("editor_notes", v)}
+            />
+          </label>
+        </div>
+      ) : (
+        bm.public_notes && (
+          <div className="map-notes">
+            <div className="map-note-field">
+              <EditableNote value={bm.public_notes} />
+            </div>
+          </div>
+        )
+      )}
+
       {onRemove && (
         <button className="map-remove" onClick={onRemove} aria-label="remove map">
           ×

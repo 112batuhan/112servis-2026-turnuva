@@ -83,6 +83,8 @@ export const addMap = (beatmapId, mods) =>
 export const moveMap = (mapId, slotId) =>
   request(`/api/maps/${mapId}`, jsonBody("PATCH", { slot_id: slotId ?? null }));
 export const deleteMap = (mapId) => request(`/api/maps/${mapId}`, { method: "DELETE" });
+// Update a map's notes. Pass { public_notes } and/or { editor_notes }.
+export const updateMapNotes = (mapId, notes) => request(`/api/maps/${mapId}/notes`, jsonBody("PATCH", notes));
 
 // Public (unauthenticated) — published stages only.
 export const fetchPublicStages = () => request("/api/public/stages");
