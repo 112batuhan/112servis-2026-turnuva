@@ -5,7 +5,9 @@ import {
   deleteStage,
   fetchStage,
   setStagePublished,
+  renameStage,
   createCategory,
+  renameCategory,
   deleteCategory,
   addSlot,
   updateSlotNotes,
@@ -17,6 +19,7 @@ import {
 } from "../api.js";
 import MapCard from "../components/MapCard.jsx";
 import EditableNote from "../components/EditableNote.jsx";
+import InlineEdit from "../components/InlineEdit.jsx";
 import { useCollapsed } from "../useCollapsed.js";
 
 // Stable key for the generic pool section in the collapse set (categories use their id).
@@ -116,6 +119,17 @@ export default function MapPoolPage() {
     await setStagePublished(selectedId, !detail.published);
     await reload();
     await loadStages();
+  });
+
+  const handleRenameStage = (name) => run(async () => {
+    await renameStage(selectedId, name);
+    await reload();
+    await loadStages(); // keep the stage tab label in sync
+  });
+
+  const handleRenameCategory = (id, name) => run(async () => {
+    await renameCategory(id, name);
+    await reload();
   });
 
   const handleAddCategory = (e) => {
@@ -224,7 +238,8 @@ export default function MapPoolPage() {
           <div className="panel mappool-settings">
             <div className="panel-head">
               <h2>
-                {detail.name} · settings
+                <InlineEdit value={detail.name} onSave={handleRenameStage} />
+                {" · settings"}
                 <span className={`stage-status ${detail.published ? "is-published" : ""}`}>
                   {detail.published ? "Published" : "Draft"}
                 </span>
@@ -256,7 +271,7 @@ export default function MapPoolPage() {
               {categories.length === 0 && <span className="muted">No categories yet.</span>}
               {categories.map((c) => (
                 <span key={c.id} className="cat-chip">
-                  {c.name}
+                  <InlineEdit value={c.name} onSave={(name) => handleRenameCategory(c.id, name)} />
                   <button onClick={() => handleDeleteCategory(c.id)} aria-label="delete category">
                     ×
                   </button>

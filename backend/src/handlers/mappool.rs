@@ -17,10 +17,13 @@ pub fn routes() -> Router<AppState> {
         .route("/stages", get(list_stages).post(create_stage))
         .route(
             "/stages/:id",
-            get(get_stage).delete(delete_stage).patch(set_published),
+            get(get_stage).delete(delete_stage).patch(update_stage),
         )
         .route("/stages/:id/categories", post(create_category))
-        .route("/categories/:id", delete(delete_category))
+        .route(
+            "/categories/:id",
+            delete(delete_category).patch(update_category),
+        )
         .route("/categories/:id/slots", post(add_slot))
         .route("/slots/:id", patch(update_slot).delete(delete_slot))
         .route("/pool", post(add_map))
@@ -96,19 +99,30 @@ pub async fn delete_stage(
 }
 
 #[derive(Debug, Deserialize)]
-pub struct SetPublishedBody {
-    published: bool,
+pub struct UpdateStageBody {
+    // Each field is optional — only the ones present are changed.
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    published: Option<bool>,
 }
 
-pub async fn set_published(
+// PATCH /api/stages/:id — rename and/or publish/unpublish a stage.
+pub async fn update_stage(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
-    Json(body): Json<SetPublishedBody>,
+    Json(body): Json<UpdateStageBody>,
 ) -> Result<impl IntoResponse, AppError> {
     guard(&user)?;
+    let name = body.name.as_deref().map(str::trim);
+    if let Some(n) = name {
+        if n.is_empty() {
+            return Err(AppError::BadRequest("stage name is required"));
+        }
+    }
     Ok(Json(
-        db::mappool::set_published(&state.db, id, body.published).await?,
+        db::mappool::update_stage(&state.db, id, name, body.published).await?,
     ))
 }
 
@@ -132,6 +146,28 @@ pub async fn create_category(
     }
     Ok(Json(
         db::mappool::create_category(&state.db, stage_id, name).await?,
+    ))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateCategoryBody {
+    name: String,
+}
+
+// PATCH /api/categories/:id — rename a category.
+pub async fn update_category(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateCategoryBody>,
+) -> Result<impl IntoResponse, AppError> {
+    guard(&user)?;
+    let name = body.name.trim();
+    if name.is_empty() {
+        return Err(AppError::BadRequest("category name is required"));
+    }
+    Ok(Json(
+        db::mappool::rename_category(&state.db, id, name).await?,
     ))
 }
 

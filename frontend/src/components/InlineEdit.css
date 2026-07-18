@@ -1,0 +1,40 @@
+/* Text + pencil button; inline-flex so it flows with surrounding text. */
+.inline-edit-view {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.inline-edit-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--muted);
+  line-height: 0;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.inline-edit-btn:hover {
+  color: var(--osu-pink);
+}
+
+/* Inline rename field — inherits the surrounding text size/weight so it doesn't jump. */
+.inline-edit {
+  font: inherit;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--osu-pink);
+  border-radius: 6px;
+  padding: 1px 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.inline-edit:focus {
+  outline: none;
+}

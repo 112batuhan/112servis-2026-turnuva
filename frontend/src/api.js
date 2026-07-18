@@ -65,9 +65,12 @@ export const deleteStage = (id) => request(`/api/stages/${id}`, { method: "DELET
 export const fetchStage = (id) => request(`/api/stages/${id}`);
 export const setStagePublished = (id, published) =>
   request(`/api/stages/${id}`, jsonBody("PATCH", { published }));
+export const renameStage = (id, name) => request(`/api/stages/${id}`, jsonBody("PATCH", { name }));
 
 export const createCategory = (stageId, name) =>
   request(`/api/stages/${stageId}/categories`, jsonBody("POST", { name }));
+export const renameCategory = (id, name) =>
+  request(`/api/categories/${id}`, jsonBody("PATCH", { name }));
 export const deleteCategory = (id) => request(`/api/categories/${id}`, { method: "DELETE" });
 
 // Category slots (a category's size) with editor-only notes.
