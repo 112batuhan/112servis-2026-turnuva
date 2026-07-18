@@ -20,7 +20,9 @@ import {
 import MapCard from "../components/MapCard.jsx";
 import EditableNote from "../components/EditableNote.jsx";
 import InlineEdit from "../components/InlineEdit.jsx";
+import { useAuth } from "../AuthContext.jsx";
 import { useCollapsed } from "../useCollapsed.js";
+import { readLastStage, saveLastStage } from "../lastStage.js";
 
 // Stable key for the generic pool section in the collapse set (categories use their id).
 const GENERIC_POOL = "generic-pool";
@@ -38,6 +40,7 @@ function readDrag(e) {
 }
 
 export default function MapPoolPage() {
+  const { user } = useAuth();
   const [stages, setStages] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -59,11 +62,21 @@ export default function MapPoolPage() {
     try {
       const list = await fetchStages();
       setStages(list);
-      setSelectedId((cur) => cur ?? list[0]?.id ?? null);
+      setSelectedId((cur) => {
+        if (cur) return cur;
+        const last = readLastStage(user);
+        if (last && list.some((s) => s.id === last)) return last;
+        return list[0]?.id ?? null;
+      });
     } catch (e) {
       setError(e.message);
     }
   }
+
+  // Remember the open stage so returning to the page reopens it.
+  useEffect(() => {
+    if (selectedId) saveLastStage(user, selectedId);
+  }, [selectedId, user]);
 
   useEffect(() => {
     if (!selectedId) {
