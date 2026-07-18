@@ -41,16 +41,17 @@ export default function MapCard({ bm, drag, onRemove, onSaveNote }) {
         </div>
       )}
       <div className="map-body">
-        <a
-          className="map-title"
-          href={`https://osu.ppy.sh/beatmaps/${bm.beatmap_id}`}
-          target="_blank"
-          rel="noreferrer"
-        >
-          {bm.artist} — {bm.title}
-        </a>
-        <div className="map-sub">
-          [{bm.version}]{bm.creator ? ` · ${bm.creator}` : ""}
+        <div className="map-head">
+          <a
+            className="map-title"
+            href={`https://osu.ppy.sh/beatmaps/${bm.beatmap_id}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {bm.artist} — {bm.title}
+          </a>
+          <span className="map-diff">[{bm.version}]</span>
+          {bm.creator && <span className="map-mapper">· {bm.creator}</span>}
         </div>
         <div className="map-stats">
           {bm.mods && <span className="stat stat-mod">{bm.mods}</span>}
@@ -96,6 +97,7 @@ export default function MapCard({ bm, drag, onRemove, onSaveNote }) {
         )
       )}
 
+      <CopyableId id={bm.beatmap_id} />
       <a
         className="map-dl"
         href={`https://beatconnect.io/b/${bm.beatmapset_id}`}
@@ -120,6 +122,31 @@ function formatLength(seconds) {
   const m = Math.floor(seconds / 60);
   const s = Math.round(seconds % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+// The beatmap id, click to copy. Briefly swaps to a confirmation on success.
+function CopyableId({ id }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(String(id));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // clipboard blocked (insecure context / permissions) — leave the id as-is
+    }
+  };
+  return (
+    <button
+      type="button"
+      className={`map-id ${copied ? "is-copied" : ""}`}
+      onClick={copy}
+      title="Copy beatmap id"
+      aria-label={`Copy beatmap id ${id}`}
+    >
+      {copied ? "Copied!" : id}
+    </button>
+  );
 }
 
 function SpeakerGlyph() {

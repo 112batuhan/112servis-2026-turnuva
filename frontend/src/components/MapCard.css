@@ -18,6 +18,32 @@
   cursor: grabbing;
 }
 
+/* Beatmap id chip — click to copy; turns green while showing the confirmation. */
+.map-id {
+  flex-shrink: 0;
+  align-self: center;
+  white-space: nowrap;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid #34363e;
+  border-radius: 6px;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.map-id:hover {
+  color: var(--text);
+  border-color: var(--muted);
+}
+
+.map-id.is-copied {
+  color: #6bd18b;
+  border-color: #6bd18b;
+}
+
 /* Round card controls: preview play/stop and beatmap download. */
 .map-play,
 .map-dl {
@@ -89,15 +115,25 @@
 
 .map-body {
   min-width: 0;
-  flex: 2;
+  flex: 7;
   align-self: center;
 }
 
+/* Top row: song name, then difficulty and mapper alongside it. The title truncates so
+   the difficulty/mapper stay visible on the same row. */
+.map-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
 .map-title {
-  display: block;
+  flex: 0 1 auto;
+  min-width: 0;
   color: var(--text);
   text-decoration: none;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -108,20 +144,20 @@
   color: var(--osu-pink);
 }
 
-.map-sub {
+.map-diff,
+.map-mapper {
+  flex-shrink: 0;
   color: var(--muted);
   font-size: 12px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .map-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 4px;
-  font-size: 11px;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: 13px;
   color: var(--muted);
 }
 
@@ -157,6 +193,8 @@
   min-width: 0;
   align-items: flex-start;
 }
+
+/* Map info gets ~70% of the flexible width, notes ~30% (see .map-body flex: 7). */
 
 .map-note-field {
   display: flex;
