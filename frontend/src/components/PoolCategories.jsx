@@ -5,7 +5,8 @@ import { useCollapsed } from "../useCollapsed.js";
 // Shared by the public map pool page; mirrors the editor minus the notes and editing.
 // Categories collapse on clicking their header; the choice persists per user.
 export default function PoolCategories({ categories, slots = [], maps }) {
-  const [collapsed, toggleCollapsed] = useCollapsed("public-pool-collapsed");
+  // Stores which categories are *expanded* — so everything starts collapsed by default.
+  const [expanded, toggleExpanded] = useCollapsed("public-pool-expanded");
 
   if (categories.length === 0) {
     return <p className="status">No categories in this stage yet.</p>;
@@ -15,17 +16,22 @@ export default function PoolCategories({ categories, slots = [], maps }) {
     <div className="pool-board">
       {categories.map((c) => {
         const catSlots = slots.filter((s) => s.category_id === c.id);
-        const isCollapsed = collapsed.has(c.id);
+        const isCollapsed = !expanded.has(c.id);
         return (
-          <section key={c.id} className={`pool-section ${isCollapsed ? "is-collapsed" : ""}`}>
+          <section
+            key={c.id}
+            className={`pool-section cat-section ${isCollapsed ? "is-collapsed" : ""}`}
+            style={{ borderColor: c.color }}
+          >
             <div
-              className="pool-section-head pool-section-head-toggle"
-              onClick={() => toggleCollapsed(c.id)}
+              className="pool-section-head pool-section-head-toggle cat-head"
+              style={{ background: `${c.color}33`, borderColor: c.color }}
+              onClick={() => toggleExpanded(c.id)}
             >
-              <span className="pool-section-title">{c.name}</span>
               <span className="caret" aria-hidden="true">
                 ▾
               </span>
+              <span className="pool-section-title">{c.name}</span>
             </div>
             <div className="slot-grid" hidden={isCollapsed}>
               {catSlots.length === 0 && <p className="muted small">No slots.</p>}

@@ -18,13 +18,14 @@ pub struct Stage {
 }
 
 // A category is just a named group now — mods live on the maps, not the category. Its
-// size is the number of slots it has (see Slot).
+// size is the number of slots it has (see Slot). `color` colour-codes it in the pool.
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct Category {
     pub id: Uuid,
     pub stage_id: Uuid,
     pub name: String,
     pub position: i32,
+    pub color: String,
 }
 
 // A slot in a category, with editor-only planning notes. Grouped by category_id on
@@ -217,7 +218,7 @@ pub async fn get_published_stage(pool: &PgPool, id: Uuid) -> sqlx::Result<Option
 
 pub async fn list_categories(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<Category>> {
     sqlx::query_as::<_, Category>(
-        "SELECT id, stage_id, name, position FROM stage_categories WHERE stage_id = $1 ORDER BY position, created_at",
+        "SELECT id, stage_id, name, position, color FROM stage_categories WHERE stage_id = $1 ORDER BY position, created_at",
     )
     .bind(stage_id)
     .fetch_all(pool)
@@ -229,7 +230,7 @@ pub async fn create_category(pool: &PgPool, stage_id: Uuid, name: &str) -> sqlx:
         r#"
         INSERT INTO stage_categories (stage_id, name, position)
         VALUES ($1, $2, (SELECT COALESCE(MAX(position), -1) + 1 FROM stage_categories WHERE stage_id = $1))
-        RETURNING id, stage_id, name, position
+        RETURNING id, stage_id, name, position, color
         "#,
     )
     .bind(stage_id)
@@ -238,13 +239,20 @@ pub async fn create_category(pool: &PgPool, stage_id: Uuid, name: &str) -> sqlx:
     .await
 }
 
-pub async fn rename_category(pool: &PgPool, id: Uuid, name: &str) -> sqlx::Result<Category> {
+// Updates a category's name and/or colour; each field changes only when Some(..).
+pub async fn update_category(
+    pool: &PgPool,
+    id: Uuid,
+    name: Option<&str>,
+    color: Option<&str>,
+) -> sqlx::Result<Category> {
     sqlx::query_as::<_, Category>(
-        "UPDATE stage_categories SET name = $2, updated_at = now() \
-         WHERE id = $1 RETURNING id, stage_id, name, position",
+        "UPDATE stage_categories SET name = COALESCE($2, name), color = COALESCE($3, color), \
+         updated_at = now() WHERE id = $1 RETURNING id, stage_id, name, position, color",
     )
     .bind(id)
     .bind(name)
+    .bind(color)
     .fetch_one(pool)
     .await
 }

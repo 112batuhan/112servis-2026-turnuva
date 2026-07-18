@@ -8,6 +8,7 @@ import {
   renameStage,
   createCategory,
   renameCategory,
+  setCategoryColor,
   deleteCategory,
   addSlot,
   updateSlotNotes,
@@ -47,7 +48,8 @@ export default function MapPoolPage() {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [collapsed, toggleCollapsed] = useCollapsed("mappool-collapsed");
+  // Stores which sections are *expanded* — so everything starts collapsed by default.
+  const [expanded, toggleExpanded] = useCollapsed("mappool-expanded");
 
   const [newStage, setNewStage] = useState("");
   const [mapId, setMapId] = useState("");
@@ -145,6 +147,16 @@ export default function MapPoolPage() {
     await renameCategory(id, name);
     await reload();
   });
+
+  // Update the colour live as the picker moves; persist once when it's released (blur).
+  const handleCategoryColorInput = (id, color) =>
+    setDetail((d) => ({
+      ...d,
+      categories: d.categories.map((c) => (c.id === id ? { ...c, color } : c)),
+    }));
+
+  const handleCategoryColorSave = (id, color) =>
+    setCategoryColor(id, color).catch((e) => setError(e.message));
 
   const handleAddCategory = (e) => {
     e.preventDefault();
@@ -300,6 +312,14 @@ export default function MapPoolPage() {
               {categories.length === 0 && <span className="muted">No categories yet.</span>}
               {categories.map((c) => (
                 <span key={c.id} className="cat-chip">
+                  <input
+                    type="color"
+                    className="cat-color"
+                    value={c.color}
+                    onChange={(e) => handleCategoryColorInput(c.id, e.target.value)}
+                    onBlur={(e) => handleCategoryColorSave(c.id, e.target.value)}
+                    title="Category color"
+                  />
                   <InlineEdit value={c.name} onSave={(name) => handleRenameCategory(c.id, name)} />
                   <button onClick={() => handleDeleteCategory(c.id)} aria-label="delete category">
                     ×
@@ -312,7 +332,7 @@ export default function MapPoolPage() {
 
           <div className="pool-board">
             {(() => {
-              const isCollapsed = collapsed.has(GENERIC_POOL);
+              const isCollapsed = !expanded.has(GENERIC_POOL);
               return (
                 <section
                   className={`pool-section ${isCollapsed ? "is-collapsed" : ""}`}
@@ -321,13 +341,13 @@ export default function MapPoolPage() {
                 >
                   <div
                     className="pool-section-head pool-section-head-toggle"
-                    onClick={() => toggleCollapsed(GENERIC_POOL)}
+                    onClick={() => toggleExpanded(GENERIC_POOL)}
                   >
-                    <span className="pool-section-title">Generic pool</span>
-                    <span className="muted small">add maps by id + mods, then drag them into a category</span>
                     <span className="caret" aria-hidden="true">
                       ▾
                     </span>
+                    <span className="pool-section-title">Generic pool</span>
+                    <span className="muted small">add maps by id + mods, then drag them into a category</span>
                   </div>
                   <form className="add-map" onSubmit={handleAddMap} hidden={isCollapsed}>
                     <input
@@ -368,13 +388,21 @@ export default function MapPoolPage() {
 
             {categories.map((c) => {
               const catSlots = slots.filter((s) => s.category_id === c.id);
-              const isCollapsed = collapsed.has(c.id);
+              const isCollapsed = !expanded.has(c.id);
               return (
-                <section key={c.id} className={`pool-section ${isCollapsed ? "is-collapsed" : ""}`}>
+                <section
+                  key={c.id}
+                  className={`pool-section cat-section ${isCollapsed ? "is-collapsed" : ""}`}
+                  style={{ borderColor: c.color }}
+                >
                   <div
-                    className="pool-section-head pool-section-head-toggle"
-                    onClick={() => toggleCollapsed(c.id)}
+                    className="pool-section-head pool-section-head-toggle cat-head"
+                    style={{ background: `${c.color}33`, borderColor: c.color }}
+                    onClick={() => toggleExpanded(c.id)}
                   >
+                    <span className="caret" aria-hidden="true">
+                      ▾
+                    </span>
                     <span className="pool-section-title">{c.name}</span>
                     <span className="muted small">
                       {catSlots.length} slot{catSlots.length === 1 ? "" : "s"}
@@ -389,9 +417,6 @@ export default function MapPoolPage() {
                     >
                       + slot
                     </button>
-                    <span className="caret" aria-hidden="true">
-                      ▾
-                    </span>
                   </div>
                   <div className="slot-grid" hidden={isCollapsed}>
                     {catSlots.length === 0 && <p className="muted small">Add slots to hold maps.</p>}

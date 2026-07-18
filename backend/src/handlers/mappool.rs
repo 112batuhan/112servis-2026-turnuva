@@ -151,10 +151,14 @@ pub async fn create_category(
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateCategoryBody {
-    name: String,
+    // Each field is optional — only the ones present are changed.
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    color: Option<String>,
 }
 
-// PATCH /api/categories/:id — rename a category.
+// PATCH /api/categories/:id — rename and/or recolour a category.
 pub async fn update_category(
     State(state): State<AppState>,
     user: AuthUser,
@@ -162,12 +166,14 @@ pub async fn update_category(
     Json(body): Json<UpdateCategoryBody>,
 ) -> Result<impl IntoResponse, AppError> {
     guard(&user)?;
-    let name = body.name.trim();
-    if name.is_empty() {
-        return Err(AppError::BadRequest("category name is required"));
+    let name = body.name.as_deref().map(str::trim);
+    if let Some(n) = name {
+        if n.is_empty() {
+            return Err(AppError::BadRequest("category name is required"));
+        }
     }
     Ok(Json(
-        db::mappool::rename_category(&state.db, id, name).await?,
+        db::mappool::update_category(&state.db, id, name, body.color.as_deref()).await?,
     ))
 }
 
