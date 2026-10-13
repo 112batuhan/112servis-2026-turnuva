@@ -27,15 +27,18 @@ INSERT INTO osu_users (osu_id, username, avatar_url, country_code, global_rank, 
     (-121, 'Ayva',       'https://a.ppy.sh/', 'TR', NULL,  NULL, 'basic'),
     (-122, 'Nohut',      'https://a.ppy.sh/', 'DE', 5600,  90,   'basic'),
     (-123, 'Leblebi',    'https://a.ppy.sh/', 'NL', 26000, 410,  'basic'),
-    (-124, 'Midye',      'https://a.ppy.sh/', 'TR', 64000, 560,  'basic');
+    (-124, 'Midye',      'https://a.ppy.sh/', 'TR', 64000, 560,  'basic'),
+    (-125, 'Kaymak',     'https://a.ppy.sh/', 'TR', 2400,  19,   'basic'),
+    (-126, 'Bal',        'https://a.ppy.sh/', 'TR', 11000, 105,  'basic');
 
 -- Players left out here have no Discord, so they can't send or accept invites.
 INSERT INTO discord_accounts (osu_user_id, discord_id, username)
 SELECT id, 'dummy' || osu_id, lower(username)
 FROM osu_users
-WHERE osu_id IN (-1, -2, -101, -103, -104, -106, -107, -109, -110, -112, -113, -115, -116, -118, -122, -124);
+WHERE osu_id IN (-1, -2, -101, -103, -104, -106, -107, -109, -110, -112, -113, -115, -116, -118, -122, -124, -125, -126);
 
--- All of these pairs are within the rank limit.
+-- The last two no longer fit, as if ranks changed after they formed: Kaymak
+-- climbed (21,203 against the 19,000 limit) and Ayva went inactive.
 DO $$
 DECLARE
     team text[];
@@ -46,7 +49,9 @@ BEGIN
         ['Simitçiler',     'Simit',   'Tavuk'],
         ['Tatlı Krizi',    'Lokum',   'Kunefe'],
         ['Fırın Ekibi',    'Pide',    'Lahmacun'],
-        ['Çay Ocağı',      'Manti',   'Cay']
+        ['Çay Ocağı',      'Manti',   'Cay'],
+        ['Rank Uçtu',      'Kaymak',  'Bal'],
+        ['Kayıp Rank',     'Ayva',    'Pismaniye']
     ] LOOP
         INSERT INTO teams (name) VALUES (team[1]) RETURNING id INTO new_team;
         INSERT INTO team_members (user_id, team_id)

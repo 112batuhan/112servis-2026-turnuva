@@ -1,5 +1,5 @@
 import { del, get, patch, post, putFile } from "./client";
-import type { AdminTeamPlayer, PlayerResult, Team, TeamStatus } from "./types";
+import type { AdminTeamPlayer, PlayerResult, RankRefresh, TeamList, TeamStatus } from "./types";
 
 export const searchPlayers = (q: string) =>
   get<PlayerResult[]>(`/api/players/search?q=${encodeURIComponent(q)}`);
@@ -16,10 +16,12 @@ export const disbandMyTeam = () => del("/api/me/team");
 export const uploadMyBanner = (file: File) => putFile("/api/me/team/banner", file);
 export const removeMyBanner = () => del("/api/me/team/banner");
 
-export const fetchPublicTeams = () => get<Team[]>("/api/public/teams");
+export const fetchPublicTeams = () => get<TeamList>("/api/public/teams");
 
 // Host-only.
-export const fetchTeams = () => get<Team<AdminTeamPlayer>[]>("/api/teams");
+export const fetchTeams = () => get<TeamList<AdminTeamPlayer>>("/api/teams");
 export const renameTeam = (teamId: string, name: string) => patch<void>(`/api/teams/${teamId}`, { name });
 export const disbandTeam = (teamId: string) => del(`/api/teams/${teamId}`);
 export const removeTeamBanner = (teamId: string) => del(`/api/teams/${teamId}/banner`);
+/** Refreshes every team member's rank from osu! now instead of waiting for the daily run. */
+export const refreshRanks = () => post<RankRefresh>("/api/ranks/refresh");

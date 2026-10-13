@@ -19,6 +19,16 @@
   margin-bottom: var(--space-5);
 }
 
+/* Pushes trailing header content (status text, buttons) to the right. */
+.page-header-aside {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: auto;
+  font-size: var(--text-sm);
+}
+
 /* Leave room for the floating preview player so it never covers the last row. */
 .app-shell.has-player .page {
   padding-bottom: 120px;

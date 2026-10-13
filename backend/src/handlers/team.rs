@@ -17,6 +17,7 @@ use crate::{
         team::{InviteRow, Player, PlayerState, TeamMemberRow},
     },
     error::AppError,
+    rank_refresh,
     role::Role,
     team_rank, AppState,
 };
@@ -45,6 +46,7 @@ pub fn routes() -> Router<AppState> {
         .route("/teams", get(list_teams))
         .route("/teams/:id", patch(rename_team).delete(disband_team))
         .route("/teams/:id/banner", delete(remove_team_banner))
+        .route("/ranks/refresh", post(refresh_ranks))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -85,6 +87,14 @@ impl Eligibility {
     }
 }
 
+// Set on a formed team whose ranks no longer fit. Hosts decide what happens next.
+#[derive(Debug, Clone, Copy, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RankWarning {
+    OverLimit,
+    Unranked,
+}
+
 #[derive(Debug, Serialize)]
 pub struct Team<P> {
     id: Uuid,
@@ -94,6 +104,7 @@ pub struct Team<P> {
     // Versioned by upload time, so the image can be cached forever.
     banner_url: Option<String>,
     team_value: Option<f64>,
+    rank_warning: Option<RankWarning>,
     players: Vec<P>,
 }
 
@@ -121,6 +132,7 @@ fn group_teams<P>(
                     format!("/api/public/teams/{}/banner?v={version}", row.team_id)
                 }),
                 team_value: None,
+                rank_warning: None,
                 players: Vec::new(),
             };
             teams.push((team, Vec::new()));
@@ -138,6 +150,11 @@ fn group_teams<P>(
                     .zip(b.global_rank)
                     .map(|(a, b)| team_rank::team_value(a, b));
             }
+            team.rank_warning = match team.team_value {
+                None => Some(RankWarning::Unranked),
+                Some(value) if value > team_rank::LIMIT => Some(RankWarning::OverLimit),
+                Some(_) => None,
+            };
             team
         })
         .collect()
@@ -204,8 +221,16 @@ pub async fn search_players(
     if query.is_empty() {
         return Ok(Json(Vec::new()));
     }
+    let mut rows = db::team::search_players(&state.db, user.id, query).await?;
+    let ids: Vec<Uuid> = rows
+        .iter()
+        .map(|row| row.state.player.id)
+        .chain([user.id])
+        .collect();
+    if rank_refresh::refresh_stale(&state, &ids).await > 0 {
+        rows = db::team::search_players(&state.db, user.id, query).await?;
+    }
     let me = load_self(&state, &user).await?.player;
-    let rows = db::team::search_players(&state.db, user.id, query).await?;
     let results = rows
         .into_iter()
         .map(|row| PlayerResult {
@@ -250,12 +275,17 @@ pub async fn my_team_status(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
+    let mut members = db::team::list_team_members(&state.db, Some(user.id)).await?;
+    let ids: Vec<Uuid> = members
+        .iter()
+        .map(|row| row.player.id)
+        .chain([user.id])
+        .collect();
+    if rank_refresh::refresh_stale(&state, &ids).await > 0 {
+        members = db::team::list_team_members(&state.db, Some(user.id)).await?;
+    }
     let me = load_self(&state, &user).await?.player;
-    let team = group_teams(
-        db::team::list_team_members(&state.db, Some(user.id)).await?,
-        |row| row.player,
-    )
-    .pop();
+    let team = group_teams(members, |row| row.player).pop();
 
     let view = |row: InviteRow| InviteView {
         id: row.invite_id,
@@ -298,6 +328,7 @@ pub async fn send_invite(
         return Err(AppError::BadRequest("you can't invite yourself"));
     }
     let team_name = parse_team_name(&body.team_name)?;
+    rank_refresh::refresh_stale(&state, &[user.id, body.user_id]).await;
     let me = load_self(&state, &user).await?;
     if me.in_team {
         return Err(AppError::Conflict("you are already in a team"));
@@ -338,6 +369,11 @@ pub async fn accept_invite(
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     require_player(&user)?;
+    let inviter_id = db::team::received_invite_inviter(&state.db, id, user.id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    rank_refresh::refresh_stale(&state, &[user.id, inviter_id]).await;
+
     let mut tx = state.db.begin().await?;
     let (inviter_id, team_name) = db::team::lock_received_invite(&mut tx, id, user.id)
         .await?
@@ -475,12 +511,32 @@ pub async fn team_banner(
 
 // ---------- team lists ----------
 
+#[derive(Debug, Serialize)]
+pub struct TeamList<P> {
+    teams: Vec<Team<P>>,
+    limit: f64,
+    // When every team member's rank was last refreshed.
+    #[serde(with = "time::serde::rfc3339::option")]
+    ranks_updated_at: Option<OffsetDateTime>,
+}
+
+async fn team_list<P>(
+    state: &AppState,
+    to_player: impl Fn(TeamMemberRow) -> P,
+) -> Result<TeamList<P>, AppError> {
+    let rows = db::team::list_team_members(&state.db, None).await?;
+    Ok(TeamList {
+        teams: group_teams(rows, to_player),
+        limit: team_rank::LIMIT,
+        ranks_updated_at: db::settings::ranks_updated_at(&state.db).await?,
+    })
+}
+
 // GET /api/public/teams — every team with its players.
 pub async fn list_public_teams(
     State(state): State<AppState>,
 ) -> Result<impl IntoResponse, AppError> {
-    let rows = db::team::list_team_members(&state.db, None).await?;
-    Ok(Json(group_teams(rows, |row| row.player)))
+    Ok(Json(team_list(&state, |row| row.player).await?))
 }
 
 // GET /api/teams — host-only. Like the public list, plus each player's Discord.
@@ -489,11 +545,12 @@ pub async fn list_teams(
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
-    let rows = db::team::list_team_members(&state.db, None).await?;
-    Ok(Json(group_teams(rows, |row| AdminTeamPlayer {
+    let list = team_list(&state, |row| AdminTeamPlayer {
         player: row.player,
         discord_username: row.discord_username,
-    })))
+    })
+    .await?;
+    Ok(Json(list))
 }
 
 // PATCH /api/teams/:id — host-only. Renames a team.
@@ -531,4 +588,24 @@ pub async fn remove_team_banner(
         return Err(AppError::NotFound);
     }
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Serialize)]
+pub struct RefreshResult {
+    updated: u64,
+    #[serde(with = "time::serde::rfc3339")]
+    ranks_updated_at: OffsetDateTime,
+}
+
+// POST /api/ranks/refresh — host-only. Runs the daily rank refresh right away.
+pub async fn refresh_ranks(
+    State(state): State<AppState>,
+    user: AuthUser,
+) -> Result<impl IntoResponse, AppError> {
+    user.require_role(Role::Host)?;
+    let refresh = rank_refresh::refresh_team_members(&state).await?;
+    Ok(Json(RefreshResult {
+        updated: refresh.updated,
+        ranks_updated_at: refresh.at,
+    }))
 }

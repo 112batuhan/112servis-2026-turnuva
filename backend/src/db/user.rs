@@ -48,14 +48,16 @@ pub struct UserProfile {
 pub async fn upsert_osu_user(pool: &PgPool, profile: &OsuProfile) -> sqlx::Result<OsuUser> {
     sqlx::query_as::<_, OsuUser>(
         r#"
-        INSERT INTO osu_users (osu_id, username, avatar_url, country_code, global_rank, country_rank)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO osu_users (osu_id, username, avatar_url, country_code, global_rank, country_rank,
+                               rank_updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, now())
         ON CONFLICT (osu_id) DO UPDATE
         SET username = EXCLUDED.username,
             avatar_url = EXCLUDED.avatar_url,
             country_code = EXCLUDED.country_code,
             global_rank = EXCLUDED.global_rank,
             country_rank = EXCLUDED.country_rank,
+            rank_updated_at = now(),
             updated_at = now()
         RETURNING *
         "#,

@@ -106,6 +106,14 @@ export function TeamPage() {
           {status.team ? (
             <section className="panel">
               <h2>Your team</h2>
+              {status.team.rank_warning && (
+                <p className="alert alert-error team-rank-warning" role="status">
+                  {status.team.rank_warning === "over_limit"
+                    ? `After a rank update your team value is ${formatTeamValue(status.team.team_value)}, over the ${formatTeamValue(status.limit)} limit.`
+                    : "One of you no longer has a global rank, so the team can't be checked against the limit."}{" "}
+                  The hosts will decide what happens next.
+                </p>
+              )}
               <MyTeam team={status.team} busy={busy} run={run} onError={setError} />
             </section>
           ) : (

@@ -145,7 +145,23 @@ export interface Team<P extends Player = Player> {
   /** API path of the banner image, or null when the team has none. */
   banner_url: string | null;
   team_value: number | null;
+  /** Set when a formed team's current ranks no longer fit the limit. */
+  rank_warning: RankWarning | null;
   players: P[];
+}
+
+export type RankWarning = "over_limit" | "unranked";
+
+export interface TeamList<P extends Player = Player> {
+  teams: Team<P>[];
+  limit: number;
+  /** When every team member's rank was last refreshed from osu!. */
+  ranks_updated_at: string | null;
+}
+
+export interface RankRefresh {
+  updated: number;
+  ranks_updated_at: string;
 }
 
 export interface AdminTeamPlayer extends Player {
