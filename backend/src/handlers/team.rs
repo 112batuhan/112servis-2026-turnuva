@@ -76,10 +76,6 @@ impl Eligibility {
     }
 }
 
-fn team_value(a: &Player, b: &Player) -> Option<f64> {
-    Some(team_rank::team_value(a.global_rank?, b.global_rank?))
-}
-
 #[derive(Debug, Serialize)]
 pub struct Team<P> {
     id: Uuid,
@@ -122,7 +118,10 @@ fn group_teams<P>(
         .into_iter()
         .map(|(mut team, players)| {
             if let [a, b] = &players[..] {
-                team.team_value = team_value(a, b);
+                team.team_value = a
+                    .global_rank
+                    .zip(b.global_rank)
+                    .map(|(a, b)| team_rank::team_value(a, b));
             }
             team
         })
@@ -206,7 +205,10 @@ pub async fn search_players(
         .into_iter()
         .map(|row| PlayerResult {
             eligibility: Eligibility::of(&me, &row.state),
-            team_value: team_value(&me, &row.state.player),
+            team_value: me
+                .global_rank
+                .zip(row.state.player.global_rank)
+                .map(|(a, b)| team_rank::team_value(a, b)),
             invite_sent: row.invite_sent,
             invite_received: row.invite_received,
             player: row.state.player,
@@ -255,7 +257,10 @@ pub async fn my_team_status(
         created_at: row.created_at,
         team_name: row.team_name,
         eligibility: Eligibility::of(&me, &row.state),
-        team_value: team_value(&me, &row.state.player),
+        team_value: me
+            .global_rank
+            .zip(row.state.player.global_rank)
+            .map(|(a, b)| team_rank::team_value(a, b)),
         player: row.state.player,
     };
     let sent = db::team::list_sent_invites(&state.db, user.id).await?;
