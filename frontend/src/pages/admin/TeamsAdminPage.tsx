@@ -42,8 +42,8 @@ export function TeamsAdminPage() {
 
   async function toggleFrozen() {
     const message = frozen
-      ? "Unfreeze the teams? Players can form, change and disband teams again."
-      : "Freeze the teams? Players won't be able to form, rename, re-banner or disband teams until you unfreeze them.";
+      ? "Unfreeze the teams? Players can form, change and disband teams again, and ranks start updating again."
+      : "Freeze the teams? Players won't be able to form, rename, re-banner or disband teams, and ranks stop updating until you unfreeze them.";
     if (!window.confirm(message)) return;
     setError(null);
     setFreezing(true);
@@ -113,7 +113,13 @@ export function TeamsAdminPage() {
         {teams && (
           <div className="page-header-aside">
             <RanksUpdated at={ranksUpdatedAt} />
-            <button type="button" className="btn btn-secondary btn-sm" disabled={refreshing} onClick={updateRanks}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={refreshing || frozen}
+              title={frozen ? "Ranks don't update while teams are frozen" : undefined}
+              onClick={updateRanks}
+            >
               {refreshing ? "Updating…" : "Update ranks now"}
             </button>
             <button
