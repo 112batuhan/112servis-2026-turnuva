@@ -16,6 +16,7 @@
 }
 
 .team-card {
+  --player-chip-avatar: 56px;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -147,9 +148,9 @@
   list-style: none;
 }
 
-/* Lines up with the player name, past the 36px avatar. */
+/* Lines up with the player name, past the avatar. */
 .team-card-extra {
-  padding-left: calc(36px + var(--space-3));
+  padding-left: calc(var(--player-chip-avatar) + var(--space-3));
   font-size: var(--text-sm);
 }
 
