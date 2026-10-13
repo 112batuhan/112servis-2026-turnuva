@@ -1,4 +1,4 @@
-use sqlx::PgPool;
+use sqlx::{PgExecutor, PgPool};
 use time::OffsetDateTime;
 
 pub async fn ranks_updated_at(pool: &PgPool) -> sqlx::Result<Option<OffsetDateTime>> {
@@ -13,4 +13,20 @@ pub async fn touch_ranks_updated_at(pool: &PgPool) -> sqlx::Result<OffsetDateTim
     )
     .fetch_one(pool)
     .await
+}
+
+// FOR SHARE makes a concurrent freeze wait for a transaction that read the flag,
+// so no team can form after the freeze commits.
+pub async fn teams_frozen(ex: impl PgExecutor<'_>) -> sqlx::Result<bool> {
+    sqlx::query_scalar("SELECT teams_frozen FROM app_settings FOR SHARE")
+        .fetch_one(ex)
+        .await
+}
+
+pub async fn set_teams_frozen(pool: &PgPool, frozen: bool) -> sqlx::Result<()> {
+    sqlx::query("UPDATE app_settings SET teams_frozen = $1")
+        .bind(frozen)
+        .execute(pool)
+        .await?;
+    Ok(())
 }

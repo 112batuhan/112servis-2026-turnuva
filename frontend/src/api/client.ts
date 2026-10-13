@@ -23,6 +23,7 @@ function withJson(method: string, body: unknown): RequestInit {
 export const get = <T>(path: string) => request<T>(path);
 export const post = <T>(path: string, body?: unknown) =>
   request<T>(path, body === undefined ? { method: "POST" } : withJson("POST", body));
+export const put = <T>(path: string, body: unknown) => request<T>(path, withJson("PUT", body));
 export const patch = <T>(path: string, body: unknown) => request<T>(path, withJson("PATCH", body));
 export const del = (path: string) => request<void>(path, { method: "DELETE" });
 /** Sends a file as the raw request body. */

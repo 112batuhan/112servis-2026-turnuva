@@ -154,6 +154,7 @@ export type RankWarning = "over_limit" | "unranked";
 
 export interface TeamList<P extends Player = Player> {
   teams: Team<P>[];
+  frozen: boolean;
   limit: number;
   /** When every team member's rank was last refreshed from osu!. */
   ranks_updated_at: string | null;
@@ -170,6 +171,8 @@ export interface AdminTeamPlayer extends Player {
 
 export interface TeamStatus {
   team: Team | null;
+  /** Hosts froze the teams: players can't form, rename, re-banner or disband them. */
+  frozen: boolean;
   global_rank: number | null;
   /** The best rank a teammate may have, or null when the caller is unranked. */
   min_partner_rank: number | null;

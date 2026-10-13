@@ -22,6 +22,11 @@ export function TeamsPage() {
       <div className="page-header">
         <h1>Teams</h1>
         {teams && <span className="badge">{teams.length}</span>}
+        {list?.frozen && (
+          <span className="badge badge-success" title="Teams are final">
+            Final
+          </span>
+        )}
         {list && (
           <div className="page-header-aside">
             <RanksUpdated at={list.ranks_updated_at} />

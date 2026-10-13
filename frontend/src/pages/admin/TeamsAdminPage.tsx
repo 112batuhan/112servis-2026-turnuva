@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../api/client";
-import { disbandTeam, fetchTeams, refreshRanks, removeTeamBanner, renameTeam } from "../../api/teams";
+import { disbandTeam, fetchTeams, refreshRanks, removeTeamBanner, renameTeam, setTeamsFrozen } from "../../api/teams";
 import type { AdminTeamPlayer, Team } from "../../api/types";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { RanksUpdated } from "../../components/RanksUpdated";
@@ -12,12 +12,15 @@ export function TeamsAdminPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [ranksUpdatedAt, setRanksUpdatedAt] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [frozen, setFrozen] = useState(false);
+  const [freezing, setFreezing] = useState(false);
   const flagged = teams?.filter((t) => t.rank_warning).length ?? 0;
 
   const load = useCallback(async () => {
     const list = await fetchTeams();
     setTeams(list.teams);
     setRanksUpdatedAt(list.ranks_updated_at);
+    setFrozen(list.frozen);
   }, []);
 
   useEffect(() => {
@@ -34,6 +37,23 @@ export function TeamsAdminPage() {
       setError(errorMessage(e));
     } finally {
       setRefreshing(false);
+    }
+  }
+
+  async function toggleFrozen() {
+    const message = frozen
+      ? "Unfreeze the teams? Players can form, change and disband teams again."
+      : "Freeze the teams? Players won't be able to form, rename, re-banner or disband teams until you unfreeze them.";
+    if (!window.confirm(message)) return;
+    setError(null);
+    setFreezing(true);
+    try {
+      await setTeamsFrozen(!frozen);
+      setFrozen(!frozen);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setFreezing(false);
     }
   }
 
@@ -80,6 +100,11 @@ export function TeamsAdminPage() {
       <div className="page-header">
         <h1>Teams</h1>
         {teams && <span className="badge">{teams.length}</span>}
+        {frozen && (
+          <span className="badge badge-success" title="Players can't change teams">
+            Frozen
+          </span>
+        )}
         {flagged > 0 && (
           <span className="badge badge-danger" title="Teams whose current ranks no longer fit the limit">
             {flagged} flagged
@@ -90,6 +115,14 @@ export function TeamsAdminPage() {
             <RanksUpdated at={ranksUpdatedAt} />
             <button type="button" className="btn btn-secondary btn-sm" disabled={refreshing} onClick={updateRanks}>
               {refreshing ? "Updating…" : "Update ranks now"}
+            </button>
+            <button
+              type="button"
+              className={frozen ? "btn btn-secondary btn-sm" : "btn btn-primary btn-sm"}
+              disabled={freezing}
+              onClick={toggleFrozen}
+            >
+              {frozen ? "Unfreeze teams" : "Freeze teams"}
             </button>
           </div>
         )}

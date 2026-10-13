@@ -27,13 +27,14 @@ const SEARCH_DELAY_MS = 300;
 export function TeamPage() {
   const user = useSignedInUser();
   const isStaff = user.role !== "basic";
-  const canForm = !isStaff && user.discord !== null;
   const [status, setStatus] = useState<TeamStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlayerResult[] | null>(null);
   const [teamName, setTeamName] = useState("");
+  const frozen = status?.frozen ?? false;
+  const canForm = !isStaff && user.discord !== null && !frozen;
 
   const reload = useCallback(async () => {
     const next = await fetchTeamStatus();
@@ -93,7 +94,12 @@ export function TeamPage() {
       {status && !staffOnly && (
         <>
           <RankSummary status={status} />
-          {!user.discord && !status.team && (
+          {frozen && (
+            <section className="panel">
+              <p className="status">The hosts have frozen the teams, so teams can't be formed or changed any more.</p>
+            </section>
+          )}
+          {!user.discord && !status.team && !frozen && (
             <section className="panel team-discord-notice">
               <p>Link your Discord account to send and accept invites.</p>
               <Link to="/discord" className="btn btn-discord btn-sm">
@@ -114,7 +120,7 @@ export function TeamPage() {
                   The hosts will decide what happens next.
                 </p>
               )}
-              <MyTeam team={status.team} busy={busy} run={run} onError={setError} />
+              <MyTeam team={status.team} frozen={frozen} busy={busy} run={run} onError={setError} />
             </section>
           ) : (
             <>
@@ -159,58 +165,60 @@ export function TeamPage() {
                 )}
               />
 
-              <section className="panel">
-                <h2>Find a teammate</h2>
-                <label className="team-name-field">
-                  <span>Team name</span>
+              {!frozen && (
+                <section className="panel">
+                  <h2>Find a teammate</h2>
+                  <label className="team-name-field">
+                    <span>Team name</span>
+                    <input
+                      className="input"
+                      placeholder="Name your team"
+                      maxLength={TEAM_NAME_MAX}
+                      value={teamName}
+                      onChange={(e) => setTeamName(e.target.value)}
+                    />
+                  </label>
+                  <p className="muted team-name-hint">
+                    Sent with every invite. Either of you can change it once the team forms.
+                  </p>
                   <input
-                    className="input"
-                    placeholder="Name your team"
-                    maxLength={TEAM_NAME_MAX}
-                    value={teamName}
-                    onChange={(e) => setTeamName(e.target.value)}
+                    className="input team-search"
+                    type="search"
+                    placeholder="Search by osu! username"
+                    aria-label="Search players"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
                   />
-                </label>
-                <p className="muted team-name-hint">
-                  Sent with every invite. Either of you can change it once the team forms.
-                </p>
-                <input
-                  className="input team-search"
-                  type="search"
-                  placeholder="Search by osu! username"
-                  aria-label="Search players"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-                {results?.length === 0 && <p className="status">No players found.</p>}
-                {results && results.length > 0 && (
-                  <ul className="team-rows">
-                    {results.map((p) => (
-                      <li key={p.id} className="team-row">
-                        <PlayerChip player={p} />
-                        <RowMeta eligibility={p.eligibility} teamValue={p.team_value} />
-                        <div className="team-row-actions">
-                          {p.invite_received ? (
-                            <span className="badge">Invited you</span>
-                          ) : p.invite_sent ? (
-                            <span className="badge">Invite sent</span>
-                          ) : (
-                            <button
-                              type="button"
-                              className="btn btn-primary btn-sm"
-                              disabled={busy || !canForm || !teamName.trim() || p.eligibility !== "eligible"}
-                              title={teamName.trim() ? undefined : "Name your team first"}
-                              onClick={() => run(() => sendInvite(p.id, teamName))}
-                            >
-                              Invite
-                            </button>
-                          )}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
+                  {results?.length === 0 && <p className="status">No players found.</p>}
+                  {results && results.length > 0 && (
+                    <ul className="team-rows">
+                      {results.map((p) => (
+                        <li key={p.id} className="team-row">
+                          <PlayerChip player={p} />
+                          <RowMeta eligibility={p.eligibility} teamValue={p.team_value} />
+                          <div className="team-row-actions">
+                            {p.invite_received ? (
+                              <span className="badge">Invited you</span>
+                            ) : p.invite_sent ? (
+                              <span className="badge">Invite sent</span>
+                            ) : (
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                disabled={busy || !canForm || !teamName.trim() || p.eligibility !== "eligible"}
+                                title={teamName.trim() ? undefined : "Name your team first"}
+                                onClick={() => run(() => sendInvite(p.id, teamName))}
+                              >
+                                Invite
+                              </button>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              )}
             </>
           )}
         </>
@@ -221,13 +229,15 @@ export function TeamPage() {
 
 interface MyTeamProps {
   team: Team;
+  frozen: boolean;
   busy: boolean;
   run: (action: () => Promise<void>) => Promise<void>;
   onError: (message: string) => void;
 }
 
-function MyTeam({ team, busy, run, onError }: MyTeamProps) {
+function MyTeam({ team, frozen, busy, run, onError }: MyTeamProps) {
   const fileInput = useRef<HTMLInputElement>(null);
+  if (frozen) return <TeamCard team={team} />;
 
   function upload(file: File | undefined) {
     if (!file) return;

@@ -1,4 +1,4 @@
-import { del, get, patch, post, putFile } from "./client";
+import { del, get, patch, post, put, putFile } from "./client";
 import type { AdminTeamPlayer, PlayerResult, RankRefresh, TeamList, TeamStatus } from "./types";
 
 export const searchPlayers = (q: string) =>
@@ -25,3 +25,4 @@ export const disbandTeam = (teamId: string) => del(`/api/teams/${teamId}`);
 export const removeTeamBanner = (teamId: string) => del(`/api/teams/${teamId}/banner`);
 /** Refreshes every team member's rank from osu! now instead of waiting for the daily run. */
 export const refreshRanks = () => post<RankRefresh>("/api/ranks/refresh");
+export const setTeamsFrozen = (frozen: boolean) => put<void>("/api/settings/teams-frozen", { frozen });

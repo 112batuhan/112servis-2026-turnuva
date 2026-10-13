@@ -47,6 +47,7 @@ pub fn routes() -> Router<AppState> {
         .route("/teams/:id", patch(rename_team).delete(disband_team))
         .route("/teams/:id/banner", delete(remove_team_banner))
         .route("/ranks/refresh", post(refresh_ranks))
+        .route("/settings/teams-frozen", put(set_teams_frozen))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -169,6 +170,17 @@ fn require_player(user: &AuthUser) -> Result<(), AppError> {
     user.require_discord_verified()
 }
 
+const FROZEN: AppError = AppError::Conflict("teams are frozen");
+
+// Players can't change anything about teams once hosts freeze them. Host actions
+// skip this check.
+async fn require_unfrozen(ex: impl sqlx::PgExecutor<'_>) -> Result<(), AppError> {
+    if db::settings::teams_frozen(ex).await? {
+        return Err(FROZEN);
+    }
+    Ok(())
+}
+
 async fn load_self(state: &AppState, user: &AuthUser) -> Result<PlayerState, AppError> {
     db::team::find_player(&state.db, user.id)
         .await?
@@ -263,6 +275,7 @@ pub struct InviteView {
 #[derive(Debug, Serialize)]
 pub struct TeamStatus {
     team: Option<Team<Player>>,
+    frozen: bool,
     global_rank: Option<i64>,
     min_partner_rank: Option<i64>,
     limit: f64,
@@ -303,6 +316,7 @@ pub async fn my_team_status(
 
     Ok(Json(TeamStatus {
         team,
+        frozen: db::settings::teams_frozen(&state.db).await?,
         global_rank: me.global_rank,
         min_partner_rank: me.global_rank.map(team_rank::min_partner_rank),
         limit: team_rank::LIMIT,
@@ -328,6 +342,7 @@ pub async fn send_invite(
         return Err(AppError::BadRequest("you can't invite yourself"));
     }
     let team_name = parse_team_name(&body.team_name)?;
+    require_unfrozen(&state.db).await?;
     rank_refresh::refresh_stale(&state, &[user.id, body.user_id]).await;
     let me = load_self(&state, &user).await?;
     if me.in_team {
@@ -375,6 +390,7 @@ pub async fn accept_invite(
     rank_refresh::refresh_stale(&state, &[user.id, inviter_id]).await;
 
     let mut tx = state.db.begin().await?;
+    require_unfrozen(&mut *tx).await?;
     let (inviter_id, team_name) = db::team::lock_received_invite(&mut tx, id, user.id)
         .await?
         .ok_or(AppError::NotFound)?;
@@ -432,6 +448,7 @@ pub async fn rename_my_team(
     user: AuthUser,
     Json(body): Json<RenameBody>,
 ) -> Result<impl IntoResponse, AppError> {
+    require_unfrozen(&state.db).await?;
     let team_id = my_team_id(&state, &user).await?;
     rename(&state, team_id, &body.name).await
 }
@@ -441,6 +458,7 @@ pub async fn disband_my_team(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
+    require_unfrozen(&state.db).await?;
     let team_id = my_team_id(&state, &user).await?;
     db::team::delete_team(&state.db, team_id).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -472,6 +490,7 @@ pub async fn upload_my_banner(
     user: AuthUser,
     body: Bytes,
 ) -> Result<impl IntoResponse, AppError> {
+    require_unfrozen(&state.db).await?;
     let team_id = my_team_id(&state, &user).await?;
     let content_type = banner_content_type(&body).ok_or(AppError::BadRequest(
         "banners must be PNG, JPEG, GIF or WebP images",
@@ -485,6 +504,7 @@ pub async fn remove_my_banner(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
+    require_unfrozen(&state.db).await?;
     let team_id = my_team_id(&state, &user).await?;
     db::team::delete_banner(&state.db, team_id).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -514,6 +534,7 @@ pub async fn team_banner(
 #[derive(Debug, Serialize)]
 pub struct TeamList<P> {
     teams: Vec<Team<P>>,
+    frozen: bool,
     limit: f64,
     // When every team member's rank was last refreshed.
     #[serde(with = "time::serde::rfc3339::option")]
@@ -527,6 +548,7 @@ async fn team_list<P>(
     let rows = db::team::list_team_members(&state.db, None).await?;
     Ok(TeamList {
         teams: group_teams(rows, to_player),
+        frozen: db::settings::teams_frozen(&state.db).await?,
         limit: team_rank::LIMIT,
         ranks_updated_at: db::settings::ranks_updated_at(&state.db).await?,
     })
@@ -608,4 +630,20 @@ pub async fn refresh_ranks(
         updated: refresh.updated,
         ranks_updated_at: refresh.at,
     }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct FreezeBody {
+    frozen: bool,
+}
+
+// PUT /api/settings/teams-frozen — host-only. Freezes or unfreezes every team.
+pub async fn set_teams_frozen(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(body): Json<FreezeBody>,
+) -> Result<impl IntoResponse, AppError> {
+    user.require_role(Role::Host)?;
+    db::settings::set_teams_frozen(&state.db, body.frozen).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
