@@ -50,24 +50,18 @@ pub struct TeamMemberRow {
     pub discord_username: Option<String>,
 }
 
-const PLAYER_COLUMNS: &str =
-    "u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank";
-
-const PLAYER_STATE_COLUMNS: &str = "u.id, u.osu_id, u.username, u.avatar_url, u.country_code, \
-     u.global_rank, u.role, \
-     EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team";
-
 pub async fn find_player(
     ex: impl PgExecutor<'_>,
     user_id: Uuid,
 ) -> sqlx::Result<Option<PlayerState>> {
-    sqlx::query_as::<_, PlayerState>(&format!(
+    sqlx::query_as::<_, PlayerState>(
         r#"
-        SELECT {PLAYER_STATE_COLUMNS}
+        SELECT u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.role,
+               EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team
         FROM osu_users u
         WHERE u.id = $1
-        "#
-    ))
+        "#,
+    )
     .bind(user_id)
     .fetch_optional(ex)
     .await
@@ -83,9 +77,10 @@ pub async fn search_players(
         .replace('\\', "\\\\")
         .replace('%', "\\%")
         .replace('_', "\\_");
-    sqlx::query_as::<_, SearchRow>(&format!(
+    sqlx::query_as::<_, SearchRow>(
         r#"
-        SELECT {PLAYER_STATE_COLUMNS},
+        SELECT u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.role,
+               EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team,
                EXISTS(SELECT 1 FROM team_invites i
                       WHERE i.inviter_id = $1 AND i.invitee_id = u.id) AS invite_sent,
                EXISTS(SELECT 1 FROM team_invites i
@@ -94,8 +89,8 @@ pub async fn search_players(
         WHERE u.id <> $1 AND u.role = 'basic' AND u.username ILIKE '%' || $2 || '%'
         ORDER BY lower(u.username) = lower($3) DESC, u.global_rank ASC NULLS LAST
         LIMIT 25
-        "#
-    ))
+        "#,
+    )
     .bind(caller)
     .bind(escaped)
     .bind(query)
@@ -104,28 +99,34 @@ pub async fn search_players(
 }
 
 pub async fn list_sent_invites(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Vec<InviteRow>> {
-    list_invites(pool, user_id, "inviter_id", "invitee_id").await
+    sqlx::query_as::<_, InviteRow>(
+        r#"
+        SELECT i.id AS invite_id, i.created_at,
+               u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.role,
+               EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team
+        FROM team_invites i
+        JOIN osu_users u ON u.id = i.invitee_id
+        WHERE i.inviter_id = $1
+        ORDER BY i.created_at DESC
+        "#,
+    )
+    .bind(user_id)
+    .fetch_all(pool)
+    .await
 }
 
 pub async fn list_received_invites(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Vec<InviteRow>> {
-    list_invites(pool, user_id, "invitee_id", "inviter_id").await
-}
-
-async fn list_invites(
-    pool: &PgPool,
-    user_id: Uuid,
-    own_column: &str,
-    other_column: &str,
-) -> sqlx::Result<Vec<InviteRow>> {
-    sqlx::query_as::<_, InviteRow>(&format!(
+    sqlx::query_as::<_, InviteRow>(
         r#"
-        SELECT i.id AS invite_id, i.created_at, {PLAYER_STATE_COLUMNS}
+        SELECT i.id AS invite_id, i.created_at,
+               u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.role,
+               EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team
         FROM team_invites i
-        JOIN osu_users u ON u.id = i.{other_column}
-        WHERE i.{own_column} = $1
+        JOIN osu_users u ON u.id = i.inviter_id
+        WHERE i.invitee_id = $1
         ORDER BY i.created_at DESC
-        "#
-    ))
+        "#,
+    )
     .bind(user_id)
     .fetch_all(pool)
     .await
@@ -225,9 +226,10 @@ pub async fn list_team_members(
     pool: &PgPool,
     user_id: Option<Uuid>,
 ) -> sqlx::Result<Vec<TeamMemberRow>> {
-    sqlx::query_as::<_, TeamMemberRow>(&format!(
+    sqlx::query_as::<_, TeamMemberRow>(
         r#"
-        SELECT t.id AS team_id, t.created_at AS team_created_at, {PLAYER_COLUMNS},
+        SELECT t.id AS team_id, t.created_at AS team_created_at,
+               u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank,
                d.username AS discord_username
         FROM teams t
         JOIN team_members m ON m.team_id = t.id
@@ -236,8 +238,8 @@ pub async fn list_team_members(
         WHERE $1::uuid IS NULL
            OR t.id = (SELECT team_id FROM team_members WHERE user_id = $1)
         ORDER BY t.created_at, t.id, m.joined_at, u.username
-        "#
-    ))
+        "#,
+    )
     .bind(user_id)
     .fetch_all(pool)
     .await
