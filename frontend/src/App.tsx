@@ -31,7 +31,7 @@ export function App() {
           {error}
         </p>
         <button type="button" className="btn btn-secondary" onClick={refresh}>
-          Try again
+          Tekrar dene
         </button>
       </main>
     );
@@ -40,7 +40,7 @@ export function App() {
   if (user === undefined) {
     return (
       <main className="fullscreen-status">
-        <p className="status">Checking session…</p>
+        <p className="status">Oturum kontrol ediliyor…</p>
       </main>
     );
   }

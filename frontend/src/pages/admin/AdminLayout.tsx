@@ -24,17 +24,17 @@ export function AdminLayout() {
 
   return (
     <div className="page">
-      <nav className="admin-tabs" aria-label="Admin sections">
+      <nav className="admin-tabs" aria-label="Yönetim bölümleri">
         <NavLink to={MAPPOOL_TAB} className={tabClass}>
-          Map Pool
+          Mappool
         </NavLink>
         {hasRole(user, "host") && (
           <>
             <NavLink to={USERS_TAB} className={tabClass}>
-              Users
+              Kullanıcılar
             </NavLink>
             <NavLink to={TEAMS_TAB} className={tabClass}>
-              Teams
+              Takımlar
             </NavLink>
           </>
         )}

@@ -27,7 +27,7 @@ export function TeamCard<P extends Player>({ team, position, renderPlayerExtra, 
           {position !== undefined && <span className="team-card-position">#{position}</span>}
           <h3 className="team-card-name">
             {onRename ? (
-              <InlineEdit value={team.name} onSave={onRename} label="Rename team" maxLength={TEAM_NAME_MAX} />
+              <InlineEdit value={team.name} onSave={onRename} label="Takımı yeniden adlandır" maxLength={TEAM_NAME_MAX} />
             ) : (
               team.name
             )}
@@ -36,7 +36,7 @@ export function TeamCard<P extends Player>({ team, position, renderPlayerExtra, 
       </div>
       <div className="team-card-body">
         <div className="team-card-value">
-          <span className="team-card-value-label">Calculated rank</span>
+          <span className="team-card-value-label">Hesaplanan rank</span>
           <span className="team-card-value-number">{formatTeamValue(team.team_value)}</span>
           {team.rank_warning && <span className="team-card-warning">{RANK_WARNING_LABELS[team.rank_warning]}</span>}
         </div>

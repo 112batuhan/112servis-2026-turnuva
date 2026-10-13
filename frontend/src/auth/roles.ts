@@ -8,7 +8,7 @@ export const ROLES: Role[] = ["host", "map_pooler", "basic"];
 export const ROLE_LABELS: Record<Role, string> = {
   host: "Host",
   map_pooler: "Map Pooler",
-  basic: "Basic",
+  basic: "Temel",
 };
 
 export function hasRole(user: { role: Role } | null | undefined, min: Role): boolean {

@@ -44,15 +44,15 @@ export function MapCard({ map, editor }: Props) {
       {editor ? (
         <div className="map-card-notes">
           <EditableNote
-            label="Public note"
-            placeholder="Public note…"
+            label="Herkese açık not"
+            placeholder="Herkese açık not…"
             value={map.public_notes}
             onEditingChange={setNoteOpen}
             onSave={(v) => editor.onSaveNote("public_notes", v)}
           />
           <EditableNote
-            label="Private editor note"
-            placeholder="Private note (editors only)…"
+            label="Gizli editör notu"
+            placeholder="Gizli not (sadece editörler)…"
             value={"editor_notes" in map ? map.editor_notes : ""}
             isPrivate
             onEditingChange={setNoteOpen}
@@ -71,8 +71,8 @@ export function MapCard({ map, editor }: Props) {
           target="_blank"
           rel="noopener noreferrer"
           draggable={false}
-          aria-label="Download beatmap from Beatconnect"
-          title="Download beatmap (Beatconnect)"
+          aria-label="Beatmap'i Beatconnect'ten indir"
+          title="Beatmap'i indir (Beatconnect)"
         >
           <Icon name="download" />
         </a>
@@ -96,13 +96,13 @@ function MapInfo({ map }: { map: PublicPoolMap }) {
           {map.artist} — {map.title}
         </a>
         <span className="map-meta">[{map.version}]</span>
-        {map.creator && <span className="map-meta">by {map.creator}</span>}
+        {map.creator && <span className="map-meta">{map.creator} tarafından</span>}
       </div>
       <dl className="map-stats">
         {map.mods && <Stat label="Mods" value={map.mods} highlight />}
         <Stat label="Star rating" value={`★ ${map.star_rating.toFixed(2)}`} />
         <Stat label="BPM" value={`${Math.round(map.bpm)} bpm`} />
-        <Stat label="Length" value={formatLength(map.total_length)} />
+        <Stat label="Uzunluk" value={formatLength(map.total_length)} />
         <Stat label="CS" value={`CS ${map.cs.toFixed(1)}`} />
         <Stat label="AR" value={`AR ${map.ar.toFixed(1)}`} />
         <Stat label="OD" value={`OD ${map.od.toFixed(1)}`} />
@@ -126,7 +126,7 @@ function PreviewButton({ map }: { map: PublicPoolMap }) {
   return (
     <IconButton
       icon={playing ? "stop" : "speaker"}
-      label={playing ? "Stop preview" : "Play preview"}
+      label={playing ? "Önizlemeyi durdur" : "Önizlemeyi oynat"}
       variant="round"
       active={playing}
       onClick={() =>
@@ -167,10 +167,10 @@ function CopyIdButton({ id }: { id: number }) {
       type="button"
       className={`map-id ${copied ? "is-copied" : ""}`}
       onClick={copy}
-      title="Copy beatmap id"
-      aria-label={`Copy beatmap id ${id}`}
+      title="Beatmap id'sini kopyala"
+      aria-label={`Beatmap id'sini kopyala: ${id}`}
     >
-      <span aria-live="polite">{copied ? "Copied" : id}</span>
+      <span aria-live="polite">{copied ? "Kopyalandı" : id}</span>
     </button>
   );
 }
@@ -185,31 +185,31 @@ function EditorActions({ map, editor }: { map: PublicPoolMap; editor: MapCardEdi
       <select
         className="select select-sm map-move"
         value=""
-        aria-label="Move map to a slot"
+        aria-label="Map'i bir slot'a taşı"
         onChange={(e) => {
           const target = e.target.value;
           if (target) editor.onMove(target === GENERIC_POOL_OPTION ? null : target);
         }}
       >
         <option value="" disabled>
-          Move to…
+          Taşı…
         </option>
-        {inSlot && <option value={GENERIC_POOL_OPTION}>Generic pool</option>}
+        {inSlot && <option value={GENERIC_POOL_OPTION}>Ortak havuz</option>}
         {editor.moveTargets.map((group) => (
           <optgroup key={group.category} label={group.category}>
             {group.slots.map((slot) => (
               <option key={slot.id} value={slot.id} disabled={slot.id === map.slot_id}>
                 {slot.label}
-                {slot.id === map.slot_id ? " (here)" : slot.occupied ? " (swap)" : ""}
+                {slot.id === map.slot_id ? " (burada)" : slot.occupied ? " (yer değiştir)" : ""}
               </option>
             ))}
           </optgroup>
         ))}
       </select>
       {inSlot ? (
-        <IconButton icon="undo" label="Return to generic pool" onClick={() => editor.onMove(null)} />
+        <IconButton icon="undo" label="Ortak havuza geri gönder" onClick={() => editor.onMove(null)} />
       ) : (
-        <IconButton icon="trash" label="Delete map" tone="danger" onClick={editor.onDelete} />
+        <IconButton icon="trash" label="Map'i sil" tone="danger" onClick={editor.onDelete} />
       )}
     </>
   );

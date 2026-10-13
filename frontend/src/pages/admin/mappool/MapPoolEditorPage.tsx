@@ -24,13 +24,13 @@ export function MapPoolEditorPage() {
     onSaveNote: (field, value) => actions.saveMapNote(map.id, field, value),
     onMove: (slotId) => actions.moveMap(map.id, slotId),
     onDelete: () => {
-      if (confirm(`Delete "${map.artist} - ${map.title} [${map.version}]" permanently?`)) actions.deleteMap(map.id);
+      if (confirm(`"${map.artist} - ${map.title} [${map.version}]" kalıcı olarak silinsin mi?`)) actions.deleteMap(map.id);
     },
   });
 
   return (
     <div className="mappool-editor">
-      <h1 className="sr-only">Map pool editor</h1>
+      <h1 className="sr-only">Mappool editörü</h1>
       <ErrorAlert message={error} onDismiss={clearError} />
 
       <StageTabs
@@ -49,12 +49,12 @@ export function MapPoolEditorPage() {
             onClick={() => setShowSettings((v) => !v)}
           >
             <Icon name="settings" />
-            Stage settings
+            Stage ayarları
           </button>
         )}
       </StageTabs>
 
-      {!selectedId && <p className="status">Create a stage to start building a pool.</p>}
+      {!selectedId && <p className="status">Mappool oluşturmaya başlamak için bir stage ekle.</p>}
 
       {detail && (
         <>
@@ -71,7 +71,7 @@ export function MapPoolEditorPage() {
               editorFor={editorFor}
             />
             {detail.categories.length === 0 && (
-              <p className="status">No categories yet. Add them from Stage settings.</p>
+              <p className="status">Henüz kategori yok. Stage ayarlarından ekleyebilirsin.</p>
             )}
             {detail.categories.map((category) => (
               <CategoryEditor
@@ -105,18 +105,18 @@ function NewStageForm({ busy, onCreate }: { busy: boolean; onCreate: (name: stri
   return (
     <form className="inline-form new-stage-form" onSubmit={submit}>
       <label className="sr-only" htmlFor="new-stage-name">
-        New stage name
+        Yeni stage adı
       </label>
       <input
         id="new-stage-name"
         className="input"
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="New stage…"
+        placeholder="Yeni stage…"
       />
       <button type="submit" className="btn btn-primary" disabled={busy || !name.trim()}>
         <Icon name="plus" />
-        Add stage
+        Stage ekle
       </button>
     </form>
   );

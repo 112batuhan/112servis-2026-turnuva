@@ -1,17 +1,17 @@
 import type { Eligibility, RankWarning } from "../api/types";
 
 export const ELIGIBILITY_LABELS: Record<Eligibility, string> = {
-  eligible: "Eligible",
-  not_player: "Staff",
-  in_team: "Already in a team",
+  eligible: "Uygun",
+  not_player: "Yetkili",
+  in_team: "Zaten bir takımda",
   unranked: "Unranked",
-  over_limit: "Over the rank limit",
+  over_limit: "Rank limitini aşıyor",
 };
 
 export const eligibilityBadgeClass = (e: Eligibility) =>
   e === "eligible" ? "badge badge-success" : "badge badge-warning";
 
 export const RANK_WARNING_LABELS: Record<RankWarning, string> = {
-  over_limit: "Over the rank limit",
-  unranked: "A player has no rank",
+  over_limit: "Rank limitini aşıyor",
+  unranked: "Bir oyuncunun rank'ı yok",
 };

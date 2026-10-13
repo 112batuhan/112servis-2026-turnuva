@@ -8,7 +8,6 @@ import { MapCard } from "../components/MapCard";
 import { PoolSection } from "../components/PoolSection";
 import { EmptySlot, Slot } from "../components/Slot";
 import { StageTabs } from "../components/StageTabs";
-import { plural } from "../lib/format";
 import { useExpandedSet } from "../lib/useExpandedSet";
 
 export function PublicPoolPage() {
@@ -46,8 +45,8 @@ export function PublicPoolPage() {
       </div>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
 
-      {stages === null && !error && <p className="status">Loading…</p>}
-      {stages?.length === 0 && <p className="status">No stages have been published yet.</p>}
+      {stages === null && !error && <p className="status">Yükleniyor…</p>}
+      {stages?.length === 0 && <p className="status">Henüz yayınlanmış bir stage yok.</p>}
 
       {stages && stages.length > 0 && (
         <StageTabs stages={stages} selectedId={selectedId} onSelect={(id) => setSearchParams({ stage: id })} />
@@ -55,7 +54,7 @@ export function PublicPoolPage() {
 
       {detail && detail.id === selectedId && (
         <div className="pool-board">
-          {detail.categories.length === 0 && <p className="status">No categories in this stage yet.</p>}
+          {detail.categories.length === 0 && <p className="status">Bu stage'de henüz kategori yok.</p>}
           {detail.categories.map((category) => (
             <PublicCategory
               key={category.id}
@@ -84,17 +83,17 @@ function PublicCategory({ category, detail, expanded, onToggle }: PublicCategory
   return (
     <PoolSection
       title={category.name}
-      meta={plural(slots.length, "map")}
+      meta={`${slots.length} map`}
       color={category.color}
       expanded={expanded}
       onToggle={onToggle}
     >
-      {slots.length === 0 && <p className="pool-empty">No maps yet.</p>}
+      {slots.length === 0 && <p className="pool-empty">Henüz map yok.</p>}
       {slots.map((slot, i) => {
         const map = detail.maps.find((m) => m.slot_id === slot.id);
         return (
           <Slot key={slot.id} number={i + 1}>
-            {map ? <MapCard map={map} /> : <EmptySlot>To be announced</EmptySlot>}
+            {map ? <MapCard map={map} /> : <EmptySlot>Daha sonra açıklanacak</EmptySlot>}
           </Slot>
         );
       })}

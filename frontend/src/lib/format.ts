@@ -5,26 +5,22 @@ export function formatLength(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-/** 12345 -> "#12,345", null -> "—" */
+/** 12345 -> "#12.345", null -> "—" */
 export function formatRank(rank: number | null | undefined): string {
-  return rank ? `#${rank.toLocaleString()}` : "—";
+  return rank ? `#${rank.toLocaleString("tr-TR")}` : "—";
 }
 
 export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString();
+  return new Date(iso).toLocaleDateString("tr-TR");
 }
 
 export function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+  return new Date(iso).toLocaleString("tr-TR", { dateStyle: "medium", timeStyle: "short" });
 }
 
-export function plural(count: number, word: string): string {
-  return `${count} ${word}${count === 1 ? "" : "s"}`;
-}
-
-/** 18876.6 -> "18,877" */
+/** 18876.6 -> "18.877" */
 export function formatTeamValue(value: number | null | undefined): string {
-  return value == null ? "—" : Math.round(value).toLocaleString();
+  return value == null ? "—" : Math.round(value).toLocaleString("tr-TR");
 }
 
 /** Mirrors TEAM_NAME_MAX in backend/src/handlers/team.rs. */

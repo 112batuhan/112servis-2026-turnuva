@@ -20,7 +20,7 @@ export function StageTabs({ stages, selectedId, onSelect, onDragMove, showStatus
 
   return (
     <div className="stage-bar">
-      <nav className="stage-tabs" aria-label="Stages">
+      <nav className="stage-tabs" aria-label="Stage'ler">
         {stages.map((stage) => (
           <button
             key={stage.id}
@@ -41,7 +41,7 @@ export function StageTabs({ stages, selectedId, onSelect, onDragMove, showStatus
 }
 
 function StageStatusDot({ published }: { published: boolean }) {
-  const label = published ? "Published" : "Draft, not public";
+  const label = published ? "Yayında" : "Taslak, herkese açık değil";
   return (
     <span className={`stage-dot ${published ? "is-published" : "is-draft"}`} title={label}>
       <span className="sr-only">({label})</span>

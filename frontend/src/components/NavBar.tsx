@@ -21,29 +21,29 @@ export function NavBar() {
         112 Servis <span className="nav-brand-year">2026</span>
       </NavLink>
 
-      <nav className="nav-links" aria-label="Main">
+      <nav className="nav-links" aria-label="Ana menü">
         <NavLink to="/" end className={linkClass}>
-          Home
+          Ana sayfa
         </NavLink>
         <NavLink to="/mappool" className={linkClass}>
           Mappool
         </NavLink>
         <NavLink to="/teams" className={linkClass}>
-          Teams
+          Takımlar
         </NavLink>
         {user?.role === "basic" && (
           <NavLink to="/team" className={linkClass}>
-            My team
+            Takımım
           </NavLink>
         )}
         {hasRole(user, "map_pooler") && (
           <NavLink to="/admin" className={linkClass}>
-            Admin
+            Yönetim
           </NavLink>
         )}
         {user && !user.discord && (
           <NavLink to="/discord" className={linkClass}>
-            Link Discord
+            Discord bağla
           </NavLink>
         )}
       </nav>
@@ -51,17 +51,17 @@ export function NavBar() {
       <div className="nav-account">
         {user ? (
           <>
-            <NavLink to="/profile" className="nav-user" aria-label={`Profile: ${user.username}`}>
+            <NavLink to="/profile" className="nav-user" aria-label={`Profil: ${user.username}`}>
               {user.avatar_url && <img className="nav-avatar" src={user.avatar_url} alt="" />}
               <span className="nav-username">{user.username}</span>
             </NavLink>
             <button type="button" className="btn btn-secondary btn-sm" onClick={handleSignOut}>
-              Log out
+              Çıkış yap
             </button>
           </>
         ) : (
           <button type="button" className="btn btn-primary btn-sm" onClick={loginWithOsu}>
-            Log in with osu!
+            osu! ile giriş yap
           </button>
         )}
       </div>

@@ -80,14 +80,14 @@ export function TeamPage() {
   return (
     <div className="page page-narrow team-page">
       <div className="page-header">
-        <h1>My team</h1>
+        <h1>Takımım</h1>
       </div>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
-      {!status && !error && <p className="status">Loading…</p>}
+      {!status && !error && <p className="status">Yükleniyor…</p>}
 
       {staffOnly && (
         <section className="panel">
-          <p className="status">Hosts and map poolers run the tournament, so they can't join a team.</p>
+          <p className="status">Host'lar ve map pooler'lar turnuvayı yönettiği için takıma katılamaz.</p>
         </section>
       )}
 
@@ -96,28 +96,28 @@ export function TeamPage() {
           <RankSummary status={status} />
           {frozen && (
             <section className="panel">
-              <p className="status">The hosts have frozen the teams, so teams can't be formed or changed any more.</p>
+              <p className="status">Host'lar takımları dondurdu, artık takım kurulamaz veya değiştirilemez.</p>
             </section>
           )}
           {!user.discord && !status.team && !frozen && (
             <section className="panel team-discord-notice">
-              <p>Link your Discord account to send and accept invites.</p>
+              <p>Davet göndermek ve kabul etmek için Discord hesabını bağla.</p>
               <Link to="/discord" className="btn btn-discord btn-sm">
                 <DiscordMark />
-                Link Discord
+                Discord bağla
               </Link>
             </section>
           )}
 
           {status.team ? (
             <section className="panel">
-              <h2>Your team</h2>
+              <h2>Takımın</h2>
               {status.team.rank_warning && (
                 <p className="alert alert-error team-rank-warning" role="status">
                   {status.team.rank_warning === "over_limit"
-                    ? `After a rank update your team value is ${formatTeamValue(status.team.team_value)}, over the ${formatTeamValue(status.limit)} limit.`
-                    : "One of you no longer has a global rank, so the team can't be checked against the limit."}{" "}
-                  The hosts will decide what happens next.
+                    ? `Bir rank güncellemesinden sonra takım değerin ${formatTeamValue(status.team.team_value)} oldu ve ${formatTeamValue(status.limit)} limitini aşıyor.`
+                    : "Birinizin artık global rank'ı yok, bu yüzden takım limite göre kontrol edilemiyor."}{" "}
+                  Bundan sonrasına host'lar karar verecek.
                 </p>
               )}
               <MyTeam team={status.team} frozen={frozen} busy={busy} run={run} onError={setError} />
@@ -125,8 +125,8 @@ export function TeamPage() {
           ) : (
             <>
               <InviteList
-                title="Invites for you"
-                empty="Nobody has invited you yet."
+                title="Sana gelen davetler"
+                empty="Henüz kimse seni davet etmedi."
                 invites={status.received}
                 actions={(invite) => (
                   <>
@@ -136,7 +136,7 @@ export function TeamPage() {
                       disabled={busy || !canForm || invite.eligibility !== "eligible"}
                       onClick={() => run(() => acceptInvite(invite.id))}
                     >
-                      Accept
+                      Kabul et
                     </button>
                     <button
                       type="button"
@@ -144,14 +144,14 @@ export function TeamPage() {
                       disabled={busy}
                       onClick={() => run(() => deleteInvite(invite.id))}
                     >
-                      Decline
+                      Reddet
                     </button>
                   </>
                 )}
               />
               <InviteList
-                title="Invites you sent"
-                empty="You haven't invited anyone yet."
+                title="Gönderdiğin davetler"
+                empty="Henüz kimseyi davet etmedin."
                 invites={status.sent}
                 actions={(invite) => (
                   <button
@@ -160,36 +160,36 @@ export function TeamPage() {
                     disabled={busy}
                     onClick={() => run(() => deleteInvite(invite.id))}
                   >
-                    Cancel
+                    İptal et
                   </button>
                 )}
               />
 
               {!frozen && (
                 <section className="panel">
-                  <h2>Find a teammate</h2>
+                  <h2>Takım arkadaşı bul</h2>
                   <label className="team-name-field">
-                    <span>Team name</span>
+                    <span>Takım adı</span>
                     <input
                       className="input"
-                      placeholder="Name your team"
+                      placeholder="Takımına bir ad ver"
                       maxLength={TEAM_NAME_MAX}
                       value={teamName}
                       onChange={(e) => setTeamName(e.target.value)}
                     />
                   </label>
                   <p className="muted team-name-hint">
-                    Sent with every invite. Either of you can change it once the team forms.
+                    Her davetle birlikte gönderilir. Takım kurulduktan sonra ikiniz de değiştirebilirsiniz.
                   </p>
                   <input
                     className="input team-search"
                     type="search"
-                    placeholder="Search by osu! username"
-                    aria-label="Search players"
+                    placeholder="osu! kullanıcı adıyla ara"
+                    aria-label="Oyuncu ara"
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                   />
-                  {results?.length === 0 && <p className="status">No players found.</p>}
+                  {results?.length === 0 && <p className="status">Oyuncu bulunamadı.</p>}
                   {results && results.length > 0 && (
                     <ul className="team-rows">
                       {results.map((p) => (
@@ -198,18 +198,18 @@ export function TeamPage() {
                           <RowMeta eligibility={p.eligibility} teamValue={p.team_value} />
                           <div className="team-row-actions">
                             {p.invite_received ? (
-                              <span className="badge">Invited you</span>
+                              <span className="badge">Seni davet etti</span>
                             ) : p.invite_sent ? (
-                              <span className="badge">Invite sent</span>
+                              <span className="badge">Davet gönderildi</span>
                             ) : (
                               <button
                                 type="button"
                                 className="btn btn-primary btn-sm"
                                 disabled={busy || !canForm || !teamName.trim() || p.eligibility !== "eligible"}
-                                title={teamName.trim() ? undefined : "Name your team first"}
+                                title={teamName.trim() ? undefined : "Önce takımına bir ad ver"}
                                 onClick={() => run(() => sendInvite(p.id, teamName))}
                               >
-                                Invite
+                                Davet et
                               </button>
                             )}
                           </div>
@@ -242,7 +242,7 @@ function MyTeam({ team, frozen, busy, run, onError }: MyTeamProps) {
   function upload(file: File | undefined) {
     if (!file) return;
     if (file.size > BANNER_MAX_BYTES) {
-      onError("Banners can be at most 2 MB.");
+      onError("Banner en fazla 2 MB olabilir.");
       return;
     }
     run(() => uploadMyBanner(file));
@@ -271,7 +271,7 @@ function MyTeam({ team, frozen, busy, run, onError }: MyTeamProps) {
               disabled={busy}
               onClick={() => fileInput.current?.click()}
             >
-              {team.banner_url ? "Change banner" : "Add banner"}
+              {team.banner_url ? "Banner'ı değiştir" : "Banner ekle"}
             </button>
             {team.banner_url && (
               <button
@@ -280,7 +280,7 @@ function MyTeam({ team, frozen, busy, run, onError }: MyTeamProps) {
                 disabled={busy}
                 onClick={() => run(removeMyBanner)}
               >
-                Remove banner
+                Banner'ı kaldır
               </button>
             )}
             <button
@@ -288,17 +288,17 @@ function MyTeam({ team, frozen, busy, run, onError }: MyTeamProps) {
               className="btn btn-danger btn-sm"
               disabled={busy}
               onClick={() => {
-                if (window.confirm("Disband your team? You and your teammate both become free agents.")) {
+                if (window.confirm("Takımını dağıtmak istiyor musun? Sen ve takım arkadaşın yeniden takımsız kalırsınız.")) {
                   run(disbandMyTeam);
                 }
               }}
             >
-              Disband
+              Dağıt
             </button>
           </>
         }
       />
-      <p className="muted team-name-hint">Banners are PNG, JPEG, GIF or WebP up to 2 MB, cropped to 3:1.</p>
+      <p className="muted team-name-hint">Banner en fazla 2 MB boyutunda PNG, JPEG, GIF veya WebP olmalı; 3:1 oranında kırpılır.</p>
     </>
   );
 }
@@ -308,12 +308,12 @@ function RankSummary({ status }: { status: TeamStatus }) {
     <section className="panel team-summary">
       {status.global_rank && status.min_partner_rank ? (
         <p>
-          Your rank is <strong>{formatRank(status.global_rank)}</strong>. Your teammate must be ranked{" "}
-          <strong>{formatRank(status.min_partner_rank)}</strong> or lower so the team value stays within{" "}
-          {formatTeamValue(status.limit)}.
+          Rank'ın <strong>{formatRank(status.global_rank)}</strong>. Takım değerinin{" "}
+          {formatTeamValue(status.limit)} limitini aşmaması için takım arkadaşının rank'ı{" "}
+          <strong>{formatRank(status.min_partner_rank)}</strong> veya daha düşük olmalı.
         </p>
       ) : (
-        <p>You don't have a global rank, so you can't form a team.</p>
+        <p>Global rank'ın olmadığı için takım kuramazsın.</p>
       )}
     </section>
   );
@@ -330,7 +330,7 @@ function RowMeta({ eligibility, teamValue, teamName }: RowMetaProps) {
     <div className="team-row-meta">
       {teamName && <span className="team-row-team">{teamName}</span>}
       <span className={eligibilityBadgeClass(eligibility)}>{ELIGIBILITY_LABELS[eligibility]}</span>
-      <span className="muted" title="Team value together">
+      <span className="muted" title="İkinizin takım değeri">
         {formatTeamValue(teamValue)}
       </span>
     </div>

@@ -7,8 +7,8 @@ export function MiniPlayer() {
   if (!track) return null;
 
   return (
-    <section className="mini-player" aria-label="Song preview">
-      <IconButton icon="stop" label="Stop preview" variant="round" active onClick={stop} />
+    <section className="mini-player" aria-label="Şarkı önizlemesi">
+      <IconButton icon="stop" label="Önizlemeyi durdur" variant="round" active onClick={stop} />
       <div className="mini-player-info">
         <div className="mini-player-title">{track.title}</div>
         {track.subtitle && <div className="mini-player-subtitle">{track.subtitle}</div>}
@@ -21,7 +21,7 @@ export function MiniPlayer() {
         step="0.01"
         value={volume}
         onChange={(e) => setVolume(parseFloat(e.target.value))}
-        aria-label="Volume"
+        aria-label="Ses seviyesi"
       />
     </section>
   );

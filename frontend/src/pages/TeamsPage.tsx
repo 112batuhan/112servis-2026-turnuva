@@ -20,11 +20,11 @@ export function TeamsPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h1>Teams</h1>
+        <h1>Takımlar</h1>
         {teams && <span className="badge">{teams.length}</span>}
         {list?.frozen && (
-          <span className="badge badge-success" title="Teams are final">
-            Final
+          <span className="badge badge-success" title="Takımlar kesinleşti">
+            Kesinleşti
           </span>
         )}
         {list && (
@@ -34,8 +34,8 @@ export function TeamsPage() {
         )}
       </div>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
-      {!teams && !error && <p className="status">Loading…</p>}
-      {teams?.length === 0 && <p className="status">No teams yet.</p>}
+      {!teams && !error && <p className="status">Yükleniyor…</p>}
+      {teams?.length === 0 && <p className="status">Henüz takım yok.</p>}
       {teams && teams.length > 0 && (
         <div className="team-grid">
           {teams.map((team, i) => (

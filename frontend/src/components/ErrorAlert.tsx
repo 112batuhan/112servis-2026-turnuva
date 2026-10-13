@@ -10,7 +10,7 @@ export function ErrorAlert({ message, onDismiss }: Props) {
   return (
     <div className="alert alert-error" role="alert">
       <span className="alert-message">{message}</span>
-      {onDismiss && <IconButton icon="close" label="Dismiss error" onClick={onDismiss} />}
+      {onDismiss && <IconButton icon="close" label="Hatayı kapat" onClick={onDismiss} />}
     </div>
   );
 }

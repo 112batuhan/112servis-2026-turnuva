@@ -42,8 +42,8 @@ export function TeamsAdminPage() {
 
   async function toggleFrozen() {
     const message = frozen
-      ? "Unfreeze the teams? Players can form, change and disband teams again, and ranks start updating again."
-      : "Freeze the teams? Players won't be able to form, rename, re-banner or disband teams, and ranks stop updating until you unfreeze them.";
+      ? "Takımların dondurulması kaldırılsın mı? Oyuncular yeniden takım kurabilir, değiştirebilir ve dağıtabilir; rank'lar da yeniden güncellenmeye başlar."
+      : "Takımlar dondurulsun mu? Oyuncular takım kuramaz, takımın adını veya banner'ını değiştiremez ve takımı dağıtamaz; dondurmayı kaldırana kadar rank'lar da güncellenmez.";
     if (!window.confirm(message)) return;
     setError(null);
     setFreezing(true);
@@ -68,7 +68,7 @@ export function TeamsAdminPage() {
   }
 
   async function removeBanner(team: Team<AdminTeamPlayer>) {
-    if (!window.confirm(`Remove the banner of ${team.name}?`)) return;
+    if (!window.confirm(`${team.name} takımının banner'ı kaldırılsın mı?`)) return;
     setError(null);
     setBusyId(team.id);
     try {
@@ -82,7 +82,7 @@ export function TeamsAdminPage() {
   }
 
   async function disband(team: Team<AdminTeamPlayer>) {
-    if (!window.confirm(`Disband ${team.name}?`)) return;
+    if (!window.confirm(`${team.name} takımı dağıtılsın mı?`)) return;
     setError(null);
     setBusyId(team.id);
     try {
@@ -98,16 +98,16 @@ export function TeamsAdminPage() {
   return (
     <section className="panel">
       <div className="page-header">
-        <h1>Teams</h1>
+        <h1>Takımlar</h1>
         {teams && <span className="badge">{teams.length}</span>}
         {frozen && (
-          <span className="badge badge-success" title="Players can't change teams">
-            Frozen
+          <span className="badge badge-success" title="Oyuncular takımları değiştiremez">
+            Donduruldu
           </span>
         )}
         {flagged > 0 && (
-          <span className="badge badge-danger" title="Teams whose current ranks no longer fit the limit">
-            {flagged} flagged
+          <span className="badge badge-danger" title="Güncel rank'ları artık limite uymayan takımlar">
+            {flagged} işaretli
           </span>
         )}
         {teams && (
@@ -117,10 +117,10 @@ export function TeamsAdminPage() {
               type="button"
               className="btn btn-secondary btn-sm"
               disabled={refreshing || frozen}
-              title={frozen ? "Ranks don't update while teams are frozen" : undefined}
+              title={frozen ? "Takımlar donduruluyken rank'lar güncellenmez" : undefined}
               onClick={updateRanks}
             >
-              {refreshing ? "Updating…" : "Update ranks now"}
+              {refreshing ? "Güncelleniyor…" : "Rank'ları şimdi güncelle"}
             </button>
             <button
               type="button"
@@ -128,14 +128,14 @@ export function TeamsAdminPage() {
               disabled={freezing}
               onClick={toggleFrozen}
             >
-              {frozen ? "Unfreeze teams" : "Freeze teams"}
+              {frozen ? "Dondurmayı kaldır" : "Takımları dondur"}
             </button>
           </div>
         )}
       </div>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
-      {!teams && !error && <p className="status">Loading…</p>}
-      {teams?.length === 0 && <p className="status">No teams yet.</p>}
+      {!teams && !error && <p className="status">Yükleniyor…</p>}
+      {teams?.length === 0 && <p className="status">Henüz takım yok.</p>}
       {teams && teams.length > 0 && (
         <div className="team-grid">
           {teams.map((team, i) => (
@@ -145,7 +145,7 @@ export function TeamsAdminPage() {
               position={i + 1}
               onRename={(name) => rename(team, name)}
               renderPlayerExtra={(p) => (
-                <span className="muted">{p.discord_username ? `@${p.discord_username}` : "No Discord linked"}</span>
+                <span className="muted">{p.discord_username ? `@${p.discord_username}` : "Discord bağlı değil"}</span>
               )}
               actions={
                 <>
@@ -156,7 +156,7 @@ export function TeamsAdminPage() {
                       disabled={busyId === team.id}
                       onClick={() => removeBanner(team)}
                     >
-                      Remove banner
+                      Banner'ı kaldır
                     </button>
                   )}
                   <button
@@ -165,7 +165,7 @@ export function TeamsAdminPage() {
                     disabled={busyId === team.id}
                     onClick={() => disband(team)}
                   >
-                    Disband
+                    Dağıt
                   </button>
                 </>
               }

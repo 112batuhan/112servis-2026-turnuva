@@ -4,7 +4,6 @@ import { Icon } from "../../../components/Icon";
 import { MapCard, type MapCardEditor } from "../../../components/MapCard";
 import { PoolSection } from "../../../components/PoolSection";
 import { useMapDropZone } from "../../../lib/dragAndDrop";
-import { plural } from "../../../lib/format";
 
 export const GENERIC_POOL_ID = "generic-pool";
 
@@ -26,15 +25,15 @@ export function GenericPool({ maps, expanded, onToggle, busy, onAddMap, onDropMa
 
   return (
     <PoolSection
-      title="Generic pool"
-      meta={`${plural(maps.length, "map")} · shared by all stages`}
+      title="Ortak havuz"
+      meta={`${maps.length} map · tüm stage'lerde ortak`}
       expanded={expanded}
       onToggle={onToggle}
       isDropTarget={isOver}
       {...dropProps}
     >
       <AddMapForm busy={busy} onAddMap={onAddMap} />
-      {maps.length === 0 && <p className="pool-empty">No unplaced maps. Add one by beatmap id above.</p>}
+      {maps.length === 0 && <p className="pool-empty">Yerleştirilmemiş map yok. Yukarıdan beatmap id'siyle map ekleyebilirsin.</p>}
       {maps.map((map) => (
         <MapCard key={map.id} map={map} editor={editorFor(map)} />
       ))}
@@ -78,7 +77,7 @@ function AddMapForm({ busy, onAddMap }: Pick<Props, "busy" | "onAddMap">) {
       </select>
       <button type="submit" className="btn btn-primary" disabled={busy || !(parsedId > 0)}>
         <Icon name="plus" />
-        {busy ? "Adding…" : "Add map"}
+        {busy ? "Ekleniyor…" : "Map ekle"}
       </button>
     </form>
   );

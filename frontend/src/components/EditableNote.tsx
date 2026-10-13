@@ -70,7 +70,7 @@ export function EditableNote({ value, label, placeholder, isPrivate, onSave, onE
     <button
       type="button"
       className={`${classes} note-view ${value ? "" : "is-empty"}`}
-      aria-label={`${label}: ${value || "empty"}. Edit`}
+      aria-label={`${label}: ${value || "boş"}. Düzenle`}
       onClick={() => setEditingState(true)}
     >
       <span ref={textRef} className="note-view-text">

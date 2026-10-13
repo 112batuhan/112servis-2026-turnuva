@@ -10,43 +10,43 @@ export function LandingPage() {
   return (
     <div className="page page-narrow">
       <section className="hero">
-        <p className="hero-eyebrow">osu! tournament</p>
+        <p className="hero-eyebrow">osu! turnuvası</p>
         <h1 className="hero-title">112 Servis 2026 Turnuva</h1>
         <p className="hero-lead">
-          Follow the tournament: stages, mappools and results. Sign in with osu! to take part, or just
-          browse along.
+          Turnuvayı takip et: stage'ler, mappool'lar ve sonuçlar. Katılmak için osu! ile giriş yap ya da sadece
+          göz at.
         </p>
 
         <div className="hero-actions">
           <Link className="btn btn-secondary btn-lg" to="/mappool">
-            View mappool
+            Mappool'u gör
           </Link>
           {!user && (
             <button type="button" className="btn btn-primary btn-lg" onClick={loginWithOsu}>
-              Log in with osu!
+              osu! ile giriş yap
             </button>
           )}
           {hasRole(user, "map_pooler") && (
             <Link className="btn btn-primary btn-lg" to="/admin/mappool">
-              Open pool editor
+              Mappool editörünü aç
             </Link>
           )}
         </div>
-        {user && <p className="hero-signed-in">Signed in as {user.username}</p>}
+        {user && <p className="hero-signed-in">{user.username} olarak giriş yapıldı</p>}
       </section>
 
-      <section className="landing-cards" aria-label="About the tournament">
+      <section className="landing-cards" aria-label="Turnuva hakkında">
         <Link className="landing-card is-link" to="/mappool">
-          <h2>Stages &amp; mappools</h2>
-          <p>Every stage has its own pool of maps across mod categories. Listen to previews and grab downloads.</p>
+          <h2>Stage'ler ve mappool'lar</h2>
+          <p>Her stage'in mod kategorilerine ayrılmış kendi mappool'u var. Önizlemeleri dinle, map'leri indir.</p>
         </Link>
         <div className="landing-card">
-          <h2>Schedule &amp; bracket</h2>
-          <p>Match times and the bracket will be published here as the tournament gets going.</p>
+          <h2>Program ve bracket</h2>
+          <p>Turnuva ilerledikçe maç saatleri ve bracket burada yayınlanacak.</p>
         </div>
         <div className="landing-card">
-          <h2>Get involved</h2>
-          <p>Sign in with osu! and link your Discord to participate. Staff manage pools and roles.</p>
+          <h2>Katıl</h2>
+          <p>Katılmak için osu! ile giriş yap ve Discord hesabını bağla. Mappool'ları ve rolleri yetkililer yönetir.</p>
         </div>
       </section>
     </div>

@@ -36,12 +36,12 @@ export function UsersPage() {
   return (
     <section className="panel">
       <div className="page-header">
-        <h1>Registered users</h1>
+        <h1>Kayıtlı kullanıcılar</h1>
         {users && <span className="badge">{users.length}</span>}
       </div>
 
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
-      {!users && !error && <p className="status">Loading…</p>}
+      {!users && !error && <p className="status">Yükleniyor…</p>}
 
       {users && (
         <div className="table-scroll">
@@ -52,11 +52,11 @@ export function UsersPage() {
                   <span className="sr-only">Avatar</span>
                 </th>
                 <th scope="col">osu!</th>
-                <th scope="col">Country</th>
+                <th scope="col">Ülke</th>
                 <th scope="col">Global rank</th>
-                <th scope="col">Role</th>
+                <th scope="col">Rol</th>
                 <th scope="col">Discord</th>
-                <th scope="col">Joined</th>
+                <th scope="col">Katılma tarihi</th>
               </tr>
             </thead>
             <tbody>
@@ -76,7 +76,7 @@ export function UsersPage() {
                       className={`select select-sm role-select role-${u.role}`}
                       value={u.role}
                       disabled={savingId === u.id}
-                      aria-label={`Role for ${u.username}`}
+                      aria-label={`${u.username} için rol`}
                       onChange={(e) => changeRole(u.id, e.target.value as Role)}
                     >
                       {ROLES.map((r) => (

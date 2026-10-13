@@ -7,7 +7,7 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   const res = await fetch(`${API_URL}${path}`, { credentials: "include", ...init });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(text || `Request failed (${res.status})`);
+    throw new Error(text || `İstek başarısız oldu (${res.status})`);
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }

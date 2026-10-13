@@ -6,7 +6,6 @@ import { MapCard, type MapCardEditor } from "../../../components/MapCard";
 import { PoolSection } from "../../../components/PoolSection";
 import { EmptySlot, Slot } from "../../../components/Slot";
 import { useMapDropZone } from "../../../lib/dragAndDrop";
-import { plural } from "../../../lib/format";
 import type { StageEditorActions } from "./useStageEditor";
 
 interface Props {
@@ -25,7 +24,7 @@ export function CategoryEditor({ category, slots, maps, expanded, onToggle, busy
   return (
     <PoolSection
       title={category.name}
-      meta={plural(slots.length, "slot")}
+      meta={`${slots.length} slot`}
       color={category.color}
       expanded={expanded}
       onToggle={onToggle}
@@ -33,7 +32,7 @@ export function CategoryEditor({ category, slots, maps, expanded, onToggle, busy
         <button
           type="button"
           className="btn btn-secondary btn-sm"
-          aria-label={`Add slot to ${category.name}`}
+          aria-label={`${category.name} kategorisine slot ekle`}
           disabled={busy}
           onClick={() => actions.addSlot(category.id)}
         >
@@ -42,7 +41,7 @@ export function CategoryEditor({ category, slots, maps, expanded, onToggle, busy
         </button>
       }
     >
-      {slots.length === 0 && <p className="pool-empty">Add slots to hold maps.</p>}
+      {slots.length === 0 && <p className="pool-empty">Map eklemek için slot ekle.</p>}
       {slots.map((slot, i) => (
         <EditorSlot
           key={slot.id}
@@ -73,7 +72,7 @@ function EditorSlot({ slot, categoryName, number, map, actions, editorFor }: Edi
 
   function remove() {
     const hasContent = map || slot.editor_notes;
-    if (hasContent && !confirm(`Remove slot ${name}? Its notes are deleted and its map goes back to the generic pool.`)) return;
+    if (hasContent && !confirm(`${name} slot'u kaldırılsın mı? Notları silinir ve map'i ortak havuza geri döner.`)) return;
     actions.deleteSlot(slot.id);
   }
 
@@ -81,18 +80,18 @@ function EditorSlot({ slot, categoryName, number, map, actions, editorFor }: Edi
     <Slot number={number} isDropTarget={isOver} {...dropProps}>
       <div className="slot-toolbar">
         <EditableNote
-          label={`${name} private note`}
-          placeholder="Private slot note (editors only)…"
+          label={`${name} gizli notu`}
+          placeholder="Gizli slot notu (sadece editörler)…"
           value={slot.editor_notes}
           isPrivate
           onSave={(v) => actions.saveSlotNotes(slot.id, v)}
         />
-        <IconButton icon="close" label={`Remove slot ${name}`} tone="danger" onClick={remove} />
+        <IconButton icon="close" label={`${name} slot'unu kaldır`} tone="danger" onClick={remove} />
       </div>
       {map ? (
         <MapCard map={map} editor={editorFor(map)} />
       ) : (
-        <EmptySlot>Drag a map here, or use "Move to…" on a map</EmptySlot>
+        <EmptySlot>Buraya bir map sürükle ya da map üzerindeki "Taşı…" menüsünü kullan</EmptySlot>
       )}
     </Slot>
   );

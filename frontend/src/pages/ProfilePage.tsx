@@ -24,14 +24,14 @@ export function ProfilePage() {
         <div className="card-section">
           {user.discord ? (
             <p>
-              Discord linked as <strong>@{user.discord.username}</strong>
+              Discord hesabı bağlı: <strong>@{user.discord.username}</strong>
             </p>
           ) : (
             <>
-              <p className="muted">You haven't linked Discord yet. Some features need it.</p>
+              <p className="muted">Henüz Discord bağlamadın. Bazı özellikler için gerekli.</p>
               <Link className="btn btn-discord btn-block" to="/discord">
                 <DiscordMark />
-                Link Discord
+                Discord bağla
               </Link>
             </>
           )}

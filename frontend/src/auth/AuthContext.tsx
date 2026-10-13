@@ -21,7 +21,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setUser(await fetchCurrentUser());
     } catch {
-      setError("Couldn't reach the server. Check that the backend is running.");
+      setError("Sunucuya ulaşılamadı. Backend'in çalıştığını kontrol et.");
     }
   }, []);
 
