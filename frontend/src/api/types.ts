@@ -86,7 +86,6 @@ export interface PublicPoolMap {
   cs: number;
   ar: number;
   od: number;
-  hp: number;
   mode: string;
   cover_url: string | null;
   public_notes: string;

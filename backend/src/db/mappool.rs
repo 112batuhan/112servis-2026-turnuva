@@ -67,7 +67,6 @@ pub struct PoolMap {
     pub cs: f64,
     pub ar: f64,
     pub od: f64,
-    pub hp: f64,
     pub mode: String,
     pub cover_url: Option<String>,
     pub public_notes: String,
@@ -93,7 +92,6 @@ pub struct PublicPoolMap {
     pub cs: f64,
     pub ar: f64,
     pub od: f64,
-    pub hp: f64,
     pub mode: String,
     pub cover_url: Option<String>,
     pub public_notes: String,
@@ -105,7 +103,6 @@ pub struct ModStats {
     pub ar: f64,
     pub od: f64,
     pub cs: f64,
-    pub hp: f64,
     pub bpm: f64,
     pub total_length: i32,
 }
@@ -353,12 +350,12 @@ pub async fn delete_slot(pool: &PgPool, id: Uuid) -> sqlx::Result<()> {
 
 const POOL_MAP_COLS: &str = "pm.id, pm.slot_id, pm.position, pm.mods, \
      pm.beatmap_id, pm.beatmapset_id, pm.artist, pm.title, pm.version, pm.creator, pm.mode, pm.cover_url, \
-     pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od, pm.hp, pm.public_notes, pm.editor_notes";
+     pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od, pm.public_notes, pm.editor_notes";
 
 // Public column list: same as above but without editor_notes.
 const PUBLIC_MAP_COLS: &str = "pm.id, pm.slot_id, pm.position, pm.mods, \
      pm.beatmap_id, pm.beatmapset_id, pm.artist, pm.title, pm.version, pm.creator, pm.mode, pm.cover_url, \
-     pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od, pm.hp, pm.public_notes";
+     pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od, pm.public_notes";
 
 // Adds a map (osu! metadata + mods with locked stats) to the generic pool. Returns its id.
 pub async fn add_pool_map(pool: &PgPool, m: &NewPoolMap, added_by: Uuid) -> sqlx::Result<Uuid> {
@@ -367,10 +364,10 @@ pub async fn add_pool_map(pool: &PgPool, m: &NewPoolMap, added_by: Uuid) -> sqlx
         INSERT INTO pool_maps
             (beatmap_id, beatmapset_id, artist, title, version, creator, mode, cover_url,
              mods, added_by, position,
-             star_rating, ar, od, cs, hp, bpm, total_length)
+             star_rating, ar, od, cs, bpm, total_length)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
                 (SELECT COALESCE(MAX(position), -1) + 1 FROM pool_maps WHERE slot_id IS NULL),
-                $11, $12, $13, $14, $15, $16, $17)
+                $11, $12, $13, $14, $15, $16)
         RETURNING id
         "#,
     )
@@ -388,7 +385,6 @@ pub async fn add_pool_map(pool: &PgPool, m: &NewPoolMap, added_by: Uuid) -> sqlx
     .bind(m.stats.ar)
     .bind(m.stats.od)
     .bind(m.stats.cs)
-    .bind(m.stats.hp)
     .bind(m.stats.bpm)
     .bind(m.stats.total_length)
     .fetch_one(pool)

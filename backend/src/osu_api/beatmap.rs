@@ -2,8 +2,7 @@ use serde::Deserialize;
 
 use crate::error::AppError;
 
-// Relevant fields of osu! API v2 GET /beatmaps/{id}. Note the API names OD
-// `accuracy` and HP `drain`.
+// Relevant fields of osu! API v2 GET /beatmaps/{id}. Note the API names OD `accuracy`.
 #[derive(Debug, Deserialize)]
 pub struct Beatmap {
     pub id: i64,
@@ -15,7 +14,6 @@ pub struct Beatmap {
     pub cs: f64,
     pub ar: f64,
     pub accuracy: f64,
-    pub drain: f64,
     pub version: String,
     pub mode: String,
     pub beatmapset: Option<Beatmapset>,

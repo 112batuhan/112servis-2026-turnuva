@@ -1,5 +1,5 @@
 //! Deterministic mod stat transforms for the stats the osu! API's difficulty
-//! attributes endpoint does NOT return (CS, HP, BPM, length). Star rating, AR, and
+//! attributes endpoint does NOT return (CS, BPM, length). Star rating, AR, and
 //! OD come from the API instead. Modifiers are 2-letter acronyms concatenated in the
 //! category's `modifier` string, e.g. "HDDT".
 
@@ -37,15 +37,5 @@ pub fn modded_cs(cs: f64, mods: &[String]) -> f64 {
         cs * 0.5
     } else {
         cs
-    }
-}
-
-pub fn modded_hp(hp: f64, mods: &[String]) -> f64 {
-    if has(mods, "HR") {
-        (hp * 1.4).min(10.0)
-    } else if has(mods, "EZ") {
-        hp * 0.5
-    } else {
-        hp
     }
 }

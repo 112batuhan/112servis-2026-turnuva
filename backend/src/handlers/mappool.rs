@@ -261,7 +261,7 @@ pub async fn delete_slot(
 // ---------- pool maps ----------
 
 // Resolves a beatmap's firm mod stats: star rating / AR / OD from the osu! API's
-// difficulty attributes (skipped for nomod), and CS / HP / BPM / length computed
+// difficulty attributes (skipped for nomod), and CS / BPM / length computed
 // deterministically. Locked onto the map at add time — never recomputed afterwards.
 async fn resolve_stats(
     state: &AppState,
@@ -271,7 +271,6 @@ async fn resolve_stats(
     let parsed = crate::mods::parse(mods);
 
     let cs = crate::mods::modded_cs(bm.cs, &parsed);
-    let hp = crate::mods::modded_hp(bm.drain, &parsed);
     let rate = crate::mods::rate(&parsed);
     let bpm = bm.bpm.unwrap_or(0.0) * rate;
     let total_length = (bm.total_length as f64 / rate).round() as i32;
@@ -295,7 +294,6 @@ async fn resolve_stats(
         ar,
         od,
         cs,
-        hp,
         bpm,
         total_length,
     })
