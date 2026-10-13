@@ -10,6 +10,9 @@ COPY frontend/ ./
 # production, so requests can use relative paths (see frontend/src/api.js).
 ARG VITE_API_URL=""
 ENV VITE_API_URL=$VITE_API_URL
+# Leave false for production; true bundles the dev account switcher.
+ARG DEV_LOGIN=false
+ENV DEV_LOGIN=$DEV_LOGIN
 RUN npm run build
 
 # ---- backend build ----
@@ -21,6 +24,8 @@ COPY backend/Cargo.toml backend/Cargo.lock ./
 COPY backend/src ./src
 # sqlx::migrate! embeds these into the binary at compile time.
 COPY backend/migrations ./migrations
+# The dev seed is embedded too (include_str!), even when DEV_LOGIN is off.
+COPY backend/seed ./seed
 RUN cargo build --release
 
 # ---- runtime ----

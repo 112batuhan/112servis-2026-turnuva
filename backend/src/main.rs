@@ -96,11 +96,19 @@ async fn main() {
         ])
         .allow_headers([axum::http::header::CONTENT_TYPE]);
 
-    let api = Router::new()
+    let mut api = Router::new()
         .merge(handlers::user::routes())
         .merge(handlers::admin::routes())
         .merge(handlers::mappool::routes())
         .merge(handlers::team::routes());
+    if config.dev_login {
+        assert!(
+            !config.secure_cookies(),
+            "DEV_LOGIN must not be enabled on an https deployment"
+        );
+        tracing::warn!("DEV_LOGIN is on: anyone can sign in as any account via /api/dev");
+        api = api.merge(handlers::dev::routes());
+    }
 
     let mut app = Router::new()
         .nest("/auth", handlers::auth::routes())

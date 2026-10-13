@@ -23,6 +23,12 @@
   list-style: none;
 }
 
+/* Lines up with the player name, past the 36px avatar. */
+.team-card-extra {
+  padding-left: calc(36px + var(--space-3));
+  font-size: var(--text-sm);
+}
+
 .team-card-footer {
   display: flex;
   align-items: center;

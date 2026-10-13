@@ -22,6 +22,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-}
+        DEV_LOGIN: ${DEV_LOGIN:-false}
     restart: unless-stopped
     depends_on:
       postgres:
@@ -36,6 +37,7 @@ services:
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?set DISCORD_CLIENT_ID in .env}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:?set DISCORD_CLIENT_SECRET in .env}
       DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI:-http://localhost:8080/auth/discord/callback}
+      DEV_LOGIN: ${DEV_LOGIN:-false}
     ports:
       - "8080:8080"
 

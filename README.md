@@ -72,6 +72,16 @@ npm run dev
 
 Open `http://localhost:5173` and log in with osu!.
 
+## Testing with dummy accounts
+
+Set `DEV_LOGIN=true` in `.env` and restart both the backend and the frontend. A **DEV**
+button appears in the bottom-left corner: it switches to any account with one click
+and can reseed or clear the dummy players, teams and invites from `backend/seed/`.
+
+Leave `DEV_LOGIN` unset (or `false`) on live servers. The backend then doesn't serve the
+dev endpoints, the frontend build doesn't contain the switcher, and the backend refuses
+to start with it on when `FRONTEND_URL` is https.
+
 ## Running with Docker
 
 `Dockerfile` builds the frontend, builds the Rust backend, and packages a single

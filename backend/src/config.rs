@@ -39,6 +39,11 @@ pub struct Config {
 
     #[arg(long, env = "DISCORD_REDIRECT_URI")]
     pub discord_redirect_uri: String,
+
+    /// Enables /api/dev/* (sign in as any account, seed dummy data). Local testing only;
+    /// the server refuses to start with it over https.
+    #[arg(long, env = "DEV_LOGIN", default_value_t = false, action = clap::ArgAction::Set)]
+    pub dev_login: bool,
 }
 
 impl Config {

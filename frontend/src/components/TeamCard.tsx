@@ -18,7 +18,7 @@ export function TeamCard<P extends Player>({ team, renderPlayerExtra, actions }:
         {team.players.map((p) => (
           <li key={p.id}>
             <PlayerChip player={p} />
-            {renderPlayerExtra?.(p)}
+            {renderPlayerExtra && <div className="team-card-extra">{renderPlayerExtra(p)}</div>}
           </li>
         ))}
       </ul>

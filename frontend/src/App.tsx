@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext";
 import { RequireAuth } from "./auth/RequireAuth";
@@ -14,6 +15,10 @@ import { PublicPoolPage } from "./pages/PublicPoolPage";
 import { TeamPage } from "./pages/TeamPage";
 import { TeamsPage } from "./pages/TeamsPage";
 import { usePlayer } from "./player/PlayerContext";
+
+const DevSwitcher = __DEV_LOGIN__
+  ? lazy(() => import("./components/DevSwitcher").then((m) => ({ default: m.DevSwitcher })))
+  : null;
 
 export function App() {
   const { user, error, refresh } = useAuth();
@@ -70,6 +75,11 @@ export function App() {
         </Routes>
       </main>
       <MiniPlayer />
+      {DevSwitcher && (
+        <Suspense fallback={null}>
+          <DevSwitcher />
+        </Suspense>
+      )}
     </div>
   );
 }

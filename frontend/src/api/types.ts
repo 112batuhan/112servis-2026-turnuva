@@ -157,3 +157,15 @@ export interface TeamStatus {
   sent: Invite[];
   received: Invite[];
 }
+
+export interface DevAccount {
+  id: string;
+  osu_id: number;
+  username: string;
+  avatar_url: string;
+  global_rank: number | null;
+  role: Role;
+  dummy: boolean;
+  in_team: boolean;
+  discord_linked: boolean;
+}
