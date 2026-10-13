@@ -142,6 +142,8 @@ export interface Team<P extends Player = Player> {
   id: string;
   name: string;
   created_at: string;
+  /** API path of the banner image, or null when the team has none. */
+  banner_url: string | null;
   team_value: number | null;
   players: P[];
 }

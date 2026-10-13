@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { API_URL } from "../api/client";
 import type { Player, Team } from "../api/types";
 import { formatTeamValue, TEAM_NAME_MAX } from "../lib/format";
 import { InlineEdit } from "./InlineEdit";
@@ -17,6 +18,7 @@ interface Props<P extends Player> {
 export function TeamCard<P extends Player>({ team, renderPlayerExtra, onRename, actions }: Props<P>) {
   return (
     <article className="team-card">
+      {team.banner_url && <img className="team-card-banner" src={`${API_URL}${team.banner_url}`} alt="" />}
       <h3 className="team-card-name">
         {onRename ? (
           <InlineEdit value={team.name} onSave={onRename} label="Rename team" maxLength={TEAM_NAME_MAX} />
@@ -36,7 +38,7 @@ export function TeamCard<P extends Player>({ team, renderPlayerExtra, onRename, 
         <span className="badge" title="Team value">
           {formatTeamValue(team.team_value)}
         </span>
-        {actions}
+        {actions && <div className="team-card-actions">{actions}</div>}
       </div>
     </article>
   );

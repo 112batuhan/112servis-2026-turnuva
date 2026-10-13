@@ -1,8 +1,9 @@
 use axum::{
-    extract::{Path, Query, State},
-    http::StatusCode,
+    body::Bytes,
+    extract::{DefaultBodyLimit, Path, Query, State},
+    http::{header, StatusCode},
     response::IntoResponse,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, patch, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -30,12 +31,20 @@ pub fn routes() -> Router<AppState> {
                 .patch(rename_my_team)
                 .delete(disband_my_team),
         )
+        .route(
+            "/me/team/banner",
+            put(upload_my_banner)
+                .delete(remove_my_banner)
+                .layer(DefaultBodyLimit::max(BANNER_MAX_BYTES)),
+        )
         .route("/invites", post(send_invite))
         .route("/invites/:id", delete(delete_invite))
         .route("/invites/:id/accept", post(accept_invite))
         .route("/public/teams", get(list_public_teams))
+        .route("/public/teams/:id/banner", get(team_banner))
         .route("/teams", get(list_teams))
         .route("/teams/:id", patch(rename_team).delete(disband_team))
+        .route("/teams/:id/banner", delete(remove_team_banner))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -82,6 +91,8 @@ pub struct Team<P> {
     name: String,
     #[serde(with = "time::serde::rfc3339")]
     created_at: OffsetDateTime,
+    // Versioned by upload time, so the image can be cached forever.
+    banner_url: Option<String>,
     team_value: Option<f64>,
     players: Vec<P>,
 }
@@ -105,6 +116,10 @@ fn group_teams<P>(
                 id: row.team_id,
                 name: row.team_name.clone(),
                 created_at: row.team_created_at,
+                banner_url: row.banner_updated_at.map(|at| {
+                    let version = at.unix_timestamp_nanos() / 1_000_000;
+                    format!("/api/public/teams/{}/banner?v={version}", row.team_id)
+                }),
                 team_value: None,
                 players: Vec::new(),
             };
@@ -395,6 +410,69 @@ pub async fn disband_my_team(
     Ok(StatusCode::NO_CONTENT)
 }
 
+// ---------- banners ----------
+
+const BANNER_MAX_BYTES: usize = 2 * 1024 * 1024;
+
+// Trusts the file's magic bytes rather than the request's Content-Type.
+fn banner_content_type(data: &[u8]) -> Option<&'static str> {
+    if data.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("image/png")
+    } else if data.starts_with(b"\xff\xd8\xff") {
+        Some("image/jpeg")
+    } else if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
+        Some("image/gif")
+    } else if data.len() >= 12 && data.starts_with(b"RIFF") && &data[8..12] == b"WEBP" {
+        Some("image/webp")
+    } else {
+        None
+    }
+}
+
+// PUT /api/me/team/banner — either player sets their team's banner. The body is
+// the raw image.
+pub async fn upload_my_banner(
+    State(state): State<AppState>,
+    user: AuthUser,
+    body: Bytes,
+) -> Result<impl IntoResponse, AppError> {
+    let team_id = my_team_id(&state, &user).await?;
+    let content_type = banner_content_type(&body).ok_or(AppError::BadRequest(
+        "banners must be PNG, JPEG, GIF or WebP images",
+    ))?;
+    db::team::set_banner(&state.db, team_id, content_type, &body).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// DELETE /api/me/team/banner
+pub async fn remove_my_banner(
+    State(state): State<AppState>,
+    user: AuthUser,
+) -> Result<impl IntoResponse, AppError> {
+    let team_id = my_team_id(&state, &user).await?;
+    db::team::delete_banner(&state.db, team_id).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// GET /api/public/teams/:id/banner
+pub async fn team_banner(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<impl IntoResponse, AppError> {
+    let banner = db::team::find_banner(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let headers = [
+        (header::CONTENT_TYPE, banner.content_type),
+        (
+            header::CACHE_CONTROL,
+            "public, max-age=31536000, immutable".to_string(),
+        ),
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff".to_string()),
+    ];
+    Ok((headers, banner.data))
+}
+
 // ---------- team lists ----------
 
 // GET /api/public/teams — every team with its players.
@@ -437,6 +515,19 @@ pub async fn disband_team(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     if !db::team::delete_team(&state.db, id).await? {
+        return Err(AppError::NotFound);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// DELETE /api/teams/:id/banner — host-only.
+pub async fn remove_team_banner(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<impl IntoResponse, AppError> {
+    user.require_role(Role::Host)?;
+    if !db::team::delete_banner(&state.db, id).await? {
         return Err(AppError::NotFound);
     }
     Ok(StatusCode::NO_CONTENT)

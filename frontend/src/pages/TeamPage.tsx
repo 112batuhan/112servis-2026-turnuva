@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { errorMessage } from "../api/client";
 import {
@@ -6,18 +6,20 @@ import {
   deleteInvite,
   disbandMyTeam,
   fetchTeamStatus,
+  removeMyBanner,
   renameMyTeam,
   searchPlayers,
   sendInvite,
+  uploadMyBanner,
 } from "../api/teams";
-import type { Invite, PlayerResult, TeamStatus } from "../api/types";
+import type { Invite, PlayerResult, Team, TeamStatus } from "../api/types";
 import { useSignedInUser } from "../auth/AuthContext";
 import { DiscordMark } from "../components/DiscordMark";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { PlayerChip } from "../components/PlayerChip";
 import { TeamCard } from "../components/TeamCard";
 import { ELIGIBILITY_LABELS, eligibilityBadgeClass } from "../lib/eligibility";
-import { formatRank, formatTeamValue, TEAM_NAME_MAX } from "../lib/format";
+import { BANNER_MAX_BYTES, formatRank, formatTeamValue, TEAM_NAME_MAX } from "../lib/format";
 import "./TeamPage.css";
 
 const SEARCH_DELAY_MS = 300;
@@ -104,24 +106,7 @@ export function TeamPage() {
           {status.team ? (
             <section className="panel">
               <h2>Your team</h2>
-              <TeamCard
-                team={status.team}
-                onRename={(name) => run(() => renameMyTeam(name))}
-                actions={
-                  <button
-                    type="button"
-                    className="btn btn-danger btn-sm"
-                    disabled={busy}
-                    onClick={() => {
-                      if (window.confirm("Disband your team? You and your teammate both become free agents.")) {
-                        run(disbandMyTeam);
-                      }
-                    }}
-                  >
-                    Disband
-                  </button>
-                }
-              />
+              <MyTeam team={status.team} busy={busy} run={run} onError={setError} />
             </section>
           ) : (
             <>
@@ -223,6 +208,80 @@ export function TeamPage() {
         </>
       )}
     </div>
+  );
+}
+
+interface MyTeamProps {
+  team: Team;
+  busy: boolean;
+  run: (action: () => Promise<void>) => Promise<void>;
+  onError: (message: string) => void;
+}
+
+function MyTeam({ team, busy, run, onError }: MyTeamProps) {
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  function upload(file: File | undefined) {
+    if (!file) return;
+    if (file.size > BANNER_MAX_BYTES) {
+      onError("Banners can be at most 2 MB.");
+      return;
+    }
+    run(() => uploadMyBanner(file));
+  }
+
+  return (
+    <>
+      <TeamCard
+        team={team}
+        onRename={(name) => run(() => renameMyTeam(name))}
+        actions={
+          <>
+            <input
+              ref={fileInput}
+              type="file"
+              accept="image/png,image/jpeg,image/gif,image/webp"
+              hidden
+              onChange={(e) => {
+                upload(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={busy}
+              onClick={() => fileInput.current?.click()}
+            >
+              {team.banner_url ? "Change banner" : "Add banner"}
+            </button>
+            {team.banner_url && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy}
+                onClick={() => run(removeMyBanner)}
+              >
+                Remove banner
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-danger btn-sm"
+              disabled={busy}
+              onClick={() => {
+                if (window.confirm("Disband your team? You and your teammate both become free agents.")) {
+                  run(disbandMyTeam);
+                }
+              }}
+            >
+              Disband
+            </button>
+          </>
+        }
+      />
+      <p className="muted team-name-hint">Banners are PNG, JPEG, GIF or WebP up to 2 MB, cropped to 3:1.</p>
+    </>
   );
 }
 

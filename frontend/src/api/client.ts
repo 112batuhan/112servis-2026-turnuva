@@ -25,6 +25,9 @@ export const post = <T>(path: string, body?: unknown) =>
   request<T>(path, body === undefined ? { method: "POST" } : withJson("POST", body));
 export const patch = <T>(path: string, body: unknown) => request<T>(path, withJson("PATCH", body));
 export const del = (path: string) => request<void>(path, { method: "DELETE" });
+/** Sends a file as the raw request body. */
+export const putFile = (path: string, file: Blob) =>
+  request<void>(path, { method: "PUT", headers: { "Content-Type": file.type }, body: file });
 
 export function errorMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);

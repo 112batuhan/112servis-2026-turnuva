@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { errorMessage } from "../../api/client";
-import { disbandTeam, fetchTeams, renameTeam } from "../../api/teams";
+import { disbandTeam, fetchTeams, removeTeamBanner, renameTeam } from "../../api/teams";
 import type { AdminTeamPlayer, Team } from "../../api/types";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { TeamCard } from "../../components/TeamCard";
@@ -23,6 +23,20 @@ export function TeamsAdminPage() {
       setTeams((list) => list?.map((t) => (t.id === team.id ? { ...t, name } : t)) ?? null);
     } catch (e) {
       setError(errorMessage(e));
+    }
+  }
+
+  async function removeBanner(team: Team<AdminTeamPlayer>) {
+    if (!window.confirm(`Remove the banner of ${team.name}?`)) return;
+    setError(null);
+    setBusyId(team.id);
+    try {
+      await removeTeamBanner(team.id);
+      setTeams((list) => list?.map((t) => (t.id === team.id ? { ...t, banner_url: null } : t)) ?? null);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -60,14 +74,26 @@ export function TeamsAdminPage() {
                 <span className="muted">{p.discord_username ? `@${p.discord_username}` : "No Discord linked"}</span>
               )}
               actions={
-                <button
-                  type="button"
-                  className="btn btn-danger btn-sm"
-                  disabled={busyId === team.id}
-                  onClick={() => disband(team)}
-                >
-                  Disband
-                </button>
+                <>
+                  {team.banner_url && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      disabled={busyId === team.id}
+                      onClick={() => removeBanner(team)}
+                    >
+                      Remove banner
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    disabled={busyId === team.id}
+                    onClick={() => disband(team)}
+                  >
+                    Disband
+                  </button>
+                </>
               }
             />
           ))}

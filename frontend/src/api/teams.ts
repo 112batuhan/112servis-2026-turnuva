@@ -1,4 +1,4 @@
-import { del, get, patch, post } from "./client";
+import { del, get, patch, post, putFile } from "./client";
 import type { AdminTeamPlayer, PlayerResult, Team, TeamStatus } from "./types";
 
 export const searchPlayers = (q: string) =>
@@ -13,6 +13,8 @@ export const deleteInvite = (inviteId: string) => del(`/api/invites/${inviteId}`
 
 export const renameMyTeam = (name: string) => patch<void>("/api/me/team", { name });
 export const disbandMyTeam = () => del("/api/me/team");
+export const uploadMyBanner = (file: File) => putFile("/api/me/team/banner", file);
+export const removeMyBanner = () => del("/api/me/team/banner");
 
 export const fetchPublicTeams = () => get<Team[]>("/api/public/teams");
 
@@ -20,3 +22,4 @@ export const fetchPublicTeams = () => get<Team[]>("/api/public/teams");
 export const fetchTeams = () => get<Team<AdminTeamPlayer>[]>("/api/teams");
 export const renameTeam = (teamId: string, name: string) => patch<void>(`/api/teams/${teamId}`, { name });
 export const disbandTeam = (teamId: string) => del(`/api/teams/${teamId}`);
+export const removeTeamBanner = (teamId: string) => del(`/api/teams/${teamId}/banner`);

@@ -12,6 +12,18 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* Full bleed across the top of the card, cancelling its padding. */
+.team-card-banner {
+  display: block;
+  width: calc(100% + 2 * var(--space-4));
+  max-width: none;
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+  aspect-ratio: 3 / 1;
+  object-fit: cover;
+  background: var(--color-surface-sunken);
 }
 
 .team-card-name {
@@ -38,9 +50,18 @@
   font-size: var(--text-sm);
 }
 
+/* Pinned to the bottom so footers line up across a grid row. */
 .team-card-footer {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: auto;
+}
+
+.team-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--space-2);
 }

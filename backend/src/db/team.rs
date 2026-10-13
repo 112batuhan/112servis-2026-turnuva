@@ -47,6 +47,7 @@ pub struct TeamMemberRow {
     pub team_id: Uuid,
     pub team_name: String,
     pub team_created_at: OffsetDateTime,
+    pub banner_updated_at: Option<OffsetDateTime>,
     #[sqlx(flatten)]
     pub player: Player,
     pub discord_username: Option<String>,
@@ -260,9 +261,11 @@ pub async fn list_team_members(
     sqlx::query_as::<_, TeamMemberRow>(
         r#"
         SELECT t.id AS team_id, t.name AS team_name, t.created_at AS team_created_at,
+               b.updated_at AS banner_updated_at,
                u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank,
                d.username AS discord_username
         FROM teams t
+        LEFT JOIN team_banners b ON b.team_id = t.id
         JOIN team_members m ON m.team_id = t.id
         JOIN osu_users u ON u.id = m.user_id
         LEFT JOIN discord_accounts d ON d.osu_user_id = u.id
@@ -274,4 +277,46 @@ pub async fn list_team_members(
     .bind(user_id)
     .fetch_all(pool)
     .await
+}
+
+#[derive(Debug, sqlx::FromRow)]
+pub struct Banner {
+    pub content_type: String,
+    pub data: Vec<u8>,
+}
+
+pub async fn find_banner(pool: &PgPool, team_id: Uuid) -> sqlx::Result<Option<Banner>> {
+    sqlx::query_as::<_, Banner>("SELECT content_type, data FROM team_banners WHERE team_id = $1")
+        .bind(team_id)
+        .fetch_optional(pool)
+        .await
+}
+
+pub async fn set_banner(
+    pool: &PgPool,
+    team_id: Uuid,
+    content_type: &str,
+    data: &[u8],
+) -> sqlx::Result<()> {
+    sqlx::query(
+        r#"
+        INSERT INTO team_banners (team_id, content_type, data) VALUES ($1, $2, $3)
+        ON CONFLICT (team_id) DO UPDATE
+        SET content_type = EXCLUDED.content_type, data = EXCLUDED.data, updated_at = now()
+        "#,
+    )
+    .bind(team_id)
+    .bind(content_type)
+    .bind(data)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+pub async fn delete_banner(pool: &PgPool, team_id: Uuid) -> sqlx::Result<bool> {
+    let result = sqlx::query("DELETE FROM team_banners WHERE team_id = $1")
+        .bind(team_id)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected() > 0)
 }
