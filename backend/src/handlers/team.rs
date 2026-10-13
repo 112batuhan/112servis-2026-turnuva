@@ -143,16 +143,6 @@ async fn load_self(state: &AppState, user: &AuthUser) -> Result<PlayerState, App
         .ok_or(AppError::Unauthenticated)
 }
 
-fn is_unique_violation(err: &sqlx::Error) -> bool {
-    matches!(err, sqlx::Error::Database(e) if e.code().as_deref() == Some("23505"))
-}
-
-const NAME_TAKEN: AppError = AppError::Conflict("that team name is taken");
-
-fn is_name_taken(err: &sqlx::Error) -> bool {
-    matches!(err, sqlx::Error::Database(e) if e.constraint() == Some("teams_name_key"))
-}
-
 const TEAM_NAME_MAX: usize = 32;
 
 fn parse_team_name(raw: &str) -> Result<String, AppError> {
@@ -307,9 +297,6 @@ pub async fn send_invite(
             "they already invited you, accept their invite instead",
         ));
     }
-    if db::team::team_name_taken(&state.db, &team_name).await? {
-        return Err(NAME_TAKEN);
-    }
     db::team::create_invite(&state.db, user.id, body.user_id, &team_name)
         .await?
         .ok_or(AppError::Conflict("invite already sent"))?;
@@ -353,8 +340,10 @@ pub async fn accept_invite(
 
     match db::team::create_team(&mut tx, inviter_id, user.id, &team_name).await {
         Ok(_) => {}
-        Err(err) if is_name_taken(&err) => return Err(NAME_TAKEN),
-        Err(err) if is_unique_violation(&err) => {
+        Err(sqlx::Error::Database(e)) if e.constraint() == Some("teams_name_key") => {
+            return Err(AppError::Conflict("that team name is taken"))
+        }
+        Err(sqlx::Error::Database(e)) if e.constraint() == Some("team_members_pkey") => {
             return Err(AppError::Conflict("one of you is already in a team"))
         }
         Err(err) => return Err(err.into()),
@@ -373,7 +362,9 @@ async fn rename(state: &AppState, team_id: Uuid, raw_name: &str) -> Result<Statu
     match db::team::rename_team(&state.db, team_id, &name).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err(AppError::NotFound),
-        Err(err) if is_name_taken(&err) => Err(NAME_TAKEN),
+        Err(sqlx::Error::Database(e)) if e.constraint() == Some("teams_name_key") => {
+            Err(AppError::Conflict("that team name is taken"))
+        }
         Err(err) => Err(err.into()),
     }
 }

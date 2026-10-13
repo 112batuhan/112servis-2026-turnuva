@@ -177,13 +177,6 @@ pub async fn delete_invite(pool: &PgPool, invite_id: Uuid, user_id: Uuid) -> sql
     Ok(result.rows_affected() > 0)
 }
 
-pub async fn team_name_taken(pool: &PgPool, name: &str) -> sqlx::Result<bool> {
-    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM teams WHERE lower(name) = lower($1))")
-        .bind(name)
-        .fetch_one(pool)
-        .await
-}
-
 // Locks a received invite for the accept transaction and returns its inviter and
 // team name.
 pub async fn lock_received_invite(
