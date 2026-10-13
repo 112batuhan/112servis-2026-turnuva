@@ -1,6 +1,6 @@
 // Response shapes returned by the Rust backend (see backend/src/db).
 
-export type Role = "host" | "map_pooler" | "basic";
+export type Role = "host" | "map_pooler" | "referee" | "basic";
 
 export interface DiscordAccount {
   id: string;
@@ -166,6 +166,7 @@ export interface RankRefresh {
 }
 
 export interface AdminTeamPlayer extends Player {
+  discord_id: string | null;
   discord_username: string | null;
 }
 
@@ -179,6 +180,49 @@ export interface TeamStatus {
   limit: number;
   sent: Invite[];
   received: Invite[];
+}
+
+export interface MatchReferee {
+  id: string;
+  osu_id: number;
+  username: string;
+  avatar_url: string;
+  discord_id: string | null;
+  discord_username: string | null;
+}
+
+export interface Lobby<P extends Player = Player> {
+  id: string;
+  starts_at: string;
+  /** Players can still join or leave: it hasn't started or been concluded. */
+  open: boolean;
+  referee: MatchReferee | null;
+  /** The osu! multiplayer room, once the referee has added it. */
+  mp_url: string | null;
+  concluded_at: string | null;
+  /** In signup order. */
+  teams: Team<P>[];
+}
+
+export interface StaffLobby extends Lobby<AdminTeamPlayer> {
+  /** Staff-only. */
+  referee_notes: string;
+}
+
+export interface PublicQualifiers {
+  /** Earliest first. */
+  lobbies: Lobby[];
+  /** The most teams a lobby holds. */
+  capacity: number;
+  /** The signed-in player's team, or null. */
+  my_team_id: string | null;
+}
+
+export interface StaffQualifiers {
+  lobbies: StaffLobby[];
+  capacity: number;
+  /** Teams that haven't picked a lobby yet. */
+  unassigned: Team<AdminTeamPlayer>[];
 }
 
 export interface DevAccount {

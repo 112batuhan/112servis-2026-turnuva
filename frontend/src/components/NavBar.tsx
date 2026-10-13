@@ -31,12 +31,15 @@ export function NavBar() {
         <NavLink to="/teams" className={linkClass}>
           Takımlar
         </NavLink>
+        <NavLink to="/qualifiers" className={linkClass}>
+          Elemeler
+        </NavLink>
         {user?.role === "basic" && (
           <NavLink to="/team" className={linkClass}>
             Takımım
           </NavLink>
         )}
-        {hasRole(user, "map_pooler") && (
+        {hasRole(user, "referee") && (
           <NavLink to="/admin" className={linkClass}>
             Yönetim
           </NavLink>

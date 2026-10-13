@@ -1,0 +1,362 @@
+.lobby-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+/* A slot needs about 500px for its banner, name and players, so two lobbies
+   only fit side by side on wide screens. */
+@media (max-width: 1100px) {
+  .lobby-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.lobby-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.lobby-card.is-mine {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.lobby-card-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.lobby-card-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.lobby-card-title h3 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.lobby-card-count {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.lobby-card-count.is-full {
+  color: var(--color-warning);
+}
+
+.lobby-card-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-3);
+}
+
+.lobby-card-time {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.lobby-card-countdown {
+  margin-left: auto;
+  color: var(--color-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* Referee on the left, the match link on the right. */
+.lobby-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-5);
+  font-size: var(--text-sm);
+}
+
+.lobby-card-meta dl {
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+}
+
+.lobby-card-meta dt {
+  color: var(--color-text-muted);
+}
+
+.lobby-card-meta dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.lobby-card-link {
+  margin-left: auto;
+  font-weight: 600;
+}
+
+.lobby-card-discord {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.lobby-card-teams {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: lobby-team;
+  border-top: 1px solid var(--color-border);
+}
+
+.lobby-team {
+  display: grid;
+  grid-template-columns: 1.5em 144px minmax(0, 1fr) auto;
+  grid-template-areas: "num banner players actions";
+  align-items: center;
+  column-gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+  counter-increment: lobby-team;
+}
+
+.lobby-team::before {
+  content: counter(lobby-team);
+  grid-area: num;
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dissolved so the name and players join the slot's grid; the name shares the
+   banner's cell. */
+.lobby-team-text,
+.lobby-team-main {
+  display: contents;
+}
+
+.lobby-team-banner {
+  position: relative;
+  grid-area: banner;
+  aspect-ratio: 3 / 1;
+  overflow: hidden;
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-sm);
+}
+
+/* Blurred and darkened under the name; scaled up a little so the blur doesn't fade
+   out at the edges. */
+.lobby-team-banner img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: blur(2px) brightness(0.6);
+  transform: scale(1.1);
+}
+
+.lobby-team.is-empty .lobby-team-banner {
+  background: transparent;
+  border: 1px dashed var(--color-border);
+}
+
+.lobby-team.is-empty .lobby-team-text {
+  display: block;
+  grid-area: players;
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+  font-style: italic;
+}
+
+/* Links to the team; covers the whole banner so all of it is clickable. */
+.lobby-team-name {
+  display: flex;
+  position: relative;
+  z-index: 1;
+  grid-area: banner;
+  align-self: stretch;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 var(--space-2);
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+  /* A 1px outline on every side, so the name reads even on a white banner. */
+  text-shadow:
+    -1px -1px 0 var(--color-text-outline),
+    1px -1px 0 var(--color-text-outline),
+    -1px 1px 0 var(--color-text-outline),
+    1px 1px 0 var(--color-text-outline),
+    0 1px 3px var(--color-text-outline);
+}
+
+.lobby-team-name:hover {
+  text-decoration: underline;
+}
+
+/* Centred on the banner, wrapping to at most two lines. */
+.lobby-team-name-text {
+  display: -webkit-box;
+  overflow: hidden;
+  text-align: center;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.lobby-team-players {
+  display: grid;
+  grid-area: players;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Avatar centred against the name and, for staff, the Discord line under it. */
+.lobby-player {
+  --avatar-size: 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lobby-player-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.lobby-player-name {
+  color: inherit;
+  text-decoration: none;
+}
+
+.lobby-player-name:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.lobby-player-name,
+.lobby-player-extra {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lobby-player-avatar {
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.lobby-player-extra {
+  font-size: var(--text-xs);
+}
+
+.lobby-team-actions {
+  display: flex;
+  grid-area: actions;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Pinned to the bottom so actions line up across a grid row. */
+.lobby-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+/* Phones: the banner becomes the slot's blurred background, with the name and
+   players side by side on top of it and any staff controls below. */
+@media (max-width: 480px) {
+  .lobby-team {
+    grid-template-columns: 1.5em minmax(0, 2fr) minmax(0, 3fr);
+    grid-template-areas:
+      "num name players"
+      "num actions actions";
+    column-gap: 0;
+    padding: var(--space-1) 0;
+  }
+
+  /* Only filled slots are listed; the count in the header still shows the room left. */
+  .lobby-team.is-empty {
+    display: none;
+  }
+
+  /* Stretched over its row; the row's align-items: center would collapse it, since
+     the image inside is absolutely positioned. */
+  .lobby-team-banner {
+    grid-column: 2 / 4;
+    grid-row: 1;
+    align-self: stretch;
+    aspect-ratio: auto;
+  }
+
+  .lobby-team-banner img {
+    filter: blur(3px) brightness(0.45);
+  }
+
+  .lobby-team-name {
+    grid-area: name;
+    justify-content: flex-start;
+    padding: var(--space-2);
+    line-height: 1.5;
+  }
+
+  .lobby-team-name-text {
+    display: block;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Stretched so the divider runs the full height of the banner. */
+  .lobby-team-players {
+    position: relative;
+    z-index: 1;
+    align-self: stretch;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2);
+    border-left: 1px solid var(--color-border-strong);
+    color: var(--color-text);
+    font-size: var(--text-xs);
+    text-shadow: 0 1px 2px var(--color-text-outline);
+  }
+
+  /* Under the banner, where there's room for the move select. */
+  .lobby-team-actions {
+    justify-content: flex-end;
+    padding-top: var(--space-1);
+  }
+
+  .lobby-player {
+    --avatar-size: 16px;
+  }
+}

@@ -12,14 +12,17 @@ import {
   sendInvite,
   uploadMyBanner,
 } from "../api/teams";
-import type { Invite, PlayerResult, Team, TeamStatus } from "../api/types";
+import { fetchPublicQualifiers } from "../api/matches";
+import type { Invite, PlayerResult, PublicQualifiers, Team, TeamStatus } from "../api/types";
 import { useSignedInUser } from "../auth/AuthContext";
+import { Countdown } from "../components/Countdown";
 import { DiscordMark } from "../components/DiscordMark";
+import { DiscordMention } from "../components/DiscordMention";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { PlayerChip } from "../components/PlayerChip";
 import { TeamCard } from "../components/TeamCard";
 import { ELIGIBILITY_LABELS, eligibilityBadgeClass } from "../lib/eligibility";
-import { BANNER_MAX_BYTES, formatRank, formatTeamValue, TEAM_NAME_MAX } from "../lib/format";
+import { BANNER_MAX_BYTES, formatMatchTime, formatRank, formatTeamValue, TEAM_NAME_MAX } from "../lib/format";
 import "./TeamPage.css";
 
 const SEARCH_DELAY_MS = 300;
@@ -87,7 +90,7 @@ export function TeamPage() {
 
       {staffOnly && (
         <section className="panel">
-          <p className="status">Host'lar ve map pooler'lar turnuvayı yönettiği için takıma katılamaz.</p>
+          <p className="status">Yetkililer (host'lar, map pooler'lar ve hakemler) turnuvayı yönettiği için takıma katılamaz.</p>
         </section>
       )}
 
@@ -121,6 +124,7 @@ export function TeamPage() {
                 </p>
               )}
               <MyTeam team={status.team} frozen={frozen} busy={busy} run={run} onError={setError} />
+              <QualifierInfo teamId={status.team.id} onError={setError} />
             </section>
           ) : (
             <>
@@ -300,6 +304,71 @@ function MyTeam({ team, frozen, busy, run, onError }: MyTeamProps) {
       />
       <p className="muted team-name-hint">Banner en fazla 2 MB boyutunda PNG, JPEG, GIF veya WebP olmalı; 3:1 oranında kırpılır.</p>
     </>
+  );
+}
+
+// The team's qualifier lobby, until its match is concluded.
+function QualifierInfo({ teamId, onError }: { teamId: string; onError: (message: string) => void }) {
+  const [qualifiers, setQualifiers] = useState<PublicQualifiers | null>(null);
+
+  const load = useCallback(() => {
+    fetchPublicQualifiers()
+      .then(setQualifiers)
+      .catch((e) => onError(errorMessage(e)));
+  }, [onError]);
+
+  useEffect(load, [load, teamId]);
+
+  if (!qualifiers) return null;
+  const index = qualifiers.lobbies.findIndex((l) => l.teams.some((t) => t.id === teamId));
+  if (index < 0) {
+    return (
+      <p className="muted team-name-hint">
+        Eleme lobinizi <Link to="/qualifiers">Elemeler</Link> sayfasından seçebilirsiniz.
+      </p>
+    );
+  }
+  const lobby = qualifiers.lobbies[index];
+  if (lobby.concluded_at) return null;
+
+  return (
+    <div className="team-qualifier">
+      <div className="team-qualifier-text">
+        <span className="team-qualifier-label">Eleme lobisi</span>
+        <span>
+          <Link to="/qualifiers" className="team-qualifier-lobby">
+            Lobi {index + 1}
+          </Link>{" "}
+          · {formatMatchTime(lobby.starts_at)}
+        </span>
+        <span className="muted">
+          Hakem:{" "}
+          {lobby.referee ? (
+            <>
+              {lobby.referee.username} <DiscordMention player={lobby.referee} fallback="" />
+            </>
+          ) : (
+            "henüz yok"
+          )}
+          {lobby.mp_url && (
+            <>
+              {" · "}
+              <a href={lobby.mp_url} target="_blank" rel="noopener noreferrer">
+                Maç linki
+              </a>
+            </>
+          )}
+        </span>
+      </div>
+      {lobby.open ? (
+        <div className="team-qualifier-countdown">
+          <span className="team-qualifier-label">Başlamasına</span>
+          <Countdown to={lobby.starts_at} className="team-qualifier-time" onElapsed={load} />
+        </div>
+      ) : (
+        <span className="badge badge-warning">Başladı</span>
+      )}
+    </div>
   );
 }
 

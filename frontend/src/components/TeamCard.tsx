@@ -3,6 +3,7 @@ import { API_URL } from "../api/client";
 import type { Player, Team } from "../api/types";
 import { RANK_WARNING_LABELS } from "../lib/eligibility";
 import { formatTeamValue, TEAM_NAME_MAX } from "../lib/format";
+import { teamAnchorId } from "../lib/teamLink";
 import { InlineEdit } from "./InlineEdit";
 import { PlayerChip } from "./PlayerChip";
 import "./TeamCard.css";
@@ -16,11 +17,21 @@ interface Props<P extends Player> {
   /** Makes the name editable. */
   onRename?: (name: string) => void;
   actions?: ReactNode;
+  /** Marks the team someone was linked to. */
+  highlight?: boolean;
 }
 
-export function TeamCard<P extends Player>({ team, position, renderPlayerExtra, onRename, actions }: Props<P>) {
+export function TeamCard<P extends Player>({
+  team,
+  position,
+  renderPlayerExtra,
+  onRename,
+  actions,
+  highlight,
+}: Props<P>) {
+  const classes = ["team-card", team.rank_warning && "is-warning", highlight && "is-target"].filter(Boolean).join(" ");
   return (
-    <article className={team.rank_warning ? "team-card is-warning" : "team-card"}>
+    <article id={teamAnchorId(team.id)} className={classes}>
       <div className="team-card-banner">
         {team.banner_url && <img src={`${API_URL}${team.banner_url}`} alt="" />}
         <div className="team-card-title">

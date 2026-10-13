@@ -1,21 +1,29 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { errorMessage } from "../api/client";
 import { fetchPublicTeams } from "../api/teams";
 import type { TeamList } from "../api/types";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { RanksUpdated } from "../components/RanksUpdated";
 import { TeamCard } from "../components/TeamCard";
+import { teamAnchorId } from "../lib/teamLink";
 
 export function TeamsPage() {
   const [list, setList] = useState<TeamList | null>(null);
   const teams = list?.teams;
   const [error, setError] = useState<string | null>(null);
+  // Set when another page linked to a team (/teams#team-<id>).
+  const target = useLocation().hash.slice(1);
 
   useEffect(() => {
     fetchPublicTeams()
       .then(setList)
       .catch((e) => setError(errorMessage(e)));
   }, []);
+
+  useEffect(() => {
+    if (teams && target) document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [teams, target]);
 
   return (
     <div className="page">
@@ -39,7 +47,7 @@ export function TeamsPage() {
       {teams && teams.length > 0 && (
         <div className="team-grid">
           {teams.map((team, i) => (
-            <TeamCard key={team.id} team={team} position={i + 1} />
+            <TeamCard key={team.id} team={team} position={i + 1} highlight={teamAnchorId(team.id) === target} />
           ))}
         </div>
       )}

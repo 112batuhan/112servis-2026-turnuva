@@ -1,14 +1,20 @@
 import { useEffect } from "react";
 import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
+import type { Role } from "../../api/types";
 import { useSignedInUser } from "../../auth/AuthContext";
 import { hasRole } from "../../auth/roles";
 import { readString, writeString } from "../../lib/storage";
 import "./AdminLayout.css";
 
+// In tab order. The first tab a user can open is their default, except that hosts
+// start on Users.
+const TABS: { path: string; label: string; minRole: Role }[] = [
+  { path: "/admin/mappool", label: "Mappool", minRole: "map_pooler" },
+  { path: "/admin/qualifiers", label: "Elemeler", minRole: "referee" },
+  { path: "/admin/users", label: "Kullanıcılar", minRole: "host" },
+  { path: "/admin/teams", label: "Takımlar", minRole: "host" },
+];
 const USERS_TAB = "/admin/users";
-const MAPPOOL_TAB = "/admin/mappool";
-const TEAMS_TAB = "/admin/teams";
-const HOST_TABS = [USERS_TAB, TEAMS_TAB];
 
 const lastTabKey = (userId: string) => `admin-tab:${userId}`;
 
@@ -17,27 +23,20 @@ const tabClass = ({ isActive }: { isActive: boolean }) => (isActive ? "admin-tab
 export function AdminLayout() {
   const user = useSignedInUser();
   const { pathname } = useLocation();
+  const tabs = TABS.filter((tab) => hasRole(user, tab.minRole));
 
   useEffect(() => {
-    if (pathname === MAPPOOL_TAB || HOST_TABS.includes(pathname)) writeString(lastTabKey(user.id), pathname);
+    if (TABS.some((tab) => tab.path === pathname)) writeString(lastTabKey(user.id), pathname);
   }, [pathname, user.id]);
 
   return (
     <div className="page">
       <nav className="admin-tabs" aria-label="Yönetim bölümleri">
-        <NavLink to={MAPPOOL_TAB} className={tabClass}>
-          Mappool
-        </NavLink>
-        {hasRole(user, "host") && (
-          <>
-            <NavLink to={USERS_TAB} className={tabClass}>
-              Kullanıcılar
-            </NavLink>
-            <NavLink to={TEAMS_TAB} className={tabClass}>
-              Takımlar
-            </NavLink>
-          </>
-        )}
+        {tabs.map((tab) => (
+          <NavLink key={tab.path} to={tab.path} className={tabClass}>
+            {tab.label}
+          </NavLink>
+        ))}
       </nav>
       <Outlet />
     </div>
@@ -47,11 +46,11 @@ export function AdminLayout() {
 /** /admin: reopen the last tab the user visited, falling back to their role's default. */
 export function AdminIndexRedirect() {
   const user = useSignedInUser();
-  const isHost = hasRole(user, "host");
+  const tabs = TABS.filter((tab) => hasRole(user, tab.minRole)).map((tab) => tab.path);
   const saved = readString(lastTabKey(user.id));
 
-  let target = isHost ? USERS_TAB : MAPPOOL_TAB;
-  if (saved === MAPPOOL_TAB || (saved && HOST_TABS.includes(saved) && isHost)) target = saved;
+  let target = hasRole(user, "host") ? USERS_TAB : tabs[0];
+  if (saved && tabs.includes(saved)) target = saved;
 
   return <Navigate to={target} replace />;
 }

@@ -4,7 +4,8 @@ use serde::{Deserialize, Serialize};
 // with the session on every request (see auth::AuthUser).
 //
 // For now privileges are a simple ladder: Host can do everything, MapPooler can do
-// map-pool work plus anything Basic can, Basic is the default for everyone else.
+// map-pool work plus anything a Referee can, a Referee runs matches, and Basic is the
+// default for everyone else.
 // If the model outgrows a linear hierarchy, replace `rank`/`has_at_least` with a
 // real permission set.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
@@ -13,6 +14,7 @@ use serde::{Deserialize, Serialize};
 pub enum Role {
     Host,
     MapPooler,
+    Referee,
     Basic,
 }
 
@@ -20,8 +22,9 @@ impl Role {
     fn rank(self) -> u8 {
         match self {
             Role::Basic => 0,
-            Role::MapPooler => 1,
-            Role::Host => 2,
+            Role::Referee => 1,
+            Role::MapPooler => 2,
+            Role::Host => 3,
         }
     }
 

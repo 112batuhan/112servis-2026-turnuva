@@ -1,0 +1,148 @@
+.qualifiers-admin .input-sm {
+  height: var(--control-height-sm);
+  font-size: var(--text-sm);
+}
+
+.qualifiers-unassigned {
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+}
+
+.qualifiers-unassigned h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  font-size: var(--text-base);
+}
+
+.qualifiers-unassigned ul {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.qualifiers-unassigned li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2) 0;
+  font-size: var(--text-sm);
+}
+
+.qualifiers-unassigned li + li {
+  border-top: 1px solid var(--color-border);
+}
+
+.qualifiers-unassigned-name {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.qualifiers-unassigned-name:hover {
+  text-decoration: underline;
+}
+
+.qualifiers-unassigned .select {
+  margin-left: auto;
+}
+
+.staff-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.staff-rows > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.staff-rows dt {
+  color: var(--color-text-muted);
+}
+
+.staff-rows dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.staff-rows .select {
+  max-width: 100%;
+}
+
+.staff-referee {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.staff-notes {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Looks like an IconButton; the transparent select on top takes the clicks. */
+.icon-select {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-button-size);
+  height: var(--icon-button-size);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  transition:
+    background-color var(--duration-fast) ease,
+    color var(--duration-fast) ease;
+}
+
+.icon-select:hover:not(.is-disabled) {
+  color: var(--color-text);
+  background: var(--color-hover);
+}
+
+.icon-select:has(:focus-visible) {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.icon-select.is-disabled {
+  opacity: 0.35;
+}
+
+.icon-select-native {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.icon-select-native:disabled {
+  cursor: default;
+}
+
+/* Kept apart from the match actions on the right. */
+.lobby-delete {
+  margin-right: auto;
+}
+
+/* The note sits in a narrow column near the card's right edge, so its tooltip opens
+   leftwards instead of running off the screen. */
+.staff-rows .note-tooltip {
+  left: auto;
+  right: 0;
+}

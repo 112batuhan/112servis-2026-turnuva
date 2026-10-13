@@ -68,3 +68,8 @@
   color: var(--color-info);
   background: var(--color-info-soft);
 }
+
+.role-select.role-referee {
+  color: var(--color-success);
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+}

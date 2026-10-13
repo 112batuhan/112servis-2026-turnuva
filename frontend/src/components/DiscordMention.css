@@ -1,0 +1,19 @@
+/* Reads as text; the hover underline and cursor hint that it's clickable. */
+.discord-mention {
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: copy;
+}
+
+.discord-mention:hover {
+  color: var(--color-info);
+  text-decoration: underline;
+}

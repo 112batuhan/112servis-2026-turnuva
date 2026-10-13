@@ -6,12 +6,14 @@ import { MiniPlayer } from "./components/MiniPlayer";
 import { NavBar } from "./components/NavBar";
 import { AdminIndexRedirect, AdminLayout } from "./pages/admin/AdminLayout";
 import { MapPoolEditorPage } from "./pages/admin/mappool/MapPoolEditorPage";
+import { QualifiersAdminPage } from "./pages/admin/QualifiersAdminPage";
 import { TeamsAdminPage } from "./pages/admin/TeamsAdminPage";
 import { UsersPage } from "./pages/admin/UsersPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LinkDiscordPage } from "./pages/LinkDiscordPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PublicPoolPage } from "./pages/PublicPoolPage";
+import { QualifiersPage } from "./pages/QualifiersPage";
 import { TeamPage } from "./pages/TeamPage";
 import { TeamsPage } from "./pages/TeamsPage";
 import { usePlayer } from "./player/PlayerContext";
@@ -53,21 +55,26 @@ export function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/mappool" element={<PublicPoolPage />} />
           <Route path="/teams" element={<TeamsPage />} />
+          <Route path="/qualifiers" element={<QualifiersPage />} />
 
           <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
           <Route path="/discord" element={<RequireAuth><LinkDiscordPage /></RequireAuth>} />
           <Route path="/team" element={<RequireAuth><TeamPage /></RequireAuth>} />
 
-          <Route path="/admin" element={<RequireAuth minRole="map_pooler"><AdminLayout /></RequireAuth>}>
+          <Route path="/admin" element={<RequireAuth minRole="referee"><AdminLayout /></RequireAuth>}>
             <Route index element={<AdminIndexRedirect />} />
-            <Route path="mappool" element={<MapPoolEditorPage />} />
+            <Route
+              path="mappool"
+              element={<RequireAuth minRole="map_pooler" redirect="/admin"><MapPoolEditorPage /></RequireAuth>}
+            />
+            <Route path="qualifiers" element={<QualifiersAdminPage />} />
             <Route
               path="users"
-              element={<RequireAuth minRole="host" redirect="/admin/mappool"><UsersPage /></RequireAuth>}
+              element={<RequireAuth minRole="host" redirect="/admin"><UsersPage /></RequireAuth>}
             />
             <Route
               path="teams"
-              element={<RequireAuth minRole="host" redirect="/admin/mappool"><TeamsAdminPage /></RequireAuth>}
+              element={<RequireAuth minRole="host" redirect="/admin"><TeamsAdminPage /></RequireAuth>}
             />
           </Route>
 

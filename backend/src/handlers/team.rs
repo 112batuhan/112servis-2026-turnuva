@@ -98,7 +98,7 @@ pub enum RankWarning {
 
 #[derive(Debug, Serialize)]
 pub struct Team<P> {
-    id: Uuid,
+    pub id: Uuid,
     name: String,
     #[serde(with = "time::serde::rfc3339")]
     created_at: OffsetDateTime,
@@ -113,11 +113,23 @@ pub struct Team<P> {
 pub struct AdminTeamPlayer {
     #[serde(flatten)]
     player: Player,
+    // For copying a mention (<@id>) that pings them on Discord.
+    discord_id: Option<String>,
     discord_username: Option<String>,
 }
 
+impl AdminTeamPlayer {
+    pub fn from_row(row: TeamMemberRow) -> Self {
+        Self {
+            player: row.player,
+            discord_id: row.discord_id,
+            discord_username: row.discord_username,
+        }
+    }
+}
+
 // Rows arrive ordered by team, so consecutive rows with the same team_id belong together.
-fn group_teams<P>(
+pub fn group_teams<P>(
     rows: Vec<TeamMemberRow>,
     to_player: impl Fn(TeamMemberRow) -> P,
 ) -> Vec<Team<P>> {
@@ -571,11 +583,7 @@ pub async fn list_teams(
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
-    let list = team_list(&state, |row| AdminTeamPlayer {
-        player: row.player,
-        discord_username: row.discord_username,
-    })
-    .await?;
+    let list = team_list(&state, AdminTeamPlayer::from_row).await?;
     Ok(Json(list))
 }
 

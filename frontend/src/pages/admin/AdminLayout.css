@@ -29,3 +29,10 @@
   color: var(--color-text);
   border-bottom-color: var(--color-primary);
 }
+
+/* Four tabs need tighter spacing to fit a phone. */
+@media (max-width: 480px) {
+  .admin-tab {
+    padding: 0 var(--space-3);
+  }
+}

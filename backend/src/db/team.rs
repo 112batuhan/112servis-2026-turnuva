@@ -50,6 +50,7 @@ pub struct TeamMemberRow {
     pub banner_updated_at: Option<OffsetDateTime>,
     #[sqlx(flatten)]
     pub player: Player,
+    pub discord_id: Option<String>,
     pub discord_username: Option<String>,
 }
 
@@ -275,7 +276,7 @@ pub async fn list_team_members(
         SELECT t.id AS team_id, t.name AS team_name, t.created_at AS team_created_at,
                b.updated_at AS banner_updated_at,
                u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank,
-               d.username AS discord_username
+               d.discord_id, d.username AS discord_username
         FROM teams t
         LEFT JOIN team_banners b ON b.team_id = t.id
         JOIN team_members m ON m.team_id = t.id

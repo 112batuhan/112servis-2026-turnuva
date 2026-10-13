@@ -46,7 +46,7 @@ The first host has to be set by hand in SQL: `UPDATE osu_users SET role = 'host'
 - Server-side sessions (`auth.rs`, `db/session.rs`). The httpOnly `session` cookie holds a random 32-byte hex token, and the `sessions` table stores only its SHA-256, with a fixed 7-day expiry and no sliding renewal. The `AuthUser` extractor does one query per request that joins the session, `osu_users.role` and whether a Discord account is linked. Use `Option<AuthUser>` for routes that also work signed out.
 - Create and end sessions only through `auth::start_session` / `auth::end_session`; they keep the cookie attributes and the stored hash consistent.
 - `auth::spawn_session_cleanup` (started in `main.rs`) is a background tokio task that deletes expired sessions once at startup and then hourly.
-- Roles form a ladder: `basic < map_pooler < host` (`role.rs`, mirrored in `frontend/src/auth/roles.ts`). Gate handlers with `user.require_role(Role::X)?`. All `/api/stages|categories|slots|pool|maps` routes go through `guard()` in `handlers/mappool.rs` (MapPooler+). User admin is Host-only.
+- Roles form a ladder: `basic < referee < map_pooler < host` (`role.rs`, mirrored in `frontend/src/auth/roles.ts`), so map poolers can also referee. Gate handlers with `user.require_role(Role::X)?`. All `/api/stages|categories|slots|pool|maps` routes go through `guard()` in `handlers/mappool.rs` (MapPooler+). User admin is Host-only.
 - Because the role is read on every request, role changes and logouts take effect immediately. No cookie needs re-issuing.
 
 ### Map pool domain (the core of the app)
@@ -69,10 +69,18 @@ The schema has changed a lot across migrations; the current model is:
 - `app_settings.teams_frozen` (toggled by hosts) blocks every player-side team change: inviting, accepting, renaming, banners and disbanding (`require_unfrozen` in `handlers/team.rs`). It also freezes ranks: no daily, manual or on-demand refresh (`rank_refresh.rs`), and logging in keeps the stored rank. Cancelling or declining invites and all host actions still work.
 - Only `basic` users play; staff are filtered out of the search and can't invite or accept. Inviting and accepting also need a linked Discord account.
 
+### Matches and qualifiers
+
+- `matches` holds what every match has: `starts_at`, one `referee_id`, the osu! room as `mp_id` (rendered as `osu.ppy.sh/community/matches/<id>`), staff-only `referee_notes` and `concluded_at`. `kind` is a `match_kind` enum with only `qualifier` so far; other match types are meant to add a value plus their own tables. Handlers and queries are in `handlers/matches.rs` / `db/matches.rs`.
+- Qualifiers are lobbies: hosts create them by time, and teams sign up through `qualifier_entries` (`team_id` is the primary key, so one lobby per team), at most `LOBBY_SIZE` (7) per lobby. Lobbies are numbered by start time at display, not stored.
+- Either player can join, switch or leave until their current and target lobby start (`starts_at`) or are concluded. Signups lock the target lobby row so a lobby can't overfill. Hosts can move or remove any team at any time, still within the size limit.
+- Running a match (`/api/matches/:id/*`): a referee takes a free match or gives up their own; the match's referee or a host sets the room link, writes notes and concludes it (which needs the link). After conclusion only notes stay editable for the referee; hosts can still change the link, reassign the referee and reopen it. Other referees can see every match but not change it.
+- `referee_notes` must never reach `/api/public/qualifiers`; it is only on the `StaffLobby` struct. The referee's Discord is public on purpose (players contact them there); players' Discord accounts are staff-only. The `teams_frozen` flag does not affect qualifier signups.
+
 ### Frontend (`frontend/src`)
 
 - `api/client.ts` wraps `fetch` with `credentials: "include"` and throws the server's error text. `api/types.ts` mirrors the Rust response structs by hand, so update it whenever a serialized struct changes.
-- `auth/AuthContext.tsx` loads `/api/me` on startup. `RequireAuth minRole=…` guards routes; `/admin/*` needs map_pooler and `/admin/users` needs host.
+- `auth/AuthContext.tsx` loads `/api/me` on startup. `RequireAuth minRole=…` guards routes; `/admin/*` needs referee, `/admin/mappool` needs map_pooler and `/admin/users|teams` need host. Admin tabs are listed with their minimum role in `pages/admin/AdminLayout.tsx`.
 - The map pool editor lives in `pages/admin/mappool/`. `useStageEditor.ts` owns all of its data and API calls, and the `.tsx` files only render. Structural changes go through `run()`, which shows a busy state and then reloads the stage. Small edits (notes, colours, ordering) update local state first and save in the background.
 - `player/PlayerContext.tsx` and `components/MiniPlayer.tsx` provide an app-wide song preview player.
 

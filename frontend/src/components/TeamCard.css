@@ -26,6 +26,11 @@
   overflow: hidden;
 }
 
+.team-card.is-target {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
 .team-card.is-warning {
   border-color: var(--color-danger);
   background: color-mix(in srgb, var(--color-danger) 6%, var(--color-surface));

@@ -106,6 +106,7 @@ async fn main() {
         .merge(handlers::user::routes())
         .merge(handlers::admin::routes())
         .merge(handlers::mappool::routes())
+        .merge(handlers::matches::routes())
         .merge(handlers::team::routes());
     if config.dev_login {
         assert!(

@@ -1,0 +1,4 @@
+/* Fixed-width digits so the text doesn't jitter as it ticks. */
+.countdown {
+  font-variant-numeric: tabular-nums;
+}

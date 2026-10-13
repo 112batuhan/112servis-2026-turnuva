@@ -1,0 +1,139 @@
+import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { API_URL } from "../api/client";
+import type { Lobby, Player, Team } from "../api/types";
+import { formatMatchTime } from "../lib/format";
+import { teamListPath } from "../lib/teamLink";
+import { Countdown } from "./Countdown";
+import { DiscordMention } from "./DiscordMention";
+import "./LobbyCard.css";
+
+interface Props<P extends Player> {
+  lobby: Lobby<P>;
+  /** Place in the list, which is ordered by start time. */
+  number: number;
+  capacity: number;
+  /** Marks the viewer's own lobby. */
+  highlight?: boolean;
+  /** Called when the lobby's start time arrives, so the page can reload it as started. */
+  onStart?: () => void;
+  /** Extra content under each player's name, e.g. their Discord for staff. */
+  renderPlayerExtra?: (player: P) => ReactNode;
+  /** Controls at the end of each team row. */
+  renderTeamActions?: (team: Team<P>) => ReactNode;
+  /** Replaces the read-only referee and link line, e.g. with staff controls. */
+  children?: ReactNode;
+  actions?: ReactNode;
+}
+
+export function LobbyCard<P extends Player>({
+  lobby,
+  number,
+  capacity,
+  highlight,
+  onStart,
+  renderPlayerExtra,
+  renderTeamActions,
+  children,
+  actions,
+}: Props<P>) {
+  const full = lobby.teams.length >= capacity;
+
+  return (
+    <article className={highlight ? "lobby-card is-mine" : "lobby-card"}>
+      <header className="lobby-card-header">
+        <div className="lobby-card-title">
+          <h3>Lobi {number}</h3>
+          <LobbyStatus lobby={lobby} full={full} />
+          <span className={full ? "lobby-card-count is-full" : "lobby-card-count"} title="Kayıtlı takımlar">
+            {lobby.teams.length}/{capacity}
+          </span>
+        </div>
+        <div className="lobby-card-when">
+          <time className="lobby-card-time" dateTime={lobby.starts_at}>
+            {formatMatchTime(lobby.starts_at)}
+          </time>
+          {lobby.open && (
+            <Countdown to={lobby.starts_at} suffix="kaldı" className="lobby-card-countdown" onElapsed={onStart} />
+          )}
+        </div>
+      </header>
+
+      {children ?? (
+        <div className="lobby-card-meta">
+          <dl>
+            <dt>Hakem</dt>
+            <dd>
+              {lobby.referee ? (
+                <>
+                  {lobby.referee.username}{" "}
+                  <span className="lobby-card-discord">
+                    <DiscordMention player={lobby.referee} fallback="" />
+                  </span>
+                </>
+              ) : (
+                <span className="muted">Henüz yok</span>
+              )}
+            </dd>
+          </dl>
+          {lobby.mp_url && (
+            <a className="lobby-card-link" href={lobby.mp_url} target="_blank" rel="noopener noreferrer">
+              Maç linki
+            </a>
+          )}
+        </div>
+      )}
+
+      <ol className="lobby-card-teams">
+        {lobby.teams.map((team) => (
+          <li key={team.id} className="lobby-team">
+            <div className="lobby-team-banner">
+              {team.banner_url && <img src={`${API_URL}${team.banner_url}`} alt="" loading="lazy" />}
+            </div>
+            <div className="lobby-team-text">
+              <div className="lobby-team-main">
+                <Link className="lobby-team-name" to={teamListPath(team.id)}>
+                  <span className="lobby-team-name-text">{team.name}</span>
+                </Link>
+                <div className="lobby-team-players">
+                  {team.players.map((p) => (
+                    <div key={p.id} className="lobby-player">
+                      {p.avatar_url && <img className="lobby-player-avatar" src={p.avatar_url} alt="" loading="lazy" />}
+                      <div className="lobby-player-text">
+                        <a
+                          className="lobby-player-name"
+                          href={`https://osu.ppy.sh/users/${p.osu_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {p.username}
+                        </a>
+                        {renderPlayerExtra && <span className="lobby-player-extra">{renderPlayerExtra(p)}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            {renderTeamActions && <div className="lobby-team-actions">{renderTeamActions(team)}</div>}
+          </li>
+        ))}
+        {Array.from({ length: Math.max(0, capacity - lobby.teams.length) }, (_, i) => (
+          <li key={`empty-${i}`} className="lobby-team is-empty">
+            <div className="lobby-team-banner" />
+            <span className="lobby-team-text">Boş yer</span>
+          </li>
+        ))}
+      </ol>
+
+      {actions && <div className="lobby-card-actions">{actions}</div>}
+    </article>
+  );
+}
+
+function LobbyStatus({ lobby, full }: { lobby: Lobby<Player>; full: boolean }) {
+  if (lobby.concluded_at) return <span className="badge badge-success">Tamamlandı</span>;
+  if (!lobby.open) return <span className="badge badge-warning">Başladı</span>;
+  if (full) return <span className="badge">Dolu</span>;
+  return null;
+}

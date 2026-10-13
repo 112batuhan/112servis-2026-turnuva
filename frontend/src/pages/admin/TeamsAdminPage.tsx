@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../api/client";
 import { disbandTeam, fetchTeams, refreshRanks, removeTeamBanner, renameTeam, setTeamsFrozen } from "../../api/teams";
 import type { AdminTeamPlayer, Team } from "../../api/types";
+import { DiscordMention } from "../../components/DiscordMention";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { RanksUpdated } from "../../components/RanksUpdated";
 import { TeamCard } from "../../components/TeamCard";
@@ -145,7 +146,9 @@ export function TeamsAdminPage() {
               position={i + 1}
               onRename={(name) => rename(team, name)}
               renderPlayerExtra={(p) => (
-                <span className="muted">{p.discord_username ? `@${p.discord_username}` : "Discord bağlı değil"}</span>
+                <span className="muted">
+                  <DiscordMention player={p} fallback="Discord bağlı değil" />
+                </span>
               )}
               actions={
                 <>

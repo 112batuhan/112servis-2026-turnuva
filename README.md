@@ -102,7 +102,8 @@ on container startup, same as `cargo run`.
 ## Roles
 
 Every user has a role stored on `osu_users.role`: **host** (full access), **map_pooler**
-(map-pool work), or **basic** (the default). Handlers gate on it with
+(map-pool work, and anything a referee can do), **referee** (runs qualifier lobbies), or
+**basic** (the default). Handlers gate on it with
 `AuthUser::require_role`.
 
 The `AuthUser` extractor loads the session, the user's role and whether they have a linked
