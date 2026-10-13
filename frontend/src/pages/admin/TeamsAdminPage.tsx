@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { errorMessage } from "../../api/client";
-import { disbandTeam, fetchTeams } from "../../api/teams";
+import { disbandTeam, fetchTeams, renameTeam } from "../../api/teams";
 import type { AdminTeamPlayer, Team } from "../../api/types";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { TeamCard } from "../../components/TeamCard";
@@ -16,9 +16,18 @@ export function TeamsAdminPage() {
       .catch((e) => setError(errorMessage(e)));
   }, []);
 
+  async function rename(team: Team<AdminTeamPlayer>, name: string) {
+    setError(null);
+    try {
+      await renameTeam(team.id, name);
+      setTeams((list) => list?.map((t) => (t.id === team.id ? { ...t, name } : t)) ?? null);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
+  }
+
   async function disband(team: Team<AdminTeamPlayer>) {
-    const names = team.players.map((p) => p.username).join(" & ");
-    if (!window.confirm(`Disband ${names}?`)) return;
+    if (!window.confirm(`Disband ${team.name}?`)) return;
     setError(null);
     setBusyId(team.id);
     try {
@@ -46,6 +55,7 @@ export function TeamsAdminPage() {
             <TeamCard
               key={team.id}
               team={team}
+              onRename={(name) => rename(team, name)}
               renderPlayerExtra={(p) => (
                 <span className="muted">{p.discord_username ? `@${p.discord_username}` : "No Discord linked"}</span>
               )}

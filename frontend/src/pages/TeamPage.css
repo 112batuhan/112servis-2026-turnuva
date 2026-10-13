@@ -28,6 +28,22 @@
   gap: var(--space-3);
 }
 
+.team-name-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-md);
+}
+
+.team-name-field .input {
+  flex: 1;
+}
+
+.team-name-hint {
+  margin: var(--space-2) 0 var(--space-4);
+  font-size: var(--text-sm);
+}
+
 .team-search {
   width: 100%;
   margin-bottom: var(--space-3);
@@ -60,6 +76,14 @@
   gap: var(--space-3);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
+}
+
+.team-row-team {
+  max-width: 14em;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .team-row-actions {

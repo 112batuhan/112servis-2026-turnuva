@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { errorMessage } from "../api/client";
-import { acceptInvite, deleteInvite, fetchTeamStatus, searchPlayers, sendInvite } from "../api/teams";
+import {
+  acceptInvite,
+  deleteInvite,
+  disbandMyTeam,
+  fetchTeamStatus,
+  renameMyTeam,
+  searchPlayers,
+  sendInvite,
+} from "../api/teams";
 import type { Invite, PlayerResult, TeamStatus } from "../api/types";
 import { useSignedInUser } from "../auth/AuthContext";
 import { DiscordMark } from "../components/DiscordMark";
@@ -9,7 +17,7 @@ import { ErrorAlert } from "../components/ErrorAlert";
 import { PlayerChip } from "../components/PlayerChip";
 import { TeamCard } from "../components/TeamCard";
 import { ELIGIBILITY_LABELS, eligibilityBadgeClass } from "../lib/eligibility";
-import { formatRank, formatTeamValue } from "../lib/format";
+import { formatRank, formatTeamValue, TEAM_NAME_MAX } from "../lib/format";
 import "./TeamPage.css";
 
 const SEARCH_DELAY_MS = 300;
@@ -23,13 +31,18 @@ export function TeamPage() {
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlayerResult[] | null>(null);
+  const [teamName, setTeamName] = useState("");
 
   const reload = useCallback(async () => {
-    setStatus(await fetchTeamStatus());
+    const next = await fetchTeamStatus();
+    setStatus(next);
+    return next;
   }, []);
 
   useEffect(() => {
-    reload().catch((e) => setError(errorMessage(e)));
+    reload()
+      .then((s) => setTeamName(s.sent[0]?.team_name ?? ""))
+      .catch((e) => setError(errorMessage(e)));
   }, [reload]);
 
   const runSearch = useCallback(async (q: string) => {
@@ -91,7 +104,24 @@ export function TeamPage() {
           {status.team ? (
             <section className="panel">
               <h2>Your team</h2>
-              <TeamCard team={status.team} />
+              <TeamCard
+                team={status.team}
+                onRename={(name) => run(() => renameMyTeam(name))}
+                actions={
+                  <button
+                    type="button"
+                    className="btn btn-danger btn-sm"
+                    disabled={busy}
+                    onClick={() => {
+                      if (window.confirm("Disband your team? You and your teammate both become free agents.")) {
+                        run(disbandMyTeam);
+                      }
+                    }}
+                  >
+                    Disband
+                  </button>
+                }
+              />
             </section>
           ) : (
             <>
@@ -138,6 +168,19 @@ export function TeamPage() {
 
               <section className="panel">
                 <h2>Find a teammate</h2>
+                <label className="team-name-field">
+                  <span>Team name</span>
+                  <input
+                    className="input"
+                    placeholder="Name your team"
+                    maxLength={TEAM_NAME_MAX}
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                  />
+                </label>
+                <p className="muted team-name-hint">
+                  Sent with every invite. Either of you can change it once the team forms.
+                </p>
                 <input
                   className="input team-search"
                   type="search"
@@ -162,8 +205,9 @@ export function TeamPage() {
                             <button
                               type="button"
                               className="btn btn-primary btn-sm"
-                              disabled={busy || !canForm || p.eligibility !== "eligible"}
-                              onClick={() => run(() => sendInvite(p.id))}
+                              disabled={busy || !canForm || !teamName.trim() || p.eligibility !== "eligible"}
+                              title={teamName.trim() ? undefined : "Name your team first"}
+                              onClick={() => run(() => sendInvite(p.id, teamName))}
                             >
                               Invite
                             </button>
@@ -198,9 +242,16 @@ function RankSummary({ status }: { status: TeamStatus }) {
   );
 }
 
-function RowMeta({ eligibility, teamValue }: { eligibility: Invite["eligibility"]; teamValue: number | null }) {
+interface RowMetaProps {
+  eligibility: Invite["eligibility"];
+  teamValue: number | null;
+  teamName?: string;
+}
+
+function RowMeta({ eligibility, teamValue, teamName }: RowMetaProps) {
   return (
     <div className="team-row-meta">
+      {teamName && <span className="team-row-team">{teamName}</span>}
       <span className={eligibilityBadgeClass(eligibility)}>{ELIGIBILITY_LABELS[eligibility]}</span>
       <span className="muted" title="Team value together">
         {formatTeamValue(teamValue)}
@@ -229,7 +280,7 @@ function InviteList({ title, empty, invites, actions }: InviteListProps) {
           {invites.map((invite) => (
             <li key={invite.id} className="team-row">
               <PlayerChip player={invite.player} />
-              <RowMeta eligibility={invite.eligibility} teamValue={invite.team_value} />
+              <RowMeta eligibility={invite.eligibility} teamValue={invite.team_value} teamName={invite.team_name} />
               <div className="team-row-actions">{actions(invite)}</div>
             </li>
           ))}

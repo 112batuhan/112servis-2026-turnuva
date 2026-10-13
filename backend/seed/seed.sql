@@ -38,33 +38,34 @@ WHERE osu_id IN (-1, -2, -101, -103, -104, -106, -107, -109, -110, -112, -113, -
 -- All of these pairs are within the rank limit.
 DO $$
 DECLARE
-    pair text[];
+    team text[];
     new_team uuid;
 BEGIN
-    FOREACH pair SLICE 1 IN ARRAY ARRAY[
-        ['Kedicik', 'Gozleme'],
-        ['Simit', 'Tavuk'],
-        ['Lokum', 'Kunefe'],
-        ['Pide', 'Lahmacun'],
-        ['Manti', 'Cay']
+    FOREACH team SLICE 1 IN ARRAY ARRAY[
+        ['Sokak Kedileri', 'Kedicik', 'Gozleme'],
+        ['Simitçiler',     'Simit',   'Tavuk'],
+        ['Tatlı Krizi',    'Lokum',   'Kunefe'],
+        ['Fırın Ekibi',    'Pide',    'Lahmacun'],
+        ['Çay Ocağı',      'Manti',   'Cay']
     ] LOOP
-        INSERT INTO teams DEFAULT VALUES RETURNING id INTO new_team;
+        INSERT INTO teams (name) VALUES (team[1]) RETURNING id INTO new_team;
         INSERT INTO team_members (user_id, team_id)
-        SELECT id, new_team FROM osu_users WHERE osu_id < 0 AND username = ANY (pair);
+        SELECT id, new_team FROM osu_users WHERE osu_id < 0 AND username = ANY (team[2:3]);
     END LOOP;
 END $$;
 
--- Kumpir -> Baklava is just over the limit (19004), as if a rank changed after inviting.
-INSERT INTO team_invites (inviter_id, invitee_id, created_at)
-SELECT a.id, b.id, now() - v.age
+-- Kumpir -> Baklava is just over the limit (19004), as if a rank changed after
+-- inviting, and Borek's team name has been taken since.
+INSERT INTO team_invites (inviter_id, invitee_id, team_name, created_at)
+SELECT a.id, b.id, v.team_name, now() - v.age
 FROM (VALUES
-    ('Ayran',   'Sucuk',   interval '2 days'),
-    ('Ayran',   'Helva',   interval '1 day'),
-    ('Borek',   'Sucuk',   interval '5 hours'),
-    ('Baklava', 'Doner',   interval '3 hours'),
-    ('Nohut',   'Menemen', interval '40 minutes'),
-    ('Leblebi', 'Midye',   interval '10 minutes'),
-    ('Kumpir',  'Baklava', interval '1 hour')
-) AS v (inviter, invitee, age)
+    ('Ayran',   'Sucuk',   'Ayran Gönüllüleri', interval '2 days'),
+    ('Ayran',   'Helva',   'Ayran Gönüllüleri', interval '1 day'),
+    ('Borek',   'Sucuk',   'Tatlı Krizi',       interval '5 hours'),
+    ('Baklava', 'Doner',   'Şerbetliler',       interval '3 hours'),
+    ('Nohut',   'Menemen', 'Kahvaltıcılar',     interval '40 minutes'),
+    ('Leblebi', 'Midye',   'Sahil Yolu',        interval '10 minutes'),
+    ('Kumpir',  'Baklava', 'Ortaköy',           interval '1 hour')
+) AS v (inviter, invitee, team_name, age)
 JOIN osu_users a ON a.osu_id < 0 AND a.username = v.inviter
 JOIN osu_users b ON b.osu_id < 0 AND b.username = v.invitee;

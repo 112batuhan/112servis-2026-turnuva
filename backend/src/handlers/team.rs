@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, get, post},
+    routing::{delete, get, patch, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -24,13 +24,18 @@ use crate::{
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/players/search", get(search_players))
-        .route("/me/team", get(my_team_status))
+        .route(
+            "/me/team",
+            get(my_team_status)
+                .patch(rename_my_team)
+                .delete(disband_my_team),
+        )
         .route("/invites", post(send_invite))
         .route("/invites/:id", delete(delete_invite))
         .route("/invites/:id/accept", post(accept_invite))
         .route("/public/teams", get(list_public_teams))
         .route("/teams", get(list_teams))
-        .route("/teams/:id", delete(disband_team))
+        .route("/teams/:id", patch(rename_team).delete(disband_team))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -78,6 +83,7 @@ fn team_value(a: &Player, b: &Player) -> Option<f64> {
 #[derive(Debug, Serialize)]
 pub struct Team<P> {
     id: Uuid,
+    name: String,
     #[serde(with = "time::serde::rfc3339")]
     created_at: OffsetDateTime,
     team_value: Option<f64>,
@@ -101,6 +107,7 @@ fn group_teams<P>(
         if teams.last().map(|(t, _)| t.id) != Some(row.team_id) {
             let team = Team {
                 id: row.team_id,
+                name: row.team_name.clone(),
                 created_at: row.team_created_at,
                 team_value: None,
                 players: Vec::new(),
@@ -139,6 +146,29 @@ async fn load_self(state: &AppState, user: &AuthUser) -> Result<PlayerState, App
 
 fn is_unique_violation(err: &sqlx::Error) -> bool {
     matches!(err, sqlx::Error::Database(e) if e.code().as_deref() == Some("23505"))
+}
+
+const NAME_TAKEN: AppError = AppError::Conflict("that team name is taken");
+
+fn is_name_taken(err: &sqlx::Error) -> bool {
+    matches!(err, sqlx::Error::Database(e) if e.constraint() == Some("teams_name_key"))
+}
+
+const TEAM_NAME_MAX: usize = 32;
+
+fn parse_team_name(raw: &str) -> Result<String, AppError> {
+    let name = raw.split_whitespace().collect::<Vec<_>>().join(" ");
+    if name.is_empty() || name.chars().count() > TEAM_NAME_MAX {
+        return Err(AppError::BadRequest(
+            "team names must be 1 to 32 characters",
+        ));
+    }
+    if name.chars().any(char::is_control) {
+        return Err(AppError::BadRequest(
+            "team names can't contain control characters",
+        ));
+    }
+    Ok(name)
 }
 
 // ---------- player search ----------
@@ -192,6 +222,7 @@ pub struct InviteView {
     id: Uuid,
     #[serde(with = "time::serde::rfc3339")]
     created_at: OffsetDateTime,
+    team_name: String,
     player: Player,
     eligibility: Eligibility,
     team_value: Option<f64>,
@@ -222,6 +253,7 @@ pub async fn my_team_status(
     let view = |row: InviteRow| InviteView {
         id: row.invite_id,
         created_at: row.created_at,
+        team_name: row.team_name,
         eligibility: Eligibility::of(&me, &row.state),
         team_value: team_value(&me, &row.state.player),
         player: row.state.player,
@@ -242,9 +274,10 @@ pub async fn my_team_status(
 #[derive(Debug, Deserialize)]
 pub struct SendInviteBody {
     user_id: Uuid,
+    team_name: String,
 }
 
-// POST /api/invites — invite another player to team up.
+// POST /api/invites — invite another player to team up under the given team name.
 pub async fn send_invite(
     State(state): State<AppState>,
     user: AuthUser,
@@ -254,6 +287,7 @@ pub async fn send_invite(
     if body.user_id == user.id {
         return Err(AppError::BadRequest("you can't invite yourself"));
     }
+    let team_name = parse_team_name(&body.team_name)?;
     let me = load_self(&state, &user).await?;
     if me.in_team {
         return Err(AppError::Conflict("you are already in a team"));
@@ -268,7 +302,10 @@ pub async fn send_invite(
             "they already invited you, accept their invite instead",
         ));
     }
-    db::team::create_invite(&state.db, user.id, body.user_id)
+    if db::team::team_name_taken(&state.db, &team_name).await? {
+        return Err(NAME_TAKEN);
+    }
+    db::team::create_invite(&state.db, user.id, body.user_id, &team_name)
         .await?
         .ok_or(AppError::Conflict("invite already sent"))?;
     Ok(StatusCode::NO_CONTENT)
@@ -295,7 +332,7 @@ pub async fn accept_invite(
 ) -> Result<impl IntoResponse, AppError> {
     require_player(&user)?;
     let mut tx = state.db.begin().await?;
-    let inviter_id = db::team::lock_received_invite(&mut tx, id, user.id)
+    let (inviter_id, team_name) = db::team::lock_received_invite(&mut tx, id, user.id)
         .await?
         .ok_or(AppError::NotFound)?;
     let me = db::team::find_player(&mut *tx, user.id)
@@ -309,14 +346,56 @@ pub async fn accept_invite(
     }
     Eligibility::of(&me.player, &inviter).require()?;
 
-    match db::team::create_team(&mut tx, inviter_id, user.id).await {
+    match db::team::create_team(&mut tx, inviter_id, user.id, &team_name).await {
         Ok(_) => {}
+        Err(err) if is_name_taken(&err) => return Err(NAME_TAKEN),
         Err(err) if is_unique_violation(&err) => {
             return Err(AppError::Conflict("one of you is already in a team"))
         }
         Err(err) => return Err(err.into()),
     }
     tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RenameBody {
+    name: String,
+}
+
+async fn rename(state: &AppState, team_id: Uuid, raw_name: &str) -> Result<StatusCode, AppError> {
+    let name = parse_team_name(raw_name)?;
+    match db::team::rename_team(&state.db, team_id, &name).await {
+        Ok(true) => Ok(StatusCode::NO_CONTENT),
+        Ok(false) => Err(AppError::NotFound),
+        Err(err) if is_name_taken(&err) => Err(NAME_TAKEN),
+        Err(err) => Err(err.into()),
+    }
+}
+
+async fn my_team_id(state: &AppState, user: &AuthUser) -> Result<Uuid, AppError> {
+    db::team::find_team_id(&state.db, user.id)
+        .await?
+        .ok_or(AppError::NotFound)
+}
+
+// PATCH /api/me/team — either player renames their team.
+pub async fn rename_my_team(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(body): Json<RenameBody>,
+) -> Result<impl IntoResponse, AppError> {
+    let team_id = my_team_id(&state, &user).await?;
+    rename(&state, team_id, &body.name).await
+}
+
+// DELETE /api/me/team — either player disbands their team.
+pub async fn disband_my_team(
+    State(state): State<AppState>,
+    user: AuthUser,
+) -> Result<impl IntoResponse, AppError> {
+    let team_id = my_team_id(&state, &user).await?;
+    db::team::delete_team(&state.db, team_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -341,6 +420,17 @@ pub async fn list_teams(
         player: row.player,
         discord_username: row.discord_username,
     })))
+}
+
+// PATCH /api/teams/:id — host-only. Renames a team.
+pub async fn rename_team(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RenameBody>,
+) -> Result<impl IntoResponse, AppError> {
+    user.require_role(Role::Host)?;
+    rename(&state, id, &body.name).await
 }
 
 // DELETE /api/teams/:id — host-only. Disbands a team; its players become free agents.

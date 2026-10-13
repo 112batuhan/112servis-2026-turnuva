@@ -22,3 +22,6 @@ export function plural(count: number, word: string): string {
 export function formatTeamValue(value: number | null | undefined): string {
   return value == null ? "—" : Math.round(value).toLocaleString();
 }
+
+/** Mirrors TEAM_NAME_MAX in backend/src/handlers/team.rs. */
+export const TEAM_NAME_MAX = 32;

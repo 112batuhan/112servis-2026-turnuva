@@ -37,6 +37,7 @@ pub struct SearchRow {
 pub struct InviteRow {
     pub invite_id: Uuid,
     pub created_at: OffsetDateTime,
+    pub team_name: String,
     #[sqlx(flatten)]
     pub state: PlayerState,
 }
@@ -44,6 +45,7 @@ pub struct InviteRow {
 #[derive(Debug, sqlx::FromRow)]
 pub struct TeamMemberRow {
     pub team_id: Uuid,
+    pub team_name: String,
     pub team_created_at: OffsetDateTime,
     #[sqlx(flatten)]
     pub player: Player,
@@ -101,7 +103,7 @@ pub async fn search_players(
 pub async fn list_sent_invites(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Vec<InviteRow>> {
     sqlx::query_as::<_, InviteRow>(
         r#"
-        SELECT i.id AS invite_id, i.created_at,
+        SELECT i.id AS invite_id, i.created_at, i.team_name,
                u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.role,
                EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team
         FROM team_invites i
@@ -118,7 +120,7 @@ pub async fn list_sent_invites(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Vec
 pub async fn list_received_invites(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Vec<InviteRow>> {
     sqlx::query_as::<_, InviteRow>(
         r#"
-        SELECT i.id AS invite_id, i.created_at,
+        SELECT i.id AS invite_id, i.created_at, i.team_name,
                u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.role,
                EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team
         FROM team_invites i
@@ -137,16 +139,18 @@ pub async fn create_invite(
     pool: &PgPool,
     inviter: Uuid,
     invitee: Uuid,
+    team_name: &str,
 ) -> sqlx::Result<Option<Uuid>> {
     sqlx::query_scalar(
         r#"
-        INSERT INTO team_invites (inviter_id, invitee_id) VALUES ($1, $2)
+        INSERT INTO team_invites (inviter_id, invitee_id, team_name) VALUES ($1, $2, $3)
         ON CONFLICT (inviter_id, invitee_id) DO NOTHING
         RETURNING id
         "#,
     )
     .bind(inviter)
     .bind(invitee)
+    .bind(team_name)
     .fetch_optional(pool)
     .await
 }
@@ -173,14 +177,26 @@ pub async fn delete_invite(pool: &PgPool, invite_id: Uuid, user_id: Uuid) -> sql
     Ok(result.rows_affected() > 0)
 }
 
-// Locks a received invite for the accept transaction and returns its inviter.
+pub async fn team_name_taken(pool: &PgPool, name: &str) -> sqlx::Result<bool> {
+    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM teams WHERE lower(name) = lower($1))")
+        .bind(name)
+        .fetch_one(pool)
+        .await
+}
+
+// Locks a received invite for the accept transaction and returns its inviter and
+// team name.
 pub async fn lock_received_invite(
     conn: &mut PgConnection,
     invite_id: Uuid,
     invitee: Uuid,
-) -> sqlx::Result<Option<Uuid>> {
-    sqlx::query_scalar(
-        "SELECT inviter_id FROM team_invites WHERE id = $1 AND invitee_id = $2 FOR UPDATE",
+) -> sqlx::Result<Option<(Uuid, String)>> {
+    sqlx::query_as(
+        r#"
+        SELECT inviter_id, team_name FROM team_invites
+        WHERE id = $1 AND invitee_id = $2
+        FOR UPDATE
+        "#,
     )
     .bind(invite_id)
     .bind(invitee)
@@ -189,8 +205,14 @@ pub async fn lock_received_invite(
 }
 
 // Creates a team of two and drops every pending invite involving either player.
-pub async fn create_team(conn: &mut PgConnection, a: Uuid, b: Uuid) -> sqlx::Result<Uuid> {
-    let team_id: Uuid = sqlx::query_scalar("INSERT INTO teams DEFAULT VALUES RETURNING id")
+pub async fn create_team(
+    conn: &mut PgConnection,
+    a: Uuid,
+    b: Uuid,
+    name: &str,
+) -> sqlx::Result<Uuid> {
+    let team_id: Uuid = sqlx::query_scalar("INSERT INTO teams (name) VALUES ($1) RETURNING id")
+        .bind(name)
         .fetch_one(&mut *conn)
         .await?;
     sqlx::query("INSERT INTO team_members (user_id, team_id) VALUES ($1, $3), ($2, $3)")
@@ -212,6 +234,22 @@ pub async fn create_team(conn: &mut PgConnection, a: Uuid, b: Uuid) -> sqlx::Res
     Ok(team_id)
 }
 
+pub async fn find_team_id(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Option<Uuid>> {
+    sqlx::query_scalar("SELECT team_id FROM team_members WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_optional(pool)
+        .await
+}
+
+pub async fn rename_team(pool: &PgPool, team_id: Uuid, name: &str) -> sqlx::Result<bool> {
+    let result = sqlx::query("UPDATE teams SET name = $2 WHERE id = $1")
+        .bind(team_id)
+        .bind(name)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected() > 0)
+}
+
 pub async fn delete_team(pool: &PgPool, team_id: Uuid) -> sqlx::Result<bool> {
     let result = sqlx::query("DELETE FROM teams WHERE id = $1")
         .bind(team_id)
@@ -221,14 +259,14 @@ pub async fn delete_team(pool: &PgPool, team_id: Uuid) -> sqlx::Result<bool> {
 }
 
 // Members of every team, or only of `user_id`'s team when given, grouped by team
-// in creation order.
+// in name order.
 pub async fn list_team_members(
     pool: &PgPool,
     user_id: Option<Uuid>,
 ) -> sqlx::Result<Vec<TeamMemberRow>> {
     sqlx::query_as::<_, TeamMemberRow>(
         r#"
-        SELECT t.id AS team_id, t.created_at AS team_created_at,
+        SELECT t.id AS team_id, t.name AS team_name, t.created_at AS team_created_at,
                u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank,
                d.username AS discord_username
         FROM teams t
@@ -237,7 +275,7 @@ pub async fn list_team_members(
         LEFT JOIN discord_accounts d ON d.osu_user_id = u.id
         WHERE $1::uuid IS NULL
            OR t.id = (SELECT team_id FROM team_members WHERE user_id = $1)
-        ORDER BY t.created_at, t.id, m.joined_at, u.username
+        ORDER BY lower(t.name), t.id, m.joined_at, u.username
         "#,
     )
     .bind(user_id)

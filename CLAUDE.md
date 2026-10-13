@@ -63,6 +63,7 @@ The schema has changed a lot across migrations; the current model is:
 
 - `teams` / `team_members` (a player's `user_id` is the primary key, so one team per player) / `team_invites`. A team is created with both players when an invite is accepted, and doing so drops every other invite involving either of them.
 - Eligibility is `team_rank.rs`: each rank maps to a value and the pair's sum must stay at or below `LIMIT`. It's checked when inviting and again when accepting (`handlers/team.rs`).
+- The inviter names the team on the invite; the name moves to `teams.name` on accept and is unique case-insensitively (`teams_name_key`). Either player can rename or disband their team, and hosts can rename or disband any team.
 - Only `basic` users play; staff are filtered out of the search and can't invite or accept. Inviting and accepting also need a linked Discord account.
 
 ### Frontend (`frontend/src`)

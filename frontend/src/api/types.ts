@@ -131,6 +131,7 @@ export interface PlayerResult extends Player {
 export interface Invite {
   id: string;
   created_at: string;
+  team_name: string;
   /** The player on the other side of the invite. */
   player: Player;
   eligibility: Eligibility;
@@ -139,6 +140,7 @@ export interface Invite {
 
 export interface Team<P extends Player = Player> {
   id: string;
+  name: string;
   created_at: string;
   team_value: number | null;
   players: P[];
