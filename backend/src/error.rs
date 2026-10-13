@@ -44,6 +44,9 @@ pub enum AppError {
     #[error("{0}")]
     BadRequest(&'static str),
 
+    #[error("{0}")]
+    Conflict(&'static str),
+
     #[error("beatmap {0} not found")]
     BeatmapNotFound(i64),
 
@@ -80,14 +83,13 @@ impl IntoResponse for AppError {
             }
             AppError::NotFound => (StatusCode::NOT_FOUND, "not found"),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
+            AppError::Conflict(msg) => (StatusCode::CONFLICT, msg),
             AppError::BeatmapNotFound(_) => (StatusCode::NOT_FOUND, "beatmap not found"),
             AppError::OsuApiRequest(_) => (StatusCode::BAD_GATEWAY, "could not reach osu! API"),
             AppError::OsuApiDecode(_) => {
                 (StatusCode::BAD_GATEWAY, "could not read osu! API response")
             }
-            AppError::Database(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
-            }
+            AppError::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal server error"),
         };
 
         // Client only sees the generic message above; the real cause goes to the logs.

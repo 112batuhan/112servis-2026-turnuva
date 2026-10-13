@@ -7,6 +7,8 @@ import "./AdminLayout.css";
 
 const USERS_TAB = "/admin/users";
 const MAPPOOL_TAB = "/admin/mappool";
+const TEAMS_TAB = "/admin/teams";
+const HOST_TABS = [USERS_TAB, TEAMS_TAB];
 
 const lastTabKey = (userId: string) => `admin-tab:${userId}`;
 
@@ -17,7 +19,7 @@ export function AdminLayout() {
   const { pathname } = useLocation();
 
   useEffect(() => {
-    if (pathname === USERS_TAB || pathname === MAPPOOL_TAB) writeString(lastTabKey(user.id), pathname);
+    if (pathname === MAPPOOL_TAB || HOST_TABS.includes(pathname)) writeString(lastTabKey(user.id), pathname);
   }, [pathname, user.id]);
 
   return (
@@ -27,9 +29,14 @@ export function AdminLayout() {
           Map Pool
         </NavLink>
         {hasRole(user, "host") && (
-          <NavLink to={USERS_TAB} className={tabClass}>
-            Users
-          </NavLink>
+          <>
+            <NavLink to={USERS_TAB} className={tabClass}>
+              Users
+            </NavLink>
+            <NavLink to={TEAMS_TAB} className={tabClass}>
+              Teams
+            </NavLink>
+          </>
         )}
       </nav>
       <Outlet />
@@ -44,7 +51,7 @@ export function AdminIndexRedirect() {
   const saved = readString(lastTabKey(user.id));
 
   let target = isHost ? USERS_TAB : MAPPOOL_TAB;
-  if (saved === MAPPOOL_TAB || (saved === USERS_TAB && isHost)) target = saved;
+  if (saved === MAPPOOL_TAB || (saved && HOST_TABS.includes(saved) && isHost)) target = saved;
 
   return <Navigate to={target} replace />;
 }

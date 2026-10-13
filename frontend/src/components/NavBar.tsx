@@ -28,6 +28,14 @@ export function NavBar() {
         <NavLink to="/mappool" className={linkClass}>
           Mappool
         </NavLink>
+        <NavLink to="/teams" className={linkClass}>
+          Teams
+        </NavLink>
+        {user && (
+          <NavLink to="/team" className={linkClass}>
+            My team
+          </NavLink>
+        )}
         {hasRole(user, "map_pooler") && (
           <NavLink to="/admin" className={linkClass}>
             Admin

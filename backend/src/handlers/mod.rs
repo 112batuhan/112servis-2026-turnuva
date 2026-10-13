@@ -5,4 +5,5 @@
 pub mod admin;
 pub mod auth;
 pub mod mappool;
+pub mod team;
 pub mod user;

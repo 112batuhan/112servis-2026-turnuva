@@ -17,3 +17,8 @@ export function formatDate(iso: string): string {
 export function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
+
+/** 18876.6 -> "18,877" */
+export function formatTeamValue(value: number | null | undefined): string {
+  return value == null ? "—" : Math.round(value).toLocaleString();
+}

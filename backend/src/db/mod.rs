@@ -5,6 +5,7 @@
 pub mod admin;
 pub mod mappool;
 pub mod session;
+pub mod team;
 pub mod user;
 
 use sqlx::{postgres::PgPoolOptions, PgPool};

@@ -109,3 +109,51 @@ export interface PublicStageDetail extends Stage {
   slots: PublicSlot[];
   maps: PublicPoolMap[];
 }
+
+export interface Player {
+  id: string;
+  osu_id: number;
+  username: string;
+  avatar_url: string;
+  country_code: string | null;
+  global_rank: number | null;
+}
+
+export type Eligibility = "eligible" | "in_team" | "unranked" | "over_limit";
+
+export interface PlayerResult extends Player {
+  eligibility: Eligibility;
+  team_value: number | null;
+  invite_sent: boolean;
+  invite_received: boolean;
+}
+
+export interface Invite {
+  id: string;
+  created_at: string;
+  /** The player on the other side of the invite. */
+  player: Player;
+  eligibility: Eligibility;
+  team_value: number | null;
+}
+
+export interface Team<P extends Player = Player> {
+  id: string;
+  created_at: string;
+  team_value: number | null;
+  players: P[];
+}
+
+export interface AdminTeamPlayer extends Player {
+  discord_username: string | null;
+}
+
+export interface TeamStatus {
+  team: Team | null;
+  global_rank: number | null;
+  /** The best rank a teammate may have, or null when the caller is unranked. */
+  min_partner_rank: number | null;
+  limit: number;
+  sent: Invite[];
+  received: Invite[];
+}

@@ -7,6 +7,7 @@ mod handlers;
 mod mods;
 mod osu_api;
 mod role;
+mod team_rank;
 
 use axum::Router;
 use clap::Parser;
@@ -98,7 +99,8 @@ async fn main() {
     let api = Router::new()
         .merge(handlers::user::routes())
         .merge(handlers::admin::routes())
-        .merge(handlers::mappool::routes());
+        .merge(handlers::mappool::routes())
+        .merge(handlers::team::routes());
 
     let mut app = Router::new()
         .nest("/auth", handlers::auth::routes())
