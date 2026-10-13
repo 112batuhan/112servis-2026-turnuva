@@ -32,9 +32,12 @@ async fn refresh(state: &AppState, osu_ids: &[i64]) -> Result<u64, AppError> {
 
 // Refreshes whichever of the users have a rank older than FRESH_FOR and returns
 // how many changed. A failure is only logged, so callers carry on with the stored
-// ranks.
+// ranks. Frozen teams keep the ranks they were frozen with.
 pub async fn refresh_stale(state: &AppState, user_ids: &[Uuid]) -> u64 {
     let result = async {
+        if db::settings::teams_frozen(&state.db).await? {
+            return Ok(0);
+        }
         let cutoff = OffsetDateTime::now_utc() - FRESH_FOR;
         let ids = db::ranks::stale_osu_ids(&state.db, user_ids, cutoff).await?;
         refresh(state, &ids).await
@@ -58,6 +61,9 @@ pub async fn refresh_team_members(state: &AppState) -> Result<FullRefresh, AppEr
         .rank_refresh_lock
         .try_lock()
         .map_err(|_| AppError::Conflict("a rank update is already running"))?;
+    if db::settings::teams_frozen(&state.db).await? {
+        return Err(AppError::Conflict("teams are frozen"));
+    }
     let ids = db::ranks::team_member_osu_ids(&state.db).await?;
     let updated = refresh(state, &ids).await?;
     let at = db::settings::touch_ranks_updated_at(&state.db).await?;
@@ -66,17 +72,24 @@ pub async fn refresh_team_members(state: &AppState) -> Result<FullRefresh, AppEr
 }
 
 // Checks hourly whether the last full refresh is a day old, so restarts neither
-// skip nor repeat it.
+// skip nor repeat it. Nothing runs while teams are frozen.
 pub fn spawn_daily_refresh(state: AppState) {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(CHECK_INTERVAL);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
             interval.tick().await;
-            let due = match db::settings::ranks_updated_at(&state.db).await {
-                Ok(last) => {
-                    last.is_none_or(|at| OffsetDateTime::now_utc() - at >= FULL_REFRESH_EVERY)
+            let due = async {
+                if db::settings::teams_frozen(&state.db).await? {
+                    return Ok(false);
                 }
+                let last = db::settings::ranks_updated_at(&state.db).await?;
+                Ok::<_, sqlx::Error>(
+                    last.is_none_or(|at| OffsetDateTime::now_utc() - at >= FULL_REFRESH_EVERY),
+                )
+            };
+            let due = match due.await {
+                Ok(due) => due,
                 Err(err) => {
                     tracing::error!(error = ?err, "could not read the last rank refresh");
                     continue;

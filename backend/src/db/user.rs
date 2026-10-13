@@ -45,6 +45,7 @@ pub struct UserProfile {
 }
 
 // Creates a user on first osu! login, or refreshes their profile on later logins.
+// While teams are frozen an existing user's rank is kept.
 pub async fn upsert_osu_user(pool: &PgPool, profile: &OsuProfile) -> sqlx::Result<OsuUser> {
     sqlx::query_as::<_, OsuUser>(
         r#"
@@ -55,9 +56,11 @@ pub async fn upsert_osu_user(pool: &PgPool, profile: &OsuProfile) -> sqlx::Resul
         SET username = EXCLUDED.username,
             avatar_url = EXCLUDED.avatar_url,
             country_code = EXCLUDED.country_code,
-            global_rank = EXCLUDED.global_rank,
+            global_rank = CASE WHEN (SELECT teams_frozen FROM app_settings)
+                THEN osu_users.global_rank ELSE EXCLUDED.global_rank END,
             country_rank = EXCLUDED.country_rank,
-            rank_updated_at = now(),
+            rank_updated_at = CASE WHEN (SELECT teams_frozen FROM app_settings)
+                THEN osu_users.rank_updated_at ELSE now() END,
             updated_at = now()
         RETURNING *
         "#,
