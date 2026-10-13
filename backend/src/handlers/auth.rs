@@ -12,7 +12,7 @@ use crate::{
     auth::{self, AuthUser},
     db, discord_api,
     error::AppError,
-    jwt, osu_api, AppState,
+    osu_api, AppState,
 };
 
 // Routes under the `/auth` nest. Logout lives in the `user` handler but is an auth
@@ -48,7 +48,7 @@ pub async fn osu_login(State(state): State<AppState>) -> impl IntoResponse {
     Redirect::to(auth_url.as_str())
 }
 
-// GET /auth/osu/callback — exchanges the code, upserts the user, and issues a JWT.
+// GET /auth/osu/callback — exchanges the code, upserts the user, and starts a session.
 pub async fn osu_callback(
     State(state): State<AppState>,
     Query(params): Query<CallbackParams>,
@@ -75,16 +75,8 @@ pub async fn osu_callback(
         osu_api::user::fetch_current(&state.http_client, token.access_token().secret()).await?;
 
     let user = db::user::upsert_osu_user(&state.db, &profile).await?;
-    let discord_verified = db::user::is_discord_linked(&state.db, user.id).await?;
 
-    let token = jwt::encode_token(
-        user.id,
-        user.role,
-        user.token_version,
-        discord_verified,
-        state.config.jwt_secret.as_bytes(),
-    )?;
-    let jar = jar.add(auth::auth_cookie(token, state.config.secure_cookies()));
+    let jar = jar.add(auth::start_session(&state, user.id).await?);
     Ok((jar, Redirect::to(&state.config.frontend_url)))
 }
 
@@ -111,7 +103,6 @@ pub async fn discord_link(
 pub async fn discord_callback(
     State(state): State<AppState>,
     user: AuthUser,
-    jar: CookieJar,
     Query(params): Query<CallbackParams>,
 ) -> Result<impl IntoResponse, AppError> {
     if state
@@ -134,17 +125,8 @@ pub async fn discord_callback(
     let profile =
         discord_api::user::fetch_current(&state.http_client, token.access_token().secret()).await?;
 
+    // The session reads Discord status from the database, so the link applies to
+    // the very next request with no cookie changes.
     db::user::link_discord(&state.db, user.id, &profile).await?;
-
-    // Re-issue so the linked status takes effect immediately, without waiting for
-    // the next /api/me. Role and token_version are unchanged by linking.
-    let token = jwt::encode_token(
-        user.id,
-        user.role,
-        user.token_version,
-        true,
-        state.config.jwt_secret.as_bytes(),
-    )?;
-    let jar = jar.add(auth::auth_cookie(token, state.config.secure_cookies()));
-    Ok((jar, Redirect::to(&state.config.frontend_url)))
+    Ok(Redirect::to(&state.config.frontend_url))
 }

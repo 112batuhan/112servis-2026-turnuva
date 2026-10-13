@@ -4,7 +4,7 @@ A minimal starter project: **Rust (axum) backend** + **React (Vite) frontend**,
 with osu! as primary login and optional Discord account linking, backed by Postgres.
 
 ```
-backend/    Rust API — osu! login, optional Discord linking, JWT auth, Postgres
+backend/    Rust API — osu! login, optional Discord linking, session auth, Postgres
 frontend/   React app — login button, profile view, optional "Link Discord" button
 ```
 
@@ -12,15 +12,16 @@ frontend/   React app — login button, profile view, optional "Link Discord" bu
 
 1. User clicks **Log in with osu!**, which hits `GET /auth/osu` and redirects to osu!'s consent screen.
 2. osu! redirects back to `GET /auth/osu/callback` with a code; the backend exchanges it for a token, fetches the user's osu! profile, and **upserts a row in Postgres** keyed by `osu_id`.
-3. The backend signs a JWT containing just the user's internal `id` and sets it as an httpOnly cookie.
-4. `GET /api/me` verifies that JWT and looks the user up in Postgres, returning their stored profile.
+3. The backend creates a row in `sessions` and sets a random session token as an httpOnly cookie. Only the token's SHA-256 is stored.
+4. `GET /api/me` looks the session up in Postgres and returns the user's stored profile.
 5. Once logged in, the user can optionally click **Link Discord**, which hits `GET /auth/discord/link` — this requires an existing osu! session, so it's only reachable after step 1–4.
-6. Discord redirects back to `GET /auth/discord/callback`; the backend reads the current user from the JWT cookie and upserts a row in `discord_accounts` linking it to that osu! user.
+6. Discord redirects back to `GET /auth/discord/callback`; the backend reads the current user from the session cookie and upserts a row in `discord_accounts` linking it to that osu! user.
 
-Postgres is the source of truth (see `backend/migrations/0001_init.sql`) — the JWT only carries a user id, everything else is looked up on each request. Two tables:
+Postgres is the source of truth (see `backend/migrations/0001_init.sql`). The cookie is an opaque token, and the session, role and Discord status are looked up on each request. The user tables are:
 
 - `osu_users` — one row per osu! login, including their global and country rank at last login.
 - `discord_accounts` — at most one row per `osu_users.id` (`osu_user_id` is `UNIQUE`), populated once Discord is linked. That's the table you'd query from a separate Discord bot later, joining on `discord_id`.
+- `sessions` — one row per login, keyed by the SHA-256 of the cookie token, expiring 7 days after login. A background task deletes expired rows every hour (and once at startup).
 
 `GET /api/me` returns the osu! profile with the linked Discord account nested under `discord` (`null` if unlinked).
 
@@ -47,11 +48,11 @@ Migrations run automatically on backend startup — no separate migration step n
 ## 4. Configure
 
 There's a single `.env` at the repo root, shared by the backend, frontend, and
-docker-compose. Copy it and fill in your OAuth credentials and `JWT_SECRET`:
+docker-compose. Copy it and fill in your OAuth credentials and `DATABASE_URL`:
 
 ```bash
 cp .env.example .env
-# fill in OSU_CLIENT_ID/SECRET, DISCORD_CLIENT_ID/SECRET, DATABASE_URL, and JWT_SECRET
+# fill in OSU_CLIENT_ID/SECRET, DISCORD_CLIENT_ID/SECRET, and DATABASE_URL
 ```
 
 ## 5. Run the backend
@@ -79,7 +80,7 @@ API/OAuth routes. `docker-compose.yml` runs that image alongside Postgres.
 
 ```bash
 cp .env.example .env
-# fill in JWT_SECRET, OSU_CLIENT_ID/SECRET, DISCORD_CLIENT_ID/SECRET
+# fill in OSU_CLIENT_ID/SECRET, DISCORD_CLIENT_ID/SECRET
 docker compose up --build
 ```
 
@@ -91,32 +92,26 @@ on container startup, same as `cargo run`.
 ## Roles
 
 Every user has a role stored on `osu_users.role`: **host** (full access), **map_pooler**
-(map-pool work), or **basic** (the default). The role is embedded in the login JWT so
-most endpoints can authorize without a database hit.
+(map-pool work), or **basic** (the default). Handlers gate on it with
+`AuthUser::require_role`.
 
-The JWT also carries `discord_verified` (true once the user has a linked Discord account),
-so endpoints can be gated on Discord linkage without a lookup — call
-`AuthUser::require_discord_verified()`. It fails closed (an unverified token never grants
-access) and is refreshed the moment Discord is linked, as well as on every `/api/me`.
+The `AuthUser` extractor loads the session, the user's role and whether they have a linked
+Discord account from Postgres on every request. So:
 
-Because the role rides in a long-lived JWT, changing it has to invalidate the old token.
-Each user row carries a `token_version` that's also in the JWT; `POST /api/users/{id}/role`
-(host-only) changes the role and bumps `token_version`, so:
-
-- privileged handlers call `auth::require_role`, which does one indexed lookup to confirm
-  the token's `token_version` still matches the DB — a superseded token is rejected immediately;
-- `GET /api/me` re-issues the cookie from the DB row, so an active client's fast-path token
-  refreshes to the new role within one poll.
+- a role change takes effect on that user's next request, with no re-login;
+- logging out deletes the session row, so the old cookie stops working immediately;
+- endpoints can require a linked Discord account with `AuthUser::require_discord_verified()`,
+  which fails closed and applies as soon as Discord is linked.
 
 There's no host yet to grant the first one through the API, so bootstrap it by hand:
 
 ```sql
-UPDATE osu_users SET role = 'host', token_version = token_version + 1 WHERE osu_id = <your_osu_id>;
+UPDATE osu_users SET role = 'host' WHERE osu_id = <your_osu_id>;
 ```
 
 ## Notes for taking this further
 
 - **Discord bot integration**: query `discord_accounts` by `discord_id`, joining to `osu_users` for the linked osu! profile.
-- **Log out everywhere**: `token_version` already supports it — bump it for a user to invalidate all their existing tokens, not just on role change.
-- **HTTPS in production**: set `set_secure(true)` in `auth::auth_cookie` and update redirect URIs to `https://`.
+- **Log out everywhere**: `DELETE FROM sessions WHERE user_id = $1` ends every session for a user (indexed on `user_id`).
+- **HTTPS in production**: set `FRONTEND_URL` to an `https://` origin (the cookie is marked `Secure` automatically from its scheme, see `Config::secure_cookies`) and update the OAuth redirect URIs to `https://`.
 - **Unlinking Discord**: not included — add a `DELETE`-style route that removes the user's `discord_accounts` row.

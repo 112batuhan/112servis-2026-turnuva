@@ -4,6 +4,7 @@
 //! functions take `&PgPool` and return typed rows, surfacing failures as `sqlx::Error`.
 pub mod admin;
 pub mod mappool;
+pub mod session;
 pub mod user;
 
 use sqlx::{postgres::PgPoolOptions, PgPool};

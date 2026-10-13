@@ -44,13 +44,12 @@ pub async fn list_users(pool: &PgPool) -> sqlx::Result<Vec<AdminUser>> {
     .await
 }
 
-// Changes a user's role and bumps token_version, immediately invalidating any
-// JWT they were issued before the change. Returns the updated row.
+// Changes a user's role. Returns the updated row.
 pub async fn set_role(pool: &PgPool, user_id: Uuid, role: Role) -> sqlx::Result<OsuUser> {
     sqlx::query_as::<_, OsuUser>(
         r#"
         UPDATE osu_users
-        SET role = $2, token_version = token_version + 1, updated_at = now()
+        SET role = $2, updated_at = now()
         WHERE id = $1
         RETURNING *
         "#,

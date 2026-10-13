@@ -33,9 +33,8 @@ pub struct SetRoleBody {
     role: Role,
 }
 
-// POST /api/users/{id}/role — host-only. Changes a user's role; the token_version
-// bump inside set_role invalidates that user's existing JWTs (reconciled on their
-// next /api/me).
+// POST /api/users/{id}/role — host-only. Changes a user's role, effective on their
+// next request since sessions read the role from the database.
 pub async fn set_role(
     State(state): State<AppState>,
     user: AuthUser,

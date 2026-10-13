@@ -9,10 +9,6 @@ pub struct Config {
     #[arg(long, env = "DATABASE_URL")]
     pub database_url: String,
 
-    /// Secret used to sign login JWTs, e.g. `openssl rand -hex 32`.
-    #[arg(long, env = "JWT_SECRET")]
-    pub jwt_secret: String,
-
     /// Where the frontend lives (used for CORS + post-login redirect).
     #[arg(long, env = "FRONTEND_URL", default_value = "http://localhost:5173")]
     pub frontend_url: String,

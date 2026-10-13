@@ -4,7 +4,6 @@ mod db;
 mod discord_api;
 mod error;
 mod handlers;
-mod jwt;
 mod mods;
 mod osu_api;
 mod role;
@@ -68,6 +67,7 @@ async fn main() {
     );
 
     let db_pool = db::connect(&config.database_url).await;
+    auth::spawn_session_cleanup(db_pool.clone());
 
     let state = AppState {
         osu_client,

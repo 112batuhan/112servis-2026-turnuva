@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
-// User authorization role. Stored in Postgres as the `user_role` enum and carried
-// in the JWT so most endpoints can gate on it without a database round-trip.
+// User authorization role. Stored in Postgres as the `user_role` enum and loaded
+// with the session on every request (see auth::AuthUser).
 //
 // For now privileges are a simple ladder: Host can do everything, MapPooler can do
 // map-pool work plus anything Basic can, Basic is the default for everyone else.

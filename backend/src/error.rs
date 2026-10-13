@@ -55,9 +55,6 @@ pub enum AppError {
 
     #[error("database error")]
     Database(#[from] sqlx::Error),
-
-    #[error("failed to sign session token")]
-    Jwt(#[from] jsonwebtoken::errors::Error),
 }
 
 impl IntoResponse for AppError {
@@ -88,7 +85,7 @@ impl IntoResponse for AppError {
             AppError::OsuApiDecode(_) => {
                 (StatusCode::BAD_GATEWAY, "could not read osu! API response")
             }
-            AppError::Database(_) | AppError::Jwt(_) => {
+            AppError::Database(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
             }
         };

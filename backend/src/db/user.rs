@@ -16,9 +16,6 @@ pub struct OsuUser {
     pub global_rank: Option<i64>,
     pub country_rank: Option<i64>,
     pub role: Role,
-    // Internal revocation counter; never sent to the client.
-    #[serde(skip_serializing)]
-    pub token_version: i32,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -117,23 +114,4 @@ pub async fn find_user(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Option<User
     .await?;
 
     Ok(Some(UserProfile { osu, discord }))
-}
-
-// The user's current token_version, or None if the user no longer exists. Used
-// by /api/me to detect a JWT that predates a role change and re-issue the cookie.
-pub async fn token_version(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Option<i32>> {
-    sqlx::query_scalar::<_, i32>("SELECT token_version FROM osu_users WHERE id = $1")
-        .bind(user_id)
-        .fetch_optional(pool)
-        .await
-}
-
-// Whether the given osu! user has a linked Discord account (i.e. is "verified").
-pub async fn is_discord_linked(pool: &PgPool, osu_user_id: Uuid) -> sqlx::Result<bool> {
-    sqlx::query_scalar::<_, bool>(
-        "SELECT EXISTS(SELECT 1 FROM discord_accounts WHERE osu_user_id = $1)",
-    )
-    .bind(osu_user_id)
-    .fetch_one(pool)
-    .await
 }

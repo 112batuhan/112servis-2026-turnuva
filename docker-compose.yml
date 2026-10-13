@@ -30,7 +30,6 @@ services:
       DATABASE_URL: postgres://postgres:postgres@postgres:5432/discord_auth_starter
       SERVER_ADDR: 0.0.0.0:8080
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
-      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       OSU_CLIENT_ID: ${OSU_CLIENT_ID:?set OSU_CLIENT_ID in .env}
       OSU_CLIENT_SECRET: ${OSU_CLIENT_SECRET:?set OSU_CLIENT_SECRET in .env}
       OSU_REDIRECT_URI: ${OSU_REDIRECT_URI:-http://localhost:8080/auth/osu/callback}
