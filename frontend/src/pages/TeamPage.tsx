@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { errorMessage } from "../api/client";
 import { acceptInvite, deleteInvite, fetchTeamStatus, searchPlayers, sendInvite } from "../api/teams";
 import type { Invite, PlayerResult, TeamStatus } from "../api/types";
+import { useSignedInUser } from "../auth/AuthContext";
+import { DiscordMark } from "../components/DiscordMark";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { PlayerChip } from "../components/PlayerChip";
 import { TeamCard } from "../components/TeamCard";
@@ -12,6 +15,9 @@ import "./TeamPage.css";
 const SEARCH_DELAY_MS = 300;
 
 export function TeamPage() {
+  const user = useSignedInUser();
+  const isStaff = user.role !== "basic";
+  const canForm = !isStaff && user.discord !== null;
   const [status, setStatus] = useState<TeamStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -34,6 +40,9 @@ export function TeamPage() {
     const timer = setTimeout(() => runSearch(query).catch((e) => setError(errorMessage(e))), SEARCH_DELAY_MS);
     return () => clearTimeout(timer);
   }, [query, runSearch]);
+
+  // Staff can't play, but someone promoted after forming a team still sees it.
+  const staffOnly = isStaff && status !== null && !status.team;
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -60,9 +69,24 @@ export function TeamPage() {
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
       {!status && !error && <p className="status">Loading…</p>}
 
-      {status && (
+      {staffOnly && (
+        <section className="panel">
+          <p className="status">Hosts and map poolers run the tournament, so they can't join a team.</p>
+        </section>
+      )}
+
+      {status && !staffOnly && (
         <>
           <RankSummary status={status} />
+          {!user.discord && !status.team && (
+            <section className="panel team-discord-notice">
+              <p>Link your Discord account to send and accept invites.</p>
+              <Link to="/discord" className="btn btn-discord btn-sm">
+                <DiscordMark />
+                Link Discord
+              </Link>
+            </section>
+          )}
 
           {status.team ? (
             <section className="panel">
@@ -80,7 +104,7 @@ export function TeamPage() {
                     <button
                       type="button"
                       className="btn btn-primary btn-sm"
-                      disabled={busy || invite.eligibility !== "eligible"}
+                      disabled={busy || !canForm || invite.eligibility !== "eligible"}
                       onClick={() => run(() => acceptInvite(invite.id))}
                     >
                       Accept
@@ -138,7 +162,7 @@ export function TeamPage() {
                             <button
                               type="button"
                               className="btn btn-primary btn-sm"
-                              disabled={busy || p.eligibility !== "eligible"}
+                              disabled={busy || !canForm || p.eligibility !== "eligible"}
                               onClick={() => run(() => sendInvite(p.id))}
                             >
                               Invite

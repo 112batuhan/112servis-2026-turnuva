@@ -119,7 +119,7 @@ export interface Player {
   global_rank: number | null;
 }
 
-export type Eligibility = "eligible" | "in_team" | "unranked" | "over_limit";
+export type Eligibility = "eligible" | "not_player" | "in_team" | "unranked" | "over_limit";
 
 export interface PlayerResult extends Player {
   eligibility: Eligibility;

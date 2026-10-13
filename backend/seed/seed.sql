@@ -29,6 +29,7 @@ INSERT INTO osu_users (osu_id, username, avatar_url, country_code, global_rank, 
     (-123, 'Leblebi',    'https://a.ppy.sh/', 'NL', 26000, 410,  'basic'),
     (-124, 'Midye',      'https://a.ppy.sh/', 'TR', 64000, 560,  'basic');
 
+-- Players left out here have no Discord, so they can't send or accept invites.
 INSERT INTO discord_accounts (osu_user_id, discord_id, username)
 SELECT id, 'dummy' || osu_id, lower(username)
 FROM osu_users
@@ -67,23 +68,3 @@ FROM (VALUES
 ) AS v (inviter, invitee, age)
 JOIN osu_users a ON a.osu_id < 0 AND a.username = v.inviter
 JOIN osu_users b ON b.osu_id < 0 AND b.username = v.invitee;
-
--- Real hosts without a team get a few invites of their own to play with.
-INSERT INTO team_invites (inviter_id, invitee_id, created_at)
-SELECT d.id, h.id, now() - v.age
-FROM osu_users h
-CROSS JOIN (VALUES
-    ('Kumpir', interval '30 minutes'),
-    ('Helva',  interval '6 hours'),
-    ('Midye',  interval '1 day')
-) AS v (dummy, age)
-JOIN osu_users d ON d.osu_id < 0 AND d.username = v.dummy
-WHERE h.osu_id > 0 AND h.role = 'host'
-  AND NOT EXISTS (SELECT 1 FROM team_members m WHERE m.user_id = h.id);
-
-INSERT INTO team_invites (inviter_id, invitee_id)
-SELECT h.id, d.id
-FROM osu_users h
-JOIN osu_users d ON d.osu_id < 0 AND d.username = 'Pismaniye'
-WHERE h.osu_id > 0 AND h.role = 'host'
-  AND NOT EXISTS (SELECT 1 FROM team_members m WHERE m.user_id = h.id);

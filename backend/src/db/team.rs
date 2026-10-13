@@ -3,6 +3,8 @@ use sqlx::{PgConnection, PgExecutor, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+use crate::role::Role;
+
 // The public slice of an osu_users row that the team pages show.
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct Player {
@@ -18,14 +20,14 @@ pub struct Player {
 pub struct PlayerState {
     #[sqlx(flatten)]
     pub player: Player,
+    pub role: Role,
     pub in_team: bool,
 }
 
 #[derive(Debug, sqlx::FromRow)]
 pub struct SearchRow {
     #[sqlx(flatten)]
-    pub player: Player,
-    pub in_team: bool,
+    pub state: PlayerState,
     pub invite_sent: bool,
     pub invite_received: bool,
 }
@@ -36,8 +38,7 @@ pub struct InviteRow {
     pub invite_id: Uuid,
     pub created_at: OffsetDateTime,
     #[sqlx(flatten)]
-    pub player: Player,
-    pub in_team: bool,
+    pub state: PlayerState,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -52,14 +53,17 @@ pub struct TeamMemberRow {
 const PLAYER_COLUMNS: &str =
     "u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank";
 
+const PLAYER_STATE_COLUMNS: &str = "u.id, u.osu_id, u.username, u.avatar_url, u.country_code, \
+     u.global_rank, u.role, \
+     EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team";
+
 pub async fn find_player(
     ex: impl PgExecutor<'_>,
     user_id: Uuid,
 ) -> sqlx::Result<Option<PlayerState>> {
     sqlx::query_as::<_, PlayerState>(&format!(
         r#"
-        SELECT {PLAYER_COLUMNS},
-               EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team
+        SELECT {PLAYER_STATE_COLUMNS}
         FROM osu_users u
         WHERE u.id = $1
         "#
@@ -69,7 +73,7 @@ pub async fn find_player(
     .await
 }
 
-// Case-insensitive username search, exact matches first.
+// Case-insensitive search over players (basic role only), exact matches first.
 pub async fn search_players(
     pool: &PgPool,
     caller: Uuid,
@@ -81,14 +85,13 @@ pub async fn search_players(
         .replace('_', "\\_");
     sqlx::query_as::<_, SearchRow>(&format!(
         r#"
-        SELECT {PLAYER_COLUMNS},
-               EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team,
+        SELECT {PLAYER_STATE_COLUMNS},
                EXISTS(SELECT 1 FROM team_invites i
                       WHERE i.inviter_id = $1 AND i.invitee_id = u.id) AS invite_sent,
                EXISTS(SELECT 1 FROM team_invites i
                       WHERE i.inviter_id = u.id AND i.invitee_id = $1) AS invite_received
         FROM osu_users u
-        WHERE u.id <> $1 AND u.username ILIKE '%' || $2 || '%'
+        WHERE u.id <> $1 AND u.role = 'basic' AND u.username ILIKE '%' || $2 || '%'
         ORDER BY lower(u.username) = lower($3) DESC, u.global_rank ASC NULLS LAST
         LIMIT 25
         "#
@@ -116,8 +119,7 @@ async fn list_invites(
 ) -> sqlx::Result<Vec<InviteRow>> {
     sqlx::query_as::<_, InviteRow>(&format!(
         r#"
-        SELECT i.id AS invite_id, i.created_at, {PLAYER_COLUMNS},
-               EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team
+        SELECT i.id AS invite_id, i.created_at, {PLAYER_STATE_COLUMNS}
         FROM team_invites i
         JOIN osu_users u ON u.id = i.{other_column}
         WHERE i.{own_column} = $1

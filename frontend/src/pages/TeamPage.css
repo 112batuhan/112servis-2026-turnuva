@@ -15,8 +15,17 @@
   margin-bottom: var(--space-3);
 }
 
-.team-summary p {
+.team-summary p,
+.team-discord-notice p {
   font-size: var(--text-md);
+}
+
+.team-discord-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
 }
 
 .team-search {

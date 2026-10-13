@@ -13,7 +13,7 @@ use crate::{
     auth::AuthUser,
     db::{
         self,
-        team::{InviteRow, Player, TeamMemberRow},
+        team::{InviteRow, Player, PlayerState, TeamMemberRow},
     },
     error::AppError,
     role::Role,
@@ -37,17 +37,21 @@ pub fn routes() -> Router<AppState> {
 #[serde(rename_all = "snake_case")]
 pub enum Eligibility {
     Eligible,
+    NotPlayer,
     InTeam,
     Unranked,
     OverLimit,
 }
 
 impl Eligibility {
-    fn of(me: &Player, other: &Player, other_in_team: bool) -> Self {
-        if other_in_team {
+    fn of(me: &Player, other: &PlayerState) -> Self {
+        if other.role != Role::Basic {
+            return Self::NotPlayer;
+        }
+        if other.in_team {
             return Self::InTeam;
         }
-        match (me.global_rank, other.global_rank) {
+        match (me.global_rank, other.player.global_rank) {
             (Some(a), Some(b)) if team_rank::is_allowed(a, b) => Self::Eligible,
             (Some(_), Some(_)) => Self::OverLimit,
             _ => Self::Unranked,
@@ -57,6 +61,7 @@ impl Eligibility {
     fn require(self) -> Result<(), AppError> {
         match self {
             Self::Eligible => Ok(()),
+            Self::NotPlayer => Err(AppError::BadRequest("staff can't join teams")),
             Self::InTeam => Err(AppError::Conflict("that player is already in a team")),
             Self::Unranked => Err(AppError::BadRequest("both players need a global rank")),
             Self::OverLimit => Err(AppError::BadRequest(
@@ -117,7 +122,16 @@ fn group_teams<P>(
         .collect()
 }
 
-async fn load_self(state: &AppState, user: &AuthUser) -> Result<db::team::PlayerState, AppError> {
+// Only basic users play; hosts and map poolers run the tournament. Forming a team
+// also needs a linked Discord account.
+fn require_player(user: &AuthUser) -> Result<(), AppError> {
+    if user.role != Role::Basic {
+        return Err(AppError::BadRequest("staff can't join teams"));
+    }
+    user.require_discord_verified()
+}
+
+async fn load_self(state: &AppState, user: &AuthUser) -> Result<PlayerState, AppError> {
     db::team::find_player(&state.db, user.id)
         .await?
         .ok_or(AppError::Unauthenticated)
@@ -161,11 +175,11 @@ pub async fn search_players(
     let results = rows
         .into_iter()
         .map(|row| PlayerResult {
-            eligibility: Eligibility::of(&me, &row.player, row.in_team),
-            team_value: team_value(&me, &row.player),
+            eligibility: Eligibility::of(&me, &row.state),
+            team_value: team_value(&me, &row.state.player),
             invite_sent: row.invite_sent,
             invite_received: row.invite_received,
-            player: row.player,
+            player: row.state.player,
         })
         .collect::<Vec<_>>();
     Ok(Json(results))
@@ -208,9 +222,9 @@ pub async fn my_team_status(
     let view = |row: InviteRow| InviteView {
         id: row.invite_id,
         created_at: row.created_at,
-        eligibility: Eligibility::of(&me, &row.player, row.in_team),
-        team_value: team_value(&me, &row.player),
-        player: row.player,
+        eligibility: Eligibility::of(&me, &row.state),
+        team_value: team_value(&me, &row.state.player),
+        player: row.state.player,
     };
     let sent = db::team::list_sent_invites(&state.db, user.id).await?;
     let received = db::team::list_received_invites(&state.db, user.id).await?;
@@ -236,6 +250,7 @@ pub async fn send_invite(
     user: AuthUser,
     Json(body): Json<SendInviteBody>,
 ) -> Result<impl IntoResponse, AppError> {
+    require_player(&user)?;
     if body.user_id == user.id {
         return Err(AppError::BadRequest("you can't invite yourself"));
     }
@@ -246,7 +261,7 @@ pub async fn send_invite(
     let target = db::team::find_player(&state.db, body.user_id)
         .await?
         .ok_or(AppError::NotFound)?;
-    Eligibility::of(&me.player, &target.player, target.in_team).require()?;
+    Eligibility::of(&me.player, &target).require()?;
 
     if db::team::invite_exists(&state.db, body.user_id, user.id).await? {
         return Err(AppError::Conflict(
@@ -278,6 +293,7 @@ pub async fn accept_invite(
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
+    require_player(&user)?;
     let mut tx = state.db.begin().await?;
     let inviter_id = db::team::lock_received_invite(&mut tx, id, user.id)
         .await?
@@ -291,7 +307,7 @@ pub async fn accept_invite(
     if me.in_team {
         return Err(AppError::Conflict("you are already in a team"));
     }
-    Eligibility::of(&me.player, &inviter.player, inviter.in_team).require()?;
+    Eligibility::of(&me.player, &inviter).require()?;
 
     match db::team::create_team(&mut tx, inviter_id, user.id).await {
         Ok(_) => {}

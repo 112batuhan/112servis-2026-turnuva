@@ -59,6 +59,12 @@ The schema has changed a lot across migrations; the current model is:
 - Public vs editor views: `editor_notes` (on slots and maps) must never reach the `/api/public/*` routes. These routes use separate `Public*` row structs and only return published stages. Keep that split when adding fields.
 - osu! API calls (`osu_api/`) use an app token from the client-credentials flow, cached in memory in `AppState.osu_app_token`.
 
+### Teams (2v2)
+
+- `teams` / `team_members` (a player's `user_id` is the primary key, so one team per player) / `team_invites`. A team is created with both players when an invite is accepted, and doing so drops every other invite involving either of them.
+- Eligibility is `team_rank.rs`: each rank maps to a value and the pair's sum must stay at or below `LIMIT`. It's checked when inviting and again when accepting (`handlers/team.rs`).
+- Only `basic` users play; staff are filtered out of the search and can't invite or accept. Inviting and accepting also need a linked Discord account.
+
 ### Frontend (`frontend/src`)
 
 - `api/client.ts` wraps `fetch` with `credentials: "include"` and throws the server's error text. `api/types.ts` mirrors the Rust response structs by hand, so update it whenever a serialized struct changes.
