@@ -1,0 +1,84 @@
+.note {
+  display: block;
+  width: 100%;
+  min-height: var(--control-height-sm);
+  padding: 5px var(--space-2);
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  text-align: left;
+}
+
+.note-private {
+  border-style: dashed;
+  color: var(--color-text-muted);
+}
+
+.note-view {
+  position: relative;
+  cursor: text;
+}
+
+.note-view:hover {
+  border-color: var(--color-border-strong);
+}
+
+.note-view-text {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.note-view.is-empty .note-view-text {
+  color: var(--color-text-subtle);
+  font-style: italic;
+}
+
+.note-textarea {
+  resize: none;
+  overflow: hidden;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.note-textarea:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+.note-tooltip {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 50;
+  width: max-content;
+  max-width: 280px;
+  padding: 6px 10px;
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-popover);
+  color: var(--color-text);
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition:
+    opacity var(--duration-fast) ease,
+    transform var(--duration-fast) ease,
+    visibility var(--duration-fast);
+  pointer-events: none;
+}
+
+.note-view:hover .note-tooltip,
+.note-view:focus-visible .note-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}

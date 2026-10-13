@@ -1,0 +1,32 @@
+.inline-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.inline-edit-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inline-edit-btn {
+  --icon-button-size: 28px;
+}
+
+/* Inherits the surrounding font so the text doesn't jump when editing starts. */
+.inline-edit-input {
+  font: inherit;
+  min-width: 0;
+  max-width: 100%;
+  padding: 1px var(--space-2);
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-sm);
+}
+
+.inline-edit-input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}

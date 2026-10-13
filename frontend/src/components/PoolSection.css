@@ -1,0 +1,99 @@
+.pool-board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.pool-section {
+  --section-color: var(--color-border-strong);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  transition: border-color var(--duration-fast) ease;
+}
+
+.pool-section.has-color {
+  border-color: var(--section-color);
+}
+
+.pool-section.is-drop-target {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary-soft);
+}
+
+/* Rounded to sit flush inside the section border (no overflow clipping, so popovers can escape). */
+.pool-section-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-right: var(--space-3);
+  border-radius: calc(var(--radius-lg) - 1px) calc(var(--radius-lg) - 1px) 0 0;
+}
+
+.pool-section-head:last-child {
+  border-radius: calc(var(--radius-lg) - 1px);
+}
+
+.pool-section.has-color .pool-section-head {
+  background: color-mix(in srgb, var(--section-color) 22%, transparent);
+}
+
+.pool-section-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 48px;
+  padding: var(--space-2) var(--space-4);
+  background: none;
+  border: none;
+  text-align: left;
+}
+
+.pool-section-toggle:focus-visible {
+  outline-offset: -2px;
+}
+
+.pool-section-caret {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform var(--duration-fast) ease;
+}
+
+.pool-section-toggle[aria-expanded="false"] .pool-section-caret {
+  transform: rotate(-90deg);
+}
+
+.pool-section-title {
+  font-weight: 700;
+  font-size: var(--text-base);
+}
+
+.pool-section-meta {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.pool-section-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pool-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.pool-section.has-color .pool-section-body {
+  border-top-color: var(--section-color);
+}
+
+.pool-empty {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}

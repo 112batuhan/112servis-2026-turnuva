@@ -1,0 +1,183 @@
+/* Wraps onto several rows on narrow screens: info, then notes, then actions. */
+.map-card {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-2);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+.map-card.is-editable[draggable="true"] {
+  cursor: grab;
+}
+
+.map-card.is-editable[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.map-card-main {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex: 1 1 340px;
+  min-width: 0;
+}
+
+.map-card-notes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  flex: 1 1 260px;
+  max-width: 420px;
+  min-width: 0;
+  align-items: start;
+}
+
+.map-card-public-note {
+  flex: 1 1 200px;
+  max-width: 360px;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.map-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+/* ---- cover with hover zoom ---- */
+.map-cover {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.map-cover-thumb {
+  display: block;
+  width: 56px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+
+.map-cover-zoom {
+  position: absolute;
+  bottom: calc(100% + var(--space-2));
+  left: 0;
+  z-index: 60;
+  width: 360px;
+  max-width: 70vw;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-popover);
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.6);
+  transform-origin: bottom left;
+  transition:
+    opacity var(--duration-fast) ease,
+    transform var(--duration-fast) var(--ease-out),
+    visibility var(--duration-fast);
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  .map-cover:hover .map-cover-zoom {
+    opacity: 1;
+    visibility: visible;
+    transform: scale(1);
+  }
+}
+
+/* ---- title + stats ---- */
+.map-info {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Difficulty and mapper wrap below the title when space runs out. */
+.map-info-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  min-width: 0;
+}
+
+.map-title {
+  min-width: 0;
+  max-width: 100%;
+  font-size: var(--text-md);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.map-title:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+.map-meta {
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.map-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.map-stat dd {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.map-stat.is-highlight {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+/* ---- actions ---- */
+.map-id {
+  height: var(--control-height-sm);
+  min-width: 84px;
+  padding: 0 var(--space-2);
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  transition:
+    color var(--duration-fast) ease,
+    border-color var(--duration-fast) ease;
+}
+
+.map-id:hover {
+  color: var(--color-text);
+  border-color: var(--color-text-muted);
+}
+
+.map-id.is-copied {
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.map-move {
+  width: 112px;
+}

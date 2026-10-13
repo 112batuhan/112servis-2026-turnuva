@@ -1,0 +1,58 @@
+.stage-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.stage-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  flex: 1 1 auto;
+}
+
+.stage-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--control-height);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  font-weight: 500;
+  transition:
+    color var(--duration-fast) ease,
+    border-color var(--duration-fast) ease,
+    background-color var(--duration-fast) ease;
+}
+
+.stage-tab:hover {
+  color: var(--color-text);
+  border-color: var(--color-border-strong);
+}
+
+.stage-tab[aria-current="page"] {
+  color: var(--color-text);
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+/* Published = filled green; draft = hollow amber ring, so it isn't colour-only. */
+.stage-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.stage-dot.is-published {
+  background: var(--color-success);
+}
+
+.stage-dot.is-draft {
+  border: 2px solid var(--color-warning);
+}
