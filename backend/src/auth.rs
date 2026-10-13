@@ -61,8 +61,7 @@ impl AuthUser {
     }
 
     // Requires a linked Discord account, otherwise 403. Fails closed — an
-    // unverified caller is rejected. Wire this into forthcoming handlers.
-    #[allow(dead_code)]
+    // unverified caller is rejected.
     pub fn require_discord_verified(&self) -> Result<(), AppError> {
         if self.discord_verified {
             Ok(())

@@ -6,6 +6,7 @@ mod error;
 mod handlers;
 mod mods;
 mod osu_api;
+mod rank_refresh;
 mod role;
 mod team_rank;
 
@@ -37,6 +38,8 @@ pub struct AppState {
     pub config: Arc<Config>,
     // osu! app access token (client-credentials grant) for public API calls.
     pub osu_app_token: Arc<Mutex<Option<osu_api::token::OsuAppToken>>>,
+    // Held while every team member's rank is being refreshed.
+    pub rank_refresh_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 #[tokio::main]
@@ -78,7 +81,9 @@ async fn main() {
         csrf_tokens: Arc::new(Mutex::new(HashMap::new())),
         config: Arc::clone(&config),
         osu_app_token: Arc::new(Mutex::new(None)),
+        rank_refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
     };
+    rank_refresh::spawn_daily_refresh(state.clone());
 
     let cors = CorsLayer::new()
         .allow_origin(
@@ -91,6 +96,7 @@ async fn main() {
         .allow_methods([
             axum::http::Method::GET,
             axum::http::Method::POST,
+            axum::http::Method::PUT,
             axum::http::Method::PATCH,
             axum::http::Method::DELETE,
         ])

@@ -66,7 +66,7 @@ impl IntoResponse for AppError {
             AppError::Unauthenticated => (StatusCode::UNAUTHORIZED, "not authenticated"),
             AppError::Forbidden => (StatusCode::FORBIDDEN, "insufficient permissions"),
             AppError::DiscordVerificationRequired => {
-                (StatusCode::FORBIDDEN, "discord verification required")
+                (StatusCode::FORBIDDEN, "link your Discord account first")
             }
             AppError::InvalidLoginAttempt => {
                 (StatusCode::BAD_REQUEST, "invalid or expired login attempt")

@@ -27,63 +27,50 @@ INSERT INTO osu_users (osu_id, username, avatar_url, country_code, global_rank, 
     (-121, 'Ayva',       'https://a.ppy.sh/', 'TR', NULL,  NULL, 'basic'),
     (-122, 'Nohut',      'https://a.ppy.sh/', 'DE', 5600,  90,   'basic'),
     (-123, 'Leblebi',    'https://a.ppy.sh/', 'NL', 26000, 410,  'basic'),
-    (-124, 'Midye',      'https://a.ppy.sh/', 'TR', 64000, 560,  'basic');
+    (-124, 'Midye',      'https://a.ppy.sh/', 'TR', 64000, 560,  'basic'),
+    (-125, 'Kaymak',     'https://a.ppy.sh/', 'TR', 2400,  19,   'basic'),
+    (-126, 'Bal',        'https://a.ppy.sh/', 'TR', 11000, 105,  'basic');
 
+-- Players left out here have no Discord, so they can't send or accept invites.
 INSERT INTO discord_accounts (osu_user_id, discord_id, username)
 SELECT id, 'dummy' || osu_id, lower(username)
 FROM osu_users
-WHERE osu_id IN (-1, -2, -101, -103, -104, -106, -107, -109, -110, -112, -113, -115, -116, -118, -122, -124);
+WHERE osu_id IN (-1, -2, -101, -103, -104, -106, -107, -109, -110, -112, -113, -115, -116, -118, -122, -124, -125, -126);
 
--- All of these pairs are within the rank limit.
+-- The last two no longer fit, as if ranks changed after they formed: Kaymak
+-- climbed (21,203 against the 19,000 limit) and Ayva went inactive.
 DO $$
 DECLARE
-    pair text[];
+    team text[];
     new_team uuid;
 BEGIN
-    FOREACH pair SLICE 1 IN ARRAY ARRAY[
-        ['Kedicik', 'Gozleme'],
-        ['Simit', 'Tavuk'],
-        ['Lokum', 'Kunefe'],
-        ['Pide', 'Lahmacun'],
-        ['Manti', 'Cay']
+    FOREACH team SLICE 1 IN ARRAY ARRAY[
+        ['Sokak Kedileri', 'Kedicik', 'Gozleme'],
+        ['Simitçiler',     'Simit',   'Tavuk'],
+        ['Tatlı Krizi',    'Lokum',   'Kunefe'],
+        ['Fırın Ekibi',    'Pide',    'Lahmacun'],
+        ['Çay Ocağı',      'Manti',   'Cay'],
+        ['Rank Uçtu',      'Kaymak',  'Bal'],
+        ['Kayıp Rank',     'Ayva',    'Pismaniye']
     ] LOOP
-        INSERT INTO teams DEFAULT VALUES RETURNING id INTO new_team;
+        INSERT INTO teams (name) VALUES (team[1]) RETURNING id INTO new_team;
         INSERT INTO team_members (user_id, team_id)
-        SELECT id, new_team FROM osu_users WHERE osu_id < 0 AND username = ANY (pair);
+        SELECT id, new_team FROM osu_users WHERE osu_id < 0 AND username = ANY (team[2:3]);
     END LOOP;
 END $$;
 
--- Kumpir -> Baklava is just over the limit (19004), as if a rank changed after inviting.
-INSERT INTO team_invites (inviter_id, invitee_id, created_at)
-SELECT a.id, b.id, now() - v.age
+-- Kumpir -> Baklava is just over the limit (19004), as if a rank changed after
+-- inviting, and Borek's team name has been taken since.
+INSERT INTO team_invites (inviter_id, invitee_id, team_name, created_at)
+SELECT a.id, b.id, v.team_name, now() - v.age
 FROM (VALUES
-    ('Ayran',   'Sucuk',   interval '2 days'),
-    ('Ayran',   'Helva',   interval '1 day'),
-    ('Borek',   'Sucuk',   interval '5 hours'),
-    ('Baklava', 'Doner',   interval '3 hours'),
-    ('Nohut',   'Menemen', interval '40 minutes'),
-    ('Leblebi', 'Midye',   interval '10 minutes'),
-    ('Kumpir',  'Baklava', interval '1 hour')
-) AS v (inviter, invitee, age)
+    ('Ayran',   'Sucuk',   'Ayran Gönüllüleri', interval '2 days'),
+    ('Ayran',   'Helva',   'Ayran Gönüllüleri', interval '1 day'),
+    ('Borek',   'Sucuk',   'Tatlı Krizi',       interval '5 hours'),
+    ('Baklava', 'Doner',   'Şerbetliler',       interval '3 hours'),
+    ('Nohut',   'Menemen', 'Kahvaltıcılar',     interval '40 minutes'),
+    ('Leblebi', 'Midye',   'Sahil Yolu',        interval '10 minutes'),
+    ('Kumpir',  'Baklava', 'Ortaköy',           interval '1 hour')
+) AS v (inviter, invitee, team_name, age)
 JOIN osu_users a ON a.osu_id < 0 AND a.username = v.inviter
 JOIN osu_users b ON b.osu_id < 0 AND b.username = v.invitee;
-
--- Real hosts without a team get a few invites of their own to play with.
-INSERT INTO team_invites (inviter_id, invitee_id, created_at)
-SELECT d.id, h.id, now() - v.age
-FROM osu_users h
-CROSS JOIN (VALUES
-    ('Kumpir', interval '30 minutes'),
-    ('Helva',  interval '6 hours'),
-    ('Midye',  interval '1 day')
-) AS v (dummy, age)
-JOIN osu_users d ON d.osu_id < 0 AND d.username = v.dummy
-WHERE h.osu_id > 0 AND h.role = 'host'
-  AND NOT EXISTS (SELECT 1 FROM team_members m WHERE m.user_id = h.id);
-
-INSERT INTO team_invites (inviter_id, invitee_id)
-SELECT h.id, d.id
-FROM osu_users h
-JOIN osu_users d ON d.osu_id < 0 AND d.username = 'Pismaniye'
-WHERE h.osu_id > 0 AND h.role = 'host'
-  AND NOT EXISTS (SELECT 1 FROM team_members m WHERE m.user_id = h.id);

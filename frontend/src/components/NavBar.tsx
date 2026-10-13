@@ -31,7 +31,7 @@ export function NavBar() {
         <NavLink to="/teams" className={linkClass}>
           Teams
         </NavLink>
-        {user && (
+        {user?.role === "basic" && (
           <NavLink to="/team" className={linkClass}>
             My team
           </NavLink>

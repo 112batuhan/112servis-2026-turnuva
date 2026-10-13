@@ -5,7 +5,9 @@
 pub mod admin;
 pub mod dev;
 pub mod mappool;
+pub mod ranks;
 pub mod session;
+pub mod settings;
 pub mod team;
 pub mod user;
 

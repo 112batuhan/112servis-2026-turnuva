@@ -12,6 +12,39 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.team-card.is-warning {
+  border-color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 6%, var(--color-surface));
+}
+
+.team-card-warning {
+  margin: 0;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* Full bleed across the top of the card, cancelling its padding. */
+.team-card-banner {
+  display: block;
+  width: calc(100% + 2 * var(--space-4));
+  max-width: none;
+  margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+  aspect-ratio: 3 / 1;
+  object-fit: cover;
+  background: var(--color-surface-sunken);
+}
+
+.team-card-name {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--text-base);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .team-card-players {
@@ -29,9 +62,18 @@
   font-size: var(--text-sm);
 }
 
+/* Pinned to the bottom so footers line up across a grid row. */
 .team-card-footer {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: auto;
+}
+
+.team-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--space-2);
 }

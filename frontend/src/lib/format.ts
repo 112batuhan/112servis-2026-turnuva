@@ -14,6 +14,10 @@ export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+}
+
 export function plural(count: number, word: string): string {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
@@ -22,3 +26,9 @@ export function plural(count: number, word: string): string {
 export function formatTeamValue(value: number | null | undefined): string {
   return value == null ? "—" : Math.round(value).toLocaleString();
 }
+
+/** Mirrors TEAM_NAME_MAX in backend/src/handlers/team.rs. */
+export const TEAM_NAME_MAX = 32;
+
+/** Mirrors BANNER_MAX_BYTES in backend/src/handlers/team.rs. */
+export const BANNER_MAX_BYTES = 2 * 1024 * 1024;

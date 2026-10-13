@@ -59,6 +59,16 @@ The schema has changed a lot across migrations; the current model is:
 - Public vs editor views: `editor_notes` (on slots and maps) must never reach the `/api/public/*` routes. These routes use separate `Public*` row structs and only return published stages. Keep that split when adding fields.
 - osu! API calls (`osu_api/`) use an app token from the client-credentials flow, cached in memory in `AppState.osu_app_token`.
 
+### Teams (2v2)
+
+- `teams` / `team_members` (a player's `user_id` is the primary key, so one team per player) / `team_invites`. A team is created with both players when an invite is accepted, and doing so drops every other invite involving either of them.
+- Eligibility is `team_rank.rs`: each rank maps to a value and the pair's sum must stay at or below `LIMIT`. It's checked when inviting and again when accepting (`handlers/team.rs`).
+- The inviter names the team on the invite; the name moves to `teams.name` on accept and is unique case-insensitively (`teams_name_key`). Either player can rename or disband their team, and hosts can rename or disband any team.
+- Banners live in `team_banners` as bytes (small app, no object storage). The type comes from the file's magic bytes, uploads are capped at 2 MB, and `Team.banner_url` carries the upload time as a version so the image can be cached forever.
+- Ranks come from osu! through `rank_refresh.rs`, using the bulk `GET /users` endpoint (50 ids per call, osu!standard stats, no country rank). The player search, the team page, inviting and accepting refresh the users involved when their rank is over 10 minutes old (`osu_users.rank_updated_at`); failures fall back to the stored ranks. Every team member is refreshed daily (a background task checks hourly against `app_settings.ranks_updated_at`, so restarts don't skip or repeat it) and hosts can trigger it from the admin panel. Formed teams that no longer fit get a `rank_warning`; nothing is changed automatically.
+- `app_settings.teams_frozen` (toggled by hosts) blocks every player-side team change: inviting, accepting, renaming, banners and disbanding (`require_unfrozen` in `handlers/team.rs`). Cancelling or declining invites and all host actions still work.
+- Only `basic` users play; staff are filtered out of the search and can't invite or accept. Inviting and accepting also need a linked Discord account.
+
 ### Frontend (`frontend/src`)
 
 - `api/client.ts` wraps `fetch` with `credentials: "include"` and throws the server's error text. `api/types.ts` mirrors the Rust response structs by hand, so update it whenever a serialized struct changes.

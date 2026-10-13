@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
 import { errorMessage } from "../api/client";
 import { fetchPublicTeams } from "../api/teams";
-import type { Team } from "../api/types";
+import type { TeamList } from "../api/types";
 import { ErrorAlert } from "../components/ErrorAlert";
+import { RanksUpdated } from "../components/RanksUpdated";
 import { TeamCard } from "../components/TeamCard";
 
 export function TeamsPage() {
-  const [teams, setTeams] = useState<Team[] | null>(null);
+  const [list, setList] = useState<TeamList | null>(null);
+  const teams = list?.teams;
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPublicTeams()
-      .then(setTeams)
+      .then(setList)
       .catch((e) => setError(errorMessage(e)));
   }, []);
 
@@ -20,6 +22,16 @@ export function TeamsPage() {
       <div className="page-header">
         <h1>Teams</h1>
         {teams && <span className="badge">{teams.length}</span>}
+        {list?.frozen && (
+          <span className="badge badge-success" title="Teams are final">
+            Final
+          </span>
+        )}
+        {list && (
+          <div className="page-header-aside">
+            <RanksUpdated at={list.ranks_updated_at} />
+          </div>
+        )}
       </div>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
       {!teams && !error && <p className="status">Loading…</p>}

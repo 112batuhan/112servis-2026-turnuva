@@ -8,10 +8,11 @@ interface Props {
   onSave: (next: string) => void;
   /** What is being renamed, for the button label ("Rename stage"). */
   label: string;
+  maxLength?: number;
 }
 
 /** Text with a pencil button. Enter or blur saves, Escape cancels. */
-export function InlineEdit({ value, onSave, label }: Props) {
+export function InlineEdit({ value, onSave, label, maxLength }: Props) {
   const [editing, setEditing] = useState(false);
 
   function commit(raw: string) {
@@ -26,6 +27,7 @@ export function InlineEdit({ value, onSave, label }: Props) {
         className="inline-edit-input"
         defaultValue={value}
         aria-label={label}
+        maxLength={maxLength}
         autoFocus
         onFocus={(e) => e.target.select()}
         onBlur={(e) => commit(e.target.value)}

@@ -119,7 +119,7 @@ export interface Player {
   global_rank: number | null;
 }
 
-export type Eligibility = "eligible" | "in_team" | "unranked" | "over_limit";
+export type Eligibility = "eligible" | "not_player" | "in_team" | "unranked" | "over_limit";
 
 export interface PlayerResult extends Player {
   eligibility: Eligibility;
@@ -131,6 +131,7 @@ export interface PlayerResult extends Player {
 export interface Invite {
   id: string;
   created_at: string;
+  team_name: string;
   /** The player on the other side of the invite. */
   player: Player;
   eligibility: Eligibility;
@@ -139,9 +140,29 @@ export interface Invite {
 
 export interface Team<P extends Player = Player> {
   id: string;
+  name: string;
   created_at: string;
+  /** API path of the banner image, or null when the team has none. */
+  banner_url: string | null;
   team_value: number | null;
+  /** Set when a formed team's current ranks no longer fit the limit. */
+  rank_warning: RankWarning | null;
   players: P[];
+}
+
+export type RankWarning = "over_limit" | "unranked";
+
+export interface TeamList<P extends Player = Player> {
+  teams: Team<P>[];
+  frozen: boolean;
+  limit: number;
+  /** When every team member's rank was last refreshed from osu!. */
+  ranks_updated_at: string | null;
+}
+
+export interface RankRefresh {
+  updated: number;
+  ranks_updated_at: string;
 }
 
 export interface AdminTeamPlayer extends Player {
@@ -150,6 +171,8 @@ export interface AdminTeamPlayer extends Player {
 
 export interface TeamStatus {
   team: Team | null;
+  /** Hosts froze the teams: players can't form, rename, re-banner or disband them. */
+  frozen: boolean;
   global_rank: number | null;
   /** The best rank a teammate may have, or null when the caller is unranked. */
   min_partner_rank: number | null;
