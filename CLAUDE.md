@@ -27,7 +27,7 @@ docker compose up --build # http://localhost:8080
 
 There are no automated tests and no linter config for the frontend. `tsc` runs in strict mode with `noUnusedLocals`/`noUnusedParameters`, so unused code fails the typecheck.
 
-For testing, set `DEV_LOGIN=true` in `.env`: the backend then mounts `/api/dev/*` (`handlers/dev.rs`) and the frontend bundles a floating account switcher (`components/DevSwitcher.tsx`, behind the build-time `__DEV_LOGIN__` constant from `vite.config.ts`) with buttons to reseed or clear dummy data. Dummy accounts have negative `osu_id`s; the seed lives in `backend/seed/` (also runnable with `psql "$DATABASE_URL" -f backend/seed/clear.sql -f backend/seed/seed.sql`) and must be kept in step with schema changes. It defaults to off and must stay off in production; the backend refuses to start with it over https.
+For testing, set `DEV_LOGIN=true` in `.env`: the backend then mounts `/api/dev/*` (`handlers/dev.rs`) and the frontend bundles a floating account switcher (`components/DevSwitcher.tsx`, behind the build-time `__DEV_LOGIN__` constant from `vite.config.ts`) with buttons to reseed or clear dummy data. Dummy accounts have negative `osu_id`s; the seed lives in `backend/seed/` (also runnable with `psql "$DATABASE_URL" -f backend/seed/clear.sql -f backend/seed/seed.sql`, minus the team banners in `seed/banners/`, which `db/dev.rs` adds) and must be kept in step with schema changes. It defaults to off and must stay off in production; the backend refuses to start with it over https.
 
 The first host has to be set by hand in SQL: `UPDATE osu_users SET role = 'host' WHERE osu_id = <id>;`
 

@@ -12,6 +12,31 @@ const RESEED_SQL: &str = concat!(
     include_str!("../../seed/seed.sql")
 );
 
+// Banners for some of the seeded teams, by team name. They're bytes, so they're
+// added here rather than in seed.sql.
+const BANNERS: [(&str, &[u8]); 5] = [
+    (
+        "Sokak Kedileri",
+        include_bytes!("../../seed/banners/sokak-kedileri.jpg"),
+    ),
+    (
+        "Tatlı Krizi",
+        include_bytes!("../../seed/banners/tatli-krizi.jpg"),
+    ),
+    (
+        "Rank Uçtu",
+        include_bytes!("../../seed/banners/rank-uctu.jpg"),
+    ),
+    (
+        "Çay Ocağı",
+        include_bytes!("../../seed/banners/cay-ocagi.jpg"),
+    ),
+    (
+        "Fırın Ekibi",
+        include_bytes!("../../seed/banners/firin-ekibi.jpg"),
+    ),
+];
+
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct DevAccount {
     pub id: Uuid,
@@ -51,6 +76,21 @@ pub async fn user_exists(pool: &PgPool, id: Uuid) -> sqlx::Result<bool> {
 
 pub async fn seed(pool: &PgPool) -> sqlx::Result<()> {
     sqlx::raw_sql(RESEED_SQL).execute(pool).await?;
+    let (names, images): (Vec<&str>, Vec<&[u8]>) = BANNERS.into_iter().unzip();
+    sqlx::query(
+        r#"
+        INSERT INTO team_banners (team_id, content_type, data)
+        SELECT t.id, 'image/jpeg', v.data
+        FROM UNNEST($1::text[], $2::bytea[]) AS v (name, data)
+        JOIN teams t ON t.name = v.name
+        ON CONFLICT (team_id) DO UPDATE
+        SET content_type = EXCLUDED.content_type, data = EXCLUDED.data, updated_at = now()
+        "#,
+    )
+    .bind(names)
+    .bind(images)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 

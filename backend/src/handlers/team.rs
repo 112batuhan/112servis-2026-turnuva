@@ -544,8 +544,14 @@ async fn team_list<P>(
     to_player: impl Fn(TeamMemberRow) -> P,
 ) -> Result<TeamList<P>, AppError> {
     let rows = db::team::list_team_members(&state.db, None).await?;
+    let mut teams = group_teams(rows, to_player);
+    // Highest team value first, unranked teams last; ties stay in name order.
+    teams.sort_by(|a, b| {
+        let value = |t: &Team<P>| t.team_value.unwrap_or(f64::NEG_INFINITY);
+        value(b).total_cmp(&value(a))
+    });
     Ok(TeamList {
-        teams: group_teams(rows, to_player),
+        teams,
         frozen: db::settings::teams_frozen(&state.db).await?,
         limit: team_rank::LIMIT,
         ranks_updated_at: db::settings::ranks_updated_at(&state.db).await?,

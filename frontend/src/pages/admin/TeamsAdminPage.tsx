@@ -138,10 +138,11 @@ export function TeamsAdminPage() {
       {teams?.length === 0 && <p className="status">No teams yet.</p>}
       {teams && teams.length > 0 && (
         <div className="team-grid">
-          {teams.map((team) => (
+          {teams.map((team, i) => (
             <TeamCard
               key={team.id}
               team={team}
+              position={i + 1}
               onRename={(name) => rename(team, name)}
               renderPlayerExtra={(p) => (
                 <span className="muted">{p.discord_username ? `@${p.discord_username}` : "No Discord linked"}</span>

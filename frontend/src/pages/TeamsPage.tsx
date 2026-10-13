@@ -38,8 +38,8 @@ export function TeamsPage() {
       {teams?.length === 0 && <p className="status">No teams yet.</p>}
       {teams && teams.length > 0 && (
         <div className="team-grid">
-          {teams.map((team) => (
-            <TeamCard key={team.id} team={team} />
+          {teams.map((team, i) => (
+            <TeamCard key={team.id} team={team} position={i + 1} />
           ))}
         </div>
       )}

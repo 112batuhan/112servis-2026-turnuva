@@ -1,7 +1,18 @@
 .team-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-3);
+}
+
+@media (max-width: 720px) {
+  .team-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Too narrow for the players to sit side by side next to the value. */
+  .team-card .team-card-players {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .team-card {
@@ -20,36 +31,111 @@
   background: color-mix(in srgb, var(--color-danger) 6%, var(--color-surface));
 }
 
-.team-card-warning {
-  margin: 0;
-  color: var(--color-danger);
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
-/* Full bleed across the top of the card, cancelling its padding. */
+/* Full bleed across the top of the card, cancelling its padding. The space is
+   kept even without a banner so every card has the same height. */
 .team-card-banner {
-  display: block;
+  position: relative;
   width: calc(100% + 2 * var(--space-4));
-  max-width: none;
   margin: calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
   aspect-ratio: 3 / 1;
-  object-fit: cover;
   background: var(--color-surface-sunken);
+}
+
+.team-card-banner img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Darkens the bottom of the banner so the name stays readable on any image. */
+.team-card-title {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-6) var(--space-4) var(--space-3);
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.75));
+  /* A 1px outline on every side, so the text reads even on a white banner. */
+  text-shadow:
+    -1px -1px 0 var(--color-text-outline),
+    1px -1px 0 var(--color-text-outline),
+    -1px 1px 0 var(--color-text-outline),
+    1px 1px 0 var(--color-text-outline),
+    0 2px 4px var(--color-text-outline);
+}
+
+.team-card-title .inline-edit-input {
+  text-shadow: none;
 }
 
 .team-card-name {
   min-width: 0;
   margin: 0;
   overflow: hidden;
-  font-size: var(--text-base);
+  font-size: var(--text-2xl);
+  line-height: 38px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.team-card-players {
+.team-card-body {
+  display: grid;
+  grid-template-columns: 144px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.team-card-position {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tall enough for a two-line warning; without one the rank sits centred. */
+.team-card-value {
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  gap: var(--space-1);
+  min-height: calc(var(--text-xs) * 1.5 + var(--text-xl) * 1.1 + 2 * 1.35 * var(--text-sm) + 2 * var(--space-1));
+  padding-right: var(--space-4);
+  border-right: 1px solid var(--color-border);
+}
+
+.team-card-value-label {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.team-card-value-number {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.team-card.is-warning .team-card-value-number {
+  color: var(--color-danger);
+}
+
+.team-card-warning {
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.team-card-players {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  justify-items: center;
   gap: var(--space-3);
   margin: 0;
   padding: 0;
@@ -62,18 +148,13 @@
   font-size: var(--text-sm);
 }
 
-/* Pinned to the bottom so footers line up across a grid row. */
-.team-card-footer {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-top: auto;
-}
-
+/* Pinned to the bottom so actions line up across a grid row. */
 .team-card-actions {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
 }

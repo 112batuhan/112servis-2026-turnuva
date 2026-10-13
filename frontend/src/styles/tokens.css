@@ -36,6 +36,9 @@
 
   --color-focus: #ffb3d6;
 
+  /* outlines text drawn over user images, which can be any colour */
+  --color-text-outline: #000000;
+
   /* type */
   --font-sans: "Fira Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -45,6 +48,7 @@
   --text-base: 16px;
   --text-lg: 18px;
   --text-xl: 24px;
+  --text-2xl: 30px;
   --text-hero: clamp(32px, 6vw, 48px);
 
   /* spacing (dense scale) */

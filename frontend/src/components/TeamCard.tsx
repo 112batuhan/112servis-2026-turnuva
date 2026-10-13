@@ -9,6 +9,8 @@ import "./TeamCard.css";
 
 interface Props<P extends Player> {
   team: Team<P>;
+  /** Place in the list, which is ordered by team value. */
+  position?: number;
   /** Extra content under each player, e.g. their Discord in the admin list. */
   renderPlayerExtra?: (player: P) => ReactNode;
   /** Makes the name editable. */
@@ -16,32 +18,38 @@ interface Props<P extends Player> {
   actions?: ReactNode;
 }
 
-export function TeamCard<P extends Player>({ team, renderPlayerExtra, onRename, actions }: Props<P>) {
+export function TeamCard<P extends Player>({ team, position, renderPlayerExtra, onRename, actions }: Props<P>) {
   return (
     <article className={team.rank_warning ? "team-card is-warning" : "team-card"}>
-      {team.banner_url && <img className="team-card-banner" src={`${API_URL}${team.banner_url}`} alt="" />}
-      <h3 className="team-card-name">
-        {onRename ? (
-          <InlineEdit value={team.name} onSave={onRename} label="Rename team" maxLength={TEAM_NAME_MAX} />
-        ) : (
-          team.name
-        )}
-      </h3>
-      <ul className="team-card-players">
-        {team.players.map((p) => (
-          <li key={p.id}>
-            <PlayerChip player={p} />
-            {renderPlayerExtra && <div className="team-card-extra">{renderPlayerExtra(p)}</div>}
-          </li>
-        ))}
-      </ul>
-      {team.rank_warning && <p className="team-card-warning">{RANK_WARNING_LABELS[team.rank_warning]}</p>}
-      <div className="team-card-footer">
-        <span className={team.rank_warning ? "badge badge-danger" : "badge"} title="Team value">
-          {formatTeamValue(team.team_value)}
-        </span>
-        {actions && <div className="team-card-actions">{actions}</div>}
+      <div className="team-card-banner">
+        {team.banner_url && <img src={`${API_URL}${team.banner_url}`} alt="" />}
+        <div className="team-card-title">
+          {position !== undefined && <span className="team-card-position">#{position}</span>}
+          <h3 className="team-card-name">
+            {onRename ? (
+              <InlineEdit value={team.name} onSave={onRename} label="Rename team" maxLength={TEAM_NAME_MAX} />
+            ) : (
+              team.name
+            )}
+          </h3>
+        </div>
       </div>
+      <div className="team-card-body">
+        <div className="team-card-value">
+          <span className="team-card-value-label">Calculated rank</span>
+          <span className="team-card-value-number">{formatTeamValue(team.team_value)}</span>
+          {team.rank_warning && <span className="team-card-warning">{RANK_WARNING_LABELS[team.rank_warning]}</span>}
+        </div>
+        <ul className="team-card-players">
+          {team.players.map((p) => (
+            <li key={p.id}>
+              <PlayerChip player={p} />
+              {renderPlayerExtra && <div className="team-card-extra">{renderPlayerExtra(p)}</div>}
+            </li>
+          ))}
+        </ul>
+      </div>
+      {actions && <div className="team-card-actions">{actions}</div>}
     </article>
   );
 }
