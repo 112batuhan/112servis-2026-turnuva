@@ -170,13 +170,11 @@ fn require_player(user: &AuthUser) -> Result<(), AppError> {
     user.require_discord_verified()
 }
 
-const FROZEN: AppError = AppError::Conflict("teams are frozen");
-
 // Players can't change anything about teams once hosts freeze them. Host actions
 // skip this check.
 async fn require_unfrozen(ex: impl sqlx::PgExecutor<'_>) -> Result<(), AppError> {
     if db::settings::teams_frozen(ex).await? {
-        return Err(FROZEN);
+        return Err(AppError::Conflict("teams are frozen"));
     }
     Ok(())
 }
