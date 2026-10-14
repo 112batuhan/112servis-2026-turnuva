@@ -5,6 +5,7 @@ import { useAuth } from "../auth/AuthContext";
 import { canPlay, hasRole } from "../auth/roles";
 import { ADMIN_TABS, isAdminPath } from "../pages/admin/tabs";
 import { Icon } from "./Icon";
+import { NotificationBell } from "./NotificationBell";
 import "./NavBar.css";
 
 const linkClass = ({ isActive }: { isActive: boolean }) => (isActive ? "nav-link is-active" : "nav-link");
@@ -100,6 +101,7 @@ export function NavBar() {
             </Link>
           )
         )}
+        {user && <NotificationBell key={user.id} />}
         {user ? (
           <>
             <NavLink to="/profile" className="nav-user" aria-label={`Profil: ${user.username}`}>

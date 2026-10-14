@@ -63,6 +63,7 @@ pub struct LinkRow {
 #[derive(Debug, sqlx::FromRow)]
 pub struct BracketLock {
     pub starts_at: Option<OffsetDateTime>,
+    pub referee_id: Option<Uuid>,
     pub team1_id: Option<Uuid>,
     pub team2_id: Option<Uuid>,
     pub team1_score: Option<i32>,
@@ -156,7 +157,7 @@ pub async fn delete_match(pool: &PgPool, id: Uuid) -> sqlx::Result<bool> {
 pub async fn find_match(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<BracketLock>> {
     sqlx::query_as::<_, BracketLock>(
         r#"
-        SELECT m.starts_at, b.team1_id, b.team2_id, b.team1_score, b.team2_score, b.streamer_id,
+        SELECT m.starts_at, m.referee_id, b.team1_id, b.team2_id, b.team1_score, b.team2_score, b.streamer_id,
                EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id) AS has_room,
                m.concluded_at
         FROM bracket_matches b
@@ -173,7 +174,7 @@ pub async fn find_match(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<BracketL
 pub async fn lock_match(conn: &mut PgConnection, id: Uuid) -> sqlx::Result<Option<BracketLock>> {
     sqlx::query_as::<_, BracketLock>(
         r#"
-        SELECT m.starts_at, b.team1_id, b.team2_id, b.team1_score, b.team2_score, b.streamer_id,
+        SELECT m.starts_at, m.referee_id, b.team1_id, b.team2_id, b.team1_score, b.team2_score, b.streamer_id,
                EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id) AS has_room,
                m.concluded_at
         FROM bracket_matches b

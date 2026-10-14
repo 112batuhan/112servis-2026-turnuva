@@ -116,6 +116,7 @@ async fn main() {
         .merge(handlers::bracket::routes())
         .merge(handlers::referee::routes())
         .merge(handlers::reschedule::routes())
+        .merge(handlers::notifications::routes())
         .merge(handlers::irc::routes())
         .merge(handlers::team::routes());
     if config.dev_login {

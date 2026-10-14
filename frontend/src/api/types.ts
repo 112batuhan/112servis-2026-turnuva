@@ -335,6 +335,68 @@ export interface StaffBracket {
   teams: Team<AdminTeamPlayer>[];
 }
 
+export type NotificationKind =
+  | "match_rescheduled"
+  | "confirm_time"
+  | "staff_declined"
+  | "reschedule_proposed"
+  | "rank_over_limit";
+export type MatchStaffRole = "referee" | "streamer";
+
+/**
+ * For the staff, about a bracket match: match_rescheduled tells a host its teams moved it;
+ * confirm_time asks its referee or streamer whether they can make the new time; staff_declined
+ * tells everyone who could take their place that one of them couldn't.
+ * For players: reschedule_proposed says the opponent proposed times for a match (one notice for
+ * every proposal made before it's read); rank_over_limit says a rank update took the team over the
+ * limit (also sent to the hosts).
+ */
+export interface AppNotification {
+  id: string;
+  kind: NotificationKind;
+  /** null for rank_over_limit. */
+  match_id: string | null;
+  side: BracketSide | null;
+  number: number | null;
+  team1_name: string | null;
+  team2_name: string | null;
+  /**
+   * Who caused it: the player who accepted or proposed the time, the staff member who declined it,
+   * or the player whose rank change took the team over the limit.
+   */
+  actor_username: string | null;
+  /** null for match_rescheduled. */
+  staff_role: MatchStaffRole | null;
+  /** null when the match had no time before. */
+  old_starts_at: string | null;
+  /** null for the player notifications. */
+  new_starts_at: string | null;
+  /** The answer to a confirm_time. */
+  response: "confirmed" | "declined" | null;
+  responded_at: string | null;
+  read: boolean;
+  created_at: string;
+  /** reschedule_proposed: the recipient's team; rank_over_limit: the team over the limit. */
+  team_id: string | null;
+  team_name: string | null;
+  /** rank_over_limit: the actor's rank before and after, the team value it led to and the limit. */
+  old_rank: number | null;
+  new_rank: number | null;
+  team_value: number | null;
+  limit: number | null;
+  /** reschedule_proposed: the opponent's proposals for the match that are still open. */
+  pending_proposals: number;
+  /** A confirm_time that can still be answered. */
+  actionable: boolean;
+}
+
+export interface NotificationList {
+  /** Newest first. */
+  notifications: AppNotification[];
+  /** Unread notifications plus confirmations still waiting for an answer. */
+  attention: number;
+}
+
 export interface DevAccount {
   id: string;
   osu_id: number;

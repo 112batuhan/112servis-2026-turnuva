@@ -12,7 +12,7 @@ use crate::{
     auth::{self, AuthUser},
     db, discord_api,
     error::AppError,
-    osu_api, AppState,
+    osu_api, rank_refresh, AppState,
 };
 
 // Routes under the `/auth` nest. Logout lives in the `user` handler but is an auth
@@ -74,7 +74,16 @@ pub async fn osu_callback(
     let profile =
         osu_api::user::fetch_current(&state.http_client, token.access_token().secret()).await?;
 
+    let before = db::ranks::find_by_osu_id(&state.db, profile.id).await?;
     let user = db::user::upsert_osu_user(&state.db, &profile).await?;
+    if let Some((user_id, old_rank)) = before {
+        let change = db::ranks::RankChange {
+            user_id,
+            old_rank,
+            new_rank: user.global_rank,
+        };
+        rank_refresh::notify_over_limit(&state, &[change]).await;
+    }
 
     let jar = jar.add(auth::start_session(&state, user.id).await?);
     Ok((jar, Redirect::to(&state.config.frontend_url)))

@@ -24,6 +24,7 @@ const ICONS = {
       <path d="M5.6 5.6l12.8 12.8" />
     </>
   ),
+  bell: <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" />,
   bracket: <path d="M3 5h6v6H3M3 13h6v6H3M9 8h4v8H9M13 12h8" />,
   gavel: (
     <>

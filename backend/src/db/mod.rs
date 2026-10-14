@@ -8,6 +8,7 @@ pub mod chat;
 pub mod dev;
 pub mod mappool;
 pub mod matches;
+pub mod notifications;
 pub mod ranks;
 pub mod reschedule;
 pub mod session;

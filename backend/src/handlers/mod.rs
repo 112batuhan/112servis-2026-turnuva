@@ -9,6 +9,7 @@ pub mod dev;
 pub mod irc;
 pub mod mappool;
 pub mod matches;
+pub mod notifications;
 pub mod referee;
 pub mod reschedule;
 pub mod team;

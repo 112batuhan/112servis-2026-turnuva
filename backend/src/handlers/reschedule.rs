@@ -162,7 +162,8 @@ pub struct ProposeBody {
 }
 
 // POST /api/reschedules — a player proposes a new time for one of their team's
-// matches. The match row is locked so the limit holds and an accept can't slip in.
+// matches, and the opponent's players are notified. The match row is locked so the
+// limit holds and an accept can't slip in.
 pub async fn propose(
     State(state): State<AppState>,
     user: AuthUser,
@@ -207,6 +208,7 @@ pub async fn propose(
     db::reschedule::create_proposal(&mut tx, body.match_id, team_id, user.id, body.starts_at)
         .await?
         .ok_or(AppError::Conflict("your team already proposed that time"))?;
+    db::notifications::notify_proposed(&mut tx, body.match_id, opponent_id, user.id).await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -227,8 +229,9 @@ pub async fn delete_proposal(
 
 // POST /api/reschedules/:id/accept — a player of the other team accepts a proposed
 // time: the match moves there and every other proposal for it, from either side, is
-// dropped. The match is locked before the proposal is read again, so of two accepts
-// at once the second finds its proposal gone.
+// dropped. Its referee and streamer are asked to confirm the new time and the hosts
+// are told (handlers/notifications.rs). The match is locked before the proposal is
+// read again, so of two accepts at once the second finds its proposal gone.
 pub async fn accept(
     State(state): State<AppState>,
     user: AuthUser,
@@ -260,6 +263,16 @@ pub async fn accept(
         return Err(AppError::Conflict("that time has already passed"));
     }
     db::reschedule::reschedule(&mut tx, match_id, proposal.starts_at).await?;
+    db::notifications::notify_rescheduled(
+        &mut tx,
+        match_id,
+        user.id,
+        m.referee_id,
+        m.streamer_id,
+        m.starts_at,
+        proposal.starts_at,
+    )
+    .await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }

@@ -720,3 +720,30 @@ FROM (
 CROSS JOIN LATERAL (VALUES (up.team1_id, interval '1 day'),
                            (up.team1_id, interval '1 day 2 hours'),
                            (up.team2_id, interval '2 days')) AS t (team_id, shift);
+
+-- The notices those proposals would have sent: one unread reschedule_proposed per
+-- player of the team on the receiving end, per match.
+INSERT INTO notifications (user_id, kind, match_id, team_id, actor_id, created_at)
+SELECT DISTINCT ON (tm.user_id, r.match_id)
+       tm.user_id, 'reschedule_proposed', r.match_id, tm.team_id, r.proposed_by, r.created_at
+FROM match_reschedules r
+JOIN bracket_matches b ON b.match_id = r.match_id
+JOIN team_members tm
+  ON tm.team_id = CASE WHEN r.team_id = b.team1_id THEN b.team2_id ELSE b.team1_id END
+JOIN osu_users u ON u.id = tm.user_id
+WHERE u.osu_id < 0
+ORDER BY tm.user_id, r.match_id, r.created_at;
+
+-- Rank Uçtu going over the limit when Kaymak climbed from #9,000 (18,894 with Bal)
+-- to #2,400, told to its players and the hosts. 21,203 is team_rank::team_value.
+INSERT INTO notifications (user_id, kind, team_id, actor_id, old_rank, new_rank, team_value,
+                           created_at)
+SELECT r.id, 'rank_over_limit', t.id, k.id, 9000, 2400, 21203.13, now() - interval '3 hours'
+FROM teams t
+JOIN osu_users k ON k.username = 'Kaymak' AND k.osu_id < 0
+CROSS JOIN LATERAL (
+    SELECT user_id AS id FROM team_members WHERE team_id = t.id
+    UNION
+    SELECT id FROM osu_users WHERE role = 'host'
+) AS r
+WHERE t.name = 'Rank Uçtu';
