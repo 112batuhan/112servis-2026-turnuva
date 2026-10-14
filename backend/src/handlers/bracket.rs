@@ -398,11 +398,32 @@ pub async fn update_match(
             .map_err(edit_error)?;
     }
     // A match that already has a channel hears about its new time there; one that
-    // gets its channel now has the time in its welcome.
+    // gets its channel now has the time on its card.
     let mut jobs = vec![Job::SyncMatch { match_id: id }];
     if current.starts_at != body.starts_at && db::discord::channel_of(&mut *tx, id).await?.is_some()
     {
         jobs.push(Job::TimeSet { match_id: id });
+    }
+    // Its referee and streamer are asked whether they can make the new time, as when
+    // the teams move it. A time cleared or set in the past (a record) asks nobody.
+    if let Some(new_starts_at) = body.starts_at {
+        if current.starts_at != body.starts_at
+            && !current.concluded()
+            && new_starts_at > OffsetDateTime::now_utc()
+            && (current.referee_id.is_some() || current.streamer_id.is_some())
+        {
+            db::notifications::ask_confirm_time(
+                &mut tx,
+                id,
+                user.id,
+                current.referee_id,
+                current.streamer_id,
+                current.starts_at,
+                new_starts_at,
+            )
+            .await?;
+            jobs.push(Job::ConfirmTime { match_id: id });
+        }
     }
     state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await.map_err(edit_error)?;

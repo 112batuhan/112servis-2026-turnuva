@@ -594,11 +594,18 @@ async fn component(state: &AppState, bot: &Bot, comp: &ComponentInteraction) -> 
                 Response::Confirmed => "✅ Yeni saati onayladın.",
                 Response::Declined => "❌ Katılamayacağını bildirdin, maçtan çıkarıldın.",
             };
+            // The request is an embed (older ones were text), which an update without
+            // embeds keeps; the answer goes above it.
+            let content = if comp.message.content.is_empty() {
+                note.to_string()
+            } else {
+                format!("{}\n\n{note}", comp.message.content)
+            };
             comp.create_response(
                 &bot.http,
                 CreateInteractionResponse::UpdateMessage(
                     CreateInteractionResponseMessage::new()
-                        .content(format!("{}\n\n{note}", comp.message.content))
+                        .content(content)
                         .components(Vec::new()),
                 ),
             )

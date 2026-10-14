@@ -352,7 +352,8 @@ export type MatchStaffRole = "referee" | "streamer";
 
 /**
  * For the staff, about a bracket match: match_rescheduled tells a host its teams moved it;
- * confirm_time asks its referee or streamer whether they can make the new time; staff_declined
+ * confirm_time asks its referee or streamer whether they can make the new time (after the teams
+ * or a host moved it); staff_declined
  * tells everyone who could take their place that one of them couldn't.
  * For players: reschedule_proposed says the opponent proposed times for a match (one notice for
  * every proposal made before it's read); rank_over_limit says a rank update took the team over the
@@ -373,6 +374,8 @@ export interface AppNotification {
    * or the player whose rank change took the team over the limit.
    */
   actor_username: string | null;
+  /** confirm_time: a host moved the match in the bracket editor (the actor), not its teams. */
+  by_host: boolean;
   /** null for match_rescheduled. */
   staff_role: MatchStaffRole | null;
   /** null when the match had no time before. */

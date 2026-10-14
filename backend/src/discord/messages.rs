@@ -1,5 +1,9 @@
 //! What the bot says, in Turkish like the site. Each event turns into messages for the
-//! places that should hear about it; jobs.rs queues one `Post` per message.
+//! places that should hear about it; jobs.rs queues one `Post` per message. What happens
+//! to a match goes to its channel as plain text pinging its players and staff; posts
+//! for the hosts and staff channels and DMs are embeds (a mention inside an embed never
+//! pings, so anyone an embed should ping is mentioned above it). Each match channel also
+//! has a pinned card (`match_card`) that channels.rs edits as the match changes.
 
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -24,6 +28,10 @@ const MENTIONS_PER_MESSAGE: usize = 80;
 
 pub const COLOR: u32 = 0x5865f2;
 const COLOR_GOOD: u32 = 0x3ba55d;
+const COLOR_WARN: u32 = 0xfaa61a;
+const COLOR_BAD: u32 = 0xed4245;
+// A finished match.
+const COLOR_DONE: u32 = 0x747f8d;
 
 // "W1", "L3" or "Lobi 2".
 pub fn code(info: &MatchInfo) -> String {
@@ -98,6 +106,26 @@ pub fn site_url(state: &AppState, path: &str) -> String {
     format!("{}{path}", state.config.frontend_url.trim_end_matches('/'))
 }
 
+// The match on the public site.
+fn match_url(state: &AppState, info: &MatchInfo) -> String {
+    match info.kind {
+        MatchKind::Bracket => site_url(state, &format!("/bracket?match={}", info.id)),
+        MatchKind::Qualifier => site_url(state, "/qualifiers"),
+    }
+}
+
+// Where staff take the match.
+fn admin_url(state: &AppState, info: &MatchInfo) -> String {
+    match info.kind {
+        MatchKind::Bracket => site_url(state, "/admin/bracket"),
+        MatchKind::Qualifier => site_url(state, "/admin/qualifiers"),
+    }
+}
+
+fn room_url(mp_id: i64) -> String {
+    format!("https://osu.ppy.sh/community/matches/{mp_id}")
+}
+
 pub fn osu_profile(osu_id: i64, username: &str) -> String {
     if osu_id > 0 {
         format!("[{username}](https://osu.ppy.sh/users/{osu_id})")
@@ -140,16 +168,6 @@ impl Pings {
         Some(self.person(info.streamer_discord_id.as_deref(), name))
     }
 
-    // "**Team**: @a @b", one line per team.
-    fn teams(&mut self, players: &[MatchPlayer]) -> String {
-        let mut lines = Vec::new();
-        for team in players.chunk_by(|a, b| a.team_id == b.team_id) {
-            let names: Vec<String> = team.iter().map(|p| self.player(p)).collect();
-            lines.push(format!("**{}**: {}", team[0].team_name, names.join(" ")));
-        }
-        lines.join("\n")
-    }
-
     fn players_of(&mut self, players: &[MatchPlayer], team_id: Option<Uuid>) -> String {
         players
             .iter()
@@ -157,6 +175,14 @@ impl Pings {
             .map(|p| self.player(p))
             .collect::<Vec<_>>()
             .join(" ")
+    }
+
+    // Mentions every player and the staff of a match.
+    fn everyone(&mut self, info: &MatchInfo, players: &[MatchPlayer]) -> String {
+        let mut names: Vec<String> = players.iter().map(|p| self.player(p)).collect();
+        names.extend(self.referee(info));
+        names.extend(self.streamer(info));
+        names.join(" ")
     }
 }
 
@@ -167,6 +193,7 @@ struct Ctx<'a> {
 }
 
 impl Ctx<'_> {
+    // Plain text with the mentions in it, pinging the people it names.
     fn post_match(&mut self, match_id: Uuid, content: String, pings: Pings) {
         self.out.push((
             Target::MatchChannel(match_id),
@@ -174,18 +201,39 @@ impl Ctx<'_> {
         ));
     }
 
-    fn post_setting(&mut self, channel: Option<i64>, message: OutMessage) {
+    // Names people without pinging them.
+    fn post_setting(&mut self, channel: Option<i64>, embed: Embed) {
         if let Some(id) = channel {
-            self.out.push((Target::Channel(id), message));
+            self.out
+                .push((Target::Channel(id), OutMessage::embed(embed, Vec::new())));
         }
     }
 
-    fn post_hosts(&mut self, content: String) {
-        // The overview names people without pinging them.
-        self.post_setting(
-            self.settings.host_channel_id,
-            OutMessage::text(content, Vec::new()),
-        );
+    // An embed that pings `ids`, with any over Discord's limit for one message in
+    // mention-only messages after it.
+    fn post_setting_pinging(&mut self, channel: Option<i64>, embed: Embed, ids: &[String]) {
+        let Some(id) = channel else {
+            return;
+        };
+        let mut chunks = ids.chunks(MENTIONS_PER_MESSAGE);
+        let first = chunks.next().map(<[String]>::to_vec).unwrap_or_default();
+        self.out
+            .push((Target::Channel(id), OutMessage::embed(embed, first)));
+        for chunk in chunks {
+            let mentions = chunk
+                .iter()
+                .map(|id| format!("<@{id}>"))
+                .collect::<Vec<_>>()
+                .join(" ");
+            self.out.push((
+                Target::Channel(id),
+                OutMessage::text(mentions, chunk.to_vec()),
+            ));
+        }
+    }
+
+    fn post_hosts(&mut self, embed: Embed) {
+        self.post_setting(self.settings.host_channel_id, embed);
     }
 
     fn post_user(&mut self, discord_id: Option<&str>, message: OutMessage) {
@@ -193,6 +241,96 @@ impl Ctx<'_> {
             self.out.push((Target::User(id.to_string()), message));
         }
     }
+}
+
+// The pinned card at the top of a match's channel: the match as it is now. channels.rs
+// posts it with the channel (pinging everyone in the match) and edits it whenever this
+// renders differently, so it has no "last updated" time.
+pub fn match_card(state: &AppState, info: &MatchInfo, players: &[MatchPlayer]) -> OutMessage {
+    let mut p = Pings::default();
+    let concluded = info.concluded_at.is_some();
+    let mut about = vec![
+        "Maçla ilgili bildirimler bu kanala gelir; bu mesaj maç değiştikçe güncellenir."
+            .to_string(),
+    ];
+    if info.kind == MatchKind::Bracket && !concluded {
+        about.push(format!(
+            "Maçın saatini değiştirmek için takım sayfasından yeni saat önerebilirsiniz: {}",
+            site_url(state, "/team")
+        ));
+    }
+    let mut embed = Embed::new(
+        format!("📌 {}", title(info)),
+        if concluded { COLOR_DONE } else { COLOR },
+    )
+    .url(match_url(state, info))
+    .description(about.join("\n\n"))
+    .field(
+        "🕒 Maç saati",
+        info.starts_at
+            .map_or("Henüz belirlenmedi".to_string(), when),
+        false,
+    );
+    if let Some(stage) = &info.stage_name {
+        embed = embed.field("🗺️ Aşama", stage, false);
+    }
+
+    for team in players.chunk_by(|a, b| a.team_id == b.team_id) {
+        // Bracket teams in their colours on the referee page: team 1 red, team 2 blue.
+        let side = if info.kind != MatchKind::Bracket {
+            ""
+        } else if Some(team[0].team_id) == info.team1_id {
+            "🔴 "
+        } else {
+            "🔵 "
+        };
+        let names: Vec<String> = team.iter().map(|pl| p.player(pl)).collect();
+        embed = embed.field(
+            format!("{side}{}", team[0].team_name),
+            names.join("\n"),
+            true,
+        );
+    }
+    if players.is_empty() {
+        embed = embed.field("👥 Takımlar", "Henüz takım yok", false);
+    }
+
+    embed = embed.field(
+        "🧑‍⚖️ Hakem",
+        p.referee(info).unwrap_or_else(|| "Henüz yok".into()),
+        true,
+    );
+    if info.kind == MatchKind::Bracket {
+        embed = embed.field(
+            "🎥 Yayıncı",
+            p.streamer(info).unwrap_or_else(|| "Henüz yok".into()),
+            true,
+        );
+    }
+    // The latest room is the one being played; older ones broke.
+    if let Some((latest, older)) = info.mp_ids.split_last() {
+        let mut rooms = format!("[Oda #{latest}]({})", room_url(*latest));
+        if !older.is_empty() {
+            let old: Vec<String> = older
+                .iter()
+                .map(|id| format!("[#{id}]({})", room_url(*id)))
+                .collect();
+            rooms.push_str(&format!("\nÖnceki: {}", old.join(", ")));
+        }
+        embed = embed.field("🎮 Maç odası", rooms, false);
+    }
+    if concluded {
+        let result = match (info.kind, info.team1_score, info.team2_score) {
+            (MatchKind::Bracket, Some(s1), Some(s2)) => format!(
+                "**{} {s1} – {s2} {}**",
+                info.team1_name.as_deref().unwrap_or("?"),
+                info.team2_name.as_deref().unwrap_or("?"),
+            ),
+            _ => "Maç tamamlandı.".to_string(),
+        };
+        embed = embed.field("🏁 Sonuç", result, false);
+    }
+    OutMessage::embed(embed, p.ids)
 }
 
 async fn load_match(
@@ -226,28 +364,31 @@ pub async fn render(state: &AppState, job: &Job) -> BotResult<Vec<(Target, OutMe
             let users = db::discord::users_brief(&state.db, players).await?;
             let names: Vec<String> = users
                 .iter()
-                .map(|u| format!("**{}**", u.username))
+                .map(|u| osu_profile(u.osu_id, &u.username))
                 .collect();
-            let by = if *by_host { "host tarafından " } else { "" };
-            cx.post_hosts(format!(
-                "💔 **{name}** {by}dağıtıldı ({}).",
-                names.join(", ")
-            ));
+            let mut text = format!("Oyuncular: {}", names.join(", "));
+            if *by_host {
+                text.push_str("\nHost tarafından dağıtıldı.");
+            }
+            cx.post_hosts(
+                Embed::new(format!("💔 Takım dağıtıldı: {name}"), COLOR_BAD).description(text),
+            );
         }
         Job::MemberLeft { user_id } => {
             let Some(u) = user(state, *user_id).await? else {
                 return Ok(cx.out);
             };
-            let discord = u.discord_username.as_deref().unwrap_or("?");
-            let team = u
-                .team_name
-                .as_deref()
-                .map(|t| format!(" Takımı: **{t}**."))
-                .unwrap_or_default();
-            cx.post_hosts(format!(
-                "🚪 {} (Discord: `{discord}`) sunucudan ayrıldı.{team}",
-                osu_profile(u.osu_id, &u.username)
-            ));
+            let mut embed = Embed::new("🚪 Sunucudan ayrıldı", COLOR_WARN)
+                .description(osu_profile(u.osu_id, &u.username))
+                .field(
+                    "Discord",
+                    format!("`{}`", u.discord_username.as_deref().unwrap_or("?")),
+                    true,
+                );
+            if let Some(team) = &u.team_name {
+                embed = embed.field("Takım", team, true);
+            }
+            cx.post_hosts(embed);
             if let Some(team_id) = u.team_id {
                 for mate in db::discord::team_players(&state.db, team_id).await? {
                     if mate.user_id == u.id {
@@ -255,12 +396,13 @@ pub async fn render(state: &AppState, job: &Job) -> BotResult<Vec<(Target, OutMe
                     }
                     cx.post_user(
                         mate.discord_id.as_deref(),
-                        OutMessage::text(
-                            format!(
-                                "⚠️ Takım arkadaşın **{}** turnuva Discord sunucusundan ayrıldı. \
-                                 Maç kanallarını görebilmesi için sunucuya geri dönmesi gerekiyor.",
-                                u.username
-                            ),
+                        OutMessage::embed(
+                            Embed::new("⚠️ Takım arkadaşın sunucudan ayrıldı", COLOR_WARN)
+                                .description(format!(
+                                    "**{}** turnuva Discord sunucusundan ayrıldı. Maç kanallarını \
+                                     görebilmesi için sunucuya geri dönmesi gerekiyor.",
+                                    u.username
+                                )),
                             Vec::new(),
                         ),
                     );
@@ -269,10 +411,10 @@ pub async fn render(state: &AppState, job: &Job) -> BotResult<Vec<(Target, OutMe
         }
         Job::MemberReturned { user_id } => {
             if let Some(u) = user(state, *user_id).await? {
-                cx.post_hosts(format!(
-                    "↩️ {} sunucuya geri döndü.",
-                    osu_profile(u.osu_id, &u.username)
-                ));
+                cx.post_hosts(
+                    Embed::new("↩️ Sunucuya geri döndü", COLOR_GOOD)
+                        .description(osu_profile(u.osu_id, &u.username)),
+                );
             }
         }
         Job::RankOverLimit {
@@ -289,14 +431,29 @@ pub async fn render(state: &AppState, job: &Job) -> BotResult<Vec<(Target, OutMe
             };
             let rank =
                 |r: &Option<i64>| r.map_or("rank yok".to_string(), |r| format!("#{}", number(r)));
-            cx.post_hosts(format!(
-                "📈 **{team_name}** rank sınırını aştı: {} {} → {}. Takım değeri {} / {}.",
-                u.map_or("?".to_string(), |u| format!("**{}**", u.username)),
-                rank(old_rank),
-                rank(new_rank),
-                number(team_value.round() as i64),
-                number(team_rank::LIMIT as i64),
-            ));
+            cx.post_hosts(
+                Embed::new(format!("📈 Rank sınırı aşıldı: {team_name}"), COLOR_WARN)
+                    .url(site_url(state, "/admin/teams"))
+                    .field(
+                        "Oyuncu",
+                        u.map_or("?".to_string(), |u| osu_profile(u.osu_id, &u.username)),
+                        true,
+                    )
+                    .field(
+                        "Rank",
+                        format!("{} → {}", rank(old_rank), rank(new_rank)),
+                        true,
+                    )
+                    .field(
+                        "Takım değeri",
+                        format!(
+                            "{} / {}",
+                            number(team_value.round() as i64),
+                            number(team_rank::LIMIT as i64),
+                        ),
+                        true,
+                    ),
+            );
         }
         _ => {
             if let Some(match_id) = match_id_of(job) {
@@ -311,12 +468,12 @@ pub async fn render(state: &AppState, job: &Job) -> BotResult<Vec<(Target, OutMe
 
 fn match_id_of(job: &Job) -> Option<Uuid> {
     match job {
-        Job::MatchOpened { match_id }
-        | Job::ProposalMade { match_id, .. }
+        Job::ProposalMade { match_id, .. }
         | Job::Rescheduled { match_id, .. }
         | Job::StaffAnswered { match_id, .. }
         | Job::StaffChanged { match_id, .. }
         | Job::TimeSet { match_id }
+        | Job::ConfirmTime { match_id }
         | Job::RoomAdded { match_id, .. }
         | Job::Concluded { match_id }
         | Job::Reopened { match_id }
@@ -327,14 +484,10 @@ fn match_id_of(job: &Job) -> Option<Uuid> {
     }
 }
 
-// Mentions every player and the staff of a match.
-fn everyone(pings: &mut Pings, info: &MatchInfo, players: &[MatchPlayer]) -> String {
-    let mut names: Vec<String> = players.iter().map(|p| pings.player(p)).collect();
-    names.extend(pings.referee(info));
-    names.extend(pings.streamer(info));
-    names.join(" ")
-}
-
+// What happens to a match is posted in its channel as plain text that pings everyone it
+// concerns, its players, referee and streamer, so nobody misses a change; the pinned
+// card (edited by the SyncMatch queued with each change) shows the result. Only the
+// posts for the staff and hosts elsewhere, and the DMs, are embeds.
 async fn match_event(
     cx: &mut Ctx<'_>,
     job: &Job,
@@ -344,36 +497,10 @@ async fn match_event(
     let title = title(info);
     let id = info.id;
     match job {
-        Job::MatchOpened { .. } => {
-            let mut p = Pings::default();
-            let mut lines = vec![format!("👋 **{title}** kanalına hoş geldiniz!")];
-            if let Some(at) = info.starts_at {
-                lines.push(format!("🕒 Maç saati: {}", when(at)));
-            }
-            if let Some(stage) = &info.stage_name {
-                lines.push(format!("🗺️ Aşama: **{stage}**"));
-            }
-            lines.push(p.teams(players));
-            lines.push(format!(
-                "🧑‍⚖️ Hakem: {}",
-                p.referee(info).unwrap_or_else(|| "henüz yok".into())
-            ));
-            if info.kind == MatchKind::Bracket {
-                lines.push(format!(
-                    "🎥 Yayıncı: {}",
-                    p.streamer(info).unwrap_or_else(|| "henüz yok".into())
-                ));
-                lines.push(format!(
-                    "Maçın saatini değiştirmek için takım sayfasından yeni saat önerebilirsiniz: {}",
-                    site_url(cx.state, "/team")
-                ));
-            }
-            lines.push("Maçla ilgili bildirimler bu kanala gelecek.".into());
-            cx.post_match(id, lines.join("\n"), p);
-        }
         Job::ProposalMade {
             team_id, starts_at, ..
         } => {
+            // Only the other team can accept it.
             let mut p = Pings::default();
             let proposer = players
                 .iter()
@@ -387,7 +514,8 @@ async fn match_event(
             cx.post_match(
                 id,
                 format!(
-                    "📅 **{proposer}** yeni bir maç saati önerdi: {}\n{mentions} kabul etmek ya da başka bir saat önermek için: {}",
+                    "📅 **{proposer}** yeni bir maç saati önerdi: {}\n{mentions} kabul etmek ya da \
+                     başka bir saat önermek için: <{}>",
                     when(*starts_at),
                     site_url(cx.state, "/team")
                 ),
@@ -404,7 +532,7 @@ async fn match_event(
             let actor = actor.map_or("?".to_string(), |u| u.username);
             let old = old_starts_at.map_or("belirsiz".to_string(), when_short);
             let mut p = Pings::default();
-            let all = everyone(&mut p, info, players);
+            let all = p.everyone(info, players);
             cx.post_match(
                 id,
                 format!(
@@ -413,36 +541,14 @@ async fn match_event(
                 ),
                 p,
             );
-            for request in db::discord::confirm_requests(&cx.state.db, id).await? {
-                let role = role_name(request.staff_role);
-                cx.post_user(
-                    Some(&request.discord_id),
-                    OutMessage {
-                        content: format!(
-                            "🕒 **{title}** maçının saati değişti: {}\nBu saatte {role} olarak katılabilecek misin? \
-                             Katılamazsan maçtan çıkarılırsın ve yerine biri aranır.",
-                            when(*new_starts_at)
-                        ),
-                        buttons: vec![
-                            Button {
-                                custom_id: format!("confirm:{}", request.id),
-                                label: "Katılabilirim".into(),
-                                danger: false,
-                            },
-                            Button {
-                                custom_id: format!("decline:{}", request.id),
-                                label: "Katılamıyorum".into(),
-                                danger: true,
-                            },
-                        ],
-                        ..OutMessage::default()
-                    },
-                );
-            }
-            cx.post_hosts(format!(
-                "📅 **{title}** taşındı: {old} → {} (kabul eden: **{actor}**)",
-                when_short(*new_starts_at)
-            ));
+            ask_staff(cx, info, &title, *new_starts_at).await?;
+            cx.post_hosts(
+                Embed::new(format!("📅 Maç taşındı: {title}"), COLOR)
+                    .url(match_url(cx.state, info))
+                    .field("Eski saat", old, true)
+                    .field("Yeni saat", when_short(*new_starts_at), true)
+                    .field("Kabul eden", format!("**{actor}**"), true),
+            );
         }
         Job::StaffAnswered {
             user_id,
@@ -455,89 +561,100 @@ async fn match_event(
                 .map_or("?".to_string(), |u| u.username);
             let role_text = role_name(*role);
             if !declined {
-                cx.post_hosts(format!(
-                    "👍 **{name}** ({role_text}) **{title}** maçının yeni saatini onayladı."
-                ));
+                cx.post_hosts(
+                    Embed::new("👍 Yeni saat onaylandı", COLOR_GOOD).description(format!(
+                        "**{name}** ({role_text}) **{title}** maçının yeni saatini onayladı."
+                    )),
+                );
                 return Ok(());
             }
-            cx.post_hosts(format!(
-                "❌ **{name}** ({role_text}) **{title}** maçının yeni saatine katılamıyor, maçtan çıkarıldı."
-            ));
-            let at = info.starts_at.map(when_short).unwrap_or_default();
+            cx.post_hosts(
+                Embed::new("❌ Yeni saate katılamıyor", COLOR_BAD).description(format!(
+                    "**{name}** ({role_text}) **{title}** maçının yeni saatine katılamıyor, \
+                     maçtan çıkarıldı."
+                )),
+            );
             let channel = match role {
                 StaffRole::Referee => cx.settings.referee_channel_id,
                 StaffRole::Streamer => cx.settings.streamer_channel_id,
             };
-            cx.post_setting(
-                channel,
-                OutMessage::text(
-                    format!(
-                        "🆘 **{title}** ({at}) için {role_text} aranıyor: **{name}** yeni saate katılamıyor. \
-                         Almak için: {}",
-                        site_url(cx.state, "/admin/bracket")
-                    ),
-                    Vec::new(),
-                ),
-            );
+            let admin = admin_url(cx.state, info);
+            let mut wanted = Embed::new(format!("🆘 {role_text} aranıyor: {title}"), COLOR_WARN)
+                .url(&admin)
+                .description(format!(
+                    "**{name}** yeni saate katılamıyor. Maçı almak için: {admin}"
+                ));
+            if let Some(at) = info.starts_at {
+                wanted = wanted.field("Maç saati", when(at), false);
+            }
+            // Pings everyone who could take the slot, as the site tells them.
+            let staff = db::discord::declined_recipients(&cx.state.db, id, *user_id, *role).await?;
+            cx.post_setting_pinging(channel, wanted, &staff);
+            // They're already off the match, so this pings who's left.
+            let mut p = Pings::default();
+            let all = p.everyone(info, players);
             cx.post_match(
                 id,
-                format!("ℹ️ **{name}** yeni saatte {role_text} olamayacak, yerine biri bulunacak."),
-                Pings::default(),
+                format!(
+                    "ℹ️ **{name}** yeni saatte {role_text} olamayacak, yerine biri bulunacak.\n{all}"
+                ),
+                p,
             );
         }
         Job::StaffChanged {
             role, user_id, by, ..
         } => {
             let role_text = role_name(*role);
-            match user_id {
-                Some(user_id) => {
-                    let Some(u) = user(cx.state, *user_id).await? else {
-                        return Ok(());
-                    };
-                    let mut p = Pings::default();
-                    let who = p.person(u.discord_id.as_deref(), &u.username);
-                    let icon = if *role == StaffRole::Referee {
-                        "🧑‍⚖️"
-                    } else {
-                        "🎥"
-                    };
-                    cx.post_match(
-                        id,
-                        format!("{icon} Bu maçın {}: {who}", role_possessive(*role)),
-                        p,
-                    );
-                    if by != user_id {
-                        let at = info
-                            .starts_at
-                            .map(|at| format!(" ({})", when_short(at)))
-                            .unwrap_or_default();
-                        cx.post_user(
-                            u.discord_id.as_deref(),
-                            OutMessage::text(
-                                format!("📋 **{title}**{at} maçına {role_text} olarak atandın."),
-                                Vec::new(),
-                            ),
-                        );
-                    }
-                }
-                None => cx.post_match(
-                    id,
-                    format!("ℹ️ Bu maçın artık {} yok.", role_possessive(*role)),
-                    Pings::default(),
+            let icon = match role {
+                StaffRole::Referee => "🧑‍⚖️",
+                StaffRole::Streamer => "🎥",
+            };
+            let mut p = Pings::default();
+            let newcomer = match user_id {
+                Some(user_id) => user(cx.state, *user_id).await?,
+                None => None,
+            };
+            let text = match &newcomer {
+                Some(u) => format!(
+                    "{icon} Bu maçın yeni {}: {}",
+                    role_possessive(*role),
+                    p.person(u.discord_id.as_deref(), &u.username)
                 ),
+                None => format!("ℹ️ Bu maçın artık {} yok.", role_possessive(*role)),
+            };
+            let all = p.everyone(info, players);
+            cx.post_match(id, format!("{text}\n{all}"), p);
+            // Someone a host put on the match also hears it directly.
+            if let (Some(u), Some(user_id)) = (&newcomer, user_id) {
+                if by != user_id {
+                    let mut embed = Embed::new("📋 Maça atandın", COLOR)
+                        .url(match_url(cx.state, info))
+                        .description(format!("**{title}** maçına {role_text} olarak atandın."));
+                    if let Some(at) = info.starts_at {
+                        embed = embed.field("Maç saati", when(at), false);
+                    }
+                    cx.post_user(
+                        u.discord_id.as_deref(),
+                        OutMessage::embed(embed, Vec::new()),
+                    );
+                }
             }
         }
         Job::TimeSet { .. } => {
             let mut p = Pings::default();
-            let all = everyone(&mut p, info, players);
+            let all = p.everyone(info, players);
             let at = info.starts_at.map_or("belirsiz".to_string(), when);
             cx.post_match(id, format!("🕒 Maç saati güncellendi: **{at}**\n{all}"), p);
         }
+        Job::ConfirmTime { .. } => {
+            if let Some(at) = info.starts_at {
+                ask_staff(cx, info, &title, at).await?;
+            }
+        }
         Job::RoomAdded { mp_id, .. } => {
             let mut p = Pings::default();
-            let names: Vec<String> = players.iter().map(|pl| p.player(pl)).collect();
-            let first = info.mp_ids.first() == Some(mp_id);
-            let what = if first {
+            let all = p.everyone(info, players);
+            let what = if info.mp_ids.first() == Some(mp_id) {
                 "Maç odası açıldı"
             } else {
                 "Yeni maç odası açıldı"
@@ -545,8 +662,8 @@ async fn match_event(
             cx.post_match(
                 id,
                 format!(
-                    "🎮 {what}: https://osu.ppy.sh/community/matches/{mp_id}\n{} oyun içi davetleri kontrol edin!",
-                    names.join(" ")
+                    "🎮 {what}: {}\n{all} oyun içi davetleri kontrol edin!",
+                    room_url(*mp_id)
                 ),
                 p,
             );
@@ -560,17 +677,21 @@ async fn match_event(
                 ),
                 _ => "🏁 Maç tamamlandı. Kanal arşive taşındı.".to_string(),
             };
-            cx.post_match(id, text, Pings::default());
+            let mut p = Pings::default();
+            let all = p.everyone(info, players);
+            cx.post_match(id, format!("{text}\n{all}"), p);
         }
         Job::Reopened { .. } => {
-            cx.post_match(id, "↩️ Maç yeniden açıldı.".to_string(), Pings::default());
+            let mut p = Pings::default();
+            let all = p.everyone(info, players);
+            cx.post_match(id, format!("↩️ Maç yeniden açıldı.\n{all}"), p);
         }
         Job::Reminder { .. } => {
             let Some(at) = info.starts_at else {
                 return Ok(());
             };
             let mut p = Pings::default();
-            let all = everyone(&mut p, info, players);
+            let all = p.everyone(info, players);
             let mut text = format!(
                 "⏰ **{title}** yaklaşık 1 saat sonra başlıyor ({})\n{all}",
                 when(at)
@@ -579,19 +700,17 @@ async fn match_event(
                 text.push_str("\n⚠️ Bu maçın henüz hakemi yok.");
                 cx.post_setting(
                     cx.settings.referee_channel_id,
-                    OutMessage::text(
-                        format!("⚠️ **{title}** {} başlıyor ve hakemi yok!", when(at)),
-                        Vec::new(),
-                    ),
+                    Embed::new(format!("⚠️ Hakem yok: {title}"), COLOR_BAD)
+                        .url(admin_url(cx.state, info))
+                        .description(format!("Maç {} başlıyor ve hakemi yok!", when(at))),
                 );
             }
             if info.kind == MatchKind::Bracket && info.streamer_id.is_none() {
                 cx.post_setting(
                     cx.settings.streamer_channel_id,
-                    OutMessage::text(
-                        format!("📺 **{title}** {} başlıyor ve yayıncısı yok.", when(at)),
-                        Vec::new(),
-                    ),
+                    Embed::new(format!("📺 Yayıncı yok: {title}"), COLOR_WARN)
+                        .url(admin_url(cx.state, info))
+                        .description(format!("Maç {} başlıyor ve yayıncısı yok.", when(at))),
                 );
             }
             cx.post_match(id, text, p);
@@ -609,7 +728,7 @@ async fn match_event(
             let room = info
                 .mp_ids
                 .last()
-                .map(|mp| format!("\nOda: https://osu.ppy.sh/community/matches/{mp}"))
+                .map(|mp| format!("\nOda: {}", room_url(*mp)))
                 .unwrap_or_default();
             cx.post_match(
                 id,
@@ -618,6 +737,47 @@ async fn match_event(
             );
         }
         _ => {}
+    }
+    Ok(())
+}
+
+// The referee's and streamer's unanswered questions about the match's new time, as DMs
+// with buttons that answer them like the site's notification does.
+async fn ask_staff(
+    cx: &mut Ctx<'_>,
+    info: &MatchInfo,
+    title: &str,
+    new_starts_at: OffsetDateTime,
+) -> BotResult {
+    for request in db::discord::confirm_requests(&cx.state.db, info.id).await? {
+        let role = role_name(request.staff_role);
+        cx.post_user(
+            Some(&request.discord_id),
+            OutMessage {
+                buttons: vec![
+                    Button {
+                        custom_id: format!("confirm:{}", request.id),
+                        label: "Katılabilirim".into(),
+                        danger: false,
+                    },
+                    Button {
+                        custom_id: format!("decline:{}", request.id),
+                        label: "Katılamıyorum".into(),
+                        danger: true,
+                    },
+                ],
+                ..OutMessage::embed(
+                    Embed::new(format!("🕒 Maç saati değişti: {title}"), COLOR_WARN)
+                        .url(match_url(cx.state, info))
+                        .description(format!(
+                            "Bu saatte {role} olarak katılabilecek misin? Katılamazsan maçtan \
+                             çıkarılırsın ve yerine biri aranır."
+                        ))
+                        .field("Yeni saat", when(new_starts_at), false),
+                    Vec::new(),
+                )
+            },
+        );
     }
     Ok(())
 }
@@ -634,7 +794,7 @@ async fn announce(cx: &mut Ctx<'_>, info: &MatchInfo, players: &[MatchPlayer]) -
     let mut silent = Pings::default();
     let mut embed = Embed {
         title: Some(title(info)),
-        url: Some(site_url(cx.state, &format!("/bracket?match={}", info.id))),
+        url: Some(match_url(cx.state, info)),
         description: Some(format!("Maç {} başlıyor!", when(at))),
         color: Some(COLOR),
         ..Embed::default()
@@ -701,9 +861,11 @@ async fn team_formed(cx: &mut Ctx<'_>, team_id: Uuid) -> BotResult {
     };
     let names: Vec<String> = players
         .iter()
-        .map(|p| format!("**{}**", p.username))
+        .map(|p| osu_profile(p.osu_id, &p.username))
         .collect();
-    cx.post_hosts(format!("🤝 Yeni takım: **{name}** ({})", names.join(", ")));
+    cx.post_hosts(
+        Embed::new(format!("🤝 Yeni takım: {name}"), COLOR_GOOD).description(names.join(", ")),
+    );
 
     let Some(channel) = cx.settings.team_announce_channel_id else {
         return Ok(());

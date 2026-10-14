@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Duration};
 use serde::{Deserialize, Serialize};
 use serenity::all::{
     ButtonStyle, CreateActionRow, CreateAllowedMentions, CreateButton, CreateEmbed,
-    CreateEmbedFooter, CreateMessage, UserId,
+    CreateEmbedFooter, CreateMessage, EditMessage, UserId,
 };
 use sqlx::postgres::PgListener;
 use time::OffsetDateTime;
@@ -55,9 +55,6 @@ pub enum Job {
         players: Vec<Uuid>,
         by_host: bool,
     },
-    MatchOpened {
-        match_id: Uuid,
-    },
     ProposalMade {
         match_id: Uuid,
         team_id: Uuid,
@@ -86,6 +83,11 @@ pub enum Job {
     },
     // A host moved the match.
     TimeSet {
+        match_id: Uuid,
+    },
+    // DMs the referee and streamer the confirm_time questions about the match's
+    // current time (Rescheduled sends its own).
+    ConfirmTime {
         match_id: Uuid,
     },
     RoomAdded {
@@ -179,6 +181,34 @@ pub struct Button {
 }
 
 impl Embed {
+    pub fn new(title: impl Into<String>, color: u32) -> Self {
+        Self {
+            title: Some(title.into()),
+            color: Some(color),
+            ..Self::default()
+        }
+    }
+
+    pub fn description(mut self, text: impl Into<String>) -> Self {
+        self.description = Some(text.into());
+        self
+    }
+
+    pub fn url(mut self, url: impl Into<String>) -> Self {
+        self.url = Some(url.into());
+        self
+    }
+
+    pub fn field(
+        mut self,
+        name: impl Into<String>,
+        value: impl Into<String>,
+        inline: bool,
+    ) -> Self {
+        self.fields.push((name.into(), value.into(), inline));
+        self
+    }
+
     pub fn build(&self) -> CreateEmbed {
         let mut e = CreateEmbed::new();
         if let Some(t) = &self.title {
@@ -216,6 +246,32 @@ impl OutMessage {
             mentions,
             ..Self::default()
         }
+    }
+
+    // An embed, with whoever it may ping mentioned above it: mentions inside an embed
+    // never ping.
+    pub fn embed(embed: Embed, mentions: Vec<String>) -> Self {
+        Self {
+            content: mentions
+                .iter()
+                .map(|id| format!("<@{id}>"))
+                .collect::<Vec<_>>()
+                .join(" "),
+            mentions,
+            embed: Some(embed),
+            ..Self::default()
+        }
+    }
+
+    // The same message as an edit. Edits never ping, whatever they mention.
+    pub fn build_edit(&self) -> EditMessage {
+        let mut m = EditMessage::new()
+            .content(&self.content)
+            .allowed_mentions(CreateAllowedMentions::new());
+        if let Some(embed) = &self.embed {
+            m = m.embed(embed.build());
+        }
+        m
     }
 
     pub fn build(&self) -> CreateMessage {

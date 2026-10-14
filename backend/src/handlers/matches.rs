@@ -580,18 +580,15 @@ pub async fn add_room(
         .ok_or(AppError::BadRequest("that isn't an osu! multiplayer link"))?;
     match db::matches::add_room(&state.db, id, mp_id).await {
         Ok(()) => {
+            // The channel's card lists the rooms; only an unconcluded match announces one.
+            let mut jobs = vec![Job::SyncMatch { match_id: id }];
             if !m.concluded() {
-                state
-                    .discord
-                    .enqueue(
-                        &state.db,
-                        &[Job::RoomAdded {
-                            match_id: id,
-                            mp_id,
-                        }],
-                    )
-                    .await?;
+                jobs.push(Job::RoomAdded {
+                    match_id: id,
+                    mp_id,
+                });
             }
+            state.discord.enqueue(&state.db, &jobs).await?;
             Ok(StatusCode::NO_CONTENT)
         }
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("match_rooms_pkey") => {
@@ -620,6 +617,10 @@ pub async fn remove_room(
     if !db::matches::remove_room(&state.db, id, mp_id).await? {
         return Err(AppError::NotFound);
     }
+    state
+        .discord
+        .enqueue(&state.db, &[Job::SyncMatch { match_id: id }])
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

@@ -196,7 +196,9 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
       break;
     case "confirm_time":
       title = "Yeni saati onayla";
-      body = `Takımlar ${role} olduğun maçı yeni bir saate aldı (${actor} kabul etti). Bu saatte müsait misin?`;
+      body = n.by_host
+        ? `${actor} (host) ${role} olduğun maçı yeni bir saate aldı. Bu saatte müsait misin?`
+        : `Takımlar ${role} olduğun maçı yeni bir saate aldı (${actor} kabul etti). Bu saatte müsait misin?`;
       break;
     case "staff_declined":
       title = n.staff_role === "referee" ? "Maçın hakemi yok" : "Maçın yayıncısı yok";

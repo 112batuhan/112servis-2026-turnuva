@@ -422,12 +422,15 @@ pub struct MatchDiscord {
     pub synced: Option<String>,
     pub results_channel_id: Option<i64>,
     pub results_message_id: Option<i64>,
+    pub card_message_id: Option<i64>,
+    pub card_synced: Option<String>,
 }
 
 pub async fn match_discord(ex: impl PgExecutor<'_>, match_id: Uuid) -> sqlx::Result<MatchDiscord> {
     let row = sqlx::query_as::<_, MatchDiscord>(
         r#"
-        SELECT channel_id, synced, results_channel_id, results_message_id
+        SELECT channel_id, synced, results_channel_id, results_message_id,
+               card_message_id, card_synced
         FROM match_discord WHERE match_id = $1
         "#,
     )
@@ -606,6 +609,31 @@ pub async fn subscriber_discord_ids(pool: &PgPool, match_id: Uuid) -> sqlx::Resu
         "#,
     )
     .bind(match_id)
+    .fetch_all(pool)
+    .await
+}
+
+// Who was told that `actor_id` declined the match's referee or streamer slot (the
+// staff_declined notifications, so the same people the site told), for pinging in the
+// referee or streamer channel. Only accounts in the server.
+pub async fn declined_recipients(
+    pool: &PgPool,
+    match_id: Uuid,
+    actor_id: Uuid,
+    role: super::notifications::StaffRole,
+) -> sqlx::Result<Vec<String>> {
+    sqlx::query_scalar(
+        r#"
+        SELECT DISTINCT d.discord_id FROM notifications n
+        JOIN discord_accounts d ON d.osu_user_id = n.user_id
+        WHERE n.match_id = $1 AND n.kind = 'staff_declined' AND n.actor_id = $2
+          AND n.staff_role = $3 AND d.in_guild
+        ORDER BY d.discord_id
+        "#,
+    )
+    .bind(match_id)
+    .bind(actor_id)
+    .bind(role)
     .fetch_all(pool)
     .await
 }
@@ -804,10 +832,34 @@ pub async fn stage_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<Resul
 }
 
 pub async fn clear_channel(pool: &PgPool, match_id: Uuid) -> sqlx::Result<()> {
-    sqlx::query("UPDATE match_discord SET channel_id = NULL, synced = NULL WHERE match_id = $1")
-        .bind(match_id)
-        .execute(pool)
-        .await?;
+    sqlx::query(
+        r#"
+        UPDATE match_discord
+        SET channel_id = NULL, synced = NULL, card_message_id = NULL, card_synced = NULL
+        WHERE match_id = $1
+        "#,
+    )
+    .bind(match_id)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+// The match card's message and what it shows, once it's posted or edited.
+pub async fn set_card(
+    pool: &PgPool,
+    match_id: Uuid,
+    message_id: i64,
+    synced: &str,
+) -> sqlx::Result<()> {
+    sqlx::query(
+        "UPDATE match_discord SET card_message_id = $2, card_synced = $3 WHERE match_id = $1",
+    )
+    .bind(match_id)
+    .bind(message_id)
+    .bind(synced)
+    .execute(pool)
+    .await?;
     Ok(())
 }
 

@@ -153,12 +153,30 @@ pub async fn reconcile(state: &AppState, bot: &Bot) -> BotResult {
         .iter()
         .map(|a| (a.discord_id.as_str(), a))
         .collect();
+    // A member Discord won't let us change (a role above the bot's, say) is skipped, so
+    // one of them doesn't stop everyone else's roles and the channel sync after this.
+    // Anything worth retrying still fails the job.
+    let mut skipped = 0;
     for (id, current) in &present {
         let Some(user) = snowflake::user(id) else {
             continue;
         };
         let wanted = roles.wanted(by_discord.get(id.as_str()).copied());
-        apply(bot, &roles, user, current, &wanted).await?;
+        match apply(bot, &roles, user, current, &wanted).await {
+            Ok(()) => {}
+            Err(err) if err.permanent() => {
+                tracing::warn!(error = %err, discord_id = %id, "could not change a member's roles");
+                skipped += 1;
+            }
+            Err(err) => return Err(err),
+        }
+    }
+    if skipped > 0 {
+        tracing::warn!(
+            skipped,
+            "some members' roles weren't changed; check that the bot has Manage Roles and its \
+             role is above Verified and Player"
+        );
     }
     Ok(())
 }

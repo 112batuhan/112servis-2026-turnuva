@@ -44,6 +44,7 @@ pub struct NotificationRow {
     pub team1_name: Option<String>,
     pub team2_name: Option<String>,
     pub actor_username: Option<String>,
+    pub actor_is_host: bool,
     pub staff_role: Option<StaffRole>,
     pub old_starts_at: Option<OffsetDateTime>,
     pub new_starts_at: Option<OffsetDateTime>,
@@ -69,7 +70,7 @@ pub async fn list(pool: &PgPool, user_id: Uuid, limit: i64) -> sqlx::Result<Vec<
         r#"
         SELECT n.id, n.kind, n.match_id, b.side, b.number,
                t1.name AS team1_name, t2.name AS team2_name, a.username AS actor_username,
-               n.staff_role, n.old_starts_at, n.new_starts_at, n.response, n.responded_at,
+               COALESCE(a.role = 'host', false) AS actor_is_host, n.staff_role, n.old_starts_at, n.new_starts_at, n.response, n.responded_at,
                n.read_at, n.created_at,
                n.team_id, tn.name AS team_name, n.old_rank, n.new_rank, n.team_value,
                (SELECT count(*) FROM match_reschedules r
@@ -134,10 +135,10 @@ pub async fn mark_all_read(pool: &PgPool, user_id: Uuid) -> sqlx::Result<()> {
     Ok(())
 }
 
-// After a match's teams move it: its referee and streamer are asked to confirm the new
-// time (replacing any question about an earlier move they haven't answered), and the
-// hosts who aren't one of them are told.
-pub async fn notify_rescheduled(
+// After a match moves (its teams agreed on a time, or a host changed it): its referee
+// and streamer are asked to confirm the new time, replacing any question about an
+// earlier move they haven't answered. Whoever moved it isn't asked.
+pub async fn ask_confirm_time(
     conn: &mut PgConnection,
     match_id: Uuid,
     actor_id: Uuid,
@@ -159,8 +160,45 @@ pub async fn notify_rescheduled(
         SELECT s.user_id, 'confirm_time'::notification_kind, $1, $2, s.role, $5, $6
         FROM (VALUES ($3::uuid, 'referee'::match_staff_role),
                      ($4::uuid, 'streamer'::match_staff_role)) AS s (user_id, role)
-        WHERE s.user_id IS NOT NULL
-        UNION ALL
+        WHERE s.user_id IS NOT NULL AND s.user_id <> $2
+        "#,
+    )
+    .bind(match_id)
+    .bind(actor_id)
+    .bind(referee_id)
+    .bind(streamer_id)
+    .bind(old_starts_at)
+    .bind(new_starts_at)
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+// After a match's teams move it: its referee and streamer are asked to confirm the new
+// time, and the hosts who aren't one of them are told.
+pub async fn notify_rescheduled(
+    conn: &mut PgConnection,
+    match_id: Uuid,
+    actor_id: Uuid,
+    referee_id: Option<Uuid>,
+    streamer_id: Option<Uuid>,
+    old_starts_at: Option<OffsetDateTime>,
+    new_starts_at: OffsetDateTime,
+) -> sqlx::Result<()> {
+    ask_confirm_time(
+        &mut *conn,
+        match_id,
+        actor_id,
+        referee_id,
+        streamer_id,
+        old_starts_at,
+        new_starts_at,
+    )
+    .await?;
+    sqlx::query(
+        r#"
+        INSERT INTO notifications
+            (user_id, kind, match_id, actor_id, staff_role, old_starts_at, new_starts_at)
         SELECT u.id, 'match_rescheduled'::notification_kind, $1, $2, NULL::match_staff_role, $5, $6
         FROM osu_users u
         WHERE u.role = 'host'

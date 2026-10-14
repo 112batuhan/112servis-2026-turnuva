@@ -3,7 +3,7 @@
 //! up. A concluded match's channel turns read-only and moves to the archive category.
 
 use serenity::all::{
-    ChannelId, ChannelType, CreateChannel, EditChannel, PermissionOverwrite,
+    ChannelId, ChannelType, CreateChannel, EditChannel, MessageId, PermissionOverwrite,
     PermissionOverwriteType, Permissions, RoleId, UserId,
 };
 use uuid::Uuid;
@@ -12,7 +12,7 @@ use super::{jobs::Job, messages, snowflake, Bot, BotError, BotResult};
 use crate::{
     db::{
         self,
-        discord::{MatchInfo, Settings},
+        discord::{MatchDiscord, MatchInfo, MatchPlayer, Settings},
         matches::MatchKind,
     },
     AppState,
@@ -128,23 +128,45 @@ fn should_open(info: &MatchInfo) -> bool {
     }
 }
 
-// Brings a match's channel in line with the match. What was applied is remembered, so
-// an unchanged match costs no API calls.
+// Brings a match's channel in line with the match, then its pinned card. What was
+// applied is remembered, so an unchanged match costs no API calls.
 pub async fn sync_match(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResult {
     let Some(info) = db::discord::match_info(&state.db, match_id).await? else {
         return Ok(());
     };
     let stored = db::discord::match_discord(&state.db, match_id).await?;
-    if stored.channel_id.is_none() && !should_open(&info) {
+    let players = db::discord::match_players(&state.db, match_id).await?;
+    let Some(channel) = sync_channel(state, bot, &info, &players, &stored).await? else {
         return Ok(());
+    };
+    // A channel made just now has no card yet, whatever the old row said.
+    let stored = if Some(channel) == stored.channel_id {
+        stored
+    } else {
+        MatchDiscord::default()
+    };
+    sync_card(state, bot, &info, &players, channel, &stored).await
+}
+
+// The channel's name, category and who can see it. Returns the channel, if the match
+// has one.
+async fn sync_channel(
+    state: &AppState,
+    bot: &Bot,
+    info: &MatchInfo,
+    players: &[MatchPlayer],
+    stored: &MatchDiscord,
+) -> BotResult<Option<i64>> {
+    let match_id = info.id;
+    if stored.channel_id.is_none() && !should_open(info) {
+        return Ok(None);
     }
     let archived = info.concluded_at.is_some();
     let settings = db::discord::settings(&state.db).await?;
     let base = base_category(&settings, info.kind, archived);
 
-    let mut members: Vec<UserId> = db::discord::match_players(&state.db, match_id)
-        .await?
-        .into_iter()
+    let mut members: Vec<UserId> = players
+        .iter()
         .filter(|p| p.in_guild == Some(true))
         .filter_map(|p| snowflake::user(p.discord_id.as_deref()?))
         .collect();
@@ -159,7 +181,7 @@ pub async fn sync_match(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResul
     members.sort();
     members.dedup();
 
-    let name = channel_name(&info);
+    let name = channel_name(info);
     let key = format!(
         "{name}|{archived}|{base:?}|{}",
         members
@@ -169,7 +191,7 @@ pub async fn sync_match(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResul
             .join(",")
     );
     if stored.synced.as_deref() == Some(key.as_str()) {
-        return Ok(());
+        return Ok(stored.channel_id);
     }
     let perms = overwrites(bot, &members, archived).await?;
 
@@ -190,7 +212,7 @@ pub async fn sync_match(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResul
                 }
                 channel.edit(&bot.http, edit).await?;
                 db::discord::set_channel(&state.db, match_id, id, &key).await?;
-                return Ok(());
+                return Ok(Some(id));
             }
             Err(err) => {
                 let err = BotError::from(err);
@@ -199,8 +221,8 @@ pub async fn sync_match(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResul
                 }
                 // Deleted by hand: open a new one if the match still needs it.
                 db::discord::clear_channel(&state.db, match_id).await?;
-                if !should_open(&info) {
-                    return Ok(());
+                if !should_open(info) {
+                    return Ok(None);
                 }
             }
         }
@@ -208,7 +230,7 @@ pub async fn sync_match(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResul
 
     // A channel is only created once its category has been picked.
     let Some(base) = base else {
-        return Ok(());
+        return Ok(None);
     };
     let category = category_with_room(state, bot, base).await?;
     let created = bot
@@ -221,11 +243,57 @@ pub async fn sync_match(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResul
                 .permissions(perms),
         )
         .await?;
-    db::discord::set_channel(&state.db, match_id, created.id.get() as i64, &key).await?;
-    state
-        .discord
-        .enqueue(&state.db, &[Job::MatchOpened { match_id }])
-        .await?;
+    let id = created.id.get() as i64;
+    db::discord::set_channel(&state.db, match_id, id, &key).await?;
+    Ok(Some(id))
+}
+
+// The pinned card at the top of the channel: posted (pinging everyone in the match)
+// with the channel, edited whenever the match changes, and posted again if someone
+// deleted it.
+async fn sync_card(
+    state: &AppState,
+    bot: &Bot,
+    info: &MatchInfo,
+    players: &[MatchPlayer],
+    channel_id: i64,
+    stored: &MatchDiscord,
+) -> BotResult {
+    let card = messages::match_card(state, info, players);
+    let key = serde_json::to_string(&(&card.content, &card.embed)).unwrap_or_default();
+    if stored.card_synced.as_deref() == Some(key.as_str()) {
+        return Ok(());
+    }
+    let channel = snowflake::channel(channel_id);
+    if let Some(id) = stored.card_message_id {
+        match channel
+            .edit_message(&bot.http, MessageId::new(id as u64), card.build_edit())
+            .await
+        {
+            Ok(_) => {
+                db::discord::set_card(&state.db, info.id, id, &key).await?;
+                return Ok(());
+            }
+            Err(err) => {
+                let err = BotError::from(err);
+                if !err.not_found() {
+                    return Err(err);
+                }
+            }
+        }
+    }
+    // A finished match without a card (from before cards, or deleted) keeps going
+    // without one rather than pinging everyone in the archive.
+    if info.concluded_at.is_some() {
+        return Ok(());
+    }
+    let message = channel.send_message(&bot.http, card.build()).await?;
+    db::discord::set_card(&state.db, info.id, message.id.get() as i64, &key).await?;
+    // Pinning needs Manage Messages, which the bot may not have been given; the card
+    // still works unpinned.
+    if let Err(err) = channel.pin(&bot.http, message.id).await {
+        tracing::warn!(error = %err, match_id = %info.id, "could not pin the match card");
+    }
     Ok(())
 }
 

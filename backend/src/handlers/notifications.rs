@@ -49,6 +49,9 @@ pub struct Notification {
     // Who caused it: the player who accepted or proposed the time, the staff member who
     // declined it, or the player whose rank change took the team over the limit.
     actor_username: Option<String>,
+    // confirm_time: a host moved the match in the bracket editor, rather than its teams.
+    // Players can't be hosts, so the actor's role tells which.
+    by_host: bool,
     staff_role: Option<StaffRole>,
     #[serde(with = "time::serde::rfc3339::option")]
     old_starts_at: Option<OffsetDateTime>,
@@ -85,6 +88,7 @@ impl Notification {
             team1_name: row.team1_name,
             team2_name: row.team2_name,
             actor_username: row.actor_username,
+            by_host: row.kind == NotificationKind::ConfirmTime && row.actor_is_host,
             staff_role: row.staff_role,
             old_starts_at: row.old_starts_at,
             new_starts_at: row.new_starts_at,

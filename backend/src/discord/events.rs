@@ -22,6 +22,9 @@ impl EventHandler for Handler {
     async fn ready(&self, _ctx: Context, ready: Ready) {
         self.bot.connected.store(true, Ordering::Relaxed);
         let _ = self.bot.user_id.set(ready.user.id);
+        // Our Http isn't the client's, so it only learns the application id here; the
+        // slash commands and interaction follow-ups need it.
+        self.bot.http.set_application_id(ready.application.id);
         tracing::info!(bot = %ready.user.name, "discord bot connected");
         if let Err(err) = self
             .bot
