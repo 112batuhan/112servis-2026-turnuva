@@ -1,5 +1,5 @@
 import { del, get, patch, post, put, putFile } from "./client";
-import type { AdminTeamPlayer, PlayerResult, RankRefresh, TeamList, TeamStatus } from "./types";
+import type { AdminTeamPlayer, MyReschedules, PlayerResult, RankRefresh, TeamList, TeamStatus } from "./types";
 
 export const searchPlayers = (q: string) =>
   get<PlayerResult[]>(`/api/players/search?q=${encodeURIComponent(q)}`);
@@ -15,6 +15,14 @@ export const renameMyTeam = (name: string) => patch<void>("/api/me/team", { name
 export const disbandMyTeam = () => del("/api/me/team");
 export const uploadMyBanner = (file: File) => putFile("/api/me/team/banner", file);
 export const removeMyBanner = () => del("/api/me/team/banner");
+
+export const fetchMyReschedules = () => get<MyReschedules>("/api/me/reschedules");
+export const proposeReschedule = (matchId: string, startsAt: string) =>
+  post<void>("/api/reschedules", { match_id: matchId, starts_at: startsAt });
+/** Moves the match to the proposed time and drops every other proposal for it. */
+export const acceptReschedule = (proposalId: string) => post<void>(`/api/reschedules/${proposalId}/accept`);
+/** Cancels the team's own proposal or declines the opponent's. */
+export const deleteReschedule = (proposalId: string) => del(`/api/reschedules/${proposalId}`);
 
 export const fetchPublicTeams = () => get<TeamList>("/api/public/teams");
 

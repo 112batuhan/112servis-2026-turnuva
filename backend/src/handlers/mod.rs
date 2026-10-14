@@ -10,5 +10,6 @@ pub mod irc;
 pub mod mappool;
 pub mod matches;
 pub mod referee;
+pub mod reschedule;
 pub mod team;
 pub mod user;

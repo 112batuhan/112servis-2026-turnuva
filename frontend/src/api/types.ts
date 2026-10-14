@@ -184,6 +184,37 @@ export interface TeamStatus {
   received: Invite[];
 }
 
+/** A time one of a bracket match's teams proposed for it. */
+export interface RescheduleProposal {
+  id: string;
+  starts_at: string;
+  created_at: string;
+  proposed_by: Player;
+}
+
+/** One of the caller's team's unconcluded bracket matches with both teams set. */
+export interface RescheduleMatch {
+  id: string;
+  side: BracketSide;
+  number: number;
+  stage_name: string | null;
+  /** null until the match is scheduled. */
+  starts_at: string | null;
+  opponent: { id: string; name: string };
+  /** Times can still be proposed and accepted: the match hasn't started and has no room. */
+  open: boolean;
+  /** Proposed by the caller's team, for the opponent to accept. Earliest first. */
+  sent: RescheduleProposal[];
+  /** Proposed by the opponent, for the caller's team to accept. Earliest first. */
+  received: RescheduleProposal[];
+}
+
+export interface MyReschedules {
+  matches: RescheduleMatch[];
+  /** The most times a team can have proposed for one match at once. */
+  limit: number;
+}
+
 export interface MatchReferee {
   id: string;
   osu_id: number;

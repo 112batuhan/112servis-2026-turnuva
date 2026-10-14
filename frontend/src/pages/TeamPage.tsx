@@ -20,6 +20,7 @@ import { Countdown } from "../components/Countdown";
 import { DiscordMark } from "../components/DiscordMark";
 import { DiscordMention } from "../components/DiscordMention";
 import { ErrorAlert } from "../components/ErrorAlert";
+import { MatchReschedules } from "../components/MatchReschedules";
 import { PlayerChip } from "../components/PlayerChip";
 import { RoomLinks } from "../components/RoomLinks";
 import { TeamCard } from "../components/TeamCard";
@@ -39,6 +40,8 @@ export function TeamPage() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlayerResult[] | null>(null);
   const [teamName, setTeamName] = useState("");
+  // Bumped when a match is rescheduled, so the match list loads its new time.
+  const [matchesVersion, setMatchesVersion] = useState(0);
   const frozen = status?.frozen ?? false;
   const canForm = !isStaff && user.discord !== null && !frozen;
 
@@ -132,8 +135,9 @@ export function TeamPage() {
               </section>
               <section className="panel">
                 <h2>Maçlar</h2>
-                <TeamMatches teamId={status.team.id} />
+                <TeamMatches key={matchesVersion} teamId={status.team.id} />
               </section>
+              <MatchReschedules onRescheduled={() => setMatchesVersion((v) => v + 1)} onError={setError} />
             </>
           ) : (
             <>

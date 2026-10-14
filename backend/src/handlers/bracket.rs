@@ -313,7 +313,8 @@ fn leads_back(links: &[LinkRow], id: Uuid, targets: &[Uuid]) -> bool {
 
 // PUT /api/bracket/:id — host-only. Saves everything the match editor edits. A
 // concluded match's teams and links are what moved its teams on, so those need the
-// match reopened first; its time, code and stage can still change.
+// match reopened first; its time, code and stage can still change. A team taken out
+// of the match loses its proposed times for it.
 pub async fn update_match(
     State(state): State<AppState>,
     user: AuthUser,
@@ -386,6 +387,9 @@ pub async fn update_match(
     db::bracket::update_match(&mut tx, id, &update)
         .await
         .map_err(edit_error)?;
+    if current.team1_id != body.team1_id || current.team2_id != body.team2_id {
+        db::reschedule::delete_stale(&mut tx, id).await?;
+    }
     if old_links != new_links {
         db::bracket::set_links(&mut tx, id, &new_links)
             .await
@@ -595,6 +599,7 @@ pub async fn conclude(state: &AppState, id: Uuid) -> Result<(), AppError> {
         };
         db::bracket::set_slot(&mut tx, target.target_id, target.slot, Some(team)).await?;
     }
+    db::reschedule::delete_for_match(&mut tx, id).await?;
     db::matches::conclude(&mut *tx, id).await?;
     tx.commit().await?;
     Ok(())

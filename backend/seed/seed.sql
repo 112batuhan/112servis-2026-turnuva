@@ -695,3 +695,28 @@ JOIN category_slots s ON s.category_id = c.id AND s.position = v.slot
 JOIN pool_maps pm ON pm.slot_id = s.id
 WHERE b.side = 'winners' AND b.number = 1
   AND b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL;
+
+-- Proposed times for the first two upcoming seeded matches with both teams and no room
+-- yet: team 1 offers two later times, team 2 one, each by the team's first player.
+INSERT INTO match_reschedules (match_id, team_id, proposed_by, starts_at, created_at)
+SELECT up.match_id, t.team_id,
+       (SELECT tm.user_id FROM team_members tm WHERE tm.team_id = t.team_id
+        ORDER BY tm.joined_at, tm.user_id LIMIT 1),
+       up.starts_at + t.shift, now() - interval '1 hour'
+FROM (
+    SELECT b.match_id, b.team1_id, b.team2_id, m.starts_at
+    FROM bracket_matches b
+    JOIN matches m ON m.id = b.match_id
+    WHERE m.concluded_at IS NULL AND m.starts_at > now()
+      AND b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id)
+      AND EXISTS (
+          SELECT 1 FROM team_members tm JOIN osu_users u ON u.id = tm.user_id
+          WHERE tm.team_id = b.team1_id AND u.osu_id < 0
+      )
+    ORDER BY m.starts_at
+    LIMIT 2
+) AS up
+CROSS JOIN LATERAL (VALUES (up.team1_id, interval '1 day'),
+                           (up.team1_id, interval '1 day 2 hours'),
+                           (up.team2_id, interval '2 days')) AS t (team_id, shift);
