@@ -29,7 +29,8 @@ pub struct RefereeColumns {
 pub struct MatchRow {
     pub id: Uuid,
     pub starts_at: OffsetDateTime,
-    pub mp_id: Option<i64>,
+    // Its rooms, oldest first.
+    pub mp_ids: Vec<i64>,
     pub referee_notes: String,
     pub concluded_at: Option<OffsetDateTime>,
     #[sqlx(flatten)]
@@ -41,7 +42,8 @@ pub struct MatchRow {
 pub struct MatchState {
     pub kind: MatchKind,
     pub referee_id: Option<Uuid>,
-    pub mp_id: Option<i64>,
+    // Its rooms, oldest first.
+    pub mp_ids: Vec<i64>,
     pub concluded_at: Option<OffsetDateTime>,
 }
 
@@ -79,7 +81,8 @@ pub struct RoomRow {
     pub id: Uuid,
     pub kind: MatchKind,
     pub starts_at: Option<OffsetDateTime>,
-    pub mp_id: Option<i64>,
+    // Its rooms, oldest first.
+    pub mp_ids: Vec<i64>,
     pub referee_notes: String,
     pub concluded_at: Option<OffsetDateTime>,
     #[sqlx(flatten)]
@@ -99,7 +102,9 @@ pub struct RoomRow {
 pub async fn list_lobbies(pool: &PgPool) -> sqlx::Result<Vec<MatchRow>> {
     sqlx::query_as::<_, MatchRow>(
         r#"
-        SELECT m.id, m.starts_at, m.mp_id, m.referee_notes, m.concluded_at,
+        SELECT m.id, m.starts_at, m.referee_notes, m.concluded_at,
+               ARRAY(SELECT r.mp_id FROM match_rooms r WHERE r.match_id = m.id
+                     ORDER BY r.added_at, r.mp_id) AS mp_ids,
                u.id AS referee_id, u.osu_id AS referee_osu_id,
                u.username AS referee_username, u.avatar_url AS referee_avatar_url,
                d.discord_id AS referee_discord_id, d.username AS referee_discord_username
@@ -228,7 +233,13 @@ pub async fn delete_entry(ex: impl PgExecutor<'_>, team_id: Uuid) -> sqlx::Resul
 
 pub async fn find_match(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchState>> {
     sqlx::query_as::<_, MatchState>(
-        "SELECT kind, referee_id, mp_id, concluded_at FROM matches WHERE id = $1",
+        r#"
+        SELECT m.kind, m.referee_id, m.concluded_at,
+               ARRAY(SELECT r.mp_id FROM match_rooms r WHERE r.match_id = m.id
+                     ORDER BY r.added_at, r.mp_id) AS mp_ids
+        FROM matches m
+        WHERE m.id = $1
+        "#,
     )
     .bind(id)
     .fetch_optional(pool)
@@ -239,7 +250,9 @@ pub async fn find_match(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchSta
 pub async fn find_room(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<RoomRow>> {
     sqlx::query_as::<_, RoomRow>(
         r#"
-        SELECT m.id, m.kind, m.starts_at, m.mp_id, m.referee_notes, m.concluded_at,
+        SELECT m.id, m.kind, m.starts_at, m.referee_notes, m.concluded_at,
+               ARRAY(SELECT r.mp_id FROM match_rooms r WHERE r.match_id = m.id
+                     ORDER BY r.added_at, r.mp_id) AS mp_ids,
                u.id AS referee_id, u.osu_id AS referee_osu_id,
                u.username AS referee_username, u.avatar_url AS referee_avatar_url,
                d.discord_id AS referee_discord_id, d.username AS referee_discord_username,
@@ -297,13 +310,25 @@ pub async fn set_referee(pool: &PgPool, id: Uuid, referee_id: Option<Uuid>) -> s
     Ok(())
 }
 
-pub async fn set_mp_id(pool: &PgPool, id: Uuid, mp_id: Option<i64>) -> sqlx::Result<()> {
-    sqlx::query("UPDATE matches SET mp_id = $2 WHERE id = $1")
-        .bind(id)
+// Adds a room to a match. Fails on match_rooms_pkey when the room already belongs to
+// a match.
+pub async fn add_room(pool: &PgPool, match_id: Uuid, mp_id: i64) -> sqlx::Result<()> {
+    sqlx::query("INSERT INTO match_rooms (mp_id, match_id) VALUES ($1, $2)")
         .bind(mp_id)
+        .bind(match_id)
         .execute(pool)
         .await?;
     Ok(())
+}
+
+// Takes a room off a match. Its saved chat stays, for moderation.
+pub async fn remove_room(pool: &PgPool, match_id: Uuid, mp_id: i64) -> sqlx::Result<bool> {
+    let result = sqlx::query("DELETE FROM match_rooms WHERE mp_id = $1 AND match_id = $2")
+        .bind(mp_id)
+        .bind(match_id)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected() > 0)
 }
 
 pub async fn set_notes(pool: &PgPool, id: Uuid, notes: &str) -> sqlx::Result<()> {
@@ -315,13 +340,14 @@ pub async fn set_notes(pool: &PgPool, id: Uuid, notes: &str) -> sqlx::Result<()>
     Ok(())
 }
 
-// Concludes a match that has its room link. False when it's already concluded or
-// the link is missing.
+// Concludes a match that has a room. False when it's already concluded or has no
+// room.
 pub async fn conclude(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<bool> {
     let result = sqlx::query(
         r#"
         UPDATE matches SET concluded_at = now()
-        WHERE id = $1 AND concluded_at IS NULL AND mp_id IS NOT NULL
+        WHERE id = $1 AND concluded_at IS NULL
+          AND EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = $1)
         "#,
     )
     .bind(id)

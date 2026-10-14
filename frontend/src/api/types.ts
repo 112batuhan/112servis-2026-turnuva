@@ -193,14 +193,20 @@ export interface MatchReferee {
   discord_username: string | null;
 }
 
+/** One of a match's osu! multiplayer rooms. A room that breaks mid-match is replaced, and the old one stays listed. */
+export interface MatchRoom {
+  mp_id: number;
+  url: string;
+}
+
 export interface Lobby<P extends Player = Player> {
   id: string;
   starts_at: string;
   /** Players can still join or leave: it hasn't started or been concluded. */
   open: boolean;
   referee: MatchReferee | null;
-  /** The osu! multiplayer room, once the referee has added it. */
-  mp_url: string | null;
+  /** Its osu! multiplayer rooms, oldest first; empty until the referee adds one. */
+  rooms: MatchRoom[];
   concluded_at: string | null;
   /** In signup order. */
   teams: Team<P>[];
@@ -271,7 +277,8 @@ export interface BracketMatch {
   stage: MatchStage | null;
   referee: MatchReferee | null;
   streamer: MatchStreamer | null;
-  mp_url: string | null;
+  /** Oldest first. */
+  rooms: MatchRoom[];
   concluded_at: string | null;
 }
 
@@ -318,8 +325,8 @@ export interface RefereeRoom {
   lobby_number: number | null;
   starts_at: string | null;
   referee: MatchReferee | null;
-  mp_id: number | null;
-  mp_url: string | null;
+  /** Oldest first; the last one is where the match is being played. */
+  rooms: MatchRoom[];
   referee_notes: string;
   concluded_at: string | null;
   /** Bracket matches only: the teams playing red (1) and blue (2). */
@@ -334,6 +341,21 @@ export interface RefereeRoom {
   categories: Category[];
   slots: PublicSlot[];
   maps: PublicPoolMap[];
+  /** Bracket matches only: the pool maps each team banned and picked, in the order they were made. */
+  bans: MapBan[];
+  picks: MapPick[];
+}
+
+/** A pool map (PublicPoolMap.id) banned in a match by one of its teams. */
+export interface MapBan {
+  map_id: string;
+  team_id: string;
+}
+
+/** A pool map (PublicPoolMap.id) picked in a match by one of its teams. */
+export interface MapPick {
+  map_id: string;
+  team_id: string;
 }
 
 export interface RoomChatMessage {
@@ -345,8 +367,8 @@ export interface RoomChatMessage {
   action: boolean;
 }
 
-/** GET /api/matches/:id/chat: what was said in the match's room channel, oldest first. */
+/** One room's saved chat, oldest first. GET /api/matches/:id/chat returns one per room. */
 export interface RoomChat {
-  mp_id: number | null;
+  mp_id: number;
   messages: RoomChatMessage[];
 }

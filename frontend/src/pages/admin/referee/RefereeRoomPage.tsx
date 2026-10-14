@@ -15,7 +15,7 @@ import "./RefereeRoomPage.css";
 export function RefereeRoomPage() {
   const { matchId = "" } = useParams();
   const referee = useRefereeRoom(matchId);
-  const { room, archive, loadError, error, channel, roster } = referee;
+  const { room, roomChats, loadError, error, roster } = referee;
 
   const colors = useMemo(() => {
     const map = new Map<string, SlotTeam | null>();
@@ -68,7 +68,7 @@ export function RefereeRoomPage() {
         </div>
         <div className="referee-column referee-main">
           <LobbyPanel referee={referee} />
-          <ChatPanel channel={channel} archive={archive} colors={colors} />
+          <ChatPanel rooms={roomChats} colors={colors} />
         </div>
         <div className="referee-column">
           <PoolPanel referee={referee} />

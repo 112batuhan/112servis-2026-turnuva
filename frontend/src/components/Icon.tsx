@@ -18,6 +18,12 @@ const ICONS = {
   chevronDown: <path d="M6 9l6 6 6-6" />,
   close: <path d="M18 6 6 18M6 6l12 12" />,
   download: <path d="M12 3v12M7 11l5 5 5-5M5 21h14" />,
+  ban: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M5.6 5.6l12.8 12.8" />
+    </>
+  ),
   bracket: <path d="M3 5h6v6H3M3 13h6v6H3M9 8h4v8H9M13 12h8" />,
   grip: (
     <g fill="currentColor" stroke="none">
@@ -54,6 +60,13 @@ const ICONS = {
   speaker: <path d="M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" />,
   swap: <path d="M8 3 4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4" />,
   stop: <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />,
+  target: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="12" cy="12" r="0.5" fill="currentColor" />
+    </>
+  ),
   trash: <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" />,
   userPlus: (
     <>

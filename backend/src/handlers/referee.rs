@@ -12,14 +12,14 @@ use crate::{
     auth::AuthUser,
     db::{
         self,
-        bracket::Side,
+        bracket::{BanRow, PickRow, Side},
         chat::ChatMessage,
         mappool::{Category, PublicPoolMap, PublicSlot},
         matches::MatchKind,
     },
     error::AppError,
     handlers::{
-        matches::{mp_url, Referee},
+        matches::{match_rooms, MatchRoom, Referee},
         team::{group_teams, AdminTeamPlayer, Team},
     },
     role::Role,
@@ -53,8 +53,8 @@ pub struct RefereeRoom {
     #[serde(with = "time::serde::rfc3339::option")]
     starts_at: Option<OffsetDateTime>,
     referee: Option<Referee>,
-    mp_id: Option<i64>,
-    mp_url: Option<String>,
+    // Oldest first; the last one is where the match is being played.
+    rooms: Vec<MatchRoom>,
     referee_notes: String,
     #[serde(with = "time::serde::rfc3339::option")]
     concluded_at: Option<OffsetDateTime>,
@@ -70,6 +70,10 @@ pub struct RefereeRoom {
     categories: Vec<Category>,
     slots: Vec<PublicSlot>,
     maps: Vec<PublicPoolMap>,
+    // Bracket matches only: the pool maps each team banned and picked, in the order
+    // they were made.
+    bans: Vec<BanRow>,
+    picks: Vec<PickRow>,
 }
 
 // GET /api/matches/:id/room — referees and up. Everything the referee page shows
@@ -112,6 +116,13 @@ pub async fn get_room(
         ),
         _ => (None, Vec::new(), Vec::new(), Vec::new()),
     };
+    let (bans, picks) = match row.kind {
+        MatchKind::Bracket => (
+            db::bracket::list_bans(&state.db, id).await?,
+            db::bracket::list_picks(&state.db, id).await?,
+        ),
+        MatchKind::Qualifier => (Vec::new(), Vec::new()),
+    };
 
     Ok(Json(RefereeRoom {
         id: row.id,
@@ -121,8 +132,7 @@ pub async fn get_room(
         lobby_number: row.lobby_number,
         starts_at: row.starts_at,
         referee: Referee::from_columns(row.referee),
-        mp_id: row.mp_id,
-        mp_url: row.mp_id.map(mp_url),
+        rooms: match_rooms(row.mp_ids),
         referee_notes: row.referee_notes,
         concluded_at: row.concluded_at,
         team1_id: row.team1_id,
@@ -134,17 +144,20 @@ pub async fn get_room(
         categories,
         slots,
         maps,
+        bans,
+        picks,
     }))
 }
 
 #[derive(Debug, Serialize)]
 pub struct RoomChat {
-    mp_id: Option<i64>,
+    mp_id: i64,
     messages: Vec<ChatMessage>,
 }
 
-// GET /api/matches/:id/chat — referees and up. Everything said in the match's room
-// channel while a referee's relay was in it, oldest first. Empty until it has a room.
+// GET /api/matches/:id/chat — referees and up. What was said in each of the match's
+// rooms while a referee's relay was in it, saved as it happened: rooms oldest first,
+// each room's lines oldest first.
 pub async fn get_chat(
     State(state): State<AppState>,
     user: AuthUser,
@@ -154,12 +167,10 @@ pub async fn get_chat(
     let m = db::matches::find_match(&state.db, id)
         .await?
         .ok_or(AppError::NotFound)?;
-    let messages = match m.mp_id {
-        Some(mp_id) => db::chat::list_messages(&state.db, mp_id).await?,
-        None => Vec::new(),
-    };
-    Ok(Json(RoomChat {
-        mp_id: m.mp_id,
-        messages,
-    }))
+    let mut rooms = Vec::with_capacity(m.mp_ids.len());
+    for mp_id in m.mp_ids {
+        let messages = db::chat::list_messages(&state.db, mp_id).await?;
+        rooms.push(RoomChat { mp_id, messages });
+    }
+    Ok(Json(rooms))
 }

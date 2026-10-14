@@ -113,9 +113,47 @@
 }
 
 .roster-result-map {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.roster-result-label {
+  flex-shrink: 0;
+  min-width: 36px;
+  padding: 0 var(--space-1);
+  border: 1px solid;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-align: center;
+}
+
+.roster-result-name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.roster-result-hidden {
+  font-size: var(--text-xs);
+}
+
+/* Who picked the map, after the totals. */
+.roster-result-pick {
+  margin-left: auto;
+}
+
+/* A bracket match's two teams in their osu! colours, also over the plain winner green. */
+.roster-panel .is-team-red,
+.roster-result-totals .is-winner.is-team-red {
+  color: var(--color-team-red);
+}
+
+.roster-panel .is-team-blue,
+.roster-result-totals .is-winner.is-team-blue {
+  color: var(--color-team-blue);
 }
 
 .roster-result-totals {

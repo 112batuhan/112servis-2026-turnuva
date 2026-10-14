@@ -176,16 +176,17 @@ BEGIN
             (interval '3 days',   'DevHakem',   NULL, false, '', ARRAY[]::text[])
         ) AS v (offset_by, referee, mp_id, concluded, notes, teams)
     LOOP
-        INSERT INTO matches (kind, starts_at, referee_id, mp_id, referee_notes, concluded_at)
+        INSERT INTO matches (kind, starts_at, referee_id, referee_notes, concluded_at)
         VALUES (
             'qualifier',
             date_trunc('hour', now()) + lobby.offset_by,
             (SELECT id FROM osu_users WHERE osu_id < 0 AND username = lobby.referee),
-            lobby.mp_id,
             lobby.notes,
             CASE WHEN lobby.concluded THEN now() - interval '1 day' END
         )
         RETURNING id INTO new_match;
+        INSERT INTO match_rooms (mp_id, match_id)
+        SELECT lobby.mp_id, new_match WHERE lobby.mp_id IS NOT NULL;
         INSERT INTO qualifier_entries (team_id, match_id)
         SELECT t.id, new_match FROM teams t WHERE t.name = ANY (lobby.teams);
     END LOOP;
@@ -195,8 +196,9 @@ END $$;
 -- Stages from the qualifiers to the grand final, the first three with their map pool
 -- published, and Qualifiers as the qualifier lobbies' pool unless another stage
 -- already is. Stages don't belong to a dummy account, so ones that already exist by
--- name are reused rather than duplicated, and clear.sql only removes them while they
--- have no categories. Keep the names in step with clear.sql.
+-- name are reused rather than duplicated, and clear.sql only removes them once they
+-- have no categories left (it takes the seeded pools out first). Keep the names in
+-- step with clear.sql.
 INSERT INTO stages (name, position, published, is_qualifier)
 SELECT v.name, COALESCE((SELECT max(position) FROM stages), -1) + v.ord, v.ord <= 3,
        v.name = 'Qualifiers' AND NOT EXISTS (SELECT 1 FROM stages WHERE is_qualifier)
@@ -205,6 +207,167 @@ FROM unnest(ARRAY[
     'Winners Final', 'Losers Final', 'Grand Final'
 ]) WITH ORDINALITY AS v (name, ord)
 WHERE NOT EXISTS (SELECT 1 FROM stages s WHERE s.name = v.name);
+
+-- Map pools for the seeded stages, from real ranked maps: for each stage and mod, the
+-- most played map whose star rating fits that stage's band (rising from 5.0* in the
+-- qualifiers to 5.9* in the grand final, with HR, DT and TB picked lower or higher to
+-- suit), never the same mapset twice. The stats are what the app worked out when the
+-- maps were added with their mods. A stage gets each category it doesn't have yet (by
+-- name), after its own, so a pool someone built stays as it is. DevPooler adds the
+-- maps, which is how clear.sql tells seeded categories apart.
+WITH pool (stage, category, color, cat_pos, slot_pos, mods, beatmap_id, beatmapset_id, artist,
+           title, version, creator, cover_url, star_rating, ar, od, cs, bpm, total_length) AS (
+    VALUES
+    ('Qualifiers', 'NM', '#5b8def', 0, 0, '', 1093507, 513590, 'RADWIMPS', 'Zen Zen Zense (movie ver.)', 'Haruto''s Insane', 'Monstrata', 'https://assets.ppy.sh/beatmaps/513590/covers/cover.jpg?1650644032', 5.0227, 9, 8.2, 3.9, 190, 107),
+    ('Qualifiers', 'NM', '#5b8def', 0, 1, '', 1932649, 921889, 'Fujiwara Chika (CV: Kohara Konomi)', 'Chikatto Chika Chika (TV Size)', 'Hazu''s Expert', 'Lami', 'https://assets.ppy.sh/beatmaps/921889/covers/cover.jpg?1650675795', 5.0006, 9.2, 8.5, 4, 178, 92),
+    ('Qualifiers', 'NM', '#5b8def', 0, 2, '', 847314, 128931, 'Feint', 'Tower Of Heaven (You Are Slaves)', 'Extra', 'eLy', 'https://assets.ppy.sh/beatmaps/128931/covers/cover.jpg?1645785502', 5.1247, 9, 8, 4, 175, 165),
+    ('Qualifiers', 'NM', '#5b8def', 0, 3, '', 853926, 384772, 'Yuaru', 'Asu no Yozora Shoukaihan', 'Insane', 'Akitoshi', 'https://assets.ppy.sh/beatmaps/384772/covers/cover.jpg?1650716263', 5.0611, 9, 7, 4, 185, 173),
+    ('Qualifiers', 'HD', '#e8b84a', 1, 0, 'HD', 847387, 387700, 'toby fox', 'MEGALOVANIA', 'Insane', 'Kyshiro', 'https://assets.ppy.sh/beatmaps/387700/covers/cover.jpg?1650636202', 5.0932, 9, 8.2, 4, 240, 144),
+    ('Qualifiers', 'HD', '#e8b84a', 1, 1, 'HD', 814293, 371128, 'Station Earth', 'Cold Green Eyes ft. Roos Denayer', 'Divine', 'Bearizm', 'https://assets.ppy.sh/beatmaps/371128/covers/cover.jpg?1650634565', 5.1884, 9.2, 8.5, 4, 174, 132),
+    ('Qualifiers', 'HR', '#f3877e', 2, 0, 'HR', 1385399, 653534, 'Panda Eyes', 'ILY', 'Fanteer''s Insane', 'M a r v o l l o', 'https://assets.ppy.sh/beatmaps/653534/covers/cover.jpg?1650652798', 4.7469, 9, 7.5, 4.55, 110, 96),
+    ('Qualifiers', 'HR', '#f3877e', 2, 1, 'HR', 785982, 352570, 'beatMARIO', 'Night of Knights', 'N a s y a''s Insane', 'alacat', 'https://assets.ppy.sh/beatmaps/352570/covers/cover.jpg?1650634611', 4.8267, 9, 7, 3.9, 180, 170),
+    ('Qualifiers', 'DT', '#b48cf2', 3, 0, 'DT', 397535, 163112, 'Kuba Oms', 'My Love', 'Insane', 'W h i t e', 'https://assets.ppy.sh/beatmaps/163112/covers/cover.jpg?1631509131', 5.3953, 8, 7, 4, 192, 149),
+    ('Qualifiers', 'DT', '#b48cf2', 3, 1, 'DT', 760034, 332532, 'Panda Eyes & Teminite', 'Highscore', 'LGV''s Insane', 'Fort', 'https://assets.ppy.sh/beatmaps/332532/covers/cover.jpg?1650631844', 5.3206, 8, 6.8, 4, 165, 160),
+    ('Round of 32', 'NM', '#5b8def', 0, 0, '', 962979, 444335, 'HO-KAGO TEA TIME', 'Kira Kira Days', 'Milan-''s Extra!!', 'Kagetsu', 'https://assets.ppy.sh/beatmaps/444335/covers/cover.jpg?1650638834', 5.2838, 9.3, 8.6, 4.3, 200, 90),
+    ('Round of 32', 'NM', '#5b8def', 0, 1, '', 1962182, 744772, 'toby fox', 'Last Goodbye', 'Extra', 'Fatfan Kolek', 'https://assets.ppy.sh/beatmaps/744772/covers/cover.jpg?1650676934', 5.1095, 9.2, 8.5, 4, 180, 111),
+    ('Round of 32', 'NM', '#5b8def', 0, 2, '', 918723, 423527, 'dj TAKA', 'quaver', 'Haru''s Insane', 'Monstrata', 'https://assets.ppy.sh/beatmaps/423527/covers/cover.jpg?1650640646', 5.195, 9, 8, 3.6, 182, 204),
+    ('Round of 32', 'NM', '#5b8def', 0, 3, '', 1962198, 931452, 'HAG', 'Colorful', 'Nevo''s Expert', 'Sotarks', 'https://assets.ppy.sh/beatmaps/931452/covers/cover.jpg?1650678433', 5.2407, 9.3, 9, 3.6, 192, 129),
+    ('Round of 32', 'HD', '#e8b84a', 1, 0, 'HD', 996356, 326920, 'Seiryu', 'BLUE DRAGON', 'Fiery''s Insane', 'Blue Dragon', 'https://assets.ppy.sh/beatmaps/326920/covers/cover.jpg?1650644794', 5.2245, 9, 8, 4, 191, 173),
+    ('Round of 32', 'HD', '#e8b84a', 1, 1, 'HD', 1969095, 942866, 'Getter Jaani', 'Rockefeller Street (Nightcore Mix)', 'ggf''s Expert', 'Sotarks', 'https://assets.ppy.sh/beatmaps/942866/covers/cover.jpg?1650678288', 5.2559, 9, 8.7, 3.8, 162.5, 100),
+    ('Round of 32', 'HR', '#f3877e', 2, 0, 'HR', 637623, 219380, 'Konuko', 'Toumei Elegy', 'G''s Insane', 'Awaken', 'https://assets.ppy.sh/beatmaps/219380/covers/cover.jpg?1650632979', 5.1975, 8.5, 7, 5.2, 220, 200),
+    ('Round of 32', 'HR', '#f3877e', 2, 1, 'HR', 128718, 40440, 'S3RL', 'Pika Girl', 'Insane', 'Takuya', 'https://assets.ppy.sh/beatmaps/40440/covers/cover.jpg?1645779887', 4.9499, 9, 7, 5.2, 175, 221),
+    ('Round of 32', 'DT', '#b48cf2', 3, 0, 'DT', 351189, 140662, 'cYsmix feat. Emmy', 'Tear Rain', 'Insane', 'jonathanlfj', 'https://assets.ppy.sh/beatmaps/140662/covers/cover.jpg?1622070421', 5.4013, 8, 7, 4, 192, 160),
+    ('Round of 32', 'DT', '#b48cf2', 3, 1, 'DT', 315552, 123593, 'Rostik', 'Liquid (Paul Rosenthal Remix)', 'Insane', 'Charles445', 'https://assets.ppy.sh/beatmaps/123593/covers/cover.jpg?1622068626', 5.5735, 8, 8, 4, 199.5, 107),
+    ('Round of 32', 'DT', '#b48cf2', 3, 2, 'DT', 340104, 134151, 'Hanatan', 'Airman ga Taosenai (SOUND HOLIC Ver.)', 'Hard', 'Natsu', 'https://assets.ppy.sh/beatmaps/134151/covers/cover.jpg?1650621307', 5.3374, 8, 6, 4, 262.5, 151),
+    ('Round of 32', 'FM', '#5fd38d', 4, 0, '', 992281, 462386, 'Foreground Eclipse', 'From Under Cover (Caught Up In A Love Song)', 'Lunatic', 'Seni', 'https://assets.ppy.sh/beatmaps/462386/covers/cover.jpg?1650643367', 5.1119, 9, 7.5, 4, 200, 203),
+    ('Round of 32', 'FM', '#5fd38d', 4, 1, '', 1531842, 721804, 'Omoi', 'Teo', 'Akitoshi vs. SnowNiNo''s Insane', 'Kroytz', 'https://assets.ppy.sh/beatmaps/721804/covers/cover.jpg?1650659527', 5.0582, 9, 7.5, 4, 185, 205),
+    ('Round of 32', 'TB', '#ff66ab', 5, 0, '', 719594, 292301, 'xi', 'Blue Zenith', 'RLC''s Insane', 'Asphyxia', 'https://assets.ppy.sh/beatmaps/292301/covers/cover.jpg?1650630372', 5.5873, 9, 8, 4, 200, 249),
+    ('Round of 16', 'NM', '#5b8def', 0, 0, '', 557821, 241526, 'Soleily', 'Renatus', 'Insane', 'Multiple Creators', 'https://assets.ppy.sh/beatmaps/241526/covers/cover.jpg?1622080332', 5.316, 9, 8, 4, 182, 207),
+    ('Round of 16', 'NM', '#5b8def', 0, 1, '', 374114, 151878, 'Chasers', 'Lost', 'Insane', 'ktgster', 'https://assets.ppy.sh/beatmaps/151878/covers/cover.jpg?1622071759', 5.244, 9, 8, 5, 170, 205),
+    ('Round of 16', 'NM', '#5b8def', 0, 2, '', 709258, 213629, 'The Living Tombstone', 'Five Nights at Freddy''s', 'Extra', '-Faded-', 'https://assets.ppy.sh/beatmaps/213629/covers/cover.jpg?1650627414', 5.2435, 9.2, 8.2, 4, 103, 159),
+    ('Round of 16', 'NM', '#5b8def', 0, 3, '', 2444149, 1171789, 'SPYAIR', 'Imagination (TV Size)', 'Extra', 'browiec', 'https://assets.ppy.sh/beatmaps/1171789/covers/cover.jpg?1622188996', 5.4189, 9.3, 9.2, 3.8, 204, 90),
+    ('Round of 16', 'HD', '#e8b84a', 1, 0, 'HD', 1519137, 703957, 'Panda Eyes & Teminite', 'Immortal Flame (feat. Anna Yvette)', 'Mir''s Extra', 'Sotarks', 'https://assets.ppy.sh/beatmaps/703957/covers/cover.jpg?1650658558', 5.537, 9.3, 8.7, 3.5, 110, 214),
+    ('Round of 16', 'HD', '#e8b84a', 1, 1, 'HD', 1027702, 480765, '3 Nen E Gumi Utatan (Nagisa & Kayano & Karuma & Isogai & Maehara)', 'Bye Bye YESTERDAY', 'Nhawak''s Extra', 'Gero', 'https://assets.ppy.sh/beatmaps/480765/covers/cover.jpg?1650646117', 5.5692, 9.2, 8, 4, 180, 92),
+    ('Round of 16', 'HR', '#f3877e', 2, 0, 'HR', 1608726, 764602, 'Sex Whales & Fraxo', 'Dead To Me (Instrumental)', 'NiNo''s Insane', 'Sotarks', 'https://assets.ppy.sh/beatmaps/764602/covers/cover.jpg?1650662178', 5.3074, 9, 8, 5.2, 148, 93),
+    ('Round of 16', 'HR', '#f3877e', 2, 1, 'HR', 136400, 43466, 'DJ Genericname', 'Dear You', 'Dear Rue', 'Rue', 'https://assets.ppy.sh/beatmaps/43466/covers/cover.jpg?1645780906', 5.1199, 9, 7, 5.2, 174.11, 111),
+    ('Round of 16', 'DT', '#b48cf2', 3, 0, 'DT', 1593361, 757410, 'XXXTENTACION', 'SAD!', 'Depression', 'Chromoxx', 'https://assets.ppy.sh/beatmaps/757410/covers/cover.jpg?1645776895', 5.8557, 8.5, 8, 4, 112.5, 69),
+    ('Round of 16', 'DT', '#b48cf2', 3, 1, 'DT', 1587909, 754219, 'TheFatRat ft. Laura Brehm', 'MAYDAY (Nightcore Mix)', 'Collab Insane', 'Peter', 'https://assets.ppy.sh/beatmaps/754219/covers/cover.jpg?1650661061', 5.8482, 9, 8, 4, 258.75, 67),
+    ('Round of 16', 'DT', '#b48cf2', 3, 2, 'DT', 117427, 33651, 'Hatsune Miku', 'Rubik''s Cube', '5x5x5', 'rui', 'https://assets.ppy.sh/beatmaps/33651/covers/cover.jpg?1622048536', 5.4845, 7, 5, 4, 261, 113),
+    ('Round of 16', 'FM', '#5fd38d', 4, 0, '', 780914, 354537, 'Feint', 'Vagrant (feat. Veela)', 'Still Alive', 'Aia', 'https://assets.ppy.sh/beatmaps/354537/covers/cover.jpg?1650633472', 5.2924, 9.2, 8.5, 4, 175, 112),
+    ('Round of 16', 'FM', '#5fd38d', 4, 1, '', 198171, 68500, 'LiSA', 'crossing field', 'Insane', 'Ryafuka', 'https://assets.ppy.sh/beatmaps/68500/covers/cover.jpg?1622060634', 5.2277, 9, 8, 4, 179, 237),
+    ('Round of 16', 'TB', '#ff66ab', 5, 0, '', 2535967, 1218852, 'YOASOBI', 'Yoru ni Kakeru', 'Collab Extra', 'CoLouRed GlaZeE', 'https://assets.ppy.sh/beatmaps/1218852/covers/cover.jpg?1645786453', 5.7745, 9.2, 8, 4, 130, 243),
+    ('Quarterfinals', 'NM', '#5b8def', 0, 0, '', 1257298, 594429, 'Kenshi Yonezu', 'Peace Sign (TV edit.)', 'Plus Ultra', 'Finshie', 'https://assets.ppy.sh/beatmaps/594429/covers/cover.jpg?1645781351', 5.5602, 9.3, 8.5, 4, 200, 90),
+    ('Quarterfinals', 'NM', '#5b8def', 0, 1, '', 164020, 53857, 'Saiya', 'Remote Control', 'Insane', 'Garven', 'https://assets.ppy.sh/beatmaps/53857/covers/cover.jpg?1650613297', 5.5319, 9, 9, 4, 165, 134),
+    ('Quarterfinals', 'NM', '#5b8def', 0, 2, '', 836556, 366440, 'Reol', 'MONSTER', 'BYFAR''S EXTRA', 'handsome', 'https://assets.ppy.sh/beatmaps/366440/covers/cover.jpg?1622095148', 5.5177, 9, 8.5, 4, 164, 195),
+    ('Quarterfinals', 'NM', '#5b8def', 0, 3, '', 857431, 357777, 'NOMA', 'Brain Power', 'NiNo''s EXHAUST', 'Jacob', 'https://assets.ppy.sh/beatmaps/357777/covers/cover.jpg?1650641012', 5.4671, 9, 8, 4, 170, 107),
+    ('Quarterfinals', 'HD', '#e8b84a', 1, 0, 'HD', 476149, 153776, 'yuikonnu & ayaponzu*', 'Super Nuko World', 'Insane', 'AllStar12', 'https://assets.ppy.sh/beatmaps/153776/covers/cover.jpg?1650621428', 5.7529, 9, 7.5, 4, 190, 219),
+    ('Quarterfinals', 'HD', '#e8b84a', 1, 1, 'HD', 1034482, 485056, '*namirin', 'Koi no Hime Hime Pettanko', 'Extra', '[C u r i]', 'https://assets.ppy.sh/beatmaps/485056/covers/cover.jpg?1650642198', 5.6865, 9.2, 8.5, 4, 178, 94),
+    ('Quarterfinals', 'HR', '#f3877e', 2, 0, 'HR', 2237467, 1068768, 'yuikonnu', 'Yume Chizu', 'Expert', 'browiec', 'https://assets.ppy.sh/beatmaps/1068768/covers/cover.jpg?1645787898', 5.4533, 9.2, 9, 4.94, 176, 100),
+    ('Quarterfinals', 'HR', '#f3877e', 2, 1, 'HR', 2129145, 1017271, 'Nashimoto Ui', 'AaAaAaAAaAaAAa', 'Reform''s ExPeRT', 'Sotarks', 'https://assets.ppy.sh/beatmaps/1017271/covers/cover.jpg?1650683889', 5.5796, 9.2, 9, 5.2, 192, 105),
+    ('Quarterfinals', 'DT', '#b48cf2', 3, 0, 'DT', 803704, 361740, 'Agnete Kjolsrud', 'Get Jinxed', 'Platinum', 'Tarrasky', 'https://assets.ppy.sh/beatmaps/361740/covers/cover.jpg?1645788409', 6.2479, 9, 7, 4, 270, 87),
+    ('Quarterfinals', 'DT', '#b48cf2', 3, 1, 'DT', 323875, 127712, 'Primastella', 'Koigokoro', 'Delis'' Insane', 'Luerxa', 'https://assets.ppy.sh/beatmaps/127712/covers/cover.jpg?1650619119', 5.7656, 8, 7, 4, 210, 105),
+    ('Quarterfinals', 'DT', '#b48cf2', 3, 2, 'DT', 2969237, 1440767, 'DM DOKURO', 'SAVE (Encore)', 'browiec & Kuki''s Insane', 'browiec', 'https://assets.ppy.sh/beatmaps/1440767/covers/cover.jpg?1650709123', 5.857, 9, 8, 3.8, 270, 75),
+    ('Quarterfinals', 'FM', '#5fd38d', 4, 0, '', 1843595, 881764, 'Will Stetson', 'Snow Halation (feat. BeasttrollMC)', 'Onlybiscuit''s Extra', 'Sotarks', 'https://assets.ppy.sh/beatmaps/881764/covers/cover.jpg?1650672557', 5.4408, 9, 9.2, 4, 173, 106),
+    ('Quarterfinals', 'FM', '#5fd38d', 4, 1, '', 2868389, 1388906, 'Raphlesia & BilliumMoto', 'My Love', 'Real & Panda''s Insane', 'Mao', 'https://assets.ppy.sh/beatmaps/1388906/covers/cover.jpg?1650707731', 5.3308, 9, 7.5, 3.8, 175, 223),
+    ('Quarterfinals', 'TB', '#ff66ab', 5, 0, '', 815857, 372510, 'THE ORAL CIGARETTES', 'Kyouran Hey Kids!!', 'God of Speed', 'monstrata', 'https://assets.ppy.sh/beatmaps/372510/covers/cover.jpg?1650634774', 5.8431, 9.3, 8, 4, 142, 246),
+    ('Semifinals', 'NM', '#5b8def', 0, 0, '', 1828557, 874948, 'K/DA', 'POP/STARS (ft. Madison Beer, (G)I-DLE, Jaira Burns)', 'Sing''s Insane', 'Nathan', 'https://assets.ppy.sh/beatmaps/874948/covers/cover.jpg?1650671383', 5.5378, 9, 8, 4, 170, 187),
+    ('Semifinals', 'NM', '#5b8def', 0, 1, '', 949011, 441155, 'Chino(CV.Minase Inori)', 'Shinsaku no Shiawase wa Kochira!', 'Dan Dan', 'Shioi', 'https://assets.ppy.sh/beatmaps/441155/covers/cover.jpg?1650638315', 5.6165, 9.2, 8.5, 4, 175, 124),
+    ('Semifinals', 'NM', '#5b8def', 0, 2, '', 1576174, 745312, 'Ni-Sokkususu', 'Blade Dance', 'Kalibe''s Insane', 'Sotarks', 'https://assets.ppy.sh/beatmaps/745312/covers/cover.jpg?1650660483', 5.67, 9, 8, 4, 187, 145),
+    ('Semifinals', 'NM', '#5b8def', 0, 3, '', 2397136, 1148073, 'ONE OK ROCK', 'One by One', 'Extra', 'Elinor', 'https://assets.ppy.sh/beatmaps/1148073/covers/cover.jpg?1645788262', 5.6456, 9.3, 9.1, 3.8, 197, 108),
+    ('Semifinals', 'HD', '#e8b84a', 1, 0, 'HD', 1690359, 805224, 'Will Stetson', 'Super Driver', 'Rolniczy''s Extra', 'Sotarks', 'https://assets.ppy.sh/beatmaps/805224/covers/cover.jpg?1650665948', 5.6828, 9.3, 8.6, 3.6, 200, 96),
+    ('Semifinals', 'HD', '#e8b84a', 1, 1, 'HD', 221950, 79116, 'Sagara Kokoro', 'Hoshizora no Ima', 'S.S', 'Star Stream', 'https://assets.ppy.sh/beatmaps/79116/covers/cover.jpg?1650615751', 5.7192, 9, 7, 4, 185, 100),
+    ('Semifinals', 'HR', '#f3877e', 2, 0, 'HR', 1262433, 597111, 'RADWIMPS', 'Yume Tourou', 'Extra: Mitsuha', 'Monstrata', 'https://assets.ppy.sh/beatmaps/597111/covers/cover.jpg?1650649247', 5.5033, 9.2, 8.7, 5.2, 178, 126),
+    ('Semifinals', 'HR', '#f3877e', 2, 1, 'HR', 1037478, 486535, 'cYsmix', 'Moonlight Sonata', 'Expert', 'Okorin', 'https://assets.ppy.sh/beatmaps/486535/covers/cover.jpg?1631509836', 5.6944, 9, 8, 5.2, 128, 190),
+    ('Semifinals', 'DT', '#b48cf2', 3, 0, 'DT', 453358, 190390, 'Rameses B', 'Flaklypa', 'Insane', '-kevincela-', 'https://assets.ppy.sh/beatmaps/190390/covers/cover.jpg?1622075765', 6.2736, 9, 8, 4, 195, 121),
+    ('Semifinals', 'DT', '#b48cf2', 3, 1, 'DT', 1627629, 769917, 'dark cat', 'BUBBLE TEA (feat. juu & cinders)', 'Kaifin''s Insane', 'Hobbes2', 'https://assets.ppy.sh/beatmaps/769917/covers/cover.jpg?1650663270', 6.1209, 8, 7, 3, 240, 97),
+    ('Semifinals', 'DT', '#b48cf2', 3, 2, 'DT', 833638, 378559, 'NICO Touches the Walls', 'Niwaka Ame ni mo Makezu', 'Insane', 'monstrata', 'https://assets.ppy.sh/beatmaps/378559/covers/cover.jpg?1645787474', 5.9924, 8.7, 8, 4, 279, 78),
+    ('Semifinals', 'FM', '#5fd38d', 4, 0, '', 2166311, 1035167, 'ONE OK ROCK', 'Start Again', 'Onlybiscuit''s Extra', 'A r M i N', 'https://assets.ppy.sh/beatmaps/1035167/covers/cover.jpg?1650685496', 5.4977, 9.2, 9, 3.8, 174, 122),
+    ('Semifinals', 'FM', '#5fd38d', 4, 1, '', 928868, 416153, 'Remo Prototype[CV: Hanamori Yumiri]', 'Sendan Life', 'Pho''s Insane', 'Lami', 'https://assets.ppy.sh/beatmaps/416153/covers/cover.jpg?1650639459', 5.4971, 9.3, 8, 4, 227, 232),
+    ('Semifinals', 'TB', '#ff66ab', 5, 0, '', 1088292, 478405, 'Omoi', 'Snow Drive(01.23)', 'Rumi''s Expert', 'Kroytz', 'https://assets.ppy.sh/beatmaps/478405/covers/cover.jpg?1650647231', 6.014, 9.2, 8, 4, 224, 240),
+    ('Winners Final', 'NM', '#5b8def', 0, 0, '', 553131, 158023, 'UNDEAD CORPORATION', 'Everything will freeze', 'Lunatic', 'Ekoro', 'https://assets.ppy.sh/beatmaps/158023/covers/cover.jpg?1645787427', 5.8872, 9, 8, 4, 240, 194),
+    ('Winners Final', 'NM', '#5b8def', 0, 1, '', 759056, 185250, 'ALiCE''S EMOTiON', 'Dark Flight Dreamer', 'Shawajoy''s Lunatic', 'Sakaue Nachi', 'https://assets.ppy.sh/beatmaps/185250/covers/cover.jpg?1650631939', 5.8103, 9.2, 8, 4, 189, 189),
+    ('Winners Final', 'NM', '#5b8def', 0, 2, '', 1040942, 488238, 'cYsmix', 'Classic Pursuit', 'Expert', '-kevincela-', 'https://assets.ppy.sh/beatmaps/488238/covers/cover.jpg?1631509747', 5.8283, 9.3, 8, 4.3, 140, 139),
+    ('Winners Final', 'NM', '#5b8def', 0, 3, '', 2064221, 985788, 'Loki', 'Wizard''s Tower', 'Daycore''s Extra', 'Taeyang', 'https://assets.ppy.sh/beatmaps/985788/covers/cover.jpg?1650681317', 5.7848, 9.2, 8.7, 4.5, 175, 160),
+    ('Winners Final', 'HD', '#e8b84a', 1, 0, 'HD', 1501684, 671199, 'DECO*27', 'HIBANA feat. Hatsune Miku', 'neonat''s Extra', 'Pho', 'https://assets.ppy.sh/beatmaps/671199/covers/cover.jpg?1650657296', 5.9782, 9.2, 8, 4, 200, 203),
+    ('Winners Final', 'HD', '#e8b84a', 1, 1, 'HD', 895077, 410998, 'Stonebank', 'All Night', 'Hi-Speed Extra', 'Monstrata', 'https://assets.ppy.sh/beatmaps/410998/covers/cover.jpg?1650636926', 5.6817, 9.6, 7, 3, 170, 113),
+    ('Winners Final', 'HR', '#f3877e', 2, 0, 'HR', 69405, 19789, 'Hatsune Miku & Megpoid Gumi', 'MATRYOSHKA', 'Insane', 'gowww', 'https://assets.ppy.sh/beatmaps/19789/covers/cover.jpg?1645778675', 5.5548, 9, 8, 5.2, 205, 198),
+    ('Winners Final', 'HR', '#f3877e', 2, 1, 'HR', 848345, 380545, 'Primary', 'Sweets Weekend', 'Sweet Neko', 'CaffeAmericano', 'https://assets.ppy.sh/beatmaps/380545/covers/cover.jpg?1622096656', 5.8056, 9.3, 9, 5.2, 180, 93),
+    ('Winners Final', 'DT', '#b48cf2', 3, 0, 'DT', 1555610, 737128, 'ONE OK ROCK', 'Bombs away', 'Another', 'A r M i N', 'https://assets.ppy.sh/beatmaps/737128/covers/cover.jpg?1650659486', 6.4815, 9, 8.1, 4, 240, 69),
+    ('Winners Final', 'DT', '#b48cf2', 3, 1, 'DT', 846261, 387784, 'Shawn Wasabi', 'Marble Soda', 'Narcissu''s Insane', 'Len', 'https://assets.ppy.sh/beatmaps/387784/covers/cover.jpg?1650635195', 6.2735, 9, 7.5, 4, 252, 107),
+    ('Winners Final', 'DT', '#b48cf2', 3, 2, 'DT', 519080, 221954, 'Tsunamaru', 'Daidai Genome', 'Insane', 'Lust', 'https://assets.ppy.sh/beatmaps/221954/covers/cover.jpg?1650625685', 6.2782, 8, 8, 4, 202.5, 121),
+    ('Winners Final', 'FM', '#5fd38d', 4, 0, '', 487589, 186318, 'Warak', 'REANIMATE', 'xsrs''s Extra', 'iyasine', 'https://assets.ppy.sh/beatmaps/186318/covers/cover.jpg?1650623687', 5.6651, 9.5, 8, 4, 174, 151),
+    ('Winners Final', 'FM', '#5fd38d', 4, 1, '', 2144226, 1025171, 'LiSA', 'Gurenge', 'Extra', 'Crissa', 'https://assets.ppy.sh/beatmaps/1025171/covers/cover.jpg?1650684543', 5.7738, 9.3, 9, 4.8, 135, 232),
+    ('Winners Final', 'TB', '#ff66ab', 5, 0, '', 1351114, 636839, 'KASAI HARCORES', 'Cycle Hit', 'Home Run', 'Worminators', 'https://assets.ppy.sh/beatmaps/636839/covers/cover.jpg?1641132312', 6.2375, 9.5, 8.7, 3.8, 175, 307),
+    ('Losers Final', 'NM', '#5b8def', 0, 0, '', 539909, 206750, 'Hige Driver join. SELEN', 'Dadadadadadadadadada', 'EXTREME', 'spboxer3', 'https://assets.ppy.sh/beatmaps/206750/covers/cover.jpg?1645788401', 5.8447, 9.3, 8, 4, 156, 102),
+    ('Losers Final', 'NM', '#5b8def', 0, 1, '', 2022718, 966339, 'umu.', 'Ai no Sukima', 'Emotions', 'Sotarks', 'https://assets.ppy.sh/beatmaps/966339/covers/cover.jpg?1650679952', 5.8983, 9.2, 9, 3.8, 204, 105),
+    ('Losers Final', 'NM', '#5b8def', 0, 2, '', 1582621, 751785, 'Cranky', 'Chandelier - King', 'Royal', 'Mao', 'https://assets.ppy.sh/beatmaps/751785/covers/cover.jpg?1650660791', 5.8945, 9.2, 8.2, 4.2, 170, 239),
+    ('Losers Final', 'NM', '#5b8def', 0, 3, '', 2860521, 1384619, 'HO-KAGO TEA TIME', 'Kira Kira Days (Cut Ver.)', 'Shiawase!', 'Sotarks', 'https://assets.ppy.sh/beatmaps/1384619/covers/cover.jpg?1650707631', 5.8561, 9.4, 9.3, 3.8, 200, 90),
+    ('Losers Final', 'HD', '#e8b84a', 1, 0, 'HD', 2480904, 1190710, 'Suzuki Konomi', 'Realize (TV Size)', 'Reform''s Expert', 'Sotarks', 'https://assets.ppy.sh/beatmaps/1190710/covers/cover.jpg?1650697013', 5.7852, 9.3, 9, 3.8, 206, 91),
+    ('Losers Final', 'HD', '#e8b84a', 1, 1, 'HD', 896480, 413117, 'DECO*27', 'Ghost Rule', 'Extra', 'Awaken', 'https://assets.ppy.sh/beatmaps/413117/covers/cover.jpg?1650685850', 5.8597, 9, 8, 4, 210, 197),
+    ('Losers Final', 'HR', '#f3877e', 2, 0, 'HR', 786980, 355573, 'O2i3', 'Ooi [Game Edit]', 'Expert', 'Fort', 'https://assets.ppy.sh/beatmaps/355573/covers/cover.jpg?1631509644', 5.7033, 9.2, 8, 5.2, 216, 114),
+    ('Losers Final', 'HR', '#f3877e', 2, 1, 'HR', 1027542, 481451, 'S3RL feat Krystal', 'R4V3 B0Y', '3XTR4', 'DeRandom Otaku', 'https://assets.ppy.sh/beatmaps/481451/covers/cover.jpg?1650642294', 5.9429, 9.3, 8.3, 5.59, 175, 177),
+    ('Losers Final', 'DT', '#b48cf2', 3, 0, 'DT', 1053243, 476691, 'DJ OKAWARI', 'Flower Dance', 'Little''s Insane', 'Narcissu', 'https://assets.ppy.sh/beatmaps/476691/covers/cover.jpg?1650642192', 6.284, 8.7, 7, 3.9, 150, 161),
+    ('Losers Final', 'DT', '#b48cf2', 3, 1, 'DT', 186721, 63112, 'ONE OK ROCK', 'Answer is Near', 'Insane', 'Kuria', 'https://assets.ppy.sh/beatmaps/63112/covers/cover.jpg?1650614282', 6.6887, 9, 7, 4, 282, 141),
+    ('Losers Final', 'DT', '#b48cf2', 3, 2, 'DT', 63499, 17852, 'Baracuda', 'La Di Da (Nightcore Mix)', 'La Di Da', 'ztrot', 'https://assets.ppy.sh/beatmaps/17852/covers/cover.jpg?1650605049', 6.3077, 8, 8, 4, 243.75, 101),
+    ('Losers Final', 'FM', '#5fd38d', 4, 0, '', 351993, 100049, 'Himeringo', 'Yotsuya-san ni Yoroshiku', 'Insane', 'RLC', 'https://assets.ppy.sh/beatmaps/100049/covers/cover.jpg?1650620890', 5.5744, 9, 8, 4, 220, 172),
+    ('Losers Final', 'FM', '#5fd38d', 4, 1, '', 176960, 58951, 'UNDEAD CORPORATION', 'Yoru Naku Usagi wa Yume o Miru', 'Lunatic', 'Smoothie', 'https://assets.ppy.sh/beatmaps/58951/covers/cover.jpg?1650616586', 5.7236, 9, 7, 4, 200, 218),
+    ('Losers Final', 'TB', '#ff66ab', 5, 0, '', 657509, 292077, 'Reol', 'Asymmetry', 'Extra', 'Gaia', 'https://assets.ppy.sh/beatmaps/292077/covers/cover.jpg?1650629132', 6.1061, 9.4, 8.5, 4.1, 184, 251),
+    ('Grand Final', 'NM', '#5b8def', 0, 0, '', 366140, 147962, 'UPLIFT SPICE', 'Omega Rhythm', 'Extra', 'Jemmmmy', 'https://assets.ppy.sh/beatmaps/147962/covers/cover.jpg?1650620437', 5.9806, 9.2, 8.5, 4, 173, 178),
+    ('Grand Final', 'NM', '#5b8def', 0, 1, '', 1569034, 732994, 'Team.NEKOKAN', 'Airman ga Taosenai', 'Ger M i N''s Extra', 'Sotarks', 'https://assets.ppy.sh/beatmaps/732994/covers/cover.jpg?1650660274', 5.9696, 9.4, 8, 3.5, 200, 221),
+    ('Grand Final', 'NM', '#5b8def', 0, 2, '', 1650477, 785858, 'THE ORAL CIGARETTES', 'ReI', 'Nevo''s Expert', 'Sotarks', 'https://assets.ppy.sh/beatmaps/785858/covers/cover.jpg?1650664560', 5.9257, 9.3, 9, 3.8, 186, 115),
+    ('Grand Final', 'NM', '#5b8def', 0, 3, '', 404429, 139525, 'Lite Show Magic (t+pazolite vs C-Show)', 'Crack Traxxxx', 'Gero''s Another', 'Fatfan Kolek', 'https://assets.ppy.sh/beatmaps/139525/covers/cover.jpg?1650630208', 5.9309, 9.2, 8, 4, 220, 116),
+    ('Grand Final', 'HD', '#e8b84a', 1, 0, 'HD', 1400414, 661483, 'Reol', 'MONSTER', 'DARKNESS', 'Sotarks', 'https://assets.ppy.sh/beatmaps/661483/covers/cover.jpg?1622123968', 6.0545, 9, 9, 3.7, 164, 96),
+    ('Grand Final', 'HD', '#e8b84a', 1, 1, 'HD', 888305, 409164, 'S3RL feat Mixie Moon', 'FriendZoned', 'Sorry, But We Are Just Friends', 'FCL', 'https://assets.ppy.sh/beatmaps/409164/covers/cover.jpg?1650636524', 6.1611, 9.2, 8.6, 4.3, 175, 168),
+    ('Grand Final', 'HR', '#f3877e', 2, 0, 'HR', 93842, 28107, 'DJ Fresh', 'Gold Dust', 'Insane', 'galvenize', 'https://assets.ppy.sh/beatmaps/28107/covers/cover.jpg?1622045706', 5.8471, 9, 7, 5.2, 177, 182),
+    ('Grand Final', 'HR', '#f3877e', 2, 1, 'HR', 382930, 143397, 'Natsume Chiaki', 'Hanairo Biyori', 'Extra', 'rinsukir', 'https://assets.ppy.sh/beatmaps/143397/covers/cover.jpg?1650625350', 5.8908, 9, 8, 5.2, 182, 192),
+    ('Grand Final', 'DT', '#b48cf2', 3, 0, 'DT', 119803, 36858, 'Hatsune Miku', 'Senbonzakura (Short Ver.)', 'Rin', 'NatsumeRin', 'https://assets.ppy.sh/beatmaps/36858/covers/cover.jpg?1622049909', 6.7435, 8, 8, 4, 231, 101),
+    ('Grand Final', 'DT', '#b48cf2', 3, 1, 'DT', 1038400, 486142, 'cYsmix', 'Fright March', 'Insane', 'Gero', 'https://assets.ppy.sh/beatmaps/486142/covers/cover.jpg?1631509649', 6.6778, 8.5, 7, 4, 240, 99),
+    ('Grand Final', 'DT', '#b48cf2', 3, 2, 'DT', 897901, 413707, 'Milkychan', 'Stronger Than You -Chara Response-', 'Insane', 'Cosmolade', 'https://assets.ppy.sh/beatmaps/413707/covers/cover.jpg?1650644445', 6.7764, 9, 7, 4, 147, 110),
+    ('Grand Final', 'FM', '#5fd38d', 4, 0, '', 953586, 443751, 'Chino(CV.Minase Inori)', 'Shinsaku no Shiawase wa Kochira!', 'Happy~!', 'Lami', 'https://assets.ppy.sh/beatmaps/443751/covers/cover.jpg?1650639287', 5.7427, 9.2, 8.5, 4, 175, 124),
+    ('Grand Final', 'FM', '#5fd38d', 4, 1, '', 1595191, 758344, 'Colors*Slash', 'Colors Power ni Omakasero!', 'Rainbows', 'Sotarks', 'https://assets.ppy.sh/beatmaps/758344/covers/cover.jpg?1650661435', 5.7688, 9.4, 9.2, 3.8, 200, 97),
+    ('Grand Final', 'TB', '#ff66ab', 5, 0, '', 550235, 237768, 'Our Stolen Theory', 'United (L.A.O.S Remix)', 'Infinity', 'Asphyxia', 'https://assets.ppy.sh/beatmaps/237768/covers/cover.jpg?1632036015', 6.2899, 9.2, 9, 4, 175, 326)
+),
+targets AS (
+    SELECT DISTINCT ON (s.name) s.id, s.name
+    FROM stages s
+    WHERE s.name IN (SELECT stage FROM pool)
+    ORDER BY s.name, s.position
+),
+missing AS (
+    SELECT DISTINCT t.id AS stage_id, p.category, p.cat_pos, p.color
+    FROM pool p
+    JOIN targets t ON t.name = p.stage
+    WHERE NOT EXISTS (
+        SELECT 1 FROM stage_categories c
+        WHERE c.stage_id = t.id AND lower(c.name) = lower(p.category)
+    )
+),
+categories AS (
+    INSERT INTO stage_categories (stage_id, name, position, color)
+    SELECT m.stage_id, m.category,
+           COALESCE((SELECT max(c.position) + 1 FROM stage_categories c
+                     WHERE c.stage_id = m.stage_id), 0) + m.cat_pos,
+           m.color
+    FROM missing m
+    RETURNING id, stage_id, name
+),
+slots AS (
+    INSERT INTO category_slots (category_id, position)
+    SELECT c.id, p.slot_pos
+    FROM pool p
+    JOIN targets t ON t.name = p.stage
+    JOIN categories c ON c.stage_id = t.id AND c.name = p.category
+    RETURNING id, category_id, position
+)
+INSERT INTO pool_maps (slot_id, mods, beatmap_id, beatmapset_id, artist, title, version, creator,
+                       mode, cover_url, star_rating, ar, od, cs, bpm, total_length, added_by)
+SELECT s.id, p.mods, p.beatmap_id, p.beatmapset_id, p.artist, p.title, p.version, p.creator,
+       'osu', p.cover_url, p.star_rating, p.ar, p.od, p.cs, p.bpm, p.total_length,
+       (SELECT id FROM osu_users WHERE osu_id = -2)
+FROM pool p
+JOIN targets t ON t.name = p.stage
+JOIN categories c ON c.stage_id = t.id AND c.name = p.category
+JOIN slots s ON s.category_id = c.id AND s.position = p.slot_pos;
 
 -- A 32-team double-elimination bracket, partway through: winners round 1 and losers
 -- round 1 are over, winners round 2 and losers round 2 are being played (one match
@@ -284,18 +447,20 @@ BEGIN
                 num := l_num;
             END IF;
             starts := base + rnd.starts + idx * rnd.step;
-            INSERT INTO matches (kind, starts_at, referee_id, mp_id, concluded_at)
+            INSERT INTO matches (kind, starts_at, referee_id, concluded_at)
             VALUES (
                 'bracket',
                 starts,
                 (SELECT id FROM osu_users
                  WHERE osu_id = CASE WHEN num % 2 = 0 THEN -3 ELSE -4 END),
-                CASE WHEN idx < rnd.done OR (idx = rnd.done AND rnd.live)
-                    THEN CASE WHEN rnd.side = 'winners' THEN 112234000 ELSE 112235000 END + num
-                END,
                 CASE WHEN idx < rnd.done THEN starts + interval '1 hour' END
             )
             RETURNING id INTO new_match;
+            IF idx < rnd.done OR (idx = rnd.done AND rnd.live) THEN
+                INSERT INTO match_rooms (mp_id, match_id, added_at)
+                VALUES (CASE WHEN rnd.side = 'winners' THEN 112234000 ELSE 112235000 END + num,
+                        new_match, starts);
+            END IF;
             INSERT INTO bracket_matches (match_id, side, number, pos_x, pos_y, team1_id, team2_id,
                                          stage_id)
             VALUES (
@@ -375,7 +540,7 @@ BEGIN
     FROM bracket_matches b
     WHERE b.match_id = m.id
       AND m.id IN (SELECT value::uuid FROM jsonb_each_text(ids))
-      AND m.mp_id IS NULL
+      AND NOT EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id)
       AND b.number % 3 = 0
       AND (b.team1_id IS NOT NULL OR b.team2_id IS NOT NULL);
 
@@ -393,14 +558,25 @@ BEGIN
       );
 END $$;
 
--- A room chat for W1, so the referee page has a concluded match with a log to show.
--- Team 1 plays red and takes five maps to blue's three, like the seeded 5-3.
+-- W1's rooms and their chat, so the referee page has a concluded match to show them
+-- for. The first room broke after three maps and the match went on in a second one.
+-- Team 1 plays red and takes five maps to blue's three, like the seeded 5-3. The maps
+-- are picked from W1's stage pool, with made-up ones should that stage have none.
+INSERT INTO match_rooms (mp_id, match_id, added_at)
+SELECT 112236001, m.id, m.starts_at + interval '20 minutes'
+FROM bracket_matches b
+JOIN matches m ON m.id = b.match_id
+WHERE b.side = 'winners' AND b.number = 1
+  AND EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id);
+
 WITH w1 AS (
-    SELECT m.mp_id, m.starts_at AS t0, b.team1_id, b.team2_id, r.username AS referee
+    SELECT m.starts_at AS t0, b.team1_id, b.team2_id, b.stage_id, ref.username AS referee,
+           ARRAY(SELECT r.mp_id FROM match_rooms r WHERE r.match_id = m.id
+                 ORDER BY r.added_at) AS rooms
     FROM bracket_matches b
     JOIN matches m ON m.id = b.match_id
-    LEFT JOIN osu_users r ON r.id = m.referee_id
-    WHERE b.side = 'winners' AND b.number = 1 AND m.mp_id IS NOT NULL
+    LEFT JOIN osu_users ref ON ref.id = m.referee_id
+    WHERE b.side = 'winners' AND b.number = 1
 ),
 players AS (
     SELECT u.username, tm.team_id = w1.team1_id AS red,
@@ -409,40 +585,113 @@ players AS (
     JOIN team_members tm ON tm.team_id IN (w1.team1_id, w1.team2_id)
     JOIN osu_users u ON u.id = tm.user_id
 ),
-lines (at, sender, text) AS (
-    SELECT interval '20 seconds' * p.slot, 'BanchoBot',
+-- The picks, in order: category and which of its slots (0-based).
+picks (k, category, slot) AS (
+    VALUES (1, 'NM', 0), (2, 'HD', 0), (3, 'HR', 0), (4, 'DT', 0),
+           (5, 'NM', 1), (6, 'FM', 0), (7, 'DT', 1), (8, 'HR', 1)
+),
+-- Maps 1-3 in the first room, 4-8 in the second, which opens 20 minutes in.
+maps AS (
+    SELECT pk.k, pk.category, CASE WHEN pk.k <= 3 THEN 1 ELSE 2 END AS room,
+           interval '3 minutes' + (pk.k - 1) * interval '6 minutes'
+               + CASE WHEN pk.k > 3 THEN interval '3 minutes' ELSE interval '0' END AS at,
+           COALESCE(pm.beatmap_id, 4000000 + pk.k) AS beatmap_id,
+           COALESCE(pm.artist || ' - ' || pm.title || ' [' || pm.version || ']',
+                    'Seed Artist - Map ' || pk.k || ' [Tournament]') AS name
+    FROM w1
+    CROSS JOIN picks pk
+    LEFT JOIN LATERAL (
+        SELECT pm.beatmap_id, pm.artist, pm.title, pm.version
+        FROM stage_categories c
+        JOIN category_slots s ON s.category_id = c.id
+        JOIN pool_maps pm ON pm.slot_id = s.id
+        WHERE c.stage_id = w1.stage_id AND c.name = pk.category
+        ORDER BY s.position
+        OFFSET pk.slot LIMIT 1
+    ) pm ON true
+),
+lines (room, at, sender, text) AS (
+    SELECT room, interval '20 minutes' * (room - 1) + interval '20 seconds' * p.slot, 'BanchoBot',
            p.username || ' joined in slot ' || p.slot || ' for team '
                || CASE WHEN p.red THEN 'red' ELSE 'blue' END || '.'
-    FROM players p
+    FROM players p, generate_series(1, 2) room
     UNION ALL
-    SELECT interval '2 minutes', COALESCE(w1.referee, 'BanchoBot'), 'glhf! İlk pick kırmızı takımda.'
+    SELECT 1, interval '2 minutes', COALESCE(w1.referee, 'BanchoBot'), 'glhf! İlk pick kırmızı takımda.'
     FROM w1
     UNION ALL
-    SELECT interval '3 minutes' + (k - 1) * interval '6 minutes', 'BanchoBot',
-           'Changed beatmap to https://osu.ppy.sh/b/' || (4000000 + k)
-               || ' Seed Artist - Map ' || k || ' [Tournament]'
-    FROM generate_series(1, 8) k
+    SELECT m.room, m.at - interval '10 seconds', COALESCE(w1.referee, 'BanchoBot'),
+           '!mp map ' || m.beatmap_id || ' 0'
+    FROM maps m, w1
     UNION ALL
-    SELECT interval '3 minutes 30 seconds' + (k - 1) * interval '6 minutes', 'BanchoBot',
-           'The match has started!'
-    FROM generate_series(1, 8) k
+    SELECT m.room, m.at, 'BanchoBot',
+           'Changed beatmap to https://osu.ppy.sh/b/' || m.beatmap_id || ' ' || m.name
+    FROM maps m
     UNION ALL
-    SELECT interval '7 minutes' + (k - 1) * interval '6 minutes' + p.slot * interval '1 second',
-           'BanchoBot',
+    SELECT m.room, m.at + interval '5 seconds', COALESCE(w1.referee, 'BanchoBot'),
+           '!mp mods ' || CASE m.category WHEN 'HD' THEN 'HD NF' WHEN 'HR' THEN 'HR NF'
+                                          WHEN 'DT' THEN 'DT NF' WHEN 'FM' THEN 'Freemod' ELSE 'NF' END
+    FROM maps m, w1
+    UNION ALL
+    SELECT m.room, m.at + interval '6 seconds', 'BanchoBot',
+           CASE m.category
+               WHEN 'HD' THEN 'Enabled Hidden, NoFail, disabled FreeMod'
+               WHEN 'HR' THEN 'Enabled HardRock, NoFail, disabled FreeMod'
+               WHEN 'DT' THEN 'Enabled DoubleTime, NoFail, disabled FreeMod'
+               WHEN 'FM' THEN 'Disabled all mods, enabled FreeMod'
+               ELSE 'Enabled NoFail, disabled FreeMod'
+           END
+    FROM maps m
+    UNION ALL
+    SELECT m.room, m.at + interval '30 seconds', 'BanchoBot', 'The match has started!'
+    FROM maps m
+    UNION ALL
+    SELECT m.room, m.at + interval '4 minutes' + p.slot * interval '1 second', 'BanchoBot',
            p.username || ' finished playing (Score: '
-               || CASE WHEN p.red = (k NOT IN (2, 4, 6)) THEN 700000 ELSE 450000 END
-                  + p.slot * 13579 + k * 2468
+               || CASE WHEN p.red = (m.k NOT IN (2, 4, 6)) THEN 700000 ELSE 450000 END
+                  + p.slot * 13579 + m.k * 2468
                || ', PASSED).'
-    FROM generate_series(1, 8) k, players p
+    FROM maps m, players p
     UNION ALL
-    SELECT interval '7 minutes 10 seconds' + (k - 1) * interval '6 minutes', 'BanchoBot',
-           'The match has finished!'
-    FROM generate_series(1, 8) k
+    SELECT m.room, m.at + interval '4 minutes 10 seconds', 'BanchoBot', 'The match has finished!'
+    FROM maps m
     UNION ALL
-    SELECT interval '52 minutes' + p.slot * interval '2 seconds', p.username, 'gg'
+    SELECT 1, interval '19 minutes', COALESCE(w1.referee, 'BanchoBot'),
+           'Oda bozuldu, yenisini açıyorum. Davetleri kontrol edin.'
+    FROM w1
+    UNION ALL
+    SELECT 2, interval '55 minutes' + p.slot * interval '2 seconds', p.username, 'gg'
     FROM players p
 )
 INSERT INTO room_chat_messages (mp_id, sent_at, sender, text)
-SELECT w1.mp_id, w1.t0 + l.at, l.sender, l.text
+SELECT w1.rooms[l.room], w1.t0 + l.at, l.sender, l.text
 FROM w1, lines l
+WHERE w1.rooms[l.room] IS NOT NULL
 ORDER BY l.at;
+
+-- W1's bans, from maps it didn't play: red took out NM4 and blue DT3.
+INSERT INTO match_bans (match_id, pool_map_id, team_id, created_at)
+SELECT b.match_id, pm.id, CASE WHEN v.red THEN b.team1_id ELSE b.team2_id END, m.starts_at + v.at
+FROM bracket_matches b
+JOIN matches m ON m.id = b.match_id
+CROSS JOIN (VALUES (true, 'NM', 3, interval '1 minute'),
+                   (false, 'DT', 2, interval '90 seconds')) AS v (red, category, slot, at)
+JOIN stage_categories c ON c.stage_id = b.stage_id AND c.name = v.category
+JOIN category_slots s ON s.category_id = c.id AND s.position = v.slot
+JOIN pool_maps pm ON pm.slot_id = s.id
+WHERE b.side = 'winners' AND b.number = 1
+  AND b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL;
+
+-- W1's picks: the maps its chat plays, in the same order, the teams taking turns
+-- from red.
+INSERT INTO match_picks (match_id, pool_map_id, team_id, created_at)
+SELECT b.match_id, pm.id, CASE WHEN v.k % 2 = 1 THEN b.team1_id ELSE b.team2_id END,
+       m.starts_at + interval '2 minutes' + v.k * interval '6 minutes'
+FROM bracket_matches b
+JOIN matches m ON m.id = b.match_id
+CROSS JOIN (VALUES (1, 'NM', 0), (2, 'HD', 0), (3, 'HR', 0), (4, 'DT', 0),
+                   (5, 'NM', 1), (6, 'FM', 0), (7, 'DT', 1), (8, 'HR', 1)) AS v (k, category, slot)
+JOIN stage_categories c ON c.stage_id = b.stage_id AND c.name = v.category
+JOIN category_slots s ON s.category_id = c.id AND s.position = v.slot
+JOIN pool_maps pm ON pm.slot_id = s.id
+WHERE b.side = 'winners' AND b.number = 1
+  AND b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL;

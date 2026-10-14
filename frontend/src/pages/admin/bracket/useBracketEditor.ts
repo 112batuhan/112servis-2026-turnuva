@@ -11,7 +11,14 @@ import {
   type BracketMatchUpdate,
 } from "../../../api/bracket";
 import { errorMessage } from "../../../api/client";
-import { concludeMatch, reopenMatch, setMatchLink, setMatchNotes, setReferee } from "../../../api/matches";
+import {
+  addMatchRoom,
+  concludeMatch,
+  removeMatchRoom,
+  reopenMatch,
+  setMatchNotes,
+  setReferee,
+} from "../../../api/matches";
 import type { AdminTeamPlayer, BracketMatch, BracketSide, Player, Team } from "../../../api/types";
 import { overlapsAny } from "../../../lib/bracket";
 
@@ -138,7 +145,8 @@ export function useBracketEditor(staffView: boolean) {
     remove: (id: string) => run(() => deleteBracketMatch(id)),
     setScore: (id: string, team1: number | null, team2: number | null) =>
       run(() => setBracketScore(id, team1, team2)),
-    setLink: (id: string, link: string) => run(() => setMatchLink(id, link)),
+    addRoom: (id: string, link: string) => run(() => addMatchRoom(id, link)),
+    removeRoom: (id: string, mpId: number) => run(() => removeMatchRoom(id, mpId)),
     setReferee: (id: string, userId: string | null) => run(() => setReferee(id, userId)),
     setStreamer: (id: string, userId: string | null) => run(() => setStreamer(id, userId)),
     conclude: (id: string) => run(() => concludeMatch(id)),

@@ -21,6 +21,7 @@ import { DiscordMark } from "../components/DiscordMark";
 import { DiscordMention } from "../components/DiscordMention";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { PlayerChip } from "../components/PlayerChip";
+import { RoomLinks } from "../components/RoomLinks";
 import { TeamCard } from "../components/TeamCard";
 import { ELIGIBILITY_LABELS, eligibilityBadgeClass } from "../lib/eligibility";
 import { BANNER_MAX_BYTES, formatMatchTime, formatRank, formatTeamValue, TEAM_NAME_MAX } from "../lib/format";
@@ -351,12 +352,10 @@ function QualifierInfo({ teamId, onError }: { teamId: string; onError: (message:
           ) : (
             "henüz yok"
           )}
-          {lobby.mp_url && (
+          {lobby.rooms.length > 0 && (
             <>
               {" · "}
-              <a href={lobby.mp_url} target="_blank" rel="noopener noreferrer">
-                Maç linki
-              </a>
+              <RoomLinks rooms={lobby.rooms} />
             </>
           )}
         </span>

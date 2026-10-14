@@ -34,6 +34,15 @@ export const fetchStreamers = () => get<Player[]>("/api/streamers");
 export const setBracketScore = (id: string, team1Score: number | null, team2Score: number | null) =>
   put<void>(`/api/bracket/${id}/score`, { team1_score: team1Score, team2_score: team2Score });
 
+/** Marks a pool map as banned by one of the match's two teams, or moves the ban to the other one. */
+export const setMapBan = (id: string, mapId: string, teamId: string) =>
+  put<void>(`/api/bracket/${id}/bans/${mapId}`, { team_id: teamId });
+export const removeMapBan = (id: string, mapId: string) => del(`/api/bracket/${id}/bans/${mapId}`);
+/** Marks a pool map as picked by one of the match's two teams, or moves the pick to the other one. */
+export const setMapPick = (id: string, mapId: string, teamId: string) =>
+  put<void>(`/api/bracket/${id}/picks/${mapId}`, { team_id: teamId });
+export const removeMapPick = (id: string, mapId: string) => del(`/api/bracket/${id}/picks/${mapId}`);
+
 /** A streamer passes their own id to take a match or null to give it up; hosts can pick anyone. */
 export const setStreamer = (id: string, streamerId: string | null) =>
   put<void>(`/api/bracket/${id}/streamer`, { streamer_id: streamerId });

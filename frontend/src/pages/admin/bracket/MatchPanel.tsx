@@ -18,7 +18,7 @@ import {
   type Source,
 } from "../../../lib/bracket";
 import { fromDateTimeLocal, toDateTimeLocal } from "../../../lib/format";
-import { LinkEditor, StaffSelect } from "../MatchControls";
+import { RoomsEditor, StaffSelect } from "../MatchControls";
 import type { BracketEditor, EditorMatch, EditorTeam } from "./useBracketEditor";
 
 interface Props {
@@ -61,7 +61,7 @@ export function MatchPanel({
   const slotSources = sources.get(match.id) ?? [null, null];
   const playing = myTeamId !== null && (match.team1_id === myTeamId || match.team2_id === myTeamId);
 
-  const concludeBlocker = !match.mp_url
+  const concludeBlocker = match.rooms.length === 0
     ? "Önce maç linkini ekle"
     : !match.team1_id || !match.team2_id
       ? "İki takım da belli olmalı"
@@ -227,17 +227,15 @@ export function MatchPanel({
           </dd>
         </div>
         <div>
-          <dt>Maç linki</dt>
+          <dt>{match.rooms.length > 1 ? "Odalar" : "Maç linki"}</dt>
           <dd>
-            {canEdit ? (
-              <LinkEditor value={match.mp_url} disabled={busy} onSave={(link) => editor.setLink(match.id, link)} />
-            ) : match.mp_url ? (
-              <a href={match.mp_url} target="_blank" rel="noopener noreferrer">
-                {match.mp_url.replace(/^https:\/\//, "")}
-              </a>
-            ) : (
-              <span className="muted">—</span>
-            )}
+            <RoomsEditor
+              rooms={match.rooms}
+              editable={canEdit}
+              disabled={busy}
+              onAdd={(link) => editor.addRoom(match.id, link)}
+              onRemove={(mpId) => editor.removeRoom(match.id, mpId)}
+            />
           </dd>
         </div>
         {match.referee_notes !== undefined && (

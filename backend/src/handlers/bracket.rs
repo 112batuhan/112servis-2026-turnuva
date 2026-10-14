@@ -21,7 +21,9 @@ use crate::{
     },
     error::AppError,
     handlers::{
-        matches::{is_host, load_match, mp_url, require_runs, Referee},
+        matches::{
+            is_host, load_match, match_rooms, require_runs, require_unconcluded, MatchRoom, Referee,
+        },
         team::{group_teams, AdminTeamPlayer, Team},
     },
     role::Role,
@@ -37,6 +39,11 @@ pub fn routes() -> Router<AppState> {
         .route("/bracket/:id", put(update_match).delete(delete_match))
         .route("/bracket/:id/position", put(move_match))
         .route("/bracket/:id/score", put(set_score))
+        .route("/bracket/:id/bans/:map_id", put(set_ban).delete(remove_ban))
+        .route(
+            "/bracket/:id/picks/:map_id",
+            put(set_pick).delete(remove_pick),
+        )
         .route("/bracket/:id/streamer", put(set_streamer))
         .route("/streamers", get(list_streamers))
 }
@@ -89,7 +96,7 @@ pub struct BracketMatch {
     stage: Option<MatchStage>,
     referee: Option<Referee>,
     streamer: Option<Streamer>,
-    mp_url: Option<String>,
+    rooms: Vec<MatchRoom>,
     #[serde(with = "time::serde::rfc3339::option")]
     concluded_at: Option<OffsetDateTime>,
 }
@@ -149,7 +156,7 @@ fn to_match(row: BracketRow, links: &[LinkRow]) -> (BracketMatch, String) {
         stage,
         referee: Referee::from_columns(row.referee),
         streamer,
-        mp_url: row.mp_id.map(mp_url),
+        rooms: match_rooms(row.mp_ids),
         concluded_at: row.concluded_at,
     };
     (m, row.referee_notes)
@@ -453,6 +460,101 @@ pub async fn set_score(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[derive(Debug, Deserialize)]
+pub struct MapTeamBody {
+    team_id: Uuid,
+}
+
+// Bans and picks are marked by the match's referee or a host until the match is
+// concluded (hosts any time), for one of its two teams and a map of its pool.
+async fn check_map_team(
+    state: &AppState,
+    user: &AuthUser,
+    id: Uuid,
+    map_id: Uuid,
+    team_id: Uuid,
+) -> Result<(), AppError> {
+    let m = load_match(state, id).await?;
+    if m.kind != MatchKind::Bracket {
+        return Err(AppError::NotFound);
+    }
+    require_runs(user, &m)?;
+    require_unconcluded(user, &m)?;
+    let teams = db::bracket::find_match(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    if Some(team_id) != teams.team1_id && Some(team_id) != teams.team2_id {
+        return Err(AppError::BadRequest("that team doesn't play in this match"));
+    }
+    if !db::bracket::map_in_pool(&state.db, id, map_id).await? {
+        return Err(AppError::BadRequest("that map isn't in this match's pool"));
+    }
+    Ok(())
+}
+
+// Taking a ban or pick back: the same people, on the same terms.
+async fn check_unmark(state: &AppState, user: &AuthUser, id: Uuid) -> Result<(), AppError> {
+    let m = load_match(state, id).await?;
+    require_runs(user, &m)?;
+    require_unconcluded(user, &m)
+}
+
+// PUT /api/bracket/:id/bans/:map_id — marks a map as banned by one of the match's
+// teams (or moves the ban to the other team). A picked map can't be banned.
+pub async fn set_ban(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path((id, map_id)): Path<(Uuid, Uuid)>,
+    Json(body): Json<MapTeamBody>,
+) -> Result<impl IntoResponse, AppError> {
+    check_map_team(&state, &user, id, map_id, body.team_id).await?;
+    if !db::bracket::set_ban(&state.db, id, map_id, body.team_id).await? {
+        return Err(AppError::Conflict("that map has been picked"));
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// DELETE /api/bracket/:id/bans/:map_id — takes a ban back.
+pub async fn remove_ban(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path((id, map_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    check_unmark(&state, &user, id).await?;
+    if !db::bracket::delete_ban(&state.db, id, map_id).await? {
+        return Err(AppError::NotFound);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// PUT /api/bracket/:id/picks/:map_id — marks a map as picked by one of the match's
+// teams (or moves the pick to the other team). A banned map can't be picked.
+pub async fn set_pick(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path((id, map_id)): Path<(Uuid, Uuid)>,
+    Json(body): Json<MapTeamBody>,
+) -> Result<impl IntoResponse, AppError> {
+    check_map_team(&state, &user, id, map_id, body.team_id).await?;
+    if !db::bracket::set_pick(&state.db, id, map_id, body.team_id).await? {
+        return Err(AppError::Conflict("that map is banned"));
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// DELETE /api/bracket/:id/picks/:map_id — takes a pick back.
+pub async fn remove_pick(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path((id, map_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    check_unmark(&state, &user, id).await?;
+    if !db::bracket::delete_pick(&state.db, id, map_id).await? {
+        return Err(AppError::NotFound);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
 // The winner and loser of a match with both teams and a score that isn't a tie.
 fn outcome(m: &BracketLock) -> Option<(Uuid, Uuid)> {
     let (t1, t2) = (m.team1_id?, m.team2_id?);
@@ -473,8 +575,8 @@ pub async fn conclude(state: &AppState, id: Uuid) -> Result<(), AppError> {
     if m.concluded() {
         return Err(AppError::Conflict("this match is already concluded"));
     }
-    if m.mp_id.is_none() {
-        return Err(AppError::BadRequest("add the match link first"));
+    if !m.has_room {
+        return Err(AppError::BadRequest("add the match's room first"));
     }
     if m.team1_id.is_none() || m.team2_id.is_none() {
         return Err(AppError::BadRequest("this match needs both teams first"));

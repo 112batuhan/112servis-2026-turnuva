@@ -24,8 +24,9 @@ export const fetchReferees = () => get<Player[]>("/api/referees");
 /** A referee passes their own id to take a match or null to give it up; hosts can pick anyone. */
 export const setReferee = (matchId: string, refereeId: string | null) =>
   put<void>(`/api/matches/${matchId}/referee`, { referee_id: refereeId });
-/** An osu! multiplayer link or room id; empty clears it. */
-export const setMatchLink = (matchId: string, link: string) => put<void>(`/api/matches/${matchId}/link`, { link });
+/** Adds an osu! multiplayer room, by link or room id. */
+export const addMatchRoom = (matchId: string, link: string) => post<void>(`/api/matches/${matchId}/rooms`, { link });
+export const removeMatchRoom = (matchId: string, mpId: number) => del(`/api/matches/${matchId}/rooms/${mpId}`);
 export const setMatchNotes = (matchId: string, notes: string) => put<void>(`/api/matches/${matchId}/notes`, { notes });
 export const concludeMatch = (matchId: string) => post<void>(`/api/matches/${matchId}/conclude`);
 /** Host-only. */

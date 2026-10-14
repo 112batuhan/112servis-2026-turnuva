@@ -2,15 +2,16 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { errorMessage } from "../../api/client";
 import {
+  addMatchRoom,
   assignTeam,
   concludeMatch,
   createLobby,
   deleteLobby,
   fetchQualifiers,
   fetchReferees,
+  removeMatchRoom,
   reopenMatch,
   rescheduleLobby,
-  setMatchLink,
   setMatchNotes,
   setReferee,
   unassignTeam,
@@ -26,7 +27,7 @@ import { IconButton } from "../../components/IconButton";
 import { LobbyCard } from "../../components/LobbyCard";
 import { formatMatchTime, fromDateTimeLocal, toDateTimeLocal } from "../../lib/format";
 import { teamListPath } from "../../lib/teamLink";
-import { LinkEditor, StaffSelect } from "./MatchControls";
+import { RoomsEditor, StaffSelect } from "./MatchControls";
 import "./QualifiersAdminPage.css";
 
 type Run = (action: () => Promise<void>) => Promise<void>;
@@ -273,8 +274,8 @@ function StaffLobbyCard({
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
-                disabled={busy || !lobby.mp_url}
-                title={lobby.mp_url ? undefined : "Önce maç linkini ekle"}
+                disabled={busy || lobby.rooms.length === 0}
+                title={lobby.rooms.length > 0 ? undefined : "Önce maç linkini ekle"}
                 onClick={() => {
                   if (window.confirm(`Lobi ${number} bitti olarak işaretlensin mi?`)) run(() => concludeMatch(lobby.id));
                 }}
@@ -349,17 +350,15 @@ function StaffLobbyCard({
           </dd>
         </div>
         <div>
-          <dt>Maç linki</dt>
+          <dt>{lobby.rooms.length > 1 ? "Odalar" : "Maç linki"}</dt>
           <dd>
-            {canEdit ? (
-              <LinkEditor value={lobby.mp_url} disabled={busy} onSave={(link) => run(() => setMatchLink(lobby.id, link))} />
-            ) : lobby.mp_url ? (
-              <a href={lobby.mp_url} target="_blank" rel="noopener noreferrer">
-                {lobby.mp_url.replace(/^https:\/\//, "")}
-              </a>
-            ) : (
-              <span className="muted">—</span>
-            )}
+            <RoomsEditor
+              rooms={lobby.rooms}
+              editable={canEdit}
+              disabled={busy}
+              onAdd={(link) => run(() => addMatchRoom(lobby.id, link))}
+              onRemove={(mpId) => run(() => removeMatchRoom(lobby.id, mpId))}
+            />
           </dd>
         </div>
         <div>

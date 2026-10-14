@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { setBracketScore } from "../../../api/bracket";
+import { removeMapBan, removeMapPick, setBracketScore, setMapBan, setMapPick } from "../../../api/bracket";
 import { errorMessage } from "../../../api/client";
-import { setMatchLink } from "../../../api/matches";
+import { addMatchRoom, removeMatchRoom } from "../../../api/matches";
 import { fetchRefereeRoom, fetchRoomChat } from "../../../api/referee";
-import type { AdminTeamPlayer, PublicPoolMap, RefereeRoom, RoomChatMessage, Team } from "../../../api/types";
+import type { AdminTeamPlayer, PublicPoolMap, RefereeRoom, Team } from "../../../api/types";
 import { useSignedInUser } from "../../../auth/AuthContext";
 import { hasRole } from "../../../auth/roles";
 import { conversationKey, isChannel, useIrc, type ChatLine } from "../../../irc/IrcContext";
@@ -21,10 +21,12 @@ import {
   TEAM_MODE,
   type MapResult,
   type RoomSlot,
+  type RoomState,
   type ScoreMode,
   type SlotTeam,
 } from "../../../lib/bancho";
 import { matchCode } from "../../../lib/bracket";
+import { mergeChat, toChatLine, type SavedChat } from "./roomChat";
 
 export interface RosterPlayer {
   player: AdminTeamPlayer;
@@ -39,6 +41,19 @@ export interface RoomOptions {
   noFail: boolean;
   /** Bracket matches: moves players to their team's colour as they join. */
   autoTeams: boolean;
+}
+
+/** One of the match's rooms in the chat: its saved lines followed by the live ones. */
+export interface RoomChatView {
+  mpId: number;
+  /** "#mp_<id>" */
+  channel: string;
+  url: string;
+  lines: ChatLine[];
+  /** Whether we're in its channel right now. */
+  joined: boolean;
+  /** The match's latest room, where it's being played. */
+  current: boolean;
 }
 
 export interface TeamTotal {
@@ -64,8 +79,8 @@ export function roomName(room: RefereeRoom): string {
   return `${ROOM_PREFIX}: (${name(room.team1_id)}) vs (${name(room.team2_id)})`;
 }
 
-function toChatLine(m: RoomChatMessage): ChatLine {
-  return { id: m.id, at: Date.parse(m.sent_at), from: m.sender, text: m.text, action: m.action, notice: false };
+function readLobby(lines: ChatLine[]): RoomState {
+  return lines.filter((l) => l.from === BANCHO_BOT && !l.notice).reduce((r, l) => applyBancho(r, l.text), EMPTY_ROOM);
 }
 
 /** Each team's summed score on a map, best first. Players not on the roster don't count. */
@@ -89,8 +104,8 @@ export function useRefereeRoom(matchId: string) {
   const [options, setOptions] = useState<RoomOptions>({ scoreMode: 3, noFail: true, autoTeams: true });
   // Finished maps the referee doesn't count (warmups, replays), by index.
   const [ignored, setIgnored] = useState<Set<number>>(new Set());
-  // A concluded match's saved room chat, shown instead of the live channel.
-  const [archive, setArchive] = useState<ChatLine[] | null>(null);
+  // Each room's saved chat, by room id.
+  const [saved, setSaved] = useState<Map<number, SavedChat>>(new Map());
 
   const reload = useCallback(async () => {
     try {
@@ -108,34 +123,72 @@ export function useRefereeRoom(matchId: string) {
   }, [reload]);
 
   const concluded = room !== null && room.concluded_at !== null;
-  const roomId = room?.mp_id ?? null;
-  useEffect(() => {
-    setArchive(null);
-    if (!concluded || roomId === null) return;
-    let current = true;
-    fetchRoomChat(matchId)
-      .then((chat) => {
-        if (current) setArchive(chat.messages.map(toChatLine));
-      })
-      .catch((e) => current && setError(errorMessage(e)));
-    return () => {
-      current = false;
-    };
-  }, [matchId, concluded, roomId]);
-
-  const canRun = room !== null && (hasRole(user, "host") || room.referee?.id === user.id);
-  const channel = room?.mp_id ? `#mp_${room.mp_id}` : null;
+  const rooms = useMemo(() => room?.rooms ?? [], [room]);
+  const current = rooms.length > 0 ? rooms[rooms.length - 1] : null;
+  const channel = current ? `#mp_${current.mp_id}` : null;
   const conversation = channel ? irc.conversations[conversationKey(channel)] : undefined;
   const online = irc.status === "online";
   const inChannel = online && conversation?.joined === true;
+  const canRun = room !== null && (hasRole(user, "host") || room.referee?.id === user.id);
 
-  // The lobby as BanchoBot has described it: in this session, or in the saved chat
-  // once the match is concluded.
-  const lines = concluded ? archive : conversation?.lines;
-  const lobby = useMemo(
-    () => (lines ?? []).filter((l) => l.from === BANCHO_BOT && !l.notice).reduce((r, l) => applyBancho(r, l.text), EMPTY_ROOM),
-    [lines],
+  // Loads every room's saved chat whenever the match's rooms change. Live lines up to
+  // this point are in it, so only later ones are added on top (see mergeChat).
+  const conversations = useRef(irc.conversations);
+  conversations.current = irc.conversations;
+  const roomsKey = rooms.map((r) => r.mp_id).join(",");
+  useEffect(() => {
+    setSaved(new Map());
+    if (!roomsKey) return;
+    const markers = new Map(
+      roomsKey.split(",").map((id) => {
+        const lines = conversations.current[conversationKey(`#mp_${id}`)]?.lines ?? [];
+        return [Number(id), lines.length > 0 ? lines[lines.length - 1].id : 0];
+      }),
+    );
+    let live = true;
+    fetchRoomChat(matchId)
+      .then((chats) => {
+        if (!live) return;
+        const fetchedAt = Date.now();
+        setSaved(
+          new Map(
+            chats.map((c) => [
+              c.mp_id,
+              { lines: c.messages.map(toChatLine), marker: markers.get(c.mp_id) ?? 0, fetchedAt },
+            ]),
+          ),
+        );
+      })
+      .catch((e) => live && setError(errorMessage(e)));
+    return () => {
+      live = false;
+    };
+  }, [matchId, roomsKey]);
+
+  const roomChats = useMemo<RoomChatView[]>(
+    () =>
+      rooms.map((r, i) => {
+        const channel = `#mp_${r.mp_id}`;
+        const conversation = irc.conversations[conversationKey(channel)];
+        return {
+          mpId: r.mp_id,
+          channel,
+          url: r.url,
+          lines: mergeChat(saved.get(r.mp_id), conversation?.lines ?? []),
+          joined: online && conversation?.joined === true,
+          current: i === rooms.length - 1,
+        };
+      }),
+    [rooms, saved, irc.conversations, online],
   );
+
+  // The latest room as BanchoBot has described it, with the finished maps of every
+  // room the match has been played in.
+  const lobby = useMemo<RoomState>(() => {
+    const states = roomChats.map((c) => readLobby(c.lines));
+    const latest = states.length > 0 ? states[states.length - 1] : EMPTY_ROOM;
+    return { ...latest, results: states.flatMap((st) => st.results) };
+  }, [roomChats]);
 
   const roster = useMemo<RosterPlayer[]>(() => {
     if (!room) return [];
@@ -243,21 +296,28 @@ export function useRefereeRoom(matchId: string) {
     setOptions,
     say,
 
-    /** !mp make, saves the room link to the match, then sets the room up. */
+    /** !mp make, adds the room to the match, then sets it up. Also replaces a broken room. */
     createRoom: () =>
       run(async () => {
         if (!room) return;
         const mpId = await makeRoom(roomName(room));
         setUp(`#mp_${mpId}`);
-        await setMatchLink(room.id, String(mpId));
+        await addMatchRoom(room.id, String(mpId));
         await reload();
       }),
 
-    /** Points the match at a room made some other way. */
-    linkRoom: (link: string) =>
+    /** Adds a room made some other way. */
+    addRoom: (link: string) =>
       run(async () => {
         if (!room) return;
-        await setMatchLink(room.id, link);
+        await addMatchRoom(room.id, link);
+        await reload();
+      }),
+
+    removeRoom: (mpId: number) =>
+      run(async () => {
+        if (!room) return;
+        await removeMatchRoom(room.id, mpId);
         await reload();
       }),
 
@@ -275,10 +335,30 @@ export function useRefereeRoom(matchId: string) {
       }
     },
 
+    /** Sets a map and its mods in the room, without recording who picked it. */
     pickMap: (map: PublicPoolMap, freemod: boolean) => {
       say(`!mp map ${map.beatmap_id} ${PLAY_MODES[map.mode] ?? 0}`);
       say(modsCommand(map.mods, freemod, options.noFail));
     },
+
+    /** Records a team's pick, then sets the map in the room when we're in it. */
+    pick: (map: PublicPoolMap, teamId: string, freemod: boolean) =>
+      run(async () => {
+        if (!room) return;
+        await setMapPick(room.id, map.id, teamId);
+        if (inChannel) {
+          say(`!mp map ${map.beatmap_id} ${PLAY_MODES[map.mode] ?? 0}`);
+          say(modsCommand(map.mods, freemod, options.noFail));
+        }
+        await reload();
+      }),
+
+    unpick: (mapId: string) =>
+      run(async () => {
+        if (!room) return;
+        await removeMapPick(room.id, mapId);
+        await reload();
+      }),
 
     settings: () => say("!mp settings"),
     lock: (locked: boolean) => say(locked ? "!mp lock" : "!mp unlock"),
@@ -296,6 +376,20 @@ export function useRefereeRoom(matchId: string) {
         return next;
       }),
 
+    ban: (mapId: string, teamId: string) =>
+      run(async () => {
+        if (!room) return;
+        await setMapBan(room.id, mapId, teamId);
+        await reload();
+      }),
+
+    unban: (mapId: string) =>
+      run(async () => {
+        if (!room) return;
+        await removeMapBan(room.id, mapId);
+        await reload();
+      }),
+
     saveScore: (team1: number, team2: number) =>
       run(async () => {
         if (!room) return;
@@ -306,7 +400,7 @@ export function useRefereeRoom(matchId: string) {
 
   return {
     room,
-    archive,
+    roomChats,
     loadError,
     error,
     busy,

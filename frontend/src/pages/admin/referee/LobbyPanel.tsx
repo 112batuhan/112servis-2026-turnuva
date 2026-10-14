@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { IconButton } from "../../../components/IconButton";
 import { SCORE_MODES, sameName, type RoomSlot, type ScoreMode } from "../../../lib/bancho";
-import { LinkEditor } from "../MatchControls";
+import { RoomsEditor } from "../MatchControls";
 import type { RefereeRoomState } from "./useRefereeRoom";
 import "./LobbyPanel.css";
 
@@ -19,6 +19,7 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
   if (!room) return null;
   const bracket = room.kind === "bracket";
   const concluded = room.concluded_at !== null;
+  const current = room.rooms.length > 0 ? room.rooms[room.rooms.length - 1] : null;
   const ready = online && inChannel;
   const notOnline = online ? undefined : "Önce Bancho'ya bağlan";
 
@@ -79,10 +80,10 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
             {busy ? "Oda kuruluyor…" : "Oda oluştur"}
           </button>
         </div>
-        {canRun && (
+        {canRun && !concluded && (
           <div className="lobby-link">
             <span className="muted">Odayı başka yerden açtıysan linkini ekle:</span>
-            <LinkEditor value={null} disabled={busy} onSave={actions.linkRoom} />
+            <RoomsEditor rooms={[]} editable disabled={busy} onAdd={actions.addRoom} onRemove={actions.removeRoom} />
           </div>
         )}
       </section>
@@ -96,9 +97,10 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
     <section className="lobby-panel" aria-label="osu! odası">
       <header className="lobby-header">
         <h2 className="lobby-title">
-          <a href={room.mp_url ?? undefined} target="_blank" rel="noopener noreferrer">
+          <a href={current?.url} target="_blank" rel="noopener noreferrer">
             {channel}
           </a>
+          {room.rooms.length > 1 && <span className="muted"> · {room.rooms.length}. oda</span>}
         </h2>
         {lobby.playing && <span className="badge badge-success">Oynanıyor</span>}
         {lobby.locked && <span className="badge">Kilitli</span>}
@@ -108,7 +110,32 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
             Kanala katıl
           </button>
         )}
+        {!concluded && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={!online || !canRun || busy}
+            title={notOnline ?? (canRun ? "Oda bozulduysa ya da kapandıysa yenisini açar; eskisi listede kalır" : "Bu maçın hakemi değilsin")}
+            onClick={() => {
+              const open = inChannel && !lobby.closed;
+              if (!open || window.confirm(`${channel} hâlâ açık görünüyor. Yine de yeni bir oda açılsın mı?`)) actions.createRoom();
+            }}
+          >
+            {busy ? "Oda kuruluyor…" : "Yeni oda aç"}
+          </button>
+        )}
       </header>
+
+      <div className="lobby-rooms">
+        <span className="lobby-rooms-label">{room.rooms.length > 1 ? "Odalar" : "Oda"}</span>
+        <RoomsEditor
+          rooms={room.rooms}
+          editable={canRun && !concluded}
+          disabled={busy}
+          onAdd={actions.addRoom}
+          onRemove={actions.removeRoom}
+        />
+      </div>
 
       <dl className="lobby-info">
         <div>

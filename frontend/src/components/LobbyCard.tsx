@@ -4,6 +4,7 @@ import { API_URL } from "../api/client";
 import type { Lobby, Player, Team } from "../api/types";
 import { formatMatchTime } from "../lib/format";
 import { teamListPath } from "../lib/teamLink";
+import { RoomLinks } from "./RoomLinks";
 import { Countdown } from "./Countdown";
 import { DiscordMention } from "./DiscordMention";
 import "./LobbyCard.css";
@@ -76,11 +77,7 @@ export function LobbyCard<P extends Player>({
               )}
             </dd>
           </dl>
-          {lobby.mp_url && (
-            <a className="lobby-card-link" href={lobby.mp_url} target="_blank" rel="noopener noreferrer">
-              Maç linki
-            </a>
-          )}
+          <RoomLinks rooms={lobby.rooms} className="lobby-card-link" />
         </div>
       )}
 

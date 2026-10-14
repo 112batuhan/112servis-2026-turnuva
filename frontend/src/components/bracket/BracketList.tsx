@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { BracketMatch, Team } from "../../api/types";
 import { groupByStage, incomingSources, matchCode, sourceLabel, winningSlot, type Source } from "../../lib/bracket";
 import { formatShortMatchTime } from "../../lib/format";
+import { RoomLinks } from "../RoomLinks";
 import { DiscordMention } from "../DiscordMention";
 import "./BracketList.css";
 
@@ -109,11 +110,7 @@ export function BracketList<M extends BracketMatch>({
                   <td>
                     <span className="bracket-list-status">
                       <MatchStatus match={m} now={now} />
-                      {m.mp_url && (
-                        <a href={m.mp_url} target="_blank" rel="noopener noreferrer">
-                          Maç linki
-                        </a>
-                      )}
+                      <RoomLinks rooms={m.rooms} />
                     </span>
                   </td>
                   {renderActions && (

@@ -35,7 +35,8 @@ pub struct BracketRow {
     pub team2_id: Option<Uuid>,
     pub team1_score: Option<i32>,
     pub team2_score: Option<i32>,
-    pub mp_id: Option<i64>,
+    // Its rooms, oldest first.
+    pub mp_ids: Vec<i64>,
     pub referee_notes: String,
     pub concluded_at: Option<OffsetDateTime>,
     #[sqlx(flatten)]
@@ -66,7 +67,7 @@ pub struct BracketLock {
     pub team1_score: Option<i32>,
     pub team2_score: Option<i32>,
     pub streamer_id: Option<Uuid>,
-    pub mp_id: Option<i64>,
+    pub has_room: bool,
     pub concluded_at: Option<OffsetDateTime>,
 }
 
@@ -94,7 +95,9 @@ pub async fn list_matches(pool: &PgPool) -> sqlx::Result<Vec<BracketRow>> {
         r#"
         SELECT m.id, b.side, b.number, b.pos_x, b.pos_y, m.starts_at,
                b.team1_id, b.team2_id, b.team1_score, b.team2_score,
-               m.mp_id, m.referee_notes, m.concluded_at,
+               ARRAY(SELECT r.mp_id FROM match_rooms r WHERE r.match_id = m.id
+                     ORDER BY r.added_at, r.mp_id) AS mp_ids,
+               m.referee_notes, m.concluded_at,
                u.id AS referee_id, u.osu_id AS referee_osu_id,
                u.username AS referee_username, u.avatar_url AS referee_avatar_url,
                d.discord_id AS referee_discord_id, d.username AS referee_discord_username,
@@ -153,7 +156,8 @@ pub async fn find_match(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<BracketL
     sqlx::query_as::<_, BracketLock>(
         r#"
         SELECT b.team1_id, b.team2_id, b.team1_score, b.team2_score, b.streamer_id,
-               m.mp_id, m.concluded_at
+               EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id) AS has_room,
+               m.concluded_at
         FROM bracket_matches b
         JOIN matches m ON m.id = b.match_id
         WHERE b.match_id = $1
@@ -169,7 +173,8 @@ pub async fn lock_match(conn: &mut PgConnection, id: Uuid) -> sqlx::Result<Optio
     sqlx::query_as::<_, BracketLock>(
         r#"
         SELECT b.team1_id, b.team2_id, b.team1_score, b.team2_score, b.streamer_id,
-               m.mp_id, m.concluded_at
+               EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id) AS has_room,
+               m.concluded_at
         FROM bracket_matches b
         JOIN matches m ON m.id = b.match_id
         WHERE b.match_id = $1
@@ -368,4 +373,136 @@ pub async fn can_stream(pool: &PgPool, user_id: Uuid) -> sqlx::Result<bool> {
         .bind(user_id)
         .fetch_one(pool)
         .await
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct BanRow {
+    pub map_id: Uuid,
+    pub team_id: Uuid,
+}
+
+// A match's bans, in the order they were made.
+pub async fn list_bans(pool: &PgPool, match_id: Uuid) -> sqlx::Result<Vec<BanRow>> {
+    sqlx::query_as::<_, BanRow>(
+        r#"
+        SELECT pool_map_id AS map_id, team_id
+        FROM match_bans
+        WHERE match_id = $1
+        ORDER BY created_at, pool_map_id
+        "#,
+    )
+    .bind(match_id)
+    .fetch_all(pool)
+    .await
+}
+
+// Whether a map is placed in the pool of the stage the match is played in.
+pub async fn map_in_pool(pool: &PgPool, match_id: Uuid, map_id: Uuid) -> sqlx::Result<bool> {
+    sqlx::query_scalar(
+        r#"
+        SELECT EXISTS (
+            SELECT 1
+            FROM bracket_matches b
+            JOIN stage_categories c ON c.stage_id = b.stage_id
+            JOIN category_slots s ON s.category_id = c.id
+            JOIN pool_maps pm ON pm.slot_id = s.id
+            WHERE b.match_id = $1 AND pm.id = $2
+        )
+        "#,
+    )
+    .bind(match_id)
+    .bind(map_id)
+    .fetch_one(pool)
+    .await
+}
+
+// Bans a map for a team, or hands an existing ban to the other team. False when the
+// map has been picked.
+pub async fn set_ban(
+    pool: &PgPool,
+    match_id: Uuid,
+    map_id: Uuid,
+    team_id: Uuid,
+) -> sqlx::Result<bool> {
+    let result = sqlx::query(
+        r#"
+        INSERT INTO match_bans (match_id, pool_map_id, team_id)
+        SELECT $1, $2, $3
+        WHERE NOT EXISTS (
+            SELECT 1 FROM match_picks WHERE match_id = $1 AND pool_map_id = $2
+        )
+        ON CONFLICT (match_id, pool_map_id) DO UPDATE SET team_id = EXCLUDED.team_id
+        "#,
+    )
+    .bind(match_id)
+    .bind(map_id)
+    .bind(team_id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+pub async fn delete_ban(pool: &PgPool, match_id: Uuid, map_id: Uuid) -> sqlx::Result<bool> {
+    let result = sqlx::query("DELETE FROM match_bans WHERE match_id = $1 AND pool_map_id = $2")
+        .bind(match_id)
+        .bind(map_id)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PickRow {
+    pub map_id: Uuid,
+    pub team_id: Uuid,
+}
+
+// A match's picks, in the order they were made.
+pub async fn list_picks(pool: &PgPool, match_id: Uuid) -> sqlx::Result<Vec<PickRow>> {
+    sqlx::query_as::<_, PickRow>(
+        r#"
+        SELECT pool_map_id AS map_id, team_id
+        FROM match_picks
+        WHERE match_id = $1
+        ORDER BY created_at, pool_map_id
+        "#,
+    )
+    .bind(match_id)
+    .fetch_all(pool)
+    .await
+}
+
+// Records a team's pick, or hands an existing pick to the other team. False when the
+// map is banned.
+pub async fn set_pick(
+    pool: &PgPool,
+    match_id: Uuid,
+    map_id: Uuid,
+    team_id: Uuid,
+) -> sqlx::Result<bool> {
+    let result = sqlx::query(
+        r#"
+        INSERT INTO match_picks (match_id, pool_map_id, team_id)
+        SELECT $1, $2, $3
+        WHERE NOT EXISTS (
+            SELECT 1 FROM match_bans WHERE match_id = $1 AND pool_map_id = $2
+        )
+        ON CONFLICT (match_id, pool_map_id) DO UPDATE SET team_id = EXCLUDED.team_id
+        "#,
+    )
+    .bind(match_id)
+    .bind(map_id)
+    .bind(team_id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+pub async fn delete_pick(pool: &PgPool, match_id: Uuid, map_id: Uuid) -> sqlx::Result<bool> {
+    let result = sqlx::query("DELETE FROM match_picks WHERE match_id = $1 AND pool_map_id = $2")
+        .bind(match_id)
+        .bind(map_id)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected() > 0)
 }

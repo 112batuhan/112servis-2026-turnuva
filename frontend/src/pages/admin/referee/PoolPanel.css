@@ -21,10 +21,76 @@
   list-style: none;
 }
 
+/* Red's bans and picks above blue's. */
+.pool-bans {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.pool-bans-team {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  padding-left: var(--space-2);
+  border-left: 3px solid var(--color-border-strong);
+}
+
+.pool-bans-team.is-team-red {
+  border-left-color: var(--color-team-red);
+}
+
+.pool-bans-team.is-team-blue {
+  border-left-color: var(--color-team-blue);
+}
+
+.pool-bans-team dt {
+  font-weight: 600;
+}
+
+.pool-bans-team dd {
+  margin: 0;
+}
+
+.pool-bans-kind {
+  margin-right: var(--space-1);
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pool-bans-kind:not(:first-child) {
+  margin-left: var(--space-3);
+}
+
+.pool-entry {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.pool-mark-actions {
+  display: flex;
+  flex-shrink: 0;
+}
+
+.pool-mark-button.is-team-red {
+  color: var(--color-team-red);
+}
+
+.pool-mark-button.is-team-blue {
+  color: var(--color-team-blue);
+}
+
 .pool-pick {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  flex: 1;
+  min-width: 0;
   width: 100%;
   padding: var(--space-2);
   border: 1px solid transparent;
@@ -52,6 +118,34 @@
 
 .pool-pick.is-played:not(.is-current) {
   opacity: 0.6;
+}
+
+/* A banned or picked map is edged in the colour of the team that banned or picked it;
+   a banned one is also struck through. */
+.pool-pick.is-banned {
+  opacity: 0.75;
+}
+
+.pool-pick.is-marked-red {
+  border-color: var(--color-team-red);
+}
+
+.pool-pick.is-marked-blue {
+  border-color: var(--color-team-blue);
+}
+
+.pool-pick.is-banned .pool-pick-title {
+  text-decoration: line-through;
+}
+
+.pool-mark-badge.is-team-red {
+  background: var(--color-team-red-soft);
+  color: var(--color-team-red);
+}
+
+.pool-mark-badge.is-team-blue {
+  background: var(--color-team-blue-soft);
+  color: var(--color-team-blue);
 }
 
 .pool-pick-label {

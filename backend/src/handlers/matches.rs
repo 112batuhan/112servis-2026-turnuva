@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, patch, post, put},
+    routing::{delete, get, patch, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -44,7 +44,8 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/referees", get(list_referees))
         .route("/matches/:id/referee", put(set_referee))
-        .route("/matches/:id/link", put(set_link))
+        .route("/matches/:id/rooms", post(add_room))
+        .route("/matches/:id/rooms/:mp_id", delete(remove_room))
         .route("/matches/:id/notes", put(set_notes))
         .route("/matches/:id/conclude", post(conclude))
         .route("/matches/:id/reopen", post(reopen))
@@ -99,7 +100,7 @@ pub struct Lobby<P> {
     // Players can still join or leave: it hasn't started or been concluded.
     open: bool,
     referee: Option<Referee>,
-    mp_url: Option<String>,
+    rooms: Vec<MatchRoom>,
     #[serde(with = "time::serde::rfc3339::option")]
     concluded_at: Option<OffsetDateTime>,
     teams: Vec<Team<P>>,
@@ -112,7 +113,7 @@ fn to_lobby<P>(row: MatchRow, teams: Vec<Team<P>>, now: OffsetDateTime) -> (Lobb
         starts_at: row.starts_at,
         open: row.concluded_at.is_none() && row.starts_at > now,
         referee: Referee::from_columns(row.referee),
-        mp_url: row.mp_id.map(mp_url),
+        rooms: match_rooms(row.mp_ids),
         concluded_at: row.concluded_at,
         teams,
     };
@@ -458,8 +459,22 @@ pub async fn set_referee(
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub fn mp_url(mp_id: i64) -> String {
-    format!("https://osu.ppy.sh/community/matches/{mp_id}")
+// One of a match's osu! multiplayer rooms. Usually a match has one; a room that
+// closes or breaks mid-match is replaced, and the old one stays listed.
+#[derive(Debug, Serialize)]
+pub struct MatchRoom {
+    mp_id: i64,
+    url: String,
+}
+
+pub fn match_rooms(mp_ids: Vec<i64>) -> Vec<MatchRoom> {
+    mp_ids
+        .into_iter()
+        .map(|mp_id| MatchRoom {
+            mp_id,
+            url: format!("https://osu.ppy.sh/community/matches/{mp_id}"),
+        })
+        .collect()
 }
 
 // Accepts a multiplayer room link (osu.ppy.sh/community/matches/<id> or
@@ -483,34 +498,51 @@ fn parse_mp_id(raw: &str) -> Option<i64> {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct LinkBody {
-    // Empty or null clears the link.
-    link: Option<String>,
+pub struct RoomBody {
+    link: String,
 }
 
-// PUT /api/matches/:id/link — the match's referee sets or clears the room link
-// until the match is concluded; hosts can change it any time.
-pub async fn set_link(
+// POST /api/matches/:id/rooms — the match's referee adds a room (its link or id)
+// until the match is concluded; hosts can any time. A room belongs to one match.
+pub async fn add_room(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
-    Json(body): Json<LinkBody>,
+    Json(body): Json<RoomBody>,
 ) -> Result<impl IntoResponse, AppError> {
     let m = load_match(&state, id).await?;
     require_runs(&user, &m)?;
     require_unconcluded(&user, &m)?;
-    let mp_id = match body.link.as_deref().map(str::trim) {
-        None | Some("") => None,
-        Some(link) => Some(
-            parse_mp_id(link).ok_or(AppError::BadRequest("that isn't an osu! multiplayer link"))?,
-        ),
-    };
-    if mp_id.is_none() && m.concluded() {
+    let mp_id = parse_mp_id(&body.link)
+        .ok_or(AppError::BadRequest("that isn't an osu! multiplayer link"))?;
+    match db::matches::add_room(&state.db, id, mp_id).await {
+        Ok(()) => Ok(StatusCode::NO_CONTENT),
+        Err(sqlx::Error::Database(e)) if e.constraint() == Some("match_rooms_pkey") => {
+            Err(AppError::Conflict("that room is already linked to a match"))
+        }
+        Err(err) => Err(err.into()),
+    }
+}
+
+// DELETE /api/matches/:id/rooms/:mp_id — takes a mistaken room off the match, on
+// the same terms as adding one. A concluded match keeps at least one. The room's
+// saved chat stays in the database.
+pub async fn remove_room(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path((id, mp_id)): Path<(Uuid, i64)>,
+) -> Result<impl IntoResponse, AppError> {
+    let m = load_match(&state, id).await?;
+    require_runs(&user, &m)?;
+    require_unconcluded(&user, &m)?;
+    if m.concluded() && m.mp_ids == [mp_id] {
         return Err(AppError::BadRequest(
-            "a concluded match needs its link, reopen it first",
+            "a concluded match needs a room, reopen it first",
         ));
     }
-    db::matches::set_mp_id(&state.db, id, mp_id).await?;
+    if !db::matches::remove_room(&state.db, id, mp_id).await? {
+        return Err(AppError::NotFound);
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -537,7 +569,7 @@ pub async fn set_notes(
 }
 
 // POST /api/matches/:id/conclude — the match's referee or a host marks it as
-// played. Needs the room link; a bracket match also needs its score, and concluding
+// played. Needs a room; a bracket match also needs its score, and concluding
 // it sends its teams on to their next matches.
 pub async fn conclude(
     State(state): State<AppState>,
@@ -549,8 +581,8 @@ pub async fn conclude(
     if m.concluded() {
         return Err(AppError::Conflict("this match is already concluded"));
     }
-    if m.mp_id.is_none() {
-        return Err(AppError::BadRequest("add the match link first"));
+    if m.mp_ids.is_empty() {
+        return Err(AppError::BadRequest("add the match's room first"));
     }
     if m.kind == MatchKind::Bracket {
         bracket::conclude(&state, id).await?;
