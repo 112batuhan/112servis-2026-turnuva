@@ -229,7 +229,7 @@
   min-width: 0;
   padding: 2px var(--space-2);
   border: 1px solid transparent;
-  border-left: 3px solid var(--color-info);
+  border-left: 3px solid var(--color-warning);
   border-radius: var(--radius-sm);
   background: var(--color-surface-raised);
   font-size: var(--text-xs);
@@ -237,7 +237,7 @@
 }
 
 .cal-match.is-losers {
-  border-left-color: var(--color-warning);
+  border-left-color: var(--color-info);
 }
 
 .cal-match.is-done {
@@ -253,7 +253,11 @@
   border-left-color: var(--color-primary);
 }
 
-button.cal-match:hover {
+.cal-match[role="button"] {
+  cursor: pointer;
+}
+
+.cal-match[role="button"]:hover {
   border-color: var(--color-border-strong);
 }
 
@@ -261,6 +265,10 @@ button.cal-match:hover {
   display: flex;
   gap: var(--space-1);
   min-width: 0;
+}
+
+.cal-match-head .referee-room-link {
+  margin-left: auto;
 }
 
 .cal-match-stage {
@@ -279,10 +287,41 @@ button.cal-match:hover {
   font-variant-numeric: tabular-nums;
 }
 
-.cal-match-teams {
+.cal-match-team {
+  --team-banner-w: 24px;
+  --team-banner-h: 13px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  line-height: 1.3;
+}
+
+.cal-match-name {
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+/* Leads the row; a fixed width keeps both teams' banners in line. */
+.cal-match-score {
+  flex-shrink: 0;
+  min-width: 2ch;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.cal-match-team.is-winner {
+  font-weight: 600;
+}
+
+.cal-match-team.is-winner .cal-match-score {
+  color: var(--color-success);
+}
+
+.cal-match-team.is-loser {
+  color: var(--color-text-muted);
 }
 
 .cal-unscheduled h3 {

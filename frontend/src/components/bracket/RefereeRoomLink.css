@@ -1,0 +1,12 @@
+.referee-room-link {
+  flex-shrink: 0;
+  display: inline-flex;
+  padding: 1px;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+}
+
+.referee-room-link:hover {
+  color: var(--color-primary);
+  background: var(--color-hover);
+}

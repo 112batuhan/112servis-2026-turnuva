@@ -1,4 +1,20 @@
+.bracket-list-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.bracket-list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+
 .bracket-list-scroll {
+  align-self: stretch;
   max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--color-border);
@@ -43,12 +59,43 @@
   background: var(--color-surface-raised);
 }
 
+.bracket-list tbody tr.bracket-list-group {
+  cursor: pointer;
+  user-select: none;
+}
+
+/* On the cell, so the translucent hover sits on top of the row's background. */
+.bracket-list tbody tr.bracket-list-group:hover > th {
+  background: var(--color-hover);
+}
+
 .bracket-list-group-head {
   display: flex;
   align-items: center;
   gap: var(--space-2);
   font-size: var(--text-md);
   font-weight: 700;
+}
+
+.bracket-list-group-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  color: inherit;
+}
+
+.bracket-list-group-caret {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform var(--duration-fast) ease;
+}
+
+.bracket-list-group-toggle[aria-expanded="false"] .bracket-list-group-caret {
+  transform: rotate(-90deg);
 }
 
 .bracket-list-group-head a {
@@ -69,11 +116,11 @@ button.bracket-list-code:hover {
 }
 
 .bracket-list-code.is-winners {
-  color: var(--color-info);
+  color: var(--color-warning);
 }
 
 .bracket-list-code.is-losers {
-  color: var(--color-warning);
+  color: var(--color-info);
 }
 
 .bracket-list-time {
@@ -87,8 +134,16 @@ button.bracket-list-code:hover {
   gap: var(--space-3);
 }
 
-.bracket-list-pairing > :first-child {
-  text-align: right;
+.bracket-list-team {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.bracket-list-team.is-banner-end,
+.bracket-list-team.is-banner-end > .team-popover-trigger {
+  flex-direction: row-reverse;
 }
 
 .bracket-list-team.is-winner {

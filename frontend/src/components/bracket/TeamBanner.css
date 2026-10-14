@@ -1,0 +1,22 @@
+/* Sized by --team-banner-w / --team-banner-h where it's used. */
+.team-banner {
+  flex-shrink: 0;
+  width: var(--team-banner-w, 36px);
+  height: var(--team-banner-h, 20px);
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+}
+
+/* Inside a clickable team name it lights up with the name. */
+.team-popover-trigger:hover .team-banner,
+.team-popover-trigger[aria-expanded="true"] .team-banner {
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.team-banner img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

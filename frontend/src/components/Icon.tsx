@@ -25,6 +25,12 @@ const ICONS = {
     </>
   ),
   bracket: <path d="M3 5h6v6H3M3 13h6v6H3M9 8h4v8H9M13 12h8" />,
+  gavel: (
+    <>
+      <path d="m14.5 12.5-8 8a2.12 2.12 0 1 1-3-3l8-8" />
+      <path d="m16 16 6-6M8 8l6-6M9 7l8 8M21 11l-8-8" />
+    </>
+  ),
   grip: (
     <g fill="currentColor" stroke="none">
       <circle cx="9" cy="6" r="1.6" />
@@ -58,6 +64,12 @@ const ICONS = {
     </>
   ),
   speaker: <path d="M11 5 6 9H2v6h4l5 4zM15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14" />,
+  timer: (
+    <>
+      <circle cx="12" cy="14" r="8" />
+      <path d="M10 2h4M12 14l3-3" />
+    </>
+  ),
   swap: <path d="M8 3 4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4" />,
   stop: <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />,
   target: (

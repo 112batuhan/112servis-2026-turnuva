@@ -1,47 +1,38 @@
 import { useEffect } from "react";
-import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
-import type { Role } from "../../api/types";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
+import type { User } from "../../api/types";
 import { useSignedInUser } from "../../auth/AuthContext";
 import { hasRole } from "../../auth/roles";
 import { IrcProvider } from "../../irc/IrcContext";
 import { readString, writeString } from "../../lib/storage";
-import "./AdminLayout.css";
+import { ADMIN_TABS } from "./tabs";
 
-// In tab order. The first tab a user can open is their default, except that hosts
-// start on Users.
-const TABS: { path: string; label: string; minRole: Role }[] = [
-  { path: "/admin/stages", label: "Stage'ler", minRole: "host" },
-  { path: "/admin/mappool", label: "Mappool", minRole: "map_pooler" },
-  { path: "/admin/qualifiers", label: "Elemeler", minRole: "referee" },
-  { path: "/admin/bracket", label: "Bracket", minRole: "streamer" },
-  { path: "/admin/referee", label: "Hakem", minRole: "referee" },
-  { path: "/admin/users", label: "Kullanıcılar", minRole: "host" },
-  { path: "/admin/teams", label: "Takımlar", minRole: "host" },
-];
+// The first tab a user can open is their default, except that hosts start on Users.
 const USERS_TAB = "/admin/users";
+const REFEREE_PAGE = "/admin/referee/";
 
-const lastTabKey = (userId: string) => `admin-tab:${userId}`;
+const lastPageKey = (userId: string) => `admin-page:${userId}`;
 
-const tabClass = ({ isActive }: { isActive: boolean }) => (isActive ? "admin-tab is-active" : "admin-tab");
+/** Whether the user can still open a remembered page, so a lost role doesn't redirect in a loop. */
+function canOpen(user: User, page: string) {
+  const path = page.split(/[?#]/)[0];
+  if (path.startsWith(REFEREE_PAGE)) return hasRole(user, "referee");
+  return ADMIN_TABS.some((tab) => tab.path === path && hasRole(user, tab.minRole));
+}
 
 export function AdminLayout() {
   const user = useSignedInUser();
-  const { pathname } = useLocation();
-  const tabs = TABS.filter((tab) => hasRole(user, tab.minRole));
+  const { pathname, search, hash } = useLocation();
 
+  // Every admin page, with its query, so "Yönetim" comes back to it after the public pages.
   useEffect(() => {
-    if (TABS.some((tab) => tab.path === pathname)) writeString(lastTabKey(user.id), pathname);
-  }, [pathname, user.id]);
+    const page = pathname + search + hash;
+    if (canOpen(user, page)) writeString(lastPageKey(user.id), page);
+  }, [pathname, search, hash, user]);
 
+  // The tabs are in the top bar (`NavBar`).
   return (
     <div className="page">
-      <nav className="admin-tabs" aria-label="Yönetim bölümleri">
-        {tabs.map((tab) => (
-          <NavLink key={tab.path} to={tab.path} className={tabClass}>
-            {tab.label}
-          </NavLink>
-        ))}
-      </nav>
       {/* Here rather than on the referee page, so the Bancho connection outlives tab switches. */}
       <IrcProvider>
         <Outlet />
@@ -50,14 +41,13 @@ export function AdminLayout() {
   );
 }
 
-/** /admin: reopen the last tab the user visited, falling back to their role's default. */
+/** /admin: reopen the last admin page the user was on, falling back to their role's default tab. */
 export function AdminIndexRedirect() {
   const user = useSignedInUser();
-  const tabs = TABS.filter((tab) => hasRole(user, tab.minRole)).map((tab) => tab.path);
-  const saved = readString(lastTabKey(user.id));
+  const saved = readString(lastPageKey(user.id));
 
-  let target = hasRole(user, "host") ? USERS_TAB : tabs[0];
-  if (saved && tabs.includes(saved)) target = saved;
+  let target = hasRole(user, "host") ? USERS_TAB : ADMIN_TABS.find((tab) => hasRole(user, tab.minRole))!.path;
+  if (saved && canOpen(user, saved)) target = saved;
 
   return <Navigate to={target} replace />;
 }

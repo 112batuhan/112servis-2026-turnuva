@@ -1,12 +1,11 @@
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
 import { API_URL } from "../api/client";
 import type { Lobby, Player, Team } from "../api/types";
 import { formatMatchTime } from "../lib/format";
-import { teamListPath } from "../lib/teamLink";
 import { RoomLinks } from "./RoomLinks";
 import { Countdown } from "./Countdown";
 import { DiscordMention } from "./DiscordMention";
+import { TeamPopover } from "./TeamPopover";
 import "./LobbyCard.css";
 
 interface Props<P extends Player> {
@@ -89,9 +88,9 @@ export function LobbyCard<P extends Player>({
             </div>
             <div className="lobby-team-text">
               <div className="lobby-team-main">
-                <Link className="lobby-team-name" to={teamListPath(team.id)}>
+                <TeamPopover team={team} className="lobby-team-name">
                   <span className="lobby-team-name-text">{team.name}</span>
-                </Link>
+                </TeamPopover>
                 <div className="lobby-team-players">
                   {team.players.map((p) => (
                     <div key={p.id} className="lobby-player">

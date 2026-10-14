@@ -161,6 +161,8 @@ async fn load_lobbies<P>(
 pub struct PublicQualifiers {
     lobbies: Vec<Lobby<Player>>,
     capacity: i64,
+    // The qualifier stage, while its map pool is published, to link to.
+    pool_stage_id: Option<Uuid>,
     // The signed-in player's team, so the page can show where it's signed up.
     my_team_id: Option<Uuid>,
 }
@@ -182,6 +184,7 @@ pub async fn list_public_lobbies(
             .map(|(m, teams)| to_lobby(m, teams, now).0)
             .collect(),
         capacity: LOBBY_SIZE,
+        pool_stage_id: db::mappool::published_qualifier_stage_id(&state.db).await?,
         my_team_id,
     }))
 }
@@ -281,6 +284,7 @@ pub struct StaffLobby {
 pub struct StaffQualifiers {
     lobbies: Vec<StaffLobby>,
     capacity: i64,
+    pool_stage_id: Option<Uuid>,
     // Teams that haven't picked a lobby yet.
     unassigned: Vec<Team<AdminTeamPlayer>>,
 }
@@ -306,6 +310,7 @@ pub async fn list_lobbies(
             })
             .collect(),
         capacity: LOBBY_SIZE,
+        pool_stage_id: db::mappool::published_qualifier_stage_id(&state.db).await?,
         unassigned,
     }))
 }

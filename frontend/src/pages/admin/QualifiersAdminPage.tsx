@@ -25,8 +25,9 @@ import { ErrorAlert } from "../../components/ErrorAlert";
 import { Icon } from "../../components/Icon";
 import { IconButton } from "../../components/IconButton";
 import { LobbyCard } from "../../components/LobbyCard";
+import { TeamPopover } from "../../components/TeamPopover";
 import { formatMatchTime, fromDateTimeLocal, toDateTimeLocal } from "../../lib/format";
-import { teamListPath } from "../../lib/teamLink";
+import { readJson, writeJson } from "../../lib/storage";
 import { RoomsEditor, StaffSelect } from "./MatchControls";
 import "./QualifiersAdminPage.css";
 
@@ -41,6 +42,11 @@ export function QualifiersAdminPage() {
   const [busy, setBusy] = useState(false);
   const [mineOnly, setMineOnly] = useState(false);
   const [newTime, setNewTime] = useState("");
+  const [unassignedCollapsed, setUnassignedCollapsed] = useState(() =>
+    readJson("qualifiers-unassigned-collapsed", false),
+  );
+
+  useEffect(() => writeJson("qualifiers-unassigned-collapsed", unassignedCollapsed), [unassignedCollapsed]);
 
   const reload = useCallback(async () => setData(await fetchQualifiers()), []);
 
@@ -102,6 +108,11 @@ export function QualifiersAdminPage() {
         )}
         {data && (
           <div className="page-header-aside">
+            {data.pool_stage_id && (
+              <Link to={`/mappool?stage=${data.pool_stage_id}`} className="btn btn-secondary btn-sm">
+                Mappool
+              </Link>
+            )}
             <button
               type="button"
               className="btn btn-secondary btn-sm"
@@ -133,26 +144,37 @@ export function QualifiersAdminPage() {
       {data && isHost && data.unassigned.length > 0 && (
         <div className="qualifiers-unassigned">
           <h2>
-            Lobisi olmayan takımlar <span className="badge">{data.unassigned.length}</span>
+            <button
+              type="button"
+              className="qualifiers-unassigned-toggle"
+              aria-expanded={!unassignedCollapsed}
+              aria-controls="qualifiers-unassigned-list"
+              onClick={() => setUnassignedCollapsed((c) => !c)}
+            >
+              <Icon name="chevronDown" size={18} className="qualifiers-unassigned-caret" />
+              Lobisi olmayan takımlar <span className="badge">{data.unassigned.length}</span>
+            </button>
           </h2>
-          <ul>
-            {data.unassigned.map((team) => (
-              <li key={team.id}>
-                <Link className="qualifiers-unassigned-name" to={teamListPath(team.id)}>
-                  {team.name}
-                </Link>
-                <span className="muted">{team.players.map((p) => p.username).join(" & ")}</span>
-                <LobbySelect
-                  label="Lobiye ata…"
-                  team={team}
-                  lobbies={lobbies}
-                  capacity={data.capacity}
-                  disabled={busy}
-                  onSelect={(id) => run(() => assignTeam(team.id, id))}
-                />
-              </li>
-            ))}
-          </ul>
+          {!unassignedCollapsed && (
+            <ul id="qualifiers-unassigned-list">
+              {data.unassigned.map((team) => (
+                <li key={team.id}>
+                  <TeamPopover team={team} className="qualifiers-unassigned-name">
+                    {team.name}
+                  </TeamPopover>
+                  <span className="muted">{team.players.map((p) => p.username).join(" & ")}</span>
+                  <LobbySelect
+                    label="Lobiye ata…"
+                    team={team}
+                    lobbies={lobbies}
+                    capacity={data.capacity}
+                    disabled={busy}
+                    onSelect={(id) => run(() => assignTeam(team.id, id))}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 

@@ -18,7 +18,8 @@ import {
   type Source,
 } from "../../../lib/bracket";
 import { fromDateTimeLocal, toDateTimeLocal } from "../../../lib/format";
-import { RoomsEditor, StaffSelect } from "../MatchControls";
+import { RoomsEditor } from "../MatchControls";
+import { RefereeControl, StreamerControl } from "./StaffControls";
 import type { BracketEditor, EditorMatch, EditorTeam } from "./useBracketEditor";
 
 interface Props {
@@ -49,7 +50,6 @@ export function MatchPanel({
 }: Props) {
   const user = useSignedInUser();
   const isHost = hasRole(user, "host");
-  const isReferee = hasRole(user, "referee");
   const { busy } = editor;
   const code = matchCode(match);
   const concluded = match.concluded_at !== null;
@@ -59,7 +59,6 @@ export function MatchPanel({
   const canEdit = isHost || (isMine && !concluded);
   const team = (id: string | null) => (id ? teams.get(id) : undefined);
   const slotSources = sources.get(match.id) ?? [null, null];
-  const playing = myTeamId !== null && (match.team1_id === myTeamId || match.team2_id === myTeamId);
 
   const concludeBlocker = match.rooms.length === 0
     ? "Önce maç linkini ekle"
@@ -132,80 +131,13 @@ export function MatchPanel({
         <div>
           <dt>Hakem</dt>
           <dd>
-            {isHost ? (
-              <StaffSelect
-                label="Hakem"
-                emptyLabel="— Hakem yok —"
-                current={match.referee}
-                options={referees}
-                disabled={busy}
-                onSelect={(id) => editor.setReferee(match.id, id)}
-              />
-            ) : (
-              <span className="match-panel-person">
-                {match.referee ? <strong>{match.referee.username}</strong> : <span className="muted">Henüz yok</span>}
-                {isReferee && !concluded && !match.referee && (
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    disabled={busy}
-                    onClick={() => editor.setReferee(match.id, user.id)}
-                  >
-                    Hakemliği üstlen
-                  </button>
-                )}
-                {!concluded && isMine && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    disabled={busy}
-                    onClick={() => editor.setReferee(match.id, null)}
-                  >
-                    Bırak
-                  </button>
-                )}
-              </span>
-            )}
+            <RefereeControl match={match} editor={editor} options={referees} />
           </dd>
         </div>
         <div>
           <dt>Yayıncı</dt>
           <dd>
-            {isHost ? (
-              <StaffSelect
-                label="Yayıncı"
-                emptyLabel="— Yayıncı yok —"
-                current={match.streamer}
-                options={streamers}
-                disabled={busy}
-                onSelect={(id) => editor.setStreamer(match.id, id)}
-              />
-            ) : (
-              <span className="match-panel-person">
-                {match.streamer ? <strong>{match.streamer.username}</strong> : <span className="muted">Henüz yok</span>}
-                {!concluded && !match.streamer && (
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-sm"
-                    disabled={busy || playing}
-                    title={playing ? "Kendi maçını yayınlayamazsın" : undefined}
-                    onClick={() => editor.setStreamer(match.id, user.id)}
-                  >
-                    Yayıncı ol
-                  </button>
-                )}
-                {!concluded && match.streamer?.id === user.id && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    disabled={busy}
-                    onClick={() => editor.setStreamer(match.id, null)}
-                  >
-                    Bırak
-                  </button>
-                )}
-              </span>
-            )}
+            <StreamerControl match={match} editor={editor} options={streamers} myTeamId={myTeamId} />
           </dd>
         </div>
         <div>

@@ -104,6 +104,11 @@
   box-shadow: 0 0 0 1px var(--color-primary);
 }
 
+/* Not found by the search. */
+.bracket-slot.is-dimmed {
+  opacity: 0.3;
+}
+
 .bracket-viewport.is-editable .bracket-slot.is-dragging {
   z-index: 1;
 }

@@ -76,6 +76,13 @@ export function QualifiersPage() {
       <div className="page-header">
         <h1>Elemeler</h1>
         {lobbies && <span className="badge">{lobbies.length} lobi</span>}
+        {data?.pool_stage_id && (
+          <div className="page-header-aside">
+            <Link to={`/mappool?stage=${data.pool_stage_id}`} className="btn btn-secondary btn-sm">
+              Mappool
+            </Link>
+          </div>
+        )}
       </div>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
       {!data && !error && <p className="status">Yükleniyor…</p>}

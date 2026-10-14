@@ -6,7 +6,13 @@ import { useAuth } from "../auth/AuthContext";
 import { BracketCalendar } from "../components/bracket/BracketCalendar";
 import { BracketGrid } from "../components/bracket/BracketGrid";
 import { BracketList } from "../components/bracket/BracketList";
-import { BracketViewTabs, useBracketView } from "../components/bracket/BracketViewTabs";
+import { BracketSearch, useBracketSearch } from "../components/bracket/BracketSearch";
+import {
+  BracketViewTabs,
+  CountdownToggle,
+  useBracketView,
+  useCountdownMode,
+} from "../components/bracket/BracketViewTabs";
 import { ErrorAlert } from "../components/ErrorAlert";
 
 export function BracketPage() {
@@ -14,8 +20,20 @@ export function BracketPage() {
   const [data, setData] = useState<PublicBracket | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useBracketView("public");
+  const [countdown, toggleCountdown] = useCountdownMode("public");
   // Selecting a match only highlights it and the lines into and out of it.
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The match a clicked time opens the calendar on; picking a view from the tabs clears it.
+  const [calendarFocus, setCalendarFocus] = useState<string | null>(null);
+  const pickView = (next: typeof view) => {
+    setCalendarFocus(null);
+    setView(next);
+  };
+  const showInCalendar = (id: string) => {
+    setSelectedId(id);
+    setCalendarFocus(id);
+    setView("calendar");
+  };
 
   const reload = useCallback(async () => setData(await fetchPublicBracket()), []);
 
@@ -24,12 +42,15 @@ export function BracketPage() {
   }, [reload]);
 
   const teams = useMemo(() => new Map<string, Team>(data?.teams.map((t) => [t.id, t])), [data]);
+  const matches = useMemo(() => data?.matches ?? [], [data]);
+  const search = useBracketSearch(matches, teams);
   const shared = {
-    matches: data?.matches ?? [],
+    matches,
     teams,
     myTeamId: data?.my_team_id,
     viewerId: user?.id,
     selectedId,
+    hits: search.hits,
   };
 
   return (
@@ -39,7 +60,9 @@ export function BracketPage() {
         {data && <span className="badge">{data.matches.length} maç</span>}
         {data && data.matches.length > 0 && (
           <div className="page-header-aside">
-            <BracketViewTabs view={view} onChange={setView} />
+            <BracketSearch query={search.query} onChange={search.setQuery} hits={search.hits} />
+            {view !== "calendar" && <CountdownToggle on={countdown} onToggle={toggleCountdown} />}
+            <BracketViewTabs view={view} onChange={pickView} />
           </div>
         )}
       </div>
@@ -49,9 +72,11 @@ export function BracketPage() {
 
       {data && data.matches.length > 0 && (
         <>
-          {view === "grid" && <BracketGrid {...shared} onSelect={setSelectedId} />}
-          {view === "list" && <BracketList {...shared} />}
-          {view === "calendar" && <BracketCalendar {...shared} />}
+          {view === "grid" && (
+            <BracketGrid {...shared} onSelect={setSelectedId} onShowInCalendar={showInCalendar} countdown={countdown} />
+          )}
+          {view === "list" && <BracketList {...shared} onShowInCalendar={showInCalendar} countdown={countdown} />}
+          {view === "calendar" && <BracketCalendar {...shared} focusId={calendarFocus} />}
         </>
       )}
     </div>

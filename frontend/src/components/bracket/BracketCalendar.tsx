@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { BracketMatch, Team } from "../../api/types";
-import { compareByCode, compareByTime, groupByStage, matchCode } from "../../lib/bracket";
+import { compareByCode, compareByTime, groupByStage, matchCode, winningSlot } from "../../lib/bracket";
 import { formatClock } from "../../lib/format";
 import { IconButton } from "../IconButton";
+import { TeamPopover } from "../TeamPopover";
+import { RefereeRoomLink } from "./RefereeRoomLink";
+import { TeamBanner } from "./TeamBanner";
 import "./BracketCalendar.css";
 
 interface Props {
@@ -12,12 +15,20 @@ interface Props {
   viewerId?: string;
   selectedId?: string | null;
   onSelect?: (id: string) => void;
+  /** A match to open on: its day's timeline, scrolled to it. Read when the calendar mounts. */
+  focusId?: string | null;
+  /** Adds a link to each match's referee room. */
+  showRefereeRoom?: boolean;
+  /** Lists the matches that have no time yet below the calendar; otherwise they're left out. */
+  showUnscheduled?: boolean;
+  /** The ids of the matches the search finds, or null when not searching; only they are shown. */
+  hits?: Set<string> | null;
 }
 
 const WEEKDAYS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 
-/** Pixels per hour on the day view's timeline. */
-const HOUR_H = 56;
+/** Pixels per hour on the day view's timeline; an hour-long match fits its header and both teams. */
+const HOUR_H = 64;
 /** How long a match is drawn on the timeline, in minutes; they have no end time. */
 const MATCH_MINUTES = 60;
 
@@ -87,14 +98,46 @@ function layoutDay(matches: BracketMatch[]): Placed[] {
   return placed;
 }
 
-/** A month at a time, Monday first, or one day's timeline; plus the matches that have
-    no time yet. */
-export function BracketCalendar({ matches, teams, myTeamId, viewerId, selectedId, onSelect }: Props) {
-  const [month, setMonth] = useState(() => initialMonth(matches));
+/** A month at a time, Monday first, or one day's timeline; plus, when asked, the matches
+    that have no time yet. */
+export function BracketCalendar({
+  matches: allMatches,
+  teams,
+  myTeamId,
+  viewerId,
+  selectedId,
+  onSelect,
+  focusId,
+  showRefereeRoom,
+  showUnscheduled,
+  hits,
+}: Props) {
+  const matches = useMemo(() => (hits ? allMatches.filter((m) => hits.has(m.id)) : allMatches), [allMatches, hits]);
+  const [focusAt] = useState(() => {
+    const at = matches.find((m) => m.id === focusId)?.starts_at;
+    return at ? new Date(at) : null;
+  });
+  const [month, setMonth] = useState(() =>
+    focusAt ? new Date(focusAt.getFullYear(), focusAt.getMonth(), 1) : initialMonth(matches),
+  );
   // The day shown on its own, or null for the month.
-  const [day, setDay] = useState<Date | null>(null);
+  const [day, setDay] = useState<Date | null>(() => (focusAt ? startOfDay(focusAt) : null));
   const now = useNow();
   const today = dayKey(now);
+
+  // A search with no hits in the month or day on screen moves to the month of its next hit.
+  useEffect(() => {
+    if (!hits || hits.size === 0) return;
+    const shown = (at: Date) =>
+      day
+        ? dayKey(at) === dayKey(day)
+        : at.getFullYear() === month.getFullYear() && at.getMonth() === month.getMonth();
+    if (matches.some((m) => m.starts_at && shown(new Date(m.starts_at)))) return;
+    if (!matches.some((m) => m.starts_at)) return;
+    setDay(null);
+    setMonth(initialMonth(matches));
+    // Only when the search changes, not when the user pages through months.
+  }, [hits]);
 
   const byDay = useMemo(() => {
     const map = new Map<string, BracketMatch[]>();
@@ -105,7 +148,7 @@ export function BracketCalendar({ matches, teams, myTeamId, viewerId, selectedId
     }
     return map;
   }, [matches]);
-  const unscheduled = matches.filter((m) => !m.starts_at).sort(compareByCode);
+  const unscheduled = showUnscheduled ? matches.filter((m) => !m.starts_at).sort(compareByCode) : [];
 
   const isMine = (m: BracketMatch) =>
     (viewerId !== undefined && (m.referee?.id === viewerId || m.streamer?.id === viewerId)) ||
@@ -121,7 +164,13 @@ export function BracketCalendar({ matches, teams, myTeamId, viewerId, selectedId
     day ? setDay(startOfDay(new Date())) : setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 
   function chip(m: BracketMatch, style?: CSSProperties) {
-    const names = [m.team1_id, m.team2_id].map((id) => (id && teams.get(id)?.name) || "?").join(" – ");
+    const winner = winningSlot(m);
+    // The score column only takes space once a score is entered.
+    const scored = m.team1_score !== null || m.team2_score !== null;
+    const slots = [
+      { id: m.team1_id, score: m.team1_score },
+      { id: m.team2_id, score: m.team2_score },
+    ];
     const classes = [
       "cal-match",
       `is-${m.side}`,
@@ -137,14 +186,47 @@ export function BracketCalendar({ matches, teams, myTeamId, viewerId, selectedId
           {m.starts_at && <span className="cal-match-time">{formatClock(m.starts_at)}</span>}
           <strong>{matchCode(m)}</strong>
           {m.stage && <span className="cal-match-stage">{m.stage.name}</span>}
+          {showRefereeRoom && <RefereeRoomLink matchId={m.id} variant="card" />}
         </span>
-        <span className="cal-match-teams">{names}</span>
+        {slots.map((slot, i) => {
+          const team = slot.id ? teams.get(slot.id) : undefined;
+          const result = winner === null ? "" : winner === i + 1 ? " is-winner" : " is-loser";
+          return (
+            <span key={i} className={`cal-match-team${result}`}>
+              {scored && <span className="cal-match-score">{slot.score ?? ""}</span>}
+              {team ? (
+                <TeamPopover team={team}>
+                  <TeamBanner team={team} />
+                  <span className="cal-match-name">{team.name}</span>
+                </TeamPopover>
+              ) : (
+                <>
+                  <TeamBanner />
+                  <span className="cal-match-name">?</span>
+                </>
+              )}
+            </span>
+          );
+        })}
       </>
     );
+    // A div acting as a button rather than a <button>, since it can hold the referee room link.
     return onSelect ? (
-      <button key={m.id} type="button" className={classes} style={style} onClick={() => onSelect(m.id)}>
+      <div
+        key={m.id}
+        role="button"
+        tabIndex={0}
+        className={classes}
+        style={style}
+        onClick={() => onSelect(m.id)}
+        onKeyDown={(e) => {
+          if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+          e.preventDefault();
+          onSelect(m.id);
+        }}
+      >
         {content}
-      </button>
+      </div>
     ) : (
       <div key={m.id} className={classes} style={style}>
         {content}
@@ -187,6 +269,7 @@ export function BracketCalendar({ matches, teams, myTeamId, viewerId, selectedId
           day={day}
           now={now}
           placed={layoutDay(byDay.get(dayKey(day)) ?? [])}
+          focusStart={focusAt && dayKey(focusAt) === dayKey(day) ? minutesIntoDay(focusAt) : undefined}
           chip={chip}
         />
       ) : (
@@ -277,24 +360,26 @@ interface DayTimelineProps {
   day: Date;
   now: Date;
   placed: Placed[];
+  /** Minutes into the day of the match the calendar was opened on, when it's on this day. */
+  focusStart?: number;
   chip: (m: BracketMatch, style?: CSSProperties) => ReactNode;
 }
 
 /** The day's 24 hours, matches placed at their start time, and a line at the current
     time when it's today. */
-function DayTimeline({ day, now, placed, chip }: DayTimelineProps) {
+function DayTimeline({ day, now, placed, focusStart, chip }: DayTimelineProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const isToday = dayKey(day) === dayKey(now);
   const nowTop = (minutesIntoDay(now) / 60) * HOUR_H;
 
-  // On opening a day, scroll to the current time on today, else to the first match,
-  // with an hour above it for context.
+  // On opening a day, scroll to the match it was opened on, else to the current time on today,
+  // else to the first match, with an hour above it for context.
   const key = dayKey(day);
   const firstStart = placed[0]?.start;
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const minutes = isToday ? minutesIntoDay(new Date()) : (firstStart ?? 8 * 60);
+    const minutes = focusStart ?? (isToday ? minutesIntoDay(new Date()) : (firstStart ?? 8 * 60));
     el.scrollTop = Math.max(0, ((minutes - 60) / 60) * HOUR_H);
     // Keyed on the day alone so the clock ticking doesn't scroll it back.
   }, [key]);

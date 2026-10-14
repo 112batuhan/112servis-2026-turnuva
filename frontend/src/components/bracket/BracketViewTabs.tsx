@@ -25,6 +25,29 @@ export function useBracketView(key: string) {
   return [view, select] as const;
 }
 
+/** Whether match times show as a countdown, remembered per browser under `key`. */
+export function useCountdownMode(key: string) {
+  const storageKey = `bracket-countdown:${key}`;
+  const [on, setOn] = useState(() => readString(storageKey) === "1");
+  const toggle = () => {
+    setOn(!on);
+    writeString(storageKey, on ? "0" : "1");
+  };
+  return [on, toggle] as const;
+}
+
+/** Switches match times between the date and a countdown; styled like the view tabs. */
+export function CountdownToggle({ on, onToggle }: { on: boolean; onToggle: () => void }) {
+  return (
+    <div className="bracket-view-tabs">
+      <button type="button" className="bracket-view-tab" aria-pressed={on} onClick={onToggle}>
+        <Icon name="timer" />
+        Geri sayım
+      </button>
+    </div>
+  );
+}
+
 export function BracketViewTabs({ view, onChange }: { view: BracketView; onChange: (view: BracketView) => void }) {
   return (
     <div className="bracket-view-tabs" role="group" aria-label="Görünüm">

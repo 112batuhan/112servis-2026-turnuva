@@ -246,6 +246,13 @@ pub async fn get_published_stage(pool: &PgPool, id: Uuid) -> sqlx::Result<Option
         .await
 }
 
+// The qualifier stage's id, when it's published; the qualifier pages link to its pool.
+pub async fn published_qualifier_stage_id(pool: &PgPool) -> sqlx::Result<Option<Uuid>> {
+    sqlx::query_scalar("SELECT id FROM stages WHERE is_qualifier AND published")
+        .fetch_optional(pool)
+        .await
+}
+
 // ---------- categories ----------
 
 pub async fn list_categories(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<Category>> {

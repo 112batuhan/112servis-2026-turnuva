@@ -161,6 +161,7 @@
   color: var(--color-text);
 }
 
+.input-sm,
 .select-sm {
   height: var(--control-height-sm);
   font-size: var(--text-sm);

@@ -222,6 +222,8 @@ export interface PublicQualifiers {
   lobbies: Lobby[];
   /** The most teams a lobby holds. */
   capacity: number;
+  /** The qualifier stage, while its map pool is published; null otherwise. */
+  pool_stage_id: string | null;
   /** The signed-in player's team, or null. */
   my_team_id: string | null;
 }
@@ -229,6 +231,8 @@ export interface PublicQualifiers {
 export interface StaffQualifiers {
   lobbies: StaffLobby[];
   capacity: number;
+  /** The qualifier stage, while its map pool is published; null otherwise. */
+  pool_stage_id: string | null;
   /** Teams that haven't picked a lobby yet. */
   unassigned: Team<AdminTeamPlayer>[];
 }

@@ -38,6 +38,10 @@
 
   --color-focus: #ffb3d6;
 
+  /* the top bar on the admin pages, tinted so it's clear which side of the site you're on */
+  --color-admin-surface: #22243a;
+  --color-admin-border: #3d4170;
+
   /* osu! multiplayer team colours */
   --color-team-red: #f2666e;
   --color-team-red-soft: rgba(242, 102, 110, 0.14);

@@ -66,6 +66,14 @@ interface Props {
   editable?: boolean;
   onMove?: (id: string, x: number, y: number) => void;
   onAdd?: (x: number, y: number) => void;
+  /** Makes each card's time a button that opens the calendar on that match. */
+  onShowInCalendar?: (id: string) => void;
+  /** Shows the time left until each match instead of its date. */
+  countdown?: boolean;
+  /** Adds a link to each match's referee room. */
+  showRefereeRoom?: boolean;
+  /** The ids of the matches the search finds, or null when not searching; the rest are dimmed. */
+  hits?: Set<string> | null;
 }
 
 const clampScale = (s: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
@@ -92,6 +100,10 @@ export function BracketGrid({
   editable,
   onMove,
   onAdd,
+  onShowInCalendar,
+  countdown,
+  showRefereeRoom,
+  hits,
 }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<HTMLDivElement>(null);
@@ -405,6 +417,7 @@ export function BracketGrid({
             dragging && "is-dragging",
             dragging && drag.blocked && "is-blocked",
             onSelect && "is-clickable",
+            hits && !hits.has(m.id) && "is-dimmed",
           ]
             .filter(Boolean)
             .join(" ");
@@ -424,7 +437,6 @@ export function BracketGrid({
                 if (!editable || e.button !== 0 || pointers.current.size > 0) return;
                 const rect = e.currentTarget.getBoundingClientRect();
                 const scale = viewRef.current.scale;
-                e.currentTarget.setPointerCapture(e.pointerId);
                 setDrag({
                   id: m.id,
                   grabX: (e.clientX - rect.left) / scale,
@@ -438,8 +450,15 @@ export function BracketGrid({
               }}
               onPointerMove={(e) => {
                 if (drag?.id !== m.id) return;
-                if (!drag.moved && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < DRAG_THRESHOLD) {
+                // Released off the card before it was captured, so its pointerup never came.
+                if (e.buttons === 0) {
+                  setDrag(null);
                   return;
+                }
+                if (!drag.moved) {
+                  if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < DRAG_THRESHOLD) return;
+                  // Captured only now, so a plain click still reaches what's under it (a team name).
+                  e.currentTarget.setPointerCapture(e.pointerId);
                 }
                 const next = cardPosition(e.clientX, e.clientY, drag.grabX, drag.grabY);
                 if (drag.moved && next.x === drag.pos.x && next.y === drag.pos.y) return;
@@ -482,6 +501,9 @@ export function BracketGrid({
                 teams={teams}
                 sources={sources.get(m.id) ?? [null, null]}
                 myTeamId={myTeamId}
+                onShowInCalendar={onShowInCalendar}
+                countdown={countdown}
+                showRefereeRoom={showRefereeRoom}
               />
             </div>
           );

@@ -9,10 +9,18 @@ import { hasRole } from "../../../auth/roles";
 import { BracketCalendar } from "../../../components/bracket/BracketCalendar";
 import { BracketGrid } from "../../../components/bracket/BracketGrid";
 import { BracketList } from "../../../components/bracket/BracketList";
-import { BracketViewTabs, useBracketView } from "../../../components/bracket/BracketViewTabs";
+import { BracketSearch, useBracketSearch } from "../../../components/bracket/BracketSearch";
+import {
+  BracketViewTabs,
+  CountdownToggle,
+  useBracketView,
+  useCountdownMode,
+} from "../../../components/bracket/BracketViewTabs";
+import { RefereeRoomLink } from "../../../components/bracket/RefereeRoomLink";
 import { ErrorAlert } from "../../../components/ErrorAlert";
 import { firstFreeSpot, incomingSources, SIDE_LABELS } from "../../../lib/bracket";
 import { MatchPanel } from "./MatchPanel";
+import { RefereeControl, StreamerControl } from "./StaffControls";
 import { useBracketEditor, type EditorMatch, type EditorTeam } from "./useBracketEditor";
 import "./BracketAdminPage.css";
 
@@ -23,7 +31,19 @@ export function BracketAdminPage() {
   const editor = useBracketEditor(isReferee);
   const { data, error, setError, busy } = editor;
   const [view, setView] = useBracketView("admin");
+  const [countdown, toggleCountdown] = useCountdownMode("admin");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The match a clicked time opens the calendar on; picking a view from the tabs clears it.
+  const [calendarFocus, setCalendarFocus] = useState<string | null>(null);
+  const pickView = (next: typeof view) => {
+    setCalendarFocus(null);
+    setView(next);
+  };
+  const showInCalendar = (id: string) => {
+    setSelectedId(id);
+    setCalendarFocus(id);
+    setView("calendar");
+  };
   const [newSide, setNewSide] = useState<BracketSide>("winners");
   const [referees, setReferees] = useState<Player[]>([]);
   const [streamers, setStreamers] = useState<Player[]>([]);
@@ -36,8 +56,9 @@ export function BracketAdminPage() {
     fetchStages().then(setStages).catch((e) => setError(errorMessage(e)));
   }, [isHost, setError]);
 
-  const matches = data?.matches ?? [];
+  const matches = useMemo(() => data?.matches ?? [], [data]);
   const teams = useMemo(() => new Map<string, EditorTeam>(data?.teams.map((t) => [t.id, t])), [data]);
+  const search = useBracketSearch(matches, teams);
   const sources = useMemo(() => incomingSources<EditorMatch>(matches), [matches]);
   const selected = matches.find((m) => m.id === selectedId) ?? null;
 
@@ -54,6 +75,7 @@ export function BracketAdminPage() {
     myTeamId: data?.myTeamId,
     viewerId: user.id,
     selectedId,
+    hits: search.hits,
   };
 
   return (
@@ -73,7 +95,9 @@ export function BracketAdminPage() {
         )}
         {data && (
           <div className="page-header-aside">
-            <BracketViewTabs view={view} onChange={setView} />
+            <BracketSearch query={search.query} onChange={search.setQuery} hits={search.hits} />
+            {view !== "calendar" && <CountdownToggle on={countdown} onToggle={toggleCountdown} />}
+            <BracketViewTabs view={view} onChange={pickView} />
             {isHost && (
               <span className="inline-form">
                 <select
@@ -126,10 +150,33 @@ export function BracketAdminPage() {
                 editable={isHost}
                 onMove={editor.move}
                 onAdd={isHost ? (x, y) => add(x, y) : undefined}
+                onShowInCalendar={showInCalendar}
+                countdown={countdown}
+                showRefereeRoom={isReferee}
               />
             )}
-            {view === "list" && <BracketList {...shared} onSelect={setSelectedId} />}
-            {view === "calendar" && <BracketCalendar {...shared} onSelect={setSelectedId} />}
+            {view === "list" && (
+              <BracketList
+                {...shared}
+                onSelect={setSelectedId}
+                renderReferee={(m) => <RefereeControl match={m} editor={editor} options={referees} discord />}
+                renderStreamer={(m) => (
+                  <StreamerControl match={m} editor={editor} options={streamers} myTeamId={data.myTeamId} />
+                )}
+                renderActions={isReferee ? (m) => <RefereeRoomLink matchId={m.id} variant="row" /> : undefined}
+                onShowInCalendar={showInCalendar}
+                countdown={countdown}
+              />
+            )}
+            {view === "calendar" && (
+              <BracketCalendar
+                {...shared}
+                onSelect={setSelectedId}
+                focusId={calendarFocus}
+                showRefereeRoom={isReferee}
+                showUnscheduled={isHost}
+              />
+            )}
           </div>
           {selected && (
             <MatchPanel

@@ -60,11 +60,11 @@
 }
 
 .match-panel-code.is-winners {
-  color: var(--color-info);
+  color: var(--color-warning);
 }
 
 .match-panel-code.is-losers {
-  color: var(--color-warning);
+  color: var(--color-info);
 }
 
 .match-panel-close {

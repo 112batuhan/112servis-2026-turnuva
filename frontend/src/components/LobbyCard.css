@@ -181,7 +181,7 @@
   font-style: italic;
 }
 
-/* Links to the team; covers the whole banner so all of it is clickable. */
+/* Opens the team's card; covers the whole banner so all of it is clickable. */
 .lobby-team-name {
   display: flex;
   position: relative;

@@ -1,8 +1,11 @@
-import { API_URL } from "../../api/client";
 import type { BracketMatch, Team } from "../../api/types";
 import { matchCode, sourceLabel, winningSlot, type Source } from "../../lib/bracket";
-import { formatShortMatchTime } from "../../lib/format";
 import { Icon } from "../Icon";
+import { TeamPopover } from "../TeamPopover";
+import { MatchTime } from "./MatchTime";
+import { MatchTimeLink } from "./MatchTimeLink";
+import { RefereeRoomLink } from "./RefereeRoomLink";
+import { TeamBanner } from "./TeamBanner";
 import "./BracketMatchCard.css";
 
 interface Props {
@@ -11,10 +14,24 @@ interface Props {
   /** What feeds each slot, shown while the slot is empty. */
   sources: [Source | null, Source | null];
   myTeamId?: string | null;
+  /** Makes the time a button that opens the calendar on this match. */
+  onShowInCalendar?: (id: string) => void;
+  /** Shows the time left until the match instead of its date. */
+  countdown?: boolean;
+  /** Adds a link to the match's referee room. */
+  showRefereeRoom?: boolean;
 }
 
 /** A match as the grid shows it. Sized by its grid cell. */
-export function BracketMatchCard({ match, teams, sources, myTeamId }: Props) {
+export function BracketMatchCard({
+  match,
+  teams,
+  sources,
+  myTeamId,
+  onShowInCalendar,
+  countdown,
+  showRefereeRoom,
+}: Props) {
   const winner = winningSlot(match);
   const slots = [
     { id: match.team1_id, score: match.team1_score, source: sources[0] },
@@ -26,7 +43,18 @@ export function BracketMatchCard({ match, teams, sources, myTeamId }: Props) {
       <div className="bm-card-header">
         <span className={`bm-card-code is-${match.side}`}>{matchCode(match)}</span>
         <span className="bm-card-time">
-          {match.starts_at ? formatShortMatchTime(match.starts_at) : <span className="muted">Zaman yok</span>}
+          {!match.starts_at ? (
+            <span className="muted">Zaman yok</span>
+          ) : onShowInCalendar ? (
+            <MatchTimeLink
+              matchId={match.id}
+              startsAt={match.starts_at}
+              countdown={countdown}
+              onShowInCalendar={onShowInCalendar}
+            />
+          ) : (
+            <MatchTime startsAt={match.starts_at} countdown={countdown} />
+          )}
         </span>
         {match.streamer && (
           <span className="bm-card-icon" title={`Yayıncı: ${match.streamer.username}`}>
@@ -38,6 +66,7 @@ export function BracketMatchCard({ match, teams, sources, myTeamId }: Props) {
             <Icon name="check" size={14} />
           </span>
         )}
+        {showRefereeRoom && <RefereeRoomLink matchId={match.id} variant="card" />}
       </div>
       {slots.map((slot, i) => {
         const team = slot.id ? teams.get(slot.id) : undefined;
@@ -51,12 +80,17 @@ export function BracketMatchCard({ match, teams, sources, myTeamId }: Props) {
           .join(" ");
         return (
           <div key={i} className={classes}>
-            <span className="bm-card-banner">
-              {team?.banner_url && <img src={`${API_URL}${team.banner_url}`} alt="" loading="lazy" />}
-            </span>
-            <span className={team ? "bm-card-name" : "bm-card-name is-empty"}>
-              {team ? team.name : slot.source ? sourceLabel(slot.source) : "Belirlenmedi"}
-            </span>
+            {team ? (
+              <TeamPopover team={team}>
+                <TeamBanner team={team} />
+                <span className="bm-card-name">{team.name}</span>
+              </TeamPopover>
+            ) : (
+              <>
+                <TeamBanner />
+                <span className="bm-card-name is-empty">{slot.source ? sourceLabel(slot.source) : "Belirlenmedi"}</span>
+              </>
+            )}
             <span className="bm-card-score">{slot.score ?? ""}</span>
           </div>
         );

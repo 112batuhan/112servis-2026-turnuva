@@ -27,7 +27,8 @@ export function RefereeRoomPage() {
     return (
       <div className="referee-page">
         <ErrorAlert message={loadError} />
-        <Link to="/admin/referee">← Maçlara dön</Link>
+        {/* Reopens the tab the referee came from. */}
+        <Link to="/admin">← Geri dön</Link>
       </div>
     );
   }
@@ -41,8 +42,8 @@ export function RefereeRoomPage() {
   return (
     <div className="referee-page">
       <header className="referee-header">
-        <Link to="/admin/referee" className="referee-back">
-          ← Maçlar
+        <Link to={room.kind === "bracket" ? "/admin/bracket" : "/admin/qualifiers"} className="referee-back">
+          {room.kind === "bracket" ? "← Bracket" : "← Elemeler"}
         </Link>
         <h1 className="referee-title">
           {roomLabel(room)} <span className="referee-title-teams">{teamNames}</span>

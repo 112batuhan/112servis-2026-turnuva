@@ -1,0 +1,36 @@
+/* Can hold a banner next to the name. Gets the gap of the row it sits in, and shrinks so a long
+   name can end in an ellipsis. */
+.team-popover-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: inherit;
+  min-width: 0;
+  max-width: 100%;
+  cursor: pointer;
+}
+
+.team-popover-trigger:hover,
+.team-popover-trigger[aria-expanded="true"] {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* Above the page and the mini player. Wide enough that a full-length osu! username fits next to
+   the rank column. */
+.team-popover {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 220;
+  width: min(640px, calc(100vw - 32px));
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
+}
+
+.team-popover:focus {
+  outline: none;
+}
+
+.team-popover:focus-visible .team-card {
+  border-color: var(--color-primary);
+}
