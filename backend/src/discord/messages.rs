@@ -151,6 +151,17 @@ fn with_banners(state: &AppState, info: &MatchInfo, embed: Embed) -> (Embed, Vec
     (embed, banners.collect())
 }
 
+// Discord puts up to three inline fields in a row, widening them when there are fewer
+// (two split the row in half), and has no row break. Filling the last row with blank
+// fields ends it, and keeps every row in the same three columns so they line up.
+fn fill_row(mut embed: Embed) -> Embed {
+    let inline = embed.fields.iter().filter(|f| f.2).count();
+    for _ in 0..(3 - inline % 3) % 3 {
+        embed = embed.field("\u{200b}", "\u{200b}", true);
+    }
+    embed
+}
+
 fn room_url(mp_id: i64) -> String {
     format!("https://osu.ppy.sh/community/matches/{mp_id}")
 }
@@ -323,13 +334,9 @@ pub fn match_card(state: &AppState, info: &MatchInfo, players: &[MatchPlayer]) -
     if players.is_empty() {
         embed = embed.field("👥 Takımlar", "Henüz takım yok", false);
     }
-    // Discord puts up to three inline fields in a row and has no row break, so the
-    // teams' last row is filled with blank fields: the referee and streamer then start
-    // a row of their own instead of one landing next to the teams.
-    let teams = embed.fields.iter().filter(|f| f.2).count();
-    for _ in 0..(3 - teams % 3) % 3 {
-        embed = embed.field("\u{200b}", "\u{200b}", true);
-    }
+    // The referee and streamer get a row of their own instead of one landing next to
+    // the teams.
+    embed = fill_row(embed);
 
     embed = embed.field(
         "🧑‍⚖️ Hakem",
@@ -343,6 +350,8 @@ pub fn match_card(state: &AppState, info: &MatchInfo, players: &[MatchPlayer]) -
             true,
         );
     }
+    // A full row too, so the referee and streamer line up under the teams.
+    embed = fill_row(embed);
     // The latest room is the one being played; older ones broke.
     if let Some((latest, older)) = info.mp_ids.split_last() {
         let mut rooms = room_url(*latest);
