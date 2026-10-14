@@ -356,13 +356,13 @@ pub async fn set_streamer(pool: &PgPool, id: Uuid, streamer_id: Option<Uuid>) ->
     Ok(())
 }
 
-// Everyone who can stream: streamers and up.
+// Everyone who can stream: the users holding the streamer role.
 pub async fn list_streamers(pool: &PgPool) -> sqlx::Result<Vec<Player>> {
     sqlx::query_as::<_, Player>(
         r#"
         SELECT id, osu_id, username, avatar_url, country_code, global_rank
         FROM osu_users
-        WHERE role <> 'basic'
+        WHERE 'streamer' = ANY(roles)
         ORDER BY lower(username)
         "#,
     )
@@ -371,10 +371,12 @@ pub async fn list_streamers(pool: &PgPool) -> sqlx::Result<Vec<Player>> {
 }
 
 pub async fn can_stream(pool: &PgPool, user_id: Uuid) -> sqlx::Result<bool> {
-    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM osu_users WHERE id = $1 AND role <> 'basic')")
-        .bind(user_id)
-        .fetch_one(pool)
-        .await
+    sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM osu_users WHERE id = $1 AND 'streamer' = ANY(roles))",
+    )
+    .bind(user_id)
+    .fetch_one(pool)
+    .await
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]

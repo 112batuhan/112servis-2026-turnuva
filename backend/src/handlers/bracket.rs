@@ -214,8 +214,8 @@ pub struct StaffBracket {
     teams: Vec<Team<AdminTeamPlayer>>,
 }
 
-// GET /api/bracket — referees and up. Like the public list, plus referee notes and
-// each player's Discord. Streamers can play, so they get the public view instead.
+// GET /api/bracket — referees and hosts. Like the public list, plus referee notes and
+// each player's Discord. Other staff (streamers can play) get the public view instead.
 pub async fn list_bracket(
     State(state): State<AppState>,
     user: AuthUser,
@@ -729,7 +729,7 @@ pub async fn set_streamer(
     if is_host(&user) {
         if let Some(streamer_id) = body.streamer_id {
             if !db::bracket::can_stream(&state.db, streamer_id).await? {
-                return Err(AppError::BadRequest("only staff can stream"));
+                return Err(AppError::BadRequest("only streamers can stream"));
             }
         }
         db::bracket::set_streamer(&state.db, id, body.streamer_id).await?;
@@ -744,6 +744,9 @@ pub async fn set_streamer(
         Some(streamer_id) if streamer_id == user.id => {
             if m.streamer_id == Some(user.id) {
                 return Ok(StatusCode::NO_CONTENT);
+            }
+            if !user.roles.has(Role::Streamer) {
+                return Err(AppError::Forbidden);
             }
             if let Some(team_id) = db::team::find_team_id(&state.db, user.id).await? {
                 if m.team1_id == Some(team_id) || m.team2_id == Some(team_id) {

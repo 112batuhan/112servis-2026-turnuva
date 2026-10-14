@@ -1,6 +1,6 @@
 import type { Player } from "../../../api/types";
 import { useSignedInUser } from "../../../auth/AuthContext";
-import { hasRole } from "../../../auth/roles";
+import { hasRole, holdsRole } from "../../../auth/roles";
 import { DiscordMention } from "../../../components/DiscordMention";
 import { StaffSelect } from "../MatchControls";
 import type { BracketEditor, EditorMatch } from "./useBracketEditor";
@@ -14,8 +14,8 @@ interface Props {
 }
 
 /**
- * A match's referee: hosts pick anyone from a list, referees take a free match or give up their
- * own (until it's concluded), and everyone else just sees who it is.
+ * A match's referee: hosts pick from everyone holding the referee role, referees take a free match
+ * or give up their own (until it's concluded), and everyone else just sees who it is.
  */
 export function RefereeControl({ match, editor, options, discord }: Props & { discord?: boolean }) {
   const user = useSignedInUser();
@@ -42,7 +42,7 @@ export function RefereeControl({ match, editor, options, discord }: Props & { di
     <span className="staff-control">
       {match.referee ? <strong>{match.referee.username}</strong> : <span className="muted">Henüz yok</span>}
       {mention}
-      {hasRole(user, "referee") && !concluded && !match.referee && (
+      {holdsRole(user, "referee") && !concluded && !match.referee && (
         <button
           type="button"
           className="btn btn-primary btn-sm"
@@ -67,8 +67,9 @@ export function RefereeControl({ match, editor, options, discord }: Props & { di
 }
 
 /**
- * A match's streamer: hosts pick anyone from a list, and every other staff member takes a free
- * match or gives up their own (until it's concluded), except a match their own team plays in.
+ * A match's streamer: hosts pick from everyone holding the streamer role, streamers take a free
+ * match or give up their own (until it's concluded), except a match their own team plays in, and
+ * everyone else just sees who it is.
  */
 export function StreamerControl({ match, editor, options, myTeamId }: Props & { myTeamId: string | null }) {
   const user = useSignedInUser();
@@ -90,7 +91,7 @@ export function StreamerControl({ match, editor, options, myTeamId }: Props & { 
   return (
     <span className="staff-control">
       {match.streamer ? <strong>{match.streamer.username}</strong> : <span className="muted">Henüz yok</span>}
-      {!concluded && !match.streamer && (
+      {holdsRole(user, "streamer") && !concluded && !match.streamer && (
         <button
           type="button"
           className="btn btn-primary btn-sm"

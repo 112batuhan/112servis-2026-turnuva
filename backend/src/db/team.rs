@@ -20,7 +20,7 @@ pub struct Player {
 pub struct PlayerState {
     #[sqlx(flatten)]
     pub player: Player,
-    pub role: Role,
+    pub roles: Vec<Role>,
     pub in_team: bool,
 }
 
@@ -61,7 +61,7 @@ pub async fn find_player(
 ) -> sqlx::Result<Option<PlayerState>> {
     sqlx::query_as::<_, PlayerState>(
         r#"
-        SELECT u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.role,
+        SELECT u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.roles,
                EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team
         FROM osu_users u
         WHERE u.id = $1
@@ -84,14 +84,14 @@ pub async fn search_players(
         .replace('_', "\\_");
     sqlx::query_as::<_, SearchRow>(
         r#"
-        SELECT u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.role,
+        SELECT u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.roles,
                EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team,
                EXISTS(SELECT 1 FROM team_invites i
                       WHERE i.inviter_id = $1 AND i.invitee_id = u.id) AS invite_sent,
                EXISTS(SELECT 1 FROM team_invites i
                       WHERE i.inviter_id = u.id AND i.invitee_id = $1) AS invite_received
         FROM osu_users u
-        WHERE u.id <> $1 AND u.role IN ('basic', 'streamer') AND u.username ILIKE '%' || $2 || '%'
+        WHERE u.id <> $1 AND u.roles <@ '{streamer}'::staff_role[] AND u.username ILIKE '%' || $2 || '%'
         ORDER BY lower(u.username) = lower($3) DESC, u.global_rank ASC NULLS LAST
         LIMIT 25
         "#,
@@ -107,7 +107,7 @@ pub async fn list_sent_invites(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Vec
     sqlx::query_as::<_, InviteRow>(
         r#"
         SELECT i.id AS invite_id, i.created_at, i.team_name,
-               u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.role,
+               u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.roles,
                EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team
         FROM team_invites i
         JOIN osu_users u ON u.id = i.invitee_id
@@ -124,7 +124,7 @@ pub async fn list_received_invites(pool: &PgPool, user_id: Uuid) -> sqlx::Result
     sqlx::query_as::<_, InviteRow>(
         r#"
         SELECT i.id AS invite_id, i.created_at, i.team_name,
-               u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.role,
+               u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.roles,
                EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team
         FROM team_invites i
         JOIN osu_users u ON u.id = i.inviter_id

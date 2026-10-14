@@ -59,7 +59,7 @@ const LOBBY_SIZE: i64 = 7;
 const NOTES_MAX: usize = 2000;
 
 pub fn is_host(user: &AuthUser) -> bool {
-    user.role.has_at_least(Role::Host)
+    user.roles.has(Role::Host)
 }
 
 #[derive(Debug, Serialize)]
@@ -467,7 +467,8 @@ pub struct RefereeBody {
 }
 
 // PUT /api/matches/:id/referee — a referee takes a free match (their own id) or
-// gives up theirs (null). Hosts can give any match to any staff member, or clear it.
+// gives up theirs (null). Hosts can give any match to anyone holding the referee role
+// (themselves too, if they hold it), or clear it.
 pub async fn set_referee(
     State(state): State<AppState>,
     user: AuthUser,
@@ -480,7 +481,7 @@ pub async fn set_referee(
     if is_host(&user) {
         if let Some(referee_id) = body.referee_id {
             if !db::matches::can_referee(&state.db, referee_id).await? {
-                return Err(AppError::BadRequest("only staff can referee"));
+                return Err(AppError::BadRequest("only referees can referee"));
             }
         }
         db::matches::set_referee(&state.db, id, body.referee_id).await?;
@@ -488,6 +489,9 @@ pub async fn set_referee(
         require_unconcluded(&user, &m)?;
         match body.referee_id {
             Some(referee_id) if referee_id == user.id => {
+                if !user.roles.has(Role::Referee) {
+                    return Err(AppError::Forbidden);
+                }
                 if m.referee_id != Some(user.id)
                     && !db::matches::claim_match(&state.db, id, user.id).await?
                 {

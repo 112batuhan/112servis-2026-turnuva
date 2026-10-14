@@ -260,7 +260,8 @@ async fn sync_card(
     stored: &MatchDiscord,
 ) -> BotResult {
     let card = messages::match_card(state, info, players);
-    let key = serde_json::to_string(&(&card.content, &card.embed)).unwrap_or_default();
+    let key =
+        serde_json::to_string(&(&card.content, &card.embed, &card.gallery)).unwrap_or_default();
     if stored.card_synced.as_deref() == Some(key.as_str()) {
         return Ok(());
     }

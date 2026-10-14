@@ -1,6 +1,7 @@
 // Response shapes returned by the Rust backend (see backend/src/db).
 
-export type Role = "host" | "map_pooler" | "referee" | "streamer" | "basic";
+/** A staff role; a user holds any set of them, and none means a regular player. */
+export type Role = "host" | "map_pooler" | "referee" | "streamer";
 
 export interface DiscordAccount {
   id: string;
@@ -22,7 +23,7 @@ export interface User {
   country_code: string | null;
   global_rank: number | null;
   country_rank: number | null;
-  role: Role;
+  roles: Role[];
   created_at: string;
   updated_at: string;
   discord: DiscordAccount | null;
@@ -36,7 +37,7 @@ export interface AdminUser {
   country_code: string | null;
   global_rank: number | null;
   country_rank: number | null;
-  role: Role;
+  roles: Role[];
   created_at: string;
   discord_id: string | null;
   discord_username: string | null;
@@ -414,7 +415,7 @@ export interface DevAccount {
   username: string;
   avatar_url: string;
   global_rank: number | null;
-  role: Role;
+  roles: Role[];
   dummy: boolean;
   in_team: boolean;
   discord_linked: boolean;

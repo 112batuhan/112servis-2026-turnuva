@@ -17,7 +17,7 @@ pub struct AdminUser {
     pub country_code: Option<String>,
     pub global_rank: Option<i64>,
     pub country_rank: Option<i64>,
-    pub role: Role,
+    pub roles: Vec<Role>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     pub discord_id: Option<String>,
@@ -31,7 +31,7 @@ pub async fn list_users(pool: &PgPool) -> sqlx::Result<Vec<AdminUser>> {
     sqlx::query_as::<_, AdminUser>(
         r#"
         SELECT o.id, o.osu_id, o.username, o.avatar_url, o.country_code,
-               o.global_rank, o.country_rank, o.role, o.created_at,
+               o.global_rank, o.country_rank, o.roles, o.created_at,
                d.discord_id AS discord_id,
                d.username   AS discord_username,
                d.avatar     AS discord_avatar
@@ -44,18 +44,18 @@ pub async fn list_users(pool: &PgPool) -> sqlx::Result<Vec<AdminUser>> {
     .await
 }
 
-// Changes a user's role. Returns the updated row.
-pub async fn set_role(pool: &PgPool, user_id: Uuid, role: Role) -> sqlx::Result<OsuUser> {
+// Replaces a user's roles (already normalized). Returns the updated row.
+pub async fn set_roles(pool: &PgPool, user_id: Uuid, roles: &[Role]) -> sqlx::Result<OsuUser> {
     sqlx::query_as::<_, OsuUser>(
         r#"
         UPDATE osu_users
-        SET role = $2, updated_at = now()
+        SET roles = $2, updated_at = now()
         WHERE id = $1
         RETURNING *
         "#,
     )
     .bind(user_id)
-    .bind(role)
+    .bind(roles)
     .fetch_one(pool)
     .await
 }

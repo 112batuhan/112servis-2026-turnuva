@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useSignedInUser } from "../auth/AuthContext";
-import { ROLE_LABELS } from "../auth/roles";
+import { PLAYER_LABEL, ROLE_LABELS } from "../auth/roles";
 import { DiscordMark } from "../components/DiscordMark";
 import { formatRank } from "../lib/format";
 
@@ -12,7 +12,17 @@ export function ProfilePage() {
       <div className="card">
         {user.avatar_url && <img className="card-avatar" src={user.avatar_url} alt="" />}
         <h1>{user.username}</h1>
-        <span className="badge">{ROLE_LABELS[user.role]}</span>
+        <div className="card-badges">
+          {user.roles.length === 0 ? (
+            <span className="badge">{PLAYER_LABEL}</span>
+          ) : (
+            user.roles.map((r) => (
+              <span key={r} className="badge">
+                {ROLE_LABELS[r]}
+              </span>
+            ))
+          )}
+        </div>
         <p className="card-subtitle">
           osu! id {user.osu_id}
           {user.global_rank ? <> · {formatRank(user.global_rank)} global</> : null}

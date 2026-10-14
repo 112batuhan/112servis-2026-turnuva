@@ -134,7 +134,8 @@ pub enum Job {
     // ---- one rendered message to one place ----
     Post {
         to: Target,
-        message: OutMessage,
+        // Boxed: a message is far bigger than any other job.
+        message: Box<OutMessage>,
     },
 }
 
@@ -156,6 +157,10 @@ pub struct OutMessage {
     pub mentions: Vec<String>,
     #[serde(default)]
     pub embed: Option<Embed>,
+    // More images for the embed, after its own: each goes out as an embed with only the
+    // main one's url and the image, which Discord shows as one gallery (up to 4 images).
+    #[serde(default)]
+    pub gallery: Vec<String>,
     #[serde(default)]
     pub buttons: Vec<Button>,
 }
@@ -263,15 +268,28 @@ impl OutMessage {
         }
     }
 
+    // The embed and its gallery.
+    fn embeds(&self) -> Vec<CreateEmbed> {
+        let Some(embed) = &self.embed else {
+            return Vec::new();
+        };
+        let mut all = vec![embed.build()];
+        for image in &self.gallery {
+            let mut e = CreateEmbed::new().image(image);
+            if let Some(url) = &embed.url {
+                e = e.url(url);
+            }
+            all.push(e);
+        }
+        all
+    }
+
     // The same message as an edit. Edits never ping, whatever they mention.
     pub fn build_edit(&self) -> EditMessage {
-        let mut m = EditMessage::new()
+        EditMessage::new()
             .content(&self.content)
-            .allowed_mentions(CreateAllowedMentions::new());
-        if let Some(embed) = &self.embed {
-            m = m.embed(embed.build());
-        }
-        m
+            .allowed_mentions(CreateAllowedMentions::new())
+            .embeds(self.embeds())
     }
 
     pub fn build(&self) -> CreateMessage {
@@ -283,8 +301,8 @@ impl OutMessage {
         let mut m = CreateMessage::new()
             .content(&self.content)
             .allowed_mentions(CreateAllowedMentions::new().users(users));
-        if let Some(embed) = &self.embed {
-            m = m.embed(embed.build());
+        if self.embed.is_some() {
+            m = m.embeds(self.embeds());
         }
         if !self.buttons.is_empty() {
             let buttons = self
@@ -404,7 +422,10 @@ async fn run(state: &AppState, bot: &Bot, job: &Job) -> BotResult {
             let posts = messages::render(state, event).await?;
             let jobs: Vec<Job> = posts
                 .into_iter()
-                .map(|(to, message)| Job::Post { to, message })
+                .map(|(to, message)| Job::Post {
+                    to,
+                    message: Box::new(message),
+                })
                 .collect();
             state.discord.enqueue(&state.db, &jobs).await?;
             Ok(())

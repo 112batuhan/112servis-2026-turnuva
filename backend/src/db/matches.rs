@@ -364,13 +364,13 @@ pub async fn reopen(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<()> {
     Ok(())
 }
 
-// Everyone who can referee: referees and up.
+// Everyone who can referee: the users holding the referee role.
 pub async fn list_referees(pool: &PgPool) -> sqlx::Result<Vec<Player>> {
     sqlx::query_as::<_, Player>(
         r#"
         SELECT id, osu_id, username, avatar_url, country_code, global_rank
         FROM osu_users
-        WHERE role IN ('referee', 'map_pooler', 'host')
+        WHERE 'referee' = ANY(roles)
         ORDER BY lower(username)
         "#,
     )
@@ -380,9 +380,9 @@ pub async fn list_referees(pool: &PgPool) -> sqlx::Result<Vec<Player>> {
 
 pub async fn can_referee(pool: &PgPool, user_id: Uuid) -> sqlx::Result<bool> {
     sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM osu_users WHERE id = $1 AND role IN ('referee', 'map_pooler', 'host'))",
+        "SELECT EXISTS(SELECT 1 FROM osu_users WHERE id = $1 AND 'referee' = ANY(roles))",
     )
-        .bind(user_id)
-        .fetch_one(pool)
-        .await
+    .bind(user_id)
+    .fetch_one(pool)
+    .await
 }

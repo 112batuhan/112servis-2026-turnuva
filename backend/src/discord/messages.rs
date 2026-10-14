@@ -122,6 +122,35 @@ fn admin_url(state: &AppState, info: &MatchInfo) -> String {
     }
 }
 
+// A team's banner, versioned by when it was set so Discord's cache can't show an old one.
+// Discord fetches it itself, so only from a public address.
+pub fn banner_url(state: &AppState, team_id: Uuid, updated_at: OffsetDateTime) -> Option<String> {
+    if !state.config.frontend_url.starts_with("https://") {
+        return None;
+    }
+    let version = updated_at.unix_timestamp_nanos() / 1_000_000;
+    Some(site_url(
+        state,
+        &format!("/api/public/teams/{team_id}/banner?v={version}"),
+    ))
+}
+
+// A bracket match's team banners, team 1 first: the first goes in the embed, the other in
+// its gallery, so they show side by side. Lobbies hold more teams than a gallery fits.
+fn with_banners(state: &AppState, info: &MatchInfo, embed: Embed) -> (Embed, Vec<String>) {
+    let mut banners = [
+        (info.team1_id, info.team1_banner_at),
+        (info.team2_id, info.team2_banner_at),
+    ]
+    .into_iter()
+    .filter_map(|(team, at)| banner_url(state, team?, at?));
+    let embed = Embed {
+        image: banners.next(),
+        ..embed
+    };
+    (embed, banners.collect())
+}
+
 fn room_url(mp_id: i64) -> String {
     format!("https://osu.ppy.sh/community/matches/{mp_id}")
 }
@@ -294,6 +323,13 @@ pub fn match_card(state: &AppState, info: &MatchInfo, players: &[MatchPlayer]) -
     if players.is_empty() {
         embed = embed.field("👥 Takımlar", "Henüz takım yok", false);
     }
+    // Discord puts up to three inline fields in a row and has no row break, so the
+    // teams' last row is filled with blank fields: the referee and streamer then start
+    // a row of their own instead of one landing next to the teams.
+    let teams = embed.fields.iter().filter(|f| f.2).count();
+    for _ in 0..(3 - teams % 3) % 3 {
+        embed = embed.field("\u{200b}", "\u{200b}", true);
+    }
 
     embed = embed.field(
         "🧑‍⚖️ Hakem",
@@ -309,7 +345,7 @@ pub fn match_card(state: &AppState, info: &MatchInfo, players: &[MatchPlayer]) -
     }
     // The latest room is the one being played; older ones broke.
     if let Some((latest, older)) = info.mp_ids.split_last() {
-        let mut rooms = format!("[Oda #{latest}]({})", room_url(*latest));
+        let mut rooms = room_url(*latest);
         if !older.is_empty() {
             let old: Vec<String> = older
                 .iter()
@@ -317,7 +353,7 @@ pub fn match_card(state: &AppState, info: &MatchInfo, players: &[MatchPlayer]) -
                 .collect();
             rooms.push_str(&format!("\nÖnceki: {}", old.join(", ")));
         }
-        embed = embed.field("🎮 Maç odası", rooms, false);
+        embed = embed.field("🎮 Maç linki", rooms, false);
     }
     if concluded {
         let result = match (info.kind, info.team1_score, info.team2_score) {
@@ -330,7 +366,15 @@ pub fn match_card(state: &AppState, info: &MatchInfo, players: &[MatchPlayer]) -
         };
         embed = embed.field("🏁 Sonuç", result, false);
     }
-    OutMessage::embed(embed, p.ids)
+    let (embed, gallery) = if info.kind == MatchKind::Bracket {
+        with_banners(state, info, embed)
+    } else {
+        (embed, Vec::new())
+    };
+    OutMessage {
+        gallery,
+        ..OutMessage::embed(embed, p.ids)
+    }
 }
 
 async fn load_match(
@@ -821,6 +865,8 @@ async fn announce(cx: &mut Ctx<'_>, info: &MatchInfo, players: &[MatchPlayer]) -
         embed.fields.push(("Yayıncı".into(), s, true));
     }
 
+    let (embed, gallery) = with_banners(cx.state, info, embed);
+
     let subscribers = db::discord::subscriber_discord_ids(&cx.state.db, info.id).await?;
     let mut chunks = subscribers.chunks(MENTIONS_PER_MESSAGE);
     let first: Vec<String> = chunks.next().map(<[String]>::to_vec).unwrap_or_default();
@@ -835,6 +881,7 @@ async fn announce(cx: &mut Ctx<'_>, info: &MatchInfo, players: &[MatchPlayer]) -
             content: format!("📣 **{}** birazdan başlıyor! {mentions}", title(info)),
             mentions: first,
             embed: Some(embed),
+            gallery,
             buttons: Vec::new(),
         },
     ));
@@ -918,7 +965,7 @@ async fn team_formed(cx: &mut Ctx<'_>, team_id: Uuid) -> BotResult {
             content: String::new(),
             mentions: p.ids,
             embed: Some(embed),
-            buttons: Vec::new(),
+            ..OutMessage::default()
         },
     ));
     Ok(())

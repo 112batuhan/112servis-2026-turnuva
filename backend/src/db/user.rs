@@ -15,7 +15,7 @@ pub struct OsuUser {
     pub country_code: Option<String>,
     pub global_rank: Option<i64>,
     pub country_rank: Option<i64>,
-    pub role: Role,
+    pub roles: Vec<Role>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]

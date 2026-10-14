@@ -19,7 +19,7 @@ use crate::{
     discord::jobs::Job,
     error::AppError,
     rank_refresh,
-    role::Role,
+    role::{Role, Roles},
     team_rank, AppState,
 };
 
@@ -63,7 +63,7 @@ pub enum Eligibility {
 
 impl Eligibility {
     fn of(me: &Player, other: &PlayerState) -> Self {
-        if !other.role.can_play() {
+        if !Roles::of(&other.roles).can_play() {
             return Self::NotPlayer;
         }
         if other.in_team {
@@ -180,7 +180,7 @@ pub fn group_teams<P>(
 // Only basic users and streamers play; the rest of the staff run the tournament.
 // Forming a team also needs a linked Discord account.
 fn require_player(user: &AuthUser) -> Result<(), AppError> {
-    if !user.role.can_play() {
+    if !user.roles.can_play() {
         return Err(AppError::BadRequest("staff can't join teams"));
     }
     user.require_discord_verified()
@@ -586,7 +586,19 @@ pub async fn upload_my_banner(
         "banners must be PNG, JPEG, GIF or WebP images",
     ))?;
     db::team::set_banner(&state.db, team_id, content_type, &body).await?;
+    sync_team_matches(&state, team_id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// The team's open matches show its banner on their channel cards.
+async fn sync_team_matches(state: &AppState, team_id: Uuid) -> Result<(), AppError> {
+    let jobs: Vec<Job> = db::discord::open_matches_of_team(&state.db, team_id)
+        .await?
+        .into_iter()
+        .map(|match_id| Job::SyncMatch { match_id })
+        .collect();
+    state.discord.enqueue(&state.db, &jobs).await?;
+    Ok(())
 }
 
 // DELETE /api/me/team/banner
@@ -597,6 +609,7 @@ pub async fn remove_my_banner(
     require_unfrozen(&state.db).await?;
     let team_id = my_team_id(&state, &user).await?;
     db::team::delete_banner(&state.db, team_id).await?;
+    sync_team_matches(&state, team_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -701,6 +714,7 @@ pub async fn remove_team_banner(
     if !db::team::delete_banner(&state.db, id).await? {
         return Err(AppError::NotFound);
     }
+    sync_team_matches(&state, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

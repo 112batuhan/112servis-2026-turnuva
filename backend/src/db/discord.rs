@@ -250,7 +250,7 @@ pub async fn notify_left(pool: &PgPool, user_id: Uuid) -> sqlx::Result<()> {
             SELECT o.user_id AS id FROM team_members o
             WHERE o.team_id = tm.team_id AND o.user_id <> $1
             UNION
-            SELECT u.id FROM osu_users u WHERE u.role = 'host'
+            SELECT u.id FROM osu_users u WHERE 'host' = ANY(u.roles)
         ) AS r
         WHERE tm.user_id = $1
         "#,
@@ -321,6 +321,9 @@ pub struct MatchInfo {
     pub team2_name: Option<String>,
     pub team1_score: Option<i32>,
     pub team2_score: Option<i32>,
+    // When each team's banner was last changed (for its versioned URL); null without one.
+    pub team1_banner_at: Option<OffsetDateTime>,
+    pub team2_banner_at: Option<OffsetDateTime>,
     pub referee_id: Option<Uuid>,
     pub referee_username: Option<String>,
     pub referee_discord_id: Option<String>,
@@ -347,6 +350,7 @@ pub async fn match_info(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Optio
                END AS lobby_number,
                b.team1_id, b.team2_id, t1.name AS team1_name, t2.name AS team2_name,
                b.team1_score, b.team2_score,
+               tb1.updated_at AS team1_banner_at, tb2.updated_at AS team2_banner_at,
                m.referee_id, r.username AS referee_username,
                rd.discord_id AS referee_discord_id, rd.in_guild AS referee_in_guild,
                b.streamer_id, s.username AS streamer_username,
@@ -359,6 +363,8 @@ pub async fn match_info(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Optio
         LEFT JOIN bracket_matches b ON b.match_id = m.id
         LEFT JOIN teams t1 ON t1.id = b.team1_id
         LEFT JOIN teams t2 ON t2.id = b.team2_id
+        LEFT JOIN team_banners tb1 ON tb1.team_id = b.team1_id
+        LEFT JOIN team_banners tb2 ON tb2.team_id = b.team2_id
         LEFT JOIN osu_users r ON r.id = m.referee_id
         LEFT JOIN discord_accounts rd ON rd.osu_user_id = r.id
         LEFT JOIN osu_users s ON s.id = b.streamer_id

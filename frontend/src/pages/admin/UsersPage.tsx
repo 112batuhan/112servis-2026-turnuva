@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { errorMessage } from "../../api/client";
 import type { AdminUser, Role } from "../../api/types";
-import { fetchUsers, updateUserRole } from "../../api/users";
+import { fetchUsers, updateUserRoles } from "../../api/users";
+import { useSignedInUser } from "../../auth/AuthContext";
 import { ROLE_LABELS, ROLES } from "../../auth/roles";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { formatDate, formatRank } from "../../lib/format";
 import "./UsersPage.css";
 
 export function UsersPage() {
+  const me = useSignedInUser();
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -18,13 +20,17 @@ export function UsersPage() {
       .catch((e) => setError(errorMessage(e)));
   }, []);
 
-  async function changeRole(userId: string, role: Role) {
+  /** Ticks or unticks one role; the rest stay as they are. */
+  async function toggleRole(user: AdminUser, role: Role) {
+    const roles = user.roles.includes(role)
+      ? user.roles.filter((r) => r !== role)
+      : ROLES.filter((r) => r === role || user.roles.includes(r));
     const previous = users;
     setError(null);
-    setSavingId(userId);
-    setUsers((list) => list?.map((u) => (u.id === userId ? { ...u, role } : u)) ?? null);
+    setSavingId(user.id);
+    setUsers((list) => list?.map((u) => (u.id === user.id ? { ...u, roles } : u)) ?? null);
     try {
-      await updateUserRole(userId, role);
+      await updateUserRoles(user.id, roles);
     } catch (e) {
       setUsers(previous);
       setError(errorMessage(e));
@@ -54,7 +60,7 @@ export function UsersPage() {
                 <th scope="col">osu!</th>
                 <th scope="col">Ülke</th>
                 <th scope="col">Global rank</th>
-                <th scope="col">Rol</th>
+                <th scope="col">Roller</th>
                 <th scope="col">Discord</th>
                 <th scope="col">Katılma tarihi</th>
               </tr>
@@ -72,19 +78,26 @@ export function UsersPage() {
                   <td>{u.country_code ?? "—"}</td>
                   <td className="numeric">{formatRank(u.global_rank)}</td>
                   <td>
-                    <select
-                      className={`select select-sm role-select role-${u.role}`}
-                      value={u.role}
-                      disabled={savingId === u.id}
-                      aria-label={`${u.username} için rol`}
-                      onChange={(e) => changeRole(u.id, e.target.value as Role)}
-                    >
-                      {ROLES.map((r) => (
-                        <option key={r} value={r}>
-                          {ROLE_LABELS[r]}
-                        </option>
-                      ))}
-                    </select>
+                    {/* Any set of roles; none means a regular player. A host can't drop their own Host. */}
+                    <div className="role-toggles" role="group" aria-label={`${u.username} için roller`}>
+                      {ROLES.map((r) => {
+                        const on = u.roles.includes(r);
+                        const ownHost = r === "host" && u.id === me.id;
+                        return (
+                          <button
+                            key={r}
+                            type="button"
+                            className={`role-toggle role-${r}${on ? " is-on" : ""}`}
+                            aria-pressed={on}
+                            disabled={savingId === u.id || ownHost}
+                            title={ownHost ? "Kendi host rolünü kaldıramazsın" : undefined}
+                            onClick={() => toggleRole(u, r)}
+                          >
+                            {ROLE_LABELS[r]}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </td>
                   <td>{u.discord_username ? `@${u.discord_username}` : <span className="muted">—</span>}</td>
                   <td>{formatDate(u.created_at)}</td>

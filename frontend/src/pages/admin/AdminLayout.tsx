@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import type { User } from "../../api/types";
 import { useSignedInUser } from "../../auth/AuthContext";
-import { hasRole } from "../../auth/roles";
+import { canAccess, hasRole } from "../../auth/roles";
 import { IrcProvider } from "../../irc/IrcContext";
 import { readString, writeString } from "../../lib/storage";
 import { AutoTeams } from "./referee/autoTeams";
@@ -18,7 +18,7 @@ const lastPageKey = (userId: string) => `admin-page:${userId}`;
 function canOpen(user: User, page: string) {
   const path = page.split(/[?#]/)[0];
   if (path.startsWith(REFEREE_PAGE)) return hasRole(user, "referee");
-  return ADMIN_TABS.some((tab) => tab.path === path && hasRole(user, tab.minRole));
+  return ADMIN_TABS.some((tab) => tab.path === path && canAccess(user, tab.access));
 }
 
 export function AdminLayout() {
@@ -48,7 +48,7 @@ export function AdminIndexRedirect() {
   const user = useSignedInUser();
   const saved = readString(lastPageKey(user.id));
 
-  let target = hasRole(user, "host") ? USERS_TAB : ADMIN_TABS.find((tab) => hasRole(user, tab.minRole))!.path;
+  let target = hasRole(user, "host") ? USERS_TAB : ADMIN_TABS.find((tab) => canAccess(user, tab.access))!.path;
   if (saved && canOpen(user, saved)) target = saved;
 
   return <Navigate to={target} replace />;

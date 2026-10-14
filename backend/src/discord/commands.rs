@@ -390,15 +390,8 @@ async fn team_info(state: &AppState, team: TeamName) -> super::BotResult<Reply> 
                 .push(("Sıradaki maç".into(), match_line(&info), false));
         }
     }
-    // Discord fetches the banner itself, so only from a public address.
-    if state.config.frontend_url.starts_with("https://") {
-        if let Some(at) = db::discord::banner_version(&state.db, team.id).await? {
-            let version = at.unix_timestamp_nanos() / 1_000_000;
-            embed.image = Some(messages::site_url(
-                state,
-                &format!("/api/public/teams/{}/banner?v={version}", team.id),
-            ));
-        }
+    if let Some(at) = db::discord::banner_version(&state.db, team.id).await? {
+        embed.image = messages::banner_url(state, team.id, at);
     }
     Ok(Reply::Embed(embed))
 }

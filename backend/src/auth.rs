@@ -8,7 +8,12 @@ use sqlx::PgPool;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-use crate::{db, error::AppError, role::Role, AppState};
+use crate::{
+    db,
+    error::AppError,
+    role::{Role, Roles},
+    AppState,
+};
 
 pub const AUTH_COOKIE: &str = "session";
 
@@ -25,7 +30,7 @@ const CLEANUP_INTERVAL: StdDuration = StdDuration::from_secs(60 * 60);
 #[derive(Debug, Clone, Copy)]
 pub struct AuthUser {
     pub id: Uuid,
-    pub role: Role,
+    pub roles: Roles,
     pub discord_verified: bool,
 }
 
@@ -44,16 +49,17 @@ impl FromRequestParts<AppState> for AuthUser {
             .ok_or(AppError::Unauthenticated)?;
         Ok(AuthUser {
             id: user.id,
-            role: user.role,
+            roles: Roles::of(&user.roles),
             discord_verified: user.discord_verified,
         })
     }
 }
 
 impl AuthUser {
-    // Requires at least the given role, otherwise 403.
+    // Requires being allowed what the role is (holding it, or being a host), otherwise
+    // 403.
     pub fn require_role(&self, required: Role) -> Result<(), AppError> {
-        if self.role.has_at_least(required) {
+        if self.roles.allows(required) {
             Ok(())
         } else {
             Err(AppError::Forbidden)

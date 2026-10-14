@@ -67,36 +67,36 @@ export function App() {
           <Route path="/discord" element={<RequireAuth><LinkDiscordPage /></RequireAuth>} />
           <Route path="/team" element={<RequireAuth><TeamPage /></RequireAuth>} />
 
-          <Route path="/admin" element={<RequireAuth minRole="streamer"><AdminLayout /></RequireAuth>}>
+          <Route path="/admin" element={<RequireAuth access="staff"><AdminLayout /></RequireAuth>}>
             <Route index element={<AdminIndexRedirect />} />
             <Route
               path="stages"
-              element={<RequireAuth minRole="host" redirect="/admin"><StagesAdminPage /></RequireAuth>}
+              element={<RequireAuth access="host" redirect="/admin"><StagesAdminPage /></RequireAuth>}
             />
             <Route
               path="mappool"
-              element={<RequireAuth minRole="map_pooler" redirect="/admin"><MapPoolEditorPage /></RequireAuth>}
+              element={<RequireAuth access="map_pooler" redirect="/admin"><MapPoolEditorPage /></RequireAuth>}
             />
             <Route
               path="qualifiers"
-              element={<RequireAuth minRole="referee" redirect="/admin"><QualifiersAdminPage /></RequireAuth>}
+              element={<RequireAuth access="referee" redirect="/admin"><QualifiersAdminPage /></RequireAuth>}
             />
             <Route path="bracket" element={<BracketAdminPage />} />
             <Route
               path="referee/:matchId"
-              element={<RequireAuth minRole="referee" redirect="/admin"><RefereeRoomPage /></RequireAuth>}
+              element={<RequireAuth access="referee" redirect="/admin"><RefereeRoomPage /></RequireAuth>}
             />
             <Route
               path="users"
-              element={<RequireAuth minRole="host" redirect="/admin"><UsersPage /></RequireAuth>}
+              element={<RequireAuth access="host" redirect="/admin"><UsersPage /></RequireAuth>}
             />
             <Route
               path="teams"
-              element={<RequireAuth minRole="host" redirect="/admin"><TeamsAdminPage /></RequireAuth>}
+              element={<RequireAuth access="host" redirect="/admin"><TeamsAdminPage /></RequireAuth>}
             />
             <Route
               path="discord"
-              element={<RequireAuth minRole="host" redirect="/admin"><DiscordAdminPage /></RequireAuth>}
+              element={<RequireAuth access="host" redirect="/admin"><DiscordAdminPage /></RequireAuth>}
             />
           </Route>
 

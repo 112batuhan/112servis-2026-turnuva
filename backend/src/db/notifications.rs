@@ -70,7 +70,7 @@ pub async fn list(pool: &PgPool, user_id: Uuid, limit: i64) -> sqlx::Result<Vec<
         r#"
         SELECT n.id, n.kind, n.match_id, b.side, b.number,
                t1.name AS team1_name, t2.name AS team2_name, a.username AS actor_username,
-               COALESCE(a.role = 'host', false) AS actor_is_host, n.staff_role, n.old_starts_at, n.new_starts_at, n.response, n.responded_at,
+               COALESCE('host' = ANY(a.roles), false) AS actor_is_host, n.staff_role, n.old_starts_at, n.new_starts_at, n.response, n.responded_at,
                n.read_at, n.created_at,
                n.team_id, tn.name AS team_name, n.old_rank, n.new_rank, n.team_value,
                (SELECT count(*) FROM match_reschedules r
@@ -201,7 +201,7 @@ pub async fn notify_rescheduled(
             (user_id, kind, match_id, actor_id, staff_role, old_starts_at, new_starts_at)
         SELECT u.id, 'match_rescheduled'::notification_kind, $1, $2, NULL::match_staff_role, $5, $6
         FROM osu_users u
-        WHERE u.role = 'host'
+        WHERE 'host' = ANY(u.roles)
           AND u.id IS DISTINCT FROM $3 AND u.id IS DISTINCT FROM $4
         "#,
     )
@@ -283,9 +283,9 @@ pub async fn clear_staff(
     Ok(())
 }
 
-// Tells everyone who could take a declined slot, apart from the one who declined:
-// referees and up for a referee, streamers and up who don't play in the match for a
-// streamer. Hosts are in both by the role ladder.
+// Tells everyone who could take a declined slot, apart from the one who declined: the
+// referees for a referee, the streamers who don't play in the match for a streamer.
+// Hosts only if they hold that role themselves.
 pub async fn notify_declined(
     conn: &mut PgConnection,
     match_id: Uuid,
@@ -302,8 +302,8 @@ pub async fn notify_declined(
         FROM osu_users u
         WHERE u.id <> $2
           AND CASE $3
-                  WHEN 'referee'::match_staff_role THEN u.role IN ('referee', 'map_pooler', 'host')
-                  ELSE u.role <> 'basic' AND NOT EXISTS (
+                  WHEN 'referee'::match_staff_role THEN 'referee' = ANY(u.roles)
+                  ELSE 'streamer' = ANY(u.roles) AND NOT EXISTS (
                       SELECT 1 FROM team_members tm
                       JOIN bracket_matches b ON tm.team_id IN (b.team1_id, b.team2_id)
                       WHERE b.match_id = $1 AND tm.user_id = u.id
@@ -368,7 +368,7 @@ pub async fn notify_over_limit(
         FROM (
             SELECT user_id AS id FROM team_members WHERE team_id = $1
             UNION
-            SELECT id FROM osu_users WHERE role = 'host'
+            SELECT id FROM osu_users WHERE 'host' = ANY(roles)
         ) AS r
         "#,
     )

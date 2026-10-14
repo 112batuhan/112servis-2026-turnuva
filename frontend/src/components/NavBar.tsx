@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { loginWithOsu } from "../api/auth";
 import { useAuth } from "../auth/AuthContext";
-import { canPlay, hasRole } from "../auth/roles";
+import { canAccess, canPlay, isStaff } from "../auth/roles";
 import { ADMIN_TABS, isAdminPath } from "../pages/admin/tabs";
 import { Icon } from "./Icon";
 import { NotificationBell } from "./NotificationBell";
@@ -41,7 +41,7 @@ export function NavBar() {
 
         {inAdmin ? (
           <nav className="nav-links" aria-label="Yönetim bölümleri">
-            {ADMIN_TABS.filter((tab) => hasRole(user, tab.minRole)).map((tab) => (
+            {ADMIN_TABS.filter((tab) => canAccess(user, tab.access)).map((tab) => (
               <NavLink key={tab.path} to={tab.path} className={linkClass}>
                 {tab.label}
               </NavLink>
@@ -94,7 +94,7 @@ export function NavBar() {
             Siteye dön
           </Link>
         ) : (
-          hasRole(user, "streamer") && (
+          isStaff(user) && (
             <Link to="/admin" className="btn btn-secondary btn-sm">
               <Icon name="settings" size={14} />
               Yönetim

@@ -80,7 +80,11 @@ export function DevSwitcher() {
                   <span className="dev-account-name">{a.username}</span>
                   <span className="dev-account-rank">{formatRank(a.global_rank)}</span>
                   <span className="dev-account-tags">
-                    {a.role !== "basic" && <span className="dev-tag dev-tag-role">{ROLE_LABELS[a.role]}</span>}
+                    {a.roles.map((r) => (
+                      <span key={r} className="dev-tag dev-tag-role">
+                        {ROLE_LABELS[r]}
+                      </span>
+                    ))}
                     {!a.dummy && <span className="dev-tag dev-tag-real">real</span>}
                     {a.in_team && <span className="dev-tag">team</span>}
                     {a.discord_linked && <span className="dev-tag">discord</span>}

@@ -44,7 +44,7 @@ pub struct DevAccount {
     pub username: String,
     pub avatar_url: String,
     pub global_rank: Option<i64>,
-    pub role: Role,
+    pub roles: Vec<Role>,
     pub dummy: bool,
     pub in_team: bool,
     pub discord_linked: bool,
@@ -54,13 +54,13 @@ pub struct DevAccount {
 pub async fn list_accounts(pool: &PgPool) -> sqlx::Result<Vec<DevAccount>> {
     sqlx::query_as::<_, DevAccount>(
         r#"
-        SELECT u.id, u.osu_id, u.username, u.avatar_url, u.global_rank, u.role,
+        SELECT u.id, u.osu_id, u.username, u.avatar_url, u.global_rank, u.roles,
                u.osu_id < 0 AS dummy,
                EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team,
                EXISTS(SELECT 1 FROM discord_accounts d WHERE d.osu_user_id = u.id)
                    AS discord_linked
         FROM osu_users u
-        ORDER BY u.osu_id < 0, u.role <> 'basic' DESC, u.global_rank ASC NULLS LAST, u.username
+        ORDER BY u.osu_id < 0, cardinality(u.roles) > 0 DESC, u.global_rank ASC NULLS LAST, u.username
         "#,
     )
     .fetch_all(pool)
