@@ -118,6 +118,17 @@ export function BracketGrid({
   const width = px(Math.max(0, ...positions.map((p) => p.x + BOARD.cardW))) + PAD;
   const height = py(Math.max(0, ...positions.map((p) => p.y + BOARD.cardH))) + PAD;
 
+  // A stage label above the top card of each stage's run of cards in one column and
+  // side, like the round names over a bracket.
+  const stageLabels = new Map<string, { name: string } & Point>();
+  for (const m of matches) {
+    if (!m.stage) continue;
+    const pos = posOf(m);
+    const key = `${m.stage.id}|${m.side}|${pos.x}`;
+    const current = stageLabels.get(key);
+    if (!current || pos.y < current.y) stageLabels.set(key, { name: m.stage.name, ...pos });
+  }
+
   // Lines touching the selected, hovered or dragged match are drawn on top in the accent colour.
   const focus = drag?.id ?? hovered ?? selectedId ?? null;
   const links = matches.flatMap((from) =>
@@ -331,6 +342,7 @@ export function BracketGrid({
     "--bracket-card-w": `${CARD_W}px`,
     "--bracket-card-h": `${CARD_H}px`,
     "--bracket-header-h": `${HEADER_H}px`,
+    "--bracket-unit": `${UNIT}px`,
   } as CSSProperties;
 
   const frameClasses = ["bracket-viewport", editable && "is-editable", panning && "is-panning"]
@@ -370,10 +382,22 @@ export function BracketGrid({
           ))}
         </svg>
 
+        {[...stageLabels].map(([key, label]) => (
+          <div
+            key={key}
+            className="bracket-stage-label"
+            style={{ left: px(label.x), top: py(label.y) - UNIT }}
+            aria-hidden="true"
+          >
+            {label.name}
+          </div>
+        ))}
+
         {matches.map((m) => {
           const pos = posOf(m);
           const dragging = drag?.id === m.id && drag.moved;
           const mine = viewerId !== undefined && (m.referee?.id === viewerId || m.streamer?.id === viewerId);
+          const code = m.stage ? `${matchCode(m)} (${m.stage.name})` : matchCode(m);
           const classes = [
             "bracket-slot",
             m.id === selectedId && "is-selected",
@@ -393,7 +417,7 @@ export function BracketGrid({
               tabIndex={onSelect ? 0 : undefined}
               aria-pressed={onSelect ? m.id === selectedId : undefined}
               aria-label={
-                onSelect ? `${matchCode(m)} maçını seç${editable ? " (ok tuşlarıyla taşı)" : ""}` : undefined
+                onSelect ? `${code} maçını seç${editable ? " (ok tuşlarıyla taşı)" : ""}` : undefined
               }
               onPointerDown={(e) => {
                 // A second finger is a pinch, not a card drag.

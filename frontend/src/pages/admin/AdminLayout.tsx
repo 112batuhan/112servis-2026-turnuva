@@ -9,6 +9,7 @@ import "./AdminLayout.css";
 // In tab order. The first tab a user can open is their default, except that hosts
 // start on Users.
 const TABS: { path: string; label: string; minRole: Role }[] = [
+  { path: "/admin/stages", label: "Stage'ler", minRole: "host" },
   { path: "/admin/mappool", label: "Mappool", minRole: "map_pooler" },
   { path: "/admin/qualifiers", label: "Elemeler", minRole: "referee" },
   { path: "/admin/bracket", label: "Bracket", minRole: "streamer" },

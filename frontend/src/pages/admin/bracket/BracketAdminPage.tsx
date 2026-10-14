@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchStreamers } from "../../../api/bracket";
 import { errorMessage } from "../../../api/client";
+import { fetchStages } from "../../../api/mappool";
 import { fetchReferees } from "../../../api/matches";
-import type { BracketSide, Player } from "../../../api/types";
+import type { BracketSide, Player, Stage } from "../../../api/types";
 import { useSignedInUser } from "../../../auth/AuthContext";
 import { hasRole } from "../../../auth/roles";
 import { BracketCalendar } from "../../../components/bracket/BracketCalendar";
@@ -26,11 +27,13 @@ export function BracketAdminPage() {
   const [newSide, setNewSide] = useState<BracketSide>("winners");
   const [referees, setReferees] = useState<Player[]>([]);
   const [streamers, setStreamers] = useState<Player[]>([]);
+  const [stages, setStages] = useState<Stage[]>([]);
 
   useEffect(() => {
     if (!isHost) return;
     fetchReferees().then(setReferees).catch((e) => setError(errorMessage(e)));
     fetchStreamers().then(setStreamers).catch((e) => setError(errorMessage(e)));
+    fetchStages().then(setStages).catch((e) => setError(errorMessage(e)));
   }, [isHost, setError]);
 
   const matches = data?.matches ?? [];
@@ -138,6 +141,7 @@ export function BracketAdminPage() {
               editor={editor}
               referees={referees}
               streamers={streamers}
+              stages={stages}
               onClose={() => setSelectedId(null)}
             />
           )}

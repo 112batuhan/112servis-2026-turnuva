@@ -1,5 +1,7 @@
 import { useState, type FormEvent } from "react";
-import type { BracketSide, NextMatch, Player } from "../../../api/types";
+import { Link } from "react-router-dom";
+import type { BracketMatchUpdate } from "../../../api/bracket";
+import type { BracketSide, MatchStage, NextMatch, Player, Stage } from "../../../api/types";
 import { useSignedInUser } from "../../../auth/AuthContext";
 import { hasRole } from "../../../auth/roles";
 import { MatchStatus } from "../../../components/bracket/BracketList";
@@ -28,10 +30,23 @@ interface Props {
   editor: BracketEditor;
   referees: Player[];
   streamers: Player[];
+  /** Every stage, for the host's stage picker. */
+  stages: Stage[];
   onClose: () => void;
 }
 
-export function MatchPanel({ match, matches, teams, sources, myTeamId, editor, referees, streamers, onClose }: Props) {
+export function MatchPanel({
+  match,
+  matches,
+  teams,
+  sources,
+  myTeamId,
+  editor,
+  referees,
+  streamers,
+  stages,
+  onClose,
+}: Props) {
   const user = useSignedInUser();
   const isHost = hasRole(user, "host");
   const isReferee = hasRole(user, "referee");
@@ -108,6 +123,12 @@ export function MatchPanel({ match, matches, teams, sources, myTeamId, editor, r
       </div>
 
       <dl className="match-panel-rows">
+        <div>
+          <dt>Stage</dt>
+          <dd>
+            <StageName stage={match.stage} />
+          </dd>
+        </div>
         <div>
           <dt>Hakem</dt>
           <dd>
@@ -275,6 +296,7 @@ export function MatchPanel({ match, matches, teams, sources, myTeamId, editor, r
             matches={matches}
             teams={teams}
             sources={sources}
+            stages={stages}
             disabled={busy}
             onSave={(update) => editor.update(match.id, update)}
           />
@@ -308,7 +330,35 @@ export function MatchPanel({ match, matches, teams, sources, myTeamId, editor, r
 // Remounts the form whenever the saved values change, so it never shows stale drafts.
 function structureKey(m: EditorMatch): string {
   const link = (n: NextMatch | null) => (n ? `${n.match_id}/${n.slot}` : "");
-  return [m.id, m.side, m.number, m.starts_at, m.team1_id, m.team2_id, link(m.winner_to), link(m.loser_to)].join("|");
+  return [
+    m.id,
+    m.side,
+    m.number,
+    m.starts_at,
+    m.team1_id,
+    m.team2_id,
+    link(m.winner_to),
+    link(m.loser_to),
+    m.stage?.id,
+  ].join("|");
+}
+
+/** The match's stage, linking to its map pool once that's public. */
+function StageName({ stage }: { stage: MatchStage | null }) {
+  if (!stage) return <span className="muted">Belirlenmedi</span>;
+  if (!stage.published) {
+    return (
+      <span className="match-panel-person">
+        <strong>{stage.name}</strong>
+        <span className="badge badge-warning">Mappool taslak</span>
+      </span>
+    );
+  }
+  return (
+    <Link to={`/mappool?stage=${stage.id}`}>
+      <strong>{stage.name}</strong> mappool'u
+    </Link>
+  );
 }
 
 interface ScoreEditorProps {
@@ -363,16 +413,9 @@ interface StructureFormProps {
   matches: EditorMatch[];
   teams: Map<string, EditorTeam>;
   sources: Props["sources"];
+  stages: Stage[];
   disabled: boolean;
-  onSave: (update: {
-    side: BracketSide;
-    number: number;
-    starts_at: string | null;
-    team1_id: string | null;
-    team2_id: string | null;
-    winner_to: NextMatch | null;
-    loser_to: NextMatch | null;
-  }) => void;
+  onSave: (update: BracketMatchUpdate) => void;
 }
 
 const linkValue = (n: NextMatch | null) => (n ? `${n.match_id}:${n.slot}` : "");
@@ -383,8 +426,8 @@ function parseLink(value: string): NextMatch | null {
   return { match_id, slot: slot === "2" ? 2 : 1 };
 }
 
-/** The host's edits: code, time, teams and where the winner and loser go. */
-function StructureForm({ match, matches, teams, sources, disabled, onSave }: StructureFormProps) {
+/** The host's edits: code, stage, time, teams and where the winner and loser go. */
+function StructureForm({ match, matches, teams, sources, stages, disabled, onSave }: StructureFormProps) {
   const [side, setSide] = useState(match.side);
   const [number, setNumber] = useState(String(match.number));
   const [startsAt, setStartsAt] = useState(match.starts_at ? toDateTimeLocal(match.starts_at) : "");
@@ -392,6 +435,7 @@ function StructureForm({ match, matches, teams, sources, disabled, onSave }: Str
   const [team2, setTeam2] = useState(match.team2_id ?? "");
   const [winnerTo, setWinnerTo] = useState(linkValue(match.winner_to));
   const [loserTo, setLoserTo] = useState(linkValue(match.loser_to));
+  const [stageId, setStageId] = useState(match.stage?.id ?? "");
   const concluded = match.concluded_at !== null;
 
   const teamOptions = [...teams.values()].sort((a, b) => a.name.localeCompare(b.name, "tr"));
@@ -413,6 +457,7 @@ function StructureForm({ match, matches, teams, sources, disabled, onSave }: Str
       team2_id: team2 || null,
       winner_to: parseLink(winnerTo),
       loser_to: parseLink(loserTo),
+      stage_id: stageId || null,
     });
   }
 
@@ -496,6 +541,22 @@ function StructureForm({ match, matches, teams, sources, disabled, onSave }: Str
           />
         </label>
       </div>
+      <label className="match-form-field">
+        <span>Stage</span>
+        <select
+          className="select select-sm"
+          value={stageId}
+          disabled={disabled}
+          onChange={(e) => setStageId(e.target.value)}
+        >
+          <option value="">— Stage yok —</option>
+          {stages.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+            </option>
+          ))}
+        </select>
+      </label>
       <label className="match-form-field">
         <span>Zaman</span>
         <span className="match-form-inline">

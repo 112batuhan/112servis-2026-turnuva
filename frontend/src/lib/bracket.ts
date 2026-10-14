@@ -1,4 +1,4 @@
-import type { BracketMatch, BracketSide } from "../api/types";
+import type { BracketMatch, BracketSide, MatchStage } from "../api/types";
 
 /** W3, L1, … */
 export function matchCode(m: Pick<BracketMatch, "side" | "number">): string {
@@ -59,6 +59,25 @@ export function compareByTime(a: BracketMatch, b: BracketMatch): number {
     return a.starts_at < b.starts_at ? -1 : 1;
   }
   return compareByCode(a, b);
+}
+
+export interface StageGroup<M extends BracketMatch> {
+  /** null for the matches that have no stage yet. */
+  stage: MatchStage | null;
+  matches: M[];
+}
+
+/** Matches by stage in stage order, the ones without a stage last; each group in time order. */
+export function groupByStage<M extends BracketMatch>(matches: M[]): StageGroup<M>[] {
+  const groups = new Map<string | null, StageGroup<M>>();
+  for (const m of [...matches].sort(compareByTime)) {
+    const key = m.stage?.id ?? null;
+    const group = groups.get(key) ?? { stage: m.stage, matches: [] };
+    group.matches.push(m);
+    groups.set(key, group);
+  }
+  const position = (g: StageGroup<M>) => g.stage?.position ?? Infinity;
+  return [...groups.values()].sort((a, b) => position(a) - position(b));
 }
 
 /** W1, W2, …, then L1, L2, … */

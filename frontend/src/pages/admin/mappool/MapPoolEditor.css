@@ -1,7 +1,3 @@
-.new-stage-form .input {
-  flex-basis: 140px;
-}
-
 /* ---- stage settings panel ---- */
 .stage-settings {
   display: flex;

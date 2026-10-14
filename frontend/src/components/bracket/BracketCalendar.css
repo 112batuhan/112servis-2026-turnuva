@@ -92,6 +92,24 @@
   color: var(--color-on-primary);
 }
 
+.cal-day-stages {
+  display: flex;
+  flex-direction: column;
+  align-self: stretch;
+  min-width: 0;
+  margin-top: auto;
+  padding: 0 var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+}
+
+.cal-day-stages > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .cal-day-count {
   align-self: stretch;
   overflow: hidden;
@@ -115,7 +133,8 @@
     min-height: 60px;
   }
 
-  .cal-day-count-label {
+  .cal-day-count-label,
+  .cal-day-stages {
     display: none;
   }
 }
@@ -241,6 +260,18 @@ button.cal-match:hover {
 .cal-match-head {
   display: flex;
   gap: var(--space-1);
+  min-width: 0;
+}
+
+.cal-match-stage {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cal-match-stage::before {
+  content: "· ";
 }
 
 .cal-match-time {

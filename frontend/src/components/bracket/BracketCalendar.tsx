@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { BracketMatch, Team } from "../../api/types";
-import { compareByCode, compareByTime, matchCode } from "../../lib/bracket";
+import { compareByCode, compareByTime, groupByStage, matchCode } from "../../lib/bracket";
 import { formatClock } from "../../lib/format";
 import { IconButton } from "../IconButton";
 import "./BracketCalendar.css";
@@ -136,6 +136,7 @@ export function BracketCalendar({ matches, teams, myTeamId, viewerId, selectedId
         <span className="cal-match-head">
           {m.starts_at && <span className="cal-match-time">{formatClock(m.starts_at)}</span>}
           <strong>{matchCode(m)}</strong>
+          {m.stage && <span className="cal-match-stage">{m.stage.name}</span>}
         </span>
         <span className="cal-match-teams">{names}</span>
       </>
@@ -210,7 +211,7 @@ interface MonthGridProps {
   onOpenDay: (day: Date) => void;
 }
 
-/** Six weeks (or five) with each day's match count; a day opens its timeline. */
+/** Six weeks (or five) with each day's match count and stages; a day opens its timeline. */
 function MonthGrid({ month, today, byDay, isMine, onOpenDay }: MonthGridProps) {
   // Six weeks from the Monday on or before the 1st.
   const start = new Date(month);
@@ -231,6 +232,7 @@ function MonthGrid({ month, today, byDay, isMine, onOpenDay }: MonthGridProps) {
           const key = dayKey(d);
           const dayMatches = byDay.get(key) ?? [];
           const count = dayMatches.length;
+          const stages = groupByStage(dayMatches).flatMap((g) => (g.stage ? [g.stage.name] : []));
           const classes = [
             "cal-day",
             d.getMonth() !== month.getMonth() && "is-outside",
@@ -240,15 +242,23 @@ function MonthGrid({ month, today, byDay, isMine, onOpenDay }: MonthGridProps) {
             .filter(Boolean)
             .join(" ");
           const date = d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" });
+          const summary = count > 0 ? [`${count} maç`, ...stages].join(", ") : "maç yok";
           return (
             <button
               key={key}
               type="button"
               className={classes}
-              aria-label={count > 0 ? `${date}, ${count} maç` : `${date}, maç yok`}
+              aria-label={`${date}, ${summary}`}
               onClick={() => onOpenDay(d)}
             >
               <span className="cal-day-number">{d.getDate()}</span>
+              {stages.length > 0 && (
+                <span className="cal-day-stages" aria-hidden="true">
+                  {stages.map((name) => (
+                    <span key={name}>{name}</span>
+                  ))}
+                </span>
+              )}
               {count > 0 && (
                 <span className={dayMatches.some(isMine) ? "cal-day-count is-mine" : "cal-day-count"}>
                   {count}

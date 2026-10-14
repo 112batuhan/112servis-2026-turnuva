@@ -5,8 +5,16 @@ import type { MapNoteField, Stage, StageDetail } from "../../../api/types";
 import { readString, writeString } from "../../../lib/storage";
 import { moveBy, moveToTarget, sortByIds } from "../../../lib/reorder";
 
+const lastStageKey = (userId: string) => `mappool-stage:${userId}`;
+
+/** Makes the map pool editor open on this stage next time. */
+export function rememberStage(userId: string, stageId: string) {
+  writeString(lastStageKey(userId), stageId);
+}
+
 /**
- * All data and actions for the map pool editor.
+ * All data and actions for the map pool editor. Hosts create, rename, reorder and
+ * delete stages on their own page; here they're only picked, published and filled.
  *
  * Structural changes (create/delete/move) go through `run`, which shows the busy state
  * and reloads the stage afterwards. Small edits (notes, colours, ordering) update local
@@ -19,26 +27,24 @@ export function useStageEditor(userId: string) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const lastStageKey = `mappool-stage:${userId}`;
-
   const loadStages = useCallback(async () => {
     const list = await api.fetchStages();
     setStages(list);
     setSelectedId((current) => {
       if (current && list.some((s) => s.id === current)) return current;
-      const last = readString(lastStageKey);
+      const last = readString(lastStageKey(userId));
       if (last && list.some((s) => s.id === last)) return last;
       return list[0]?.id ?? null;
     });
-  }, [lastStageKey]);
+  }, [userId]);
 
   useEffect(() => {
     loadStages().catch((e) => setError(errorMessage(e)));
   }, [loadStages]);
 
   useEffect(() => {
-    if (selectedId) writeString(lastStageKey, selectedId);
-  }, [selectedId, lastStageKey]);
+    if (selectedId) rememberStage(userId, selectedId);
+  }, [selectedId, userId]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -84,45 +90,12 @@ export function useStageEditor(userId: string) {
 
   // ---- stages ----
 
-  const createStage = (name: string) =>
-    run(async () => {
-      const stage = await api.createStage(name);
-      await loadStages();
-      setSelectedId(stage.id);
-    });
-
-  const deleteStage = () =>
-    run(async () => {
-      if (!selectedId) return;
-      await api.deleteStage(selectedId);
-      setSelectedId(null);
-      await loadStages();
-    });
-
   const togglePublished = () =>
     run(async () => {
       if (!detail) return;
       await api.setStagePublished(detail.id, !detail.published);
       await Promise.all([reloadDetail(), loadStages()]);
     });
-
-  const renameStage = (name: string) =>
-    run(async () => {
-      if (!selectedId) return;
-      await api.renameStage(selectedId, name);
-      await Promise.all([reloadDetail(), loadStages()]);
-    });
-
-  function applyStageOrder(ids: string[] | null) {
-    if (!ids) return;
-    setStages((list) => sortByIds(list, ids));
-    saveInBackground(api.reorderStages(ids));
-  }
-
-  const dragStage = (draggedId: string, targetId: string) =>
-    applyStageOrder(moveToTarget(stages.map((s) => s.id), draggedId, targetId));
-
-  const shiftStage = (id: string, delta: number) => applyStageOrder(moveBy(stages.map((s) => s.id), id, delta));
 
   // ---- categories ----
 
@@ -217,12 +190,7 @@ export function useStageEditor(userId: string) {
     clearError: () => setError(null),
     busy,
     actions: {
-      createStage,
-      deleteStage,
       togglePublished,
-      renameStage,
-      dragStage,
-      shiftStage,
       createCategory,
       renameCategory,
       deleteCategory,

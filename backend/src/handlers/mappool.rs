@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, get, patch, post},
+    routing::{delete, get, patch, post, put},
     Json, Router,
 };
 use serde::Deserialize;
@@ -10,12 +10,15 @@ use uuid::Uuid;
 
 use crate::{auth::AuthUser, db, error::AppError, osu_api, role::Role, AppState};
 
-// Routes under the `/api` nest. The authed endpoints require map_pooler+; the two
-// `/public/*` ones take no AuthUser and only expose published stages.
+// Routes under the `/api` nest. The authed endpoints require map_pooler+, except that
+// only hosts create, rename, reorder and delete stages: stages are the tournament's
+// rounds, which bracket matches also point at. The two `/public/*` ones take no
+// AuthUser and only expose published stages.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/stages", get(list_stages).post(create_stage))
         .route("/stages/reorder", post(reorder_stages))
+        .route("/stages/qualifier", put(set_qualifier_stage))
         .route(
             "/stages/:id",
             get(get_stage).delete(delete_stage).patch(update_stage),
@@ -55,12 +58,13 @@ pub struct CreateStageBody {
     name: String,
 }
 
+// POST /api/stages — host-only.
 pub async fn create_stage(
     State(state): State<AppState>,
     user: AuthUser,
     Json(body): Json<CreateStageBody>,
 ) -> Result<impl IntoResponse, AppError> {
-    guard(&user)?;
+    user.require_role(Role::Host)?;
     let name = body.name.trim();
     if name.is_empty() {
         return Err(AppError::BadRequest("stage name is required"));
@@ -90,12 +94,14 @@ pub async fn get_stage(
     }))
 }
 
+// DELETE /api/stages/:id — host-only. Its maps go back to the generic pool and its
+// bracket matches are left without a stage.
 pub async fn delete_stage(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
-    guard(&user)?;
+    user.require_role(Role::Host)?;
     db::mappool::delete_stage(&state.db, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -109,7 +115,7 @@ pub struct UpdateStageBody {
     published: Option<bool>,
 }
 
-// PATCH /api/stages/:id — rename and/or publish/unpublish a stage.
+// PATCH /api/stages/:id — rename (host-only) and/or publish/unpublish a stage's pool.
 pub async fn update_stage(
     State(state): State<AppState>,
     user: AuthUser,
@@ -117,6 +123,9 @@ pub async fn update_stage(
     Json(body): Json<UpdateStageBody>,
 ) -> Result<impl IntoResponse, AppError> {
     guard(&user)?;
+    if body.name.is_some() {
+        user.require_role(Role::Host)?;
+    }
     let name = body.name.as_deref().map(str::trim);
     if let Some(n) = name {
         if n.is_empty() {
@@ -134,15 +143,39 @@ pub struct ReorderBody {
     ids: Vec<Uuid>,
 }
 
-// POST /api/stages/reorder — persist a new stage order.
+// POST /api/stages/reorder — host-only. Persists a new stage order.
 pub async fn reorder_stages(
     State(state): State<AppState>,
     user: AuthUser,
     Json(body): Json<ReorderBody>,
 ) -> Result<impl IntoResponse, AppError> {
-    guard(&user)?;
+    user.require_role(Role::Host)?;
     db::mappool::reorder_stages(&state.db, &body.ids).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct QualifierStageBody {
+    stage_id: Option<Uuid>,
+}
+
+// PUT /api/stages/qualifier — host-only. Picks the stage whose pool the qualifier
+// lobbies play, or none.
+pub async fn set_qualifier_stage(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(body): Json<QualifierStageBody>,
+) -> Result<impl IntoResponse, AppError> {
+    user.require_role(Role::Host)?;
+    match db::mappool::set_qualifier_stage(&state.db, body.stage_id).await {
+        Ok(true) => Ok(StatusCode::NO_CONTENT),
+        Ok(false) => Err(AppError::NotFound),
+        // Another host picked one at the same moment.
+        Err(sqlx::Error::Database(e)) if e.constraint() == Some("stages_qualifier_key") => Err(
+            AppError::Conflict("the qualifier stage just changed, try again"),
+        ),
+        Err(err) => Err(err.into()),
+    }
 }
 
 // ---------- categories ----------

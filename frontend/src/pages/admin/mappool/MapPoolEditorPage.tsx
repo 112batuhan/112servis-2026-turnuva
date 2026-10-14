@@ -1,6 +1,8 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import type { PoolMap, StageDetail } from "../../../api/types";
 import { useSignedInUser } from "../../../auth/AuthContext";
+import { hasRole } from "../../../auth/roles";
 import { ErrorAlert } from "../../../components/ErrorAlert";
 import { Icon } from "../../../components/Icon";
 import type { MapCardEditor, MoveTargetGroup } from "../../../components/MapCard";
@@ -33,14 +35,12 @@ export function MapPoolEditorPage() {
       <h1 className="sr-only">Mappool editörü</h1>
       <ErrorAlert message={error} onDismiss={clearError} />
 
-      <StageTabs
-        stages={stages}
-        selectedId={selectedId}
-        onSelect={selectStage}
-        onDragMove={actions.dragStage}
-        showStatus
-      >
-        <NewStageForm busy={busy} onCreate={actions.createStage} />
+      <StageTabs stages={stages} selectedId={selectedId} onSelect={selectStage} showStatus>
+        {hasRole(user, "host") && (
+          <Link to="/admin/stages" className="btn btn-secondary">
+            Stage'leri düzenle
+          </Link>
+        )}
         {detail && (
           <button
             type="button"
@@ -54,11 +54,21 @@ export function MapPoolEditorPage() {
         )}
       </StageTabs>
 
-      {!selectedId && <p className="status">Mappool oluşturmaya başlamak için bir stage ekle.</p>}
+      {!selectedId && (
+        <p className="status">
+          {hasRole(user, "host") ? (
+            <>
+              Mappool oluşturmaya başlamak için <Link to="/admin/stages">Stage'ler</Link> sekmesinden bir stage ekle.
+            </>
+          ) : (
+            "Henüz stage yok. Stage'leri hostlar ekler."
+          )}
+        </p>
+      )}
 
       {detail && (
         <>
-          {showSettings && <StageSettings detail={detail} stages={stages} busy={busy} actions={actions} />}
+          {showSettings && <StageSettings detail={detail} busy={busy} actions={actions} />}
 
           <div className="pool-board">
             <GenericPool
@@ -90,35 +100,6 @@ export function MapPoolEditorPage() {
         </>
       )}
     </div>
-  );
-}
-
-function NewStageForm({ busy, onCreate }: { busy: boolean; onCreate: (name: string) => Promise<boolean> }) {
-  const [name, setName] = useState("");
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    const trimmed = name.trim();
-    if (trimmed && (await onCreate(trimmed))) setName("");
-  }
-
-  return (
-    <form className="inline-form new-stage-form" onSubmit={submit}>
-      <label className="sr-only" htmlFor="new-stage-name">
-        Yeni stage adı
-      </label>
-      <input
-        id="new-stage-name"
-        className="input"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Yeni stage…"
-      />
-      <button type="submit" className="btn btn-primary" disabled={busy || !name.trim()}>
-        <Icon name="plus" />
-        Stage ekle
-      </button>
-    </form>
   );
 }
 

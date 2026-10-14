@@ -44,6 +44,10 @@ pub struct BracketRow {
     pub streamer_osu_id: Option<i64>,
     pub streamer_username: Option<String>,
     pub streamer_avatar_url: Option<String>,
+    pub stage_id: Option<Uuid>,
+    pub stage_name: Option<String>,
+    pub stage_published: Option<bool>,
+    pub stage_position: Option<i32>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::FromRow)]
@@ -95,12 +99,15 @@ pub async fn list_matches(pool: &PgPool) -> sqlx::Result<Vec<BracketRow>> {
                u.username AS referee_username, u.avatar_url AS referee_avatar_url,
                d.discord_id AS referee_discord_id, d.username AS referee_discord_username,
                s.id AS streamer_id, s.osu_id AS streamer_osu_id,
-               s.username AS streamer_username, s.avatar_url AS streamer_avatar_url
+               s.username AS streamer_username, s.avatar_url AS streamer_avatar_url,
+               st.id AS stage_id, st.name AS stage_name, st.published AS stage_published,
+               st.position AS stage_position
         FROM bracket_matches b
         JOIN matches m ON m.id = b.match_id
         LEFT JOIN osu_users u ON u.id = m.referee_id
         LEFT JOIN discord_accounts d ON d.osu_user_id = u.id
         LEFT JOIN osu_users s ON s.id = b.streamer_id
+        LEFT JOIN stages st ON st.id = b.stage_id
         ORDER BY b.pos_x, b.pos_y
         "#,
     )
@@ -201,13 +208,14 @@ pub struct MatchUpdate {
     pub starts_at: Option<OffsetDateTime>,
     pub team1_id: Option<Uuid>,
     pub team2_id: Option<Uuid>,
+    pub stage_id: Option<Uuid>,
 }
 
 pub async fn update_match(conn: &mut PgConnection, id: Uuid, u: &MatchUpdate) -> sqlx::Result<()> {
     sqlx::query(
         r#"
         UPDATE bracket_matches
-        SET side = $2, number = $3, team1_id = $4, team2_id = $5
+        SET side = $2, number = $3, team1_id = $4, team2_id = $5, stage_id = $6
         WHERE match_id = $1
         "#,
     )
@@ -216,6 +224,7 @@ pub async fn update_match(conn: &mut PgConnection, id: Uuid, u: &MatchUpdate) ->
     .bind(u.number)
     .bind(u.team1_id)
     .bind(u.team2_id)
+    .bind(u.stage_id)
     .execute(&mut *conn)
     .await?;
     sqlx::query("UPDATE matches SET starts_at = $2 WHERE id = $1")

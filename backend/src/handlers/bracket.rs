@@ -58,6 +58,16 @@ pub struct NextMatch {
     slot: i16,
 }
 
+// The stage a match is played in. Its name is public either way; `published` says
+// whether its map pool is on the public page yet, and `position` orders the stages.
+#[derive(Debug, Serialize)]
+pub struct MatchStage {
+    id: Uuid,
+    name: String,
+    published: bool,
+    position: i32,
+}
+
 #[derive(Debug, Serialize)]
 pub struct BracketMatch {
     id: Uuid,
@@ -76,6 +86,7 @@ pub struct BracketMatch {
     team2_score: Option<i32>,
     winner_to: Option<NextMatch>,
     loser_to: Option<NextMatch>,
+    stage: Option<MatchStage>,
     referee: Option<Referee>,
     streamer: Option<Streamer>,
     mp_url: Option<String>,
@@ -108,6 +119,20 @@ fn to_match(row: BracketRow, links: &[LinkRow]) -> (BracketMatch, String) {
         }),
         _ => None,
     };
+    let stage = match (
+        row.stage_id,
+        row.stage_name,
+        row.stage_published,
+        row.stage_position,
+    ) {
+        (Some(id), Some(name), Some(published), Some(position)) => Some(MatchStage {
+            id,
+            name,
+            published,
+            position,
+        }),
+        _ => None,
+    };
     let m = BracketMatch {
         id: row.id,
         side: row.side,
@@ -121,6 +146,7 @@ fn to_match(row: BracketRow, links: &[LinkRow]) -> (BracketMatch, String) {
         team2_score: row.team2_score,
         winner_to: next(Outcome::Winner),
         loser_to: next(Outcome::Loser),
+        stage,
         referee: Referee::from_columns(row.referee),
         streamer,
         mp_url: row.mp_id.map(mp_url),
@@ -210,6 +236,9 @@ fn edit_error(err: sqlx::Error) -> AppError {
             Some("bracket_matches_team1_id_fkey" | "bracket_matches_team2_id_fkey") => {
                 return AppError::BadRequest("that team doesn't exist")
             }
+            Some("bracket_matches_stage_id_fkey") => {
+                return AppError::BadRequest("that stage doesn't exist")
+            }
             _ => {}
         }
     }
@@ -252,6 +281,7 @@ pub struct MatchBody {
     team2_id: Option<Uuid>,
     winner_to: Option<NextMatch>,
     loser_to: Option<NextMatch>,
+    stage_id: Option<Uuid>,
 }
 
 // Whether following the links out of `targets` leads back to `id`, with `id`'s own
@@ -276,7 +306,7 @@ fn leads_back(links: &[LinkRow], id: Uuid, targets: &[Uuid]) -> bool {
 
 // PUT /api/bracket/:id — host-only. Saves everything the match editor edits. A
 // concluded match's teams and links are what moved its teams on, so those need the
-// match reopened first.
+// match reopened first; its time, code and stage can still change.
 pub async fn update_match(
     State(state): State<AppState>,
     user: AuthUser,
@@ -344,6 +374,7 @@ pub async fn update_match(
         starts_at: body.starts_at,
         team1_id: body.team1_id,
         team2_id: body.team2_id,
+        stage_id: body.stage_id,
     };
     db::bracket::update_match(&mut tx, id, &update)
         .await

@@ -1,6 +1,7 @@
 import { useMemo, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import type { BracketMatch, Team } from "../../api/types";
-import { compareByTime, incomingSources, matchCode, sourceLabel, winningSlot, type Source } from "../../lib/bracket";
+import { groupByStage, incomingSources, matchCode, sourceLabel, winningSlot, type Source } from "../../lib/bracket";
 import { formatShortMatchTime } from "../../lib/format";
 import { DiscordMention } from "../DiscordMention";
 import "./BracketList.css";
@@ -16,7 +17,7 @@ interface Props<M extends BracketMatch> {
   renderActions?: (match: M) => ReactNode;
 }
 
-/** Every match in time order, unscheduled ones last. */
+/** Every match grouped by stage, in stage order; each stage in time order, unscheduled ones last. */
 export function BracketList<M extends BracketMatch>({
   matches,
   teams,
@@ -26,7 +27,7 @@ export function BracketList<M extends BracketMatch>({
   onSelect,
   renderActions,
 }: Props<M>) {
-  const sorted = useMemo(() => [...matches].sort(compareByTime), [matches]);
+  const groups = useMemo(() => groupByStage(matches), [matches]);
   const sources = useMemo(() => incomingSources(matches), [matches]);
   const now = new Date().toISOString();
 
@@ -48,68 +49,83 @@ export function BracketList<M extends BracketMatch>({
             )}
           </tr>
         </thead>
-        <tbody>
-          {sorted.map((m) => {
-            const [s1, s2] = sources.get(m.id) ?? [null, null];
-            const winner = winningSlot(m);
-            const mine = viewerId !== undefined && (m.referee?.id === viewerId || m.streamer?.id === viewerId);
-            const playing = myTeamId != null && (m.team1_id === myTeamId || m.team2_id === myTeamId);
-            const classes = [m.id === selectedId && "is-selected", (mine || playing) && "is-mine"]
-              .filter(Boolean)
-              .join(" ");
-            return (
-              <tr key={m.id} className={classes}>
-                <th scope="row">
-                  {onSelect ? (
-                    <button type="button" className={`bracket-list-code is-${m.side}`} onClick={() => onSelect(m.id)}>
-                      {matchCode(m)}
-                    </button>
-                  ) : (
-                    <span className={`bracket-list-code is-${m.side}`}>{matchCode(m)}</span>
-                  )}
-                </th>
-                <td className="bracket-list-time">
-                  {m.starts_at ? formatShortMatchTime(m.starts_at) : <span className="muted">—</span>}
-                </td>
-                <td>
-                  <div className="bracket-list-pairing">
-                    <TeamName id={m.team1_id} source={s1} teams={teams} won={winner === 1} />
-                    <span className="bracket-list-score">
-                      {m.team1_score ?? "–"} : {m.team2_score ?? "–"}
-                    </span>
-                    <TeamName id={m.team2_id} source={s2} teams={teams} won={winner === 2} />
-                  </div>
-                </td>
-                <td>
-                  {m.referee ? (
-                    <span className="bracket-list-person">
-                      {m.referee.username}
-                      <DiscordMention player={m.referee} fallback="" />
-                    </span>
-                  ) : (
-                    <span className="muted">—</span>
-                  )}
-                </td>
-                <td>{m.streamer ? m.streamer.username : <span className="muted">—</span>}</td>
-                <td>
-                  <span className="bracket-list-status">
-                    <MatchStatus match={m} now={now} />
-                    {m.mp_url && (
-                      <a href={m.mp_url} target="_blank" rel="noopener noreferrer">
-                        Maç linki
-                      </a>
+        {groups.map((group) => (
+          <tbody key={group.stage?.id ?? "none"}>
+            <tr className="bracket-list-group">
+              <th scope="colgroup" colSpan={renderActions ? 7 : 6}>
+                <span className="bracket-list-group-head">
+                  {group.stage?.name ?? "Stage'i belirlenmemiş"}
+                  <span className="badge">{group.matches.length} maç</span>
+                  {group.stage?.published && <Link to={`/mappool?stage=${group.stage.id}`}>Mappool</Link>}
+                </span>
+              </th>
+            </tr>
+            {group.matches.map((m) => {
+              const [s1, s2] = sources.get(m.id) ?? [null, null];
+              const winner = winningSlot(m);
+              const mine = viewerId !== undefined && (m.referee?.id === viewerId || m.streamer?.id === viewerId);
+              const playing = myTeamId != null && (m.team1_id === myTeamId || m.team2_id === myTeamId);
+              const classes = [m.id === selectedId && "is-selected", (mine || playing) && "is-mine"]
+                .filter(Boolean)
+                .join(" ");
+              return (
+                <tr key={m.id} className={classes}>
+                  <th scope="row">
+                    {onSelect ? (
+                      <button
+                        type="button"
+                        className={`bracket-list-code is-${m.side}`}
+                        onClick={() => onSelect(m.id)}
+                      >
+                        {matchCode(m)}
+                      </button>
+                    ) : (
+                      <span className={`bracket-list-code is-${m.side}`}>{matchCode(m)}</span>
                     )}
-                  </span>
-                </td>
-                {renderActions && (
-                  <td>
-                    <div className="bracket-list-actions">{renderActions(m)}</div>
+                  </th>
+                  <td className="bracket-list-time">
+                    {m.starts_at ? formatShortMatchTime(m.starts_at) : <span className="muted">—</span>}
                   </td>
-                )}
-              </tr>
-            );
-          })}
-        </tbody>
+                  <td>
+                    <div className="bracket-list-pairing">
+                      <TeamName id={m.team1_id} source={s1} teams={teams} won={winner === 1} />
+                      <span className="bracket-list-score">
+                        {m.team1_score ?? "–"} : {m.team2_score ?? "–"}
+                      </span>
+                      <TeamName id={m.team2_id} source={s2} teams={teams} won={winner === 2} />
+                    </div>
+                  </td>
+                  <td>
+                    {m.referee ? (
+                      <span className="bracket-list-person">
+                        {m.referee.username}
+                        <DiscordMention player={m.referee} fallback="" />
+                      </span>
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
+                  <td>{m.streamer ? m.streamer.username : <span className="muted">—</span>}</td>
+                  <td>
+                    <span className="bracket-list-status">
+                      <MatchStatus match={m} now={now} />
+                      {m.mp_url && (
+                        <a href={m.mp_url} target="_blank" rel="noopener noreferrer">
+                          Maç linki
+                        </a>
+                      )}
+                    </span>
+                  </td>
+                  {renderActions && (
+                    <td>
+                      <div className="bracket-list-actions">{renderActions(m)}</div>
+                    </td>
+                  )}
+                </tr>
+              );
+            })}
+          </tbody>
+        ))}
       </table>
     </div>
   );

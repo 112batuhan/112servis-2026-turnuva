@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import type { Category, Stage, StageDetail } from "../../../api/types";
+import type { Category, StageDetail } from "../../../api/types";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { InlineEdit } from "../../../components/InlineEdit";
@@ -8,45 +8,21 @@ import type { StageEditorActions } from "./useStageEditor";
 
 interface Props {
   detail: StageDetail;
-  stages: Stage[];
   busy: boolean;
   actions: StageEditorActions;
 }
 
-export function StageSettings({ detail, stages, busy, actions }: Props) {
-  const index = stages.findIndex((s) => s.id === detail.id);
-
-  function deleteStage() {
-    if (confirm(`"${detail.name}" stage'i silinsin mi? Kategorileri ve slot'ları kaldırılır; map'ler ortak havuza döner.`)) {
-      actions.deleteStage();
-    }
-  }
-
+export function StageSettings({ detail, busy, actions }: Props) {
   return (
     <section className="panel stage-settings" aria-label="Stage ayarları">
       <div className="stage-settings-head">
-        <h2 className="stage-settings-title">
-          <InlineEdit value={detail.name} label="Stage'i yeniden adlandır" onSave={actions.renameStage} />
-        </h2>
+        <h2 className="stage-settings-title">{detail.name}</h2>
+        {detail.is_qualifier && <span className="badge badge-info">Eleme mappool'u</span>}
         <span className={`badge ${detail.published ? "badge-success" : "badge-warning"}`}>
           {detail.published ? "Yayında" : "Taslak"}
         </span>
 
         <div className="stage-settings-actions">
-          <IconButton
-            icon="arrowLeft"
-            label="Stage'i öne al"
-            variant="outlined"
-            disabled={index <= 0}
-            onClick={() => actions.shiftStage(detail.id, -1)}
-          />
-          <IconButton
-            icon="arrowRight"
-            label="Stage'i geriye al"
-            variant="outlined"
-            disabled={index < 0 || index >= stages.length - 1}
-            onClick={() => actions.shiftStage(detail.id, 1)}
-          />
           <button
             type="button"
             className={`btn ${detail.published ? "btn-secondary" : "btn-primary"}`}
@@ -54,10 +30,6 @@ export function StageSettings({ detail, stages, busy, actions }: Props) {
             onClick={actions.togglePublished}
           >
             {detail.published ? "Yayından kaldır" : "Yayınla"}
-          </button>
-          <button type="button" className="btn btn-danger" disabled={busy} onClick={deleteStage}>
-            <Icon name="trash" />
-            Stage'i sil
           </button>
         </div>
       </div>

@@ -1,7 +1,7 @@
 import { useRef, useState, type DragEvent } from "react";
 
 // Two independent drag systems:
-//  - useDragReorder: reorder items within one list (stage tabs, category rows).
+//  - useDragReorder: reorder items within one list (stage rows, category rows).
 //  - map dragging: a map card carries its id under MAP_DRAG_TYPE and slots / the
 //    generic pool accept it via useMapDropZone.
 

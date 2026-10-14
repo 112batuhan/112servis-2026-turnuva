@@ -1,6 +1,7 @@
 -- Removes every dummy account (negative osu_id) and anything hanging off it.
 -- Teams are deleted whole, so a real account teamed with a dummy is freed too, and
--- so are matches a dummy refereed, streamed or played in.
+-- so are matches a dummy refereed, streamed or played in. Seeded stages go too while
+-- they're still empty.
 DELETE FROM matches m
 WHERE EXISTS (SELECT 1 FROM osu_users u WHERE u.id = m.referee_id AND u.osu_id < 0)
    OR EXISTS (
@@ -25,3 +26,9 @@ WHERE id IN (
     SELECT m.team_id FROM team_members m JOIN osu_users u ON u.id = m.user_id WHERE u.osu_id < 0
 );
 DELETE FROM osu_users WHERE osu_id < 0;
+-- The stages seed.sql adds, while they're still empty: one with categories is
+-- someone's work, so it stays. Keep the names in step with seed.sql.
+DELETE FROM stages s
+WHERE s.name IN ('Qualifiers', 'Round of 32', 'Round of 16', 'Quarterfinals', 'Semifinals',
+                 'Winners Final', 'Losers Final', 'Grand Final')
+  AND NOT EXISTS (SELECT 1 FROM stage_categories c WHERE c.stage_id = s.id);

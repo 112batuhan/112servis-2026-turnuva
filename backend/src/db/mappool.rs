@@ -11,6 +11,8 @@ pub struct Stage {
     pub name: String,
     pub position: i32,
     pub published: bool,
+    // Whether this is the qualifier lobbies' map pool; at most one stage is.
+    pub is_qualifier: bool,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -208,6 +210,27 @@ pub async fn reorder_stages(pool: &PgPool, ids: &[Uuid]) -> sqlx::Result<()> {
     .execute(pool)
     .await?;
     Ok(())
+}
+
+// Makes `id` the qualifier stage in place of the current one, or leaves none with
+// None. False when there's no such stage. Two statements, since the unique index is
+// checked row by row and would trip over the old and new one both being set.
+pub async fn set_qualifier_stage(pool: &PgPool, id: Option<Uuid>) -> sqlx::Result<bool> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("UPDATE stages SET is_qualifier = false WHERE is_qualifier")
+        .execute(&mut *tx)
+        .await?;
+    if let Some(id) = id {
+        let result = sqlx::query("UPDATE stages SET is_qualifier = true WHERE id = $1")
+            .bind(id)
+            .execute(&mut *tx)
+            .await?;
+        if result.rows_affected() == 0 {
+            return Ok(false);
+        }
+    }
+    tx.commit().await?;
+    Ok(true)
 }
 
 pub async fn list_published_stages(pool: &PgPool) -> sqlx::Result<Vec<Stage>> {

@@ -192,6 +192,20 @@ BEGIN
 END $$;
 
 
+-- Stages from the qualifiers to the grand final, the first three with their map pool
+-- published, and Qualifiers as the qualifier lobbies' pool unless another stage
+-- already is. Stages don't belong to a dummy account, so ones that already exist by
+-- name are reused rather than duplicated, and clear.sql only removes them while they
+-- have no categories. Keep the names in step with clear.sql.
+INSERT INTO stages (name, position, published, is_qualifier)
+SELECT v.name, COALESCE((SELECT max(position) FROM stages), -1) + v.ord, v.ord <= 3,
+       v.name = 'Qualifiers' AND NOT EXISTS (SELECT 1 FROM stages WHERE is_qualifier)
+FROM unnest(ARRAY[
+    'Qualifiers', 'Round of 32', 'Round of 16', 'Quarterfinals', 'Semifinals',
+    'Winners Final', 'Losers Final', 'Grand Final'
+]) WITH ORDINALITY AS v (name, ord)
+WHERE NOT EXISTS (SELECT 1 FROM stages s WHERE s.name = v.name);
+
 -- A 32-team double-elimination bracket, partway through: winners round 1 and losers
 -- round 1 are over, winners round 2 and losers round 2 are being played (one match
 -- of each is live), the first winners round 3 match is done, and the rest is
@@ -201,6 +215,9 @@ END $$;
 -- winners round r + 1, uncrossed. The grand final is the last winners match, with no
 -- bracket reset.
 --
+-- Each round is played in the stage of its week: losers rounds share the stage of the
+-- winners round they run alongside, and the last two losers rounds make up the losers
+-- final.
 -- Every match has a dummy referee or dummy teams, so clear.sql removes it. Numbers
 -- continue after any bracket that's already there, and it's placed to its right.
 -- Positions are in board units (20px); a card is 12x5, rounds are 15 apart and the
@@ -242,21 +259,21 @@ BEGIN
     -- first `done` are concluded, and with `live` the next one has a room but no result.
     FOR rnd IN
         SELECT * FROM (VALUES
-            ('w1', 'winners'::bracket_side, 16, 0,   0,   6,  interval '-3 days',  interval '1 hour',  16, false),
-            ('w2', 'winners', 8,  15,  3,   12, interval '-7 hours',   interval '1 hour',  6,  true),
-            ('w3', 'winners', 4,  30,  9,   24, interval '-2 hours',   interval '3 hours', 1,  false),
-            ('w4', 'winners', 2,  45,  21,  48, interval '2 days',     interval '2 hours', 0,  false),
-            ('w5', 'winners', 1,  60,  45,  0,  interval '3 days 4 hours', interval '0', 0, false),
-            ('gf', 'winners', 1,  135, 84,  0,  NULL,                  NULL,               0,  false),
-            ('l1', 'losers',  8,  15,  102, 6,  interval '-2 days',    interval '1 hour',  8,  false),
-            ('l2', 'losers',  8,  30,  102, 6,  interval '-4 hours',   interval '1 hour',  3,  true),
-            ('l3', 'losers',  4,  45,  105, 12, interval '1 day',      interval '1 hour',  0,  false),
-            ('l4', 'losers',  4,  60,  105, 12, interval '1 day 6 hours', interval '1 hour', 0, false),
-            ('l5', 'losers',  2,  75,  111, 24, interval '2 days 6 hours', interval '1 hour', 0, false),
-            ('l6', 'losers',  2,  90,  111, 24, interval '3 days',     interval '1 hour',  0,  false),
-            ('l7', 'losers',  1,  105, 123, 0,  NULL,                  NULL,               0,  false),
-            ('l8', 'losers',  1,  120, 123, 0,  NULL,                  NULL,               0,  false)
-        ) AS v (key, side, matches, x, y, pitch, starts, step, done, live)
+            ('w1', 'winners'::bracket_side, 16, 0,   0,   6,  interval '-3 days',  interval '1 hour',  16, false, 'Round of 32'),
+            ('w2', 'winners', 8,  15,  3,   12, interval '-7 hours',   interval '1 hour',  6,  true,  'Round of 16'),
+            ('w3', 'winners', 4,  30,  9,   24, interval '-2 hours',   interval '3 hours', 1,  false, 'Quarterfinals'),
+            ('w4', 'winners', 2,  45,  21,  48, interval '2 days',     interval '2 hours', 0,  false, 'Semifinals'),
+            ('w5', 'winners', 1,  60,  45,  0,  interval '3 days 4 hours', interval '0', 0, false, 'Winners Final'),
+            ('gf', 'winners', 1,  135, 84,  0,  NULL,                  NULL,               0,  false, 'Grand Final'),
+            ('l1', 'losers',  8,  15,  102, 6,  interval '-2 days',    interval '1 hour',  8,  false, 'Round of 16'),
+            ('l2', 'losers',  8,  30,  102, 6,  interval '-4 hours',   interval '1 hour',  3,  true,  'Quarterfinals'),
+            ('l3', 'losers',  4,  45,  105, 12, interval '1 day',      interval '1 hour',  0,  false, 'Quarterfinals'),
+            ('l4', 'losers',  4,  60,  105, 12, interval '1 day 6 hours', interval '1 hour', 0, false, 'Semifinals'),
+            ('l5', 'losers',  2,  75,  111, 24, interval '2 days 6 hours', interval '1 hour', 0, false, 'Semifinals'),
+            ('l6', 'losers',  2,  90,  111, 24, interval '3 days',     interval '1 hour',  0,  false, 'Winners Final'),
+            ('l7', 'losers',  1,  105, 123, 0,  NULL,                  NULL,               0,  false, 'Losers Final'),
+            ('l8', 'losers',  1,  120, 123, 0,  NULL,                  NULL,               0,  false, 'Losers Final')
+        ) AS v (key, side, matches, x, y, pitch, starts, step, done, live, stage)
     LOOP
         FOR idx IN 0 .. rnd.matches - 1 LOOP
             IF rnd.side = 'winners' THEN
@@ -279,7 +296,8 @@ BEGIN
                 CASE WHEN idx < rnd.done THEN starts + interval '1 hour' END
             )
             RETURNING id INTO new_match;
-            INSERT INTO bracket_matches (match_id, side, number, pos_x, pos_y, team1_id, team2_id)
+            INSERT INTO bracket_matches (match_id, side, number, pos_x, pos_y, team1_id, team2_id,
+                                         stage_id)
             VALUES (
                 new_match,
                 rnd.side,
@@ -287,7 +305,8 @@ BEGIN
                 x0 + rnd.x,
                 rnd.y + idx * rnd.pitch,
                 CASE WHEN rnd.key = 'w1' THEN seeds[tops[idx + 1]] END,
-                CASE WHEN rnd.key = 'w1' THEN seeds[33 - tops[idx + 1]] END
+                CASE WHEN rnd.key = 'w1' THEN seeds[33 - tops[idx + 1]] END,
+                (SELECT id FROM stages WHERE name = rnd.stage ORDER BY position LIMIT 1)
             );
             ids := ids || jsonb_build_object(rnd.key || '-' || idx, new_match);
         END LOOP;

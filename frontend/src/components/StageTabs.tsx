@@ -1,23 +1,18 @@
 import type { ReactNode } from "react";
 import type { Stage } from "../api/types";
-import { useDragReorder } from "../lib/dragAndDrop";
 import "./StageTabs.css";
 
 interface Props {
   stages: Stage[];
   selectedId: string | null;
   onSelect: (id: string) => void;
-  /** Enables drag-to-reorder (editor only). */
-  onDragMove?: (draggedId: string, targetId: string) => void;
   /** Show a published/draft marker on each tab (editor only). */
   showStatus?: boolean;
-  /** Extra controls after the tabs (new-stage form, settings button). */
+  /** Extra controls after the tabs (editor buttons). */
   children?: ReactNode;
 }
 
-export function StageTabs({ stages, selectedId, onSelect, onDragMove, showStatus, children }: Props) {
-  const reorderProps = useDragReorder((dragged, target) => onDragMove?.(dragged, target));
-
+export function StageTabs({ stages, selectedId, onSelect, showStatus, children }: Props) {
   return (
     <div className="stage-bar">
       <nav className="stage-tabs" aria-label="Stage'ler">
@@ -28,7 +23,6 @@ export function StageTabs({ stages, selectedId, onSelect, onDragMove, showStatus
             className="stage-tab"
             aria-current={stage.id === selectedId ? "page" : undefined}
             onClick={() => onSelect(stage.id)}
-            {...(onDragMove ? reorderProps(stage.id) : {})}
           >
             {stage.name}
             {showStatus && <StageStatusDot published={stage.published} />}

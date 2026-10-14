@@ -46,6 +46,8 @@ export interface Stage {
   name: string;
   position: number;
   published: boolean;
+  /** The qualifier lobbies' map pool; at most one stage is. */
+  is_qualifier: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -240,6 +242,15 @@ export interface MatchStreamer {
   avatar_url: string;
 }
 
+export interface MatchStage {
+  id: string;
+  name: string;
+  /** Whether its map pool is on the public mappool page. */
+  published: boolean;
+  /** Orders the stages. */
+  position: number;
+}
+
 export interface BracketMatch {
   id: string;
   side: BracketSide;
@@ -256,6 +267,8 @@ export interface BracketMatch {
   team2_score: number | null;
   winner_to: NextMatch | null;
   loser_to: NextMatch | null;
+  /** The stage the match is played in, which sets its map pool. */
+  stage: MatchStage | null;
   referee: MatchReferee | null;
   streamer: MatchStreamer | null;
   mp_url: string | null;

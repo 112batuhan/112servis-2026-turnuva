@@ -1,4 +1,4 @@
-import { del, get, patch, post } from "./client";
+import { del, get, patch, post, put } from "./client";
 import type {
   Category,
   MapNoteField,
@@ -18,6 +18,9 @@ export const setStagePublished = (id: string, published: boolean) =>
   patch<Stage>(`/api/stages/${id}`, { published });
 export const reorderStages = (ids: string[]) => post<void>("/api/stages/reorder", { ids });
 export const deleteStage = (id: string) => del(`/api/stages/${id}`);
+/** null leaves no stage as the qualifier pool. */
+export const setQualifierStage = (stageId: string | null) =>
+  put<void>("/api/stages/qualifier", { stage_id: stageId });
 
 // ---- categories ----
 export const createCategory = (stageId: string, name: string) =>

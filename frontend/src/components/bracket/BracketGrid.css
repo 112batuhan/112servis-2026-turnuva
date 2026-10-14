@@ -56,6 +56,22 @@
   opacity: 1;
 }
 
+/* One unit tall, sitting in the gap above the card it names. */
+.bracket-stage-label {
+  position: absolute;
+  width: var(--bracket-card-w);
+  height: var(--bracket-unit);
+  overflow: hidden;
+  padding: 0 var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: var(--bracket-unit);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
 .bracket-slot {
   position: absolute;
   width: var(--bracket-card-w);

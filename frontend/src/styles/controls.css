@@ -225,3 +225,8 @@
   background: var(--color-danger-soft);
   color: var(--color-danger);
 }
+
+.badge-info {
+  background: var(--color-info-soft);
+  color: var(--color-info);
+}

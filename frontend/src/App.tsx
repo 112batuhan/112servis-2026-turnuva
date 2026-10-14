@@ -8,6 +8,7 @@ import { AdminIndexRedirect, AdminLayout } from "./pages/admin/AdminLayout";
 import { BracketAdminPage } from "./pages/admin/bracket/BracketAdminPage";
 import { MapPoolEditorPage } from "./pages/admin/mappool/MapPoolEditorPage";
 import { QualifiersAdminPage } from "./pages/admin/QualifiersAdminPage";
+import { StagesAdminPage } from "./pages/admin/StagesAdminPage";
 import { TeamsAdminPage } from "./pages/admin/TeamsAdminPage";
 import { UsersPage } from "./pages/admin/UsersPage";
 import { BracketPage } from "./pages/BracketPage";
@@ -66,6 +67,10 @@ export function App() {
 
           <Route path="/admin" element={<RequireAuth minRole="streamer"><AdminLayout /></RequireAuth>}>
             <Route index element={<AdminIndexRedirect />} />
+            <Route
+              path="stages"
+              element={<RequireAuth minRole="host" redirect="/admin"><StagesAdminPage /></RequireAuth>}
+            />
             <Route
               path="mappool"
               element={<RequireAuth minRole="map_pooler" redirect="/admin"><MapPoolEditorPage /></RequireAuth>}

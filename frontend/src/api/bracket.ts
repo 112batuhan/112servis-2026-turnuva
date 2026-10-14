@@ -18,6 +18,7 @@ export interface BracketMatchUpdate {
   team2_id: string | null;
   winner_to: NextMatch | null;
   loser_to: NextMatch | null;
+  stage_id: string | null;
 }
 
 export const updateBracketMatch = (id: string, update: BracketMatchUpdate) =>
