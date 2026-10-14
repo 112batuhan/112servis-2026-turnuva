@@ -31,6 +31,8 @@
   --color-warning: #e8b84a;
   --color-danger: #f3877e;
   --color-danger-soft: rgba(243, 135, 126, 0.12);
+  --color-now: #d93036; /* the calendar's current-time line */
+  --color-on-now: #ffffff;
   --color-info-soft: rgba(88, 101, 242, 0.18);
   --color-info: #aab2ff;
 
