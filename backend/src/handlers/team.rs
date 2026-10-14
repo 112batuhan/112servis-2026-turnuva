@@ -16,6 +16,7 @@ use crate::{
         self,
         team::{InviteRow, Player, PlayerState, TeamMemberRow},
     },
+    discord::jobs::Job,
     error::AppError,
     rank_refresh,
     role::Role,
@@ -116,6 +117,8 @@ pub struct AdminTeamPlayer {
     // For copying a mention (<@id>) that pings them on Discord.
     discord_id: Option<String>,
     discord_username: Option<String>,
+    // False once they've left the tournament's Discord server.
+    discord_in_guild: Option<bool>,
 }
 
 impl AdminTeamPlayer {
@@ -124,6 +127,7 @@ impl AdminTeamPlayer {
             player: row.player,
             discord_id: row.discord_id,
             discord_username: row.discord_username,
+            discord_in_guild: row.discord_in_guild,
         }
     }
 }
@@ -291,6 +295,8 @@ pub struct TeamStatus {
     limit: f64,
     sent: Vec<InviteView>,
     received: Vec<InviteView>,
+    // The players of the caller's team who left the tournament's Discord server.
+    left_discord: Vec<Uuid>,
 }
 
 // GET /api/me/team — the caller's team (if any) and their pending invites.
@@ -308,6 +314,11 @@ pub async fn my_team_status(
         members = db::team::list_team_members(&state.db, Some(user.id)).await?;
     }
     let me = load_self(&state, &user).await?.player;
+    let left_discord = members
+        .iter()
+        .filter(|row| row.discord_in_guild == Some(false))
+        .map(|row| row.player.id)
+        .collect();
     let team = group_teams(members, |row| row.player).pop();
 
     let view = |row: InviteRow| InviteView {
@@ -332,6 +343,7 @@ pub async fn my_team_status(
         limit: team_rank::LIMIT,
         sent: sent.into_iter().map(view).collect(),
         received: received.into_iter().map(view).collect(),
+        left_discord,
     }))
 }
 
@@ -353,6 +365,7 @@ pub async fn send_invite(
     }
     let team_name = parse_team_name(&body.team_name)?;
     require_unfrozen(&state.db).await?;
+    require_in_server(&state, user.id).await?;
     rank_refresh::refresh_stale(&state, &[user.id, body.user_id]).await;
     let me = load_self(&state, &user).await?;
     if me.in_team {
@@ -397,6 +410,7 @@ pub async fn accept_invite(
     let inviter_id = db::team::received_invite_inviter(&state.db, id, user.id)
         .await?
         .ok_or(AppError::NotFound)?;
+    require_in_server(&state, user.id).await?;
     rank_refresh::refresh_stale(&state, &[user.id, inviter_id]).await;
 
     let mut tx = state.db.begin().await?;
@@ -415,8 +429,8 @@ pub async fn accept_invite(
     }
     Eligibility::of(&me.player, &inviter).require()?;
 
-    match db::team::create_team(&mut tx, inviter_id, user.id, &team_name).await {
-        Ok(_) => {}
+    let team_id = match db::team::create_team(&mut tx, inviter_id, user.id, &team_name).await {
+        Ok(team_id) => team_id,
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("teams_name_key") => {
             return Err(AppError::Conflict("that team name is taken"))
         }
@@ -424,9 +438,36 @@ pub async fn accept_invite(
             return Err(AppError::Conflict("one of you is already in a team"))
         }
         Err(err) => return Err(err.into()),
-    }
+    };
+    state
+        .discord
+        .enqueue(
+            &mut *tx,
+            &[
+                Job::SyncUser {
+                    user_id: inviter_id,
+                },
+                Job::SyncUser { user_id: user.id },
+                Job::TeamFormed { team_id },
+            ],
+        )
+        .await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// While the bot runs, a player who left the tournament's Discord server has to come
+// back before forming a team: their matches are arranged there.
+async fn require_in_server(state: &AppState, user_id: Uuid) -> Result<(), AppError> {
+    if !state.discord.enabled() {
+        return Ok(());
+    }
+    match db::discord::account_of(&state.db, user_id).await? {
+        Some((_, Some(false))) => Err(AppError::Conflict(
+            "rejoin the tournament's Discord server first",
+        )),
+        _ => Ok(()),
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -434,16 +475,55 @@ pub struct RenameBody {
     name: String,
 }
 
+// Match channels are named after their teams, so they're renamed too.
 async fn rename(state: &AppState, team_id: Uuid, raw_name: &str) -> Result<StatusCode, AppError> {
     let name = parse_team_name(raw_name)?;
-    match db::team::rename_team(&state.db, team_id, &name).await {
-        Ok(true) => Ok(StatusCode::NO_CONTENT),
-        Ok(false) => Err(AppError::NotFound),
+    let mut tx = state.db.begin().await?;
+    match db::team::rename_team(&mut *tx, team_id, &name).await {
+        Ok(true) => {}
+        Ok(false) => return Err(AppError::NotFound),
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("teams_name_key") => {
-            Err(AppError::Conflict("that team name is taken"))
+            return Err(AppError::Conflict("that team name is taken"))
         }
-        Err(err) => Err(err.into()),
+        Err(err) => return Err(err.into()),
     }
+    let jobs: Vec<Job> = db::discord::open_matches_of_team(&mut *tx, team_id)
+        .await?
+        .into_iter()
+        .map(|match_id| Job::SyncMatch { match_id })
+        .collect();
+    state.discord.enqueue(&mut *tx, &jobs).await?;
+    tx.commit().await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// Deletes a team. Its players lose the Player role and its matches' channels lose them.
+async fn disband(state: &AppState, team_id: Uuid, by_host: bool) -> Result<bool, AppError> {
+    let mut tx = state.db.begin().await?;
+    let players = db::discord::team_players(&mut *tx, team_id).await?;
+    let matches = db::discord::open_matches_of_team(&mut *tx, team_id).await?;
+    if !db::team::delete_team(&mut *tx, team_id).await? {
+        return Ok(false);
+    }
+    let mut jobs: Vec<Job> = players
+        .iter()
+        .map(|p| Job::SyncUser { user_id: p.user_id })
+        .collect();
+    jobs.extend(
+        matches
+            .into_iter()
+            .map(|match_id| Job::SyncMatch { match_id }),
+    );
+    if let Some(first) = players.first() {
+        jobs.push(Job::TeamDisbanded {
+            name: first.team_name.clone(),
+            players: players.iter().map(|p| p.user_id).collect(),
+            by_host,
+        });
+    }
+    state.discord.enqueue(&mut *tx, &jobs).await?;
+    tx.commit().await?;
+    Ok(true)
 }
 
 async fn my_team_id(state: &AppState, user: &AuthUser) -> Result<Uuid, AppError> {
@@ -470,7 +550,7 @@ pub async fn disband_my_team(
 ) -> Result<impl IntoResponse, AppError> {
     require_unfrozen(&state.db).await?;
     let team_id = my_team_id(&state, &user).await?;
-    db::team::delete_team(&state.db, team_id).await?;
+    disband(&state, team_id, false).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -605,7 +685,7 @@ pub async fn disband_team(
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
-    if !db::team::delete_team(&state.db, id).await? {
+    if !disband(&state, id, true).await? {
         return Err(AppError::NotFound);
     }
     Ok(StatusCode::NO_CONTENT)

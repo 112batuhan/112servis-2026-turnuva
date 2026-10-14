@@ -16,8 +16,10 @@ use crate::{
     db::{
         self,
         matches::{MatchKind, MatchRow, MatchState, RefereeColumns},
+        notifications::StaffRole,
         team::{Player, TeamMemberRow},
     },
+    discord::jobs::Job,
     error::AppError,
     handlers::{
         bracket,
@@ -217,6 +219,7 @@ async fn move_team(
     if !by_host && !target.open(now) {
         return Err(AppError::Conflict("that lobby is closed"));
     }
+    let mut previous = None;
     if let Some((current, lobby)) = db::matches::lock_team_lobby(&mut tx, team_id).await? {
         if current == match_id {
             return Ok(StatusCode::NO_CONTENT);
@@ -224,6 +227,7 @@ async fn move_team(
         if !by_host && !lobby.open(now) {
             return Err(AppError::Conflict("your lobby has already started"));
         }
+        previous = Some(current);
     }
     if db::matches::count_entries(&mut tx, match_id).await? >= LOBBY_SIZE {
         return Err(AppError::Conflict("that lobby is full"));
@@ -237,8 +241,27 @@ async fn move_team(
         }
         Err(err) => return Err(err.into()),
     }
+    let jobs: Vec<Job> = [Some(match_id), previous]
+        .into_iter()
+        .flatten()
+        .map(|match_id| Job::SyncMatch { match_id })
+        .collect();
+    state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// Lobbies are numbered by start time, so adding, moving or deleting one can rename
+// the others' channels.
+async fn sync_lobbies(state: &AppState, extra: Vec<Job>) -> Result<(), AppError> {
+    let mut jobs: Vec<Job> = db::discord::lobby_ids(&state.db)
+        .await?
+        .into_iter()
+        .map(|match_id| Job::SyncMatch { match_id })
+        .collect();
+    jobs.extend(extra);
+    state.discord.enqueue(&state.db, &jobs).await?;
+    Ok(())
 }
 
 // PUT /api/me/qualifier — either player signs their team up for a lobby, or moves
@@ -260,13 +283,17 @@ pub async fn leave_lobby(
 ) -> Result<impl IntoResponse, AppError> {
     let team_id = my_team_id(&state, &user).await?;
     let mut tx = state.db.begin().await?;
-    let (_, lobby) = db::matches::lock_team_lobby(&mut tx, team_id)
+    let (match_id, lobby) = db::matches::lock_team_lobby(&mut tx, team_id)
         .await?
         .ok_or(AppError::NotFound)?;
     if !lobby.open(OffsetDateTime::now_utc()) {
         return Err(AppError::Conflict("your lobby has already started"));
     }
     db::matches::delete_entry(&mut *tx, team_id).await?;
+    state
+        .discord
+        .enqueue(&mut *tx, &[Job::SyncMatch { match_id }])
+        .await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -329,6 +356,7 @@ pub async fn create_lobby(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     db::matches::create_lobby(&state.db, body.starts_at).await?;
+    sync_lobbies(&state, Vec::new()).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -343,6 +371,7 @@ pub async fn reschedule_lobby(
     if !db::matches::reschedule_lobby(&state.db, id, body.starts_at).await? {
         return Err(AppError::NotFound);
     }
+    sync_lobbies(&state, vec![Job::TimeSet { match_id: id }]).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -353,9 +382,15 @@ pub async fn delete_lobby(
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
+    let channel = db::discord::channel_of(&state.db, id).await?;
     if !db::matches::delete_lobby(&state.db, id).await? {
         return Err(AppError::NotFound);
     }
+    let archive = channel.map(|channel_id| Job::ArchiveChannel {
+        channel_id,
+        kind: MatchKind::Qualifier,
+    });
+    sync_lobbies(&state, archive.into_iter().collect()).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -378,9 +413,16 @@ pub async fn unassign_team(
     Path(team_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
-    if !db::matches::delete_entry(&state.db, team_id).await? {
-        return Err(AppError::NotFound);
-    }
+    let mut tx = state.db.begin().await?;
+    let (match_id, _) = db::matches::lock_team_lobby(&mut tx, team_id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    db::matches::delete_entry(&mut *tx, team_id).await?;
+    state
+        .discord
+        .enqueue(&mut *tx, &[Job::SyncMatch { match_id }])
+        .await?;
+    tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -442,24 +484,40 @@ pub async fn set_referee(
             }
         }
         db::matches::set_referee(&state.db, id, body.referee_id).await?;
-        return Ok(StatusCode::NO_CONTENT);
+    } else {
+        require_unconcluded(&user, &m)?;
+        match body.referee_id {
+            Some(referee_id) if referee_id == user.id => {
+                if m.referee_id != Some(user.id)
+                    && !db::matches::claim_match(&state.db, id, user.id).await?
+                {
+                    return Err(AppError::Conflict("this match already has a referee"));
+                }
+            }
+            None => {
+                if !db::matches::release_match(&state.db, id, user.id).await? {
+                    return Err(AppError::Forbidden);
+                }
+            }
+            Some(_) => return Err(AppError::Forbidden),
+        }
     }
-
-    require_unconcluded(&user, &m)?;
-    match body.referee_id {
-        Some(referee_id) if referee_id == user.id => {
-            if m.referee_id != Some(user.id)
-                && !db::matches::claim_match(&state.db, id, user.id).await?
-            {
-                return Err(AppError::Conflict("this match already has a referee"));
-            }
-        }
-        None => {
-            if !db::matches::release_match(&state.db, id, user.id).await? {
-                return Err(AppError::Forbidden);
-            }
-        }
-        Some(_) => return Err(AppError::Forbidden),
+    if m.referee_id != body.referee_id {
+        state
+            .discord
+            .enqueue(
+                &state.db,
+                &[
+                    Job::SyncMatch { match_id: id },
+                    Job::StaffChanged {
+                        match_id: id,
+                        role: StaffRole::Referee,
+                        user_id: body.referee_id,
+                        by: user.id,
+                    },
+                ],
+            )
+            .await?;
     }
     Ok(StatusCode::NO_CONTENT)
 }
@@ -521,7 +579,21 @@ pub async fn add_room(
     let mp_id = parse_mp_id(&body.link)
         .ok_or(AppError::BadRequest("that isn't an osu! multiplayer link"))?;
     match db::matches::add_room(&state.db, id, mp_id).await {
-        Ok(()) => Ok(StatusCode::NO_CONTENT),
+        Ok(()) => {
+            if !m.concluded() {
+                state
+                    .discord
+                    .enqueue(
+                        &state.db,
+                        &[Job::RoomAdded {
+                            match_id: id,
+                            mp_id,
+                        }],
+                    )
+                    .await?;
+            }
+            Ok(StatusCode::NO_CONTENT)
+        }
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("match_rooms_pkey") => {
             Err(AppError::Conflict("that room is already linked to a match"))
         }
@@ -593,11 +665,23 @@ pub async fn conclude(
         bracket::conclude(&state, id).await?;
         return Ok(StatusCode::NO_CONTENT);
     }
-    if !db::matches::conclude(&state.db, id).await? {
+    let mut tx = state.db.begin().await?;
+    if !db::matches::conclude(&mut *tx, id).await? {
         return Err(AppError::Conflict(
             "this match changed, reload and try again",
         ));
     }
+    state
+        .discord
+        .enqueue(
+            &mut *tx,
+            &[
+                Job::SyncMatch { match_id: id },
+                Job::Concluded { match_id: id },
+            ],
+        )
+        .await?;
+    tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -614,6 +698,20 @@ pub async fn reopen(
         bracket::reopen(&state, id).await?;
         return Ok(StatusCode::NO_CONTENT);
     }
-    db::matches::reopen(&state.db, id).await?;
+    let mut tx = state.db.begin().await?;
+    db::matches::reopen(&mut *tx, id).await?;
+    if m.concluded() {
+        state
+            .discord
+            .enqueue(
+                &mut *tx,
+                &[
+                    Job::SyncMatch { match_id: id },
+                    Job::Reopened { match_id: id },
+                ],
+            )
+            .await?;
+    }
+    tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }

@@ -6,6 +6,7 @@ pub mod admin;
 pub mod auth;
 pub mod bracket;
 pub mod dev;
+pub mod discord;
 pub mod irc;
 pub mod mappool;
 pub mod matches;

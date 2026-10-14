@@ -30,6 +30,9 @@ pub struct DiscordAccount {
     pub discord_id: String,
     pub username: String,
     pub avatar: Option<String>,
+    // Whether the account is in the tournament's Discord server; null until the bot
+    // has checked.
+    pub in_guild: Option<bool>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]

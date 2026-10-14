@@ -31,6 +31,26 @@ import "./TeamPage.css";
 
 const SEARCH_DELAY_MS = 300;
 
+/** Warns when a player of the team left the tournament's Discord server, where its matches are arranged. */
+function LeftDiscordNotice({ team, left, myId }: { team: Team; left: string[]; myId: string }) {
+  if (left.length === 0) return null;
+  if (left.includes(myId)) {
+    return (
+      <p className="alert alert-error team-rank-warning" role="status">
+        Turnuvanın Discord sunucusundan ayrıldın. Maçlarının kanallarını görebilmek için sunucuya geri dön; Discord
+        hesabını <Link to="/discord">yeniden bağlarsan</Link> seni sunucuya geri ekleriz.
+      </p>
+    );
+  }
+  const names = team.players.filter((p) => left.includes(p.id)).map((p) => p.username);
+  return (
+    <p className="alert alert-error team-rank-warning" role="status">
+      {names.join(", ")} turnuvanın Discord sunucusundan ayrıldı. Maç kanallarını görebilmesi için sunucuya geri dönmesi
+      gerekiyor.
+    </p>
+  );
+}
+
 export function TeamPage() {
   const user = useSignedInUser();
   const isStaff = !canPlay(user);
@@ -130,6 +150,7 @@ export function TeamPage() {
                     Bundan sonrasına host'lar karar verecek.
                   </p>
                 )}
+                <LeftDiscordNotice team={status.team} left={status.left_discord} myId={user.id} />
                 <MyTeam team={status.team} frozen={frozen} busy={busy} run={run} onError={setError} />
                 <QualifierInfo teamId={status.team.id} onError={setError} />
               </section>

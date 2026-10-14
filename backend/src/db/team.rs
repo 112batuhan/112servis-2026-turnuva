@@ -52,6 +52,7 @@ pub struct TeamMemberRow {
     pub player: Player,
     pub discord_id: Option<String>,
     pub discord_username: Option<String>,
+    pub discord_in_guild: Option<bool>,
 }
 
 pub async fn find_player(
@@ -248,19 +249,19 @@ pub async fn find_team_id(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Option<U
         .await
 }
 
-pub async fn rename_team(pool: &PgPool, team_id: Uuid, name: &str) -> sqlx::Result<bool> {
+pub async fn rename_team(ex: impl PgExecutor<'_>, team_id: Uuid, name: &str) -> sqlx::Result<bool> {
     let result = sqlx::query("UPDATE teams SET name = $2 WHERE id = $1")
         .bind(team_id)
         .bind(name)
-        .execute(pool)
+        .execute(ex)
         .await?;
     Ok(result.rows_affected() > 0)
 }
 
-pub async fn delete_team(pool: &PgPool, team_id: Uuid) -> sqlx::Result<bool> {
+pub async fn delete_team(ex: impl PgExecutor<'_>, team_id: Uuid) -> sqlx::Result<bool> {
     let result = sqlx::query("DELETE FROM teams WHERE id = $1")
         .bind(team_id)
-        .execute(pool)
+        .execute(ex)
         .await?;
     Ok(result.rows_affected() > 0)
 }
@@ -276,7 +277,7 @@ pub async fn list_team_members(
         SELECT t.id AS team_id, t.name AS team_name, t.created_at AS team_created_at,
                b.updated_at AS banner_updated_at,
                u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank,
-               d.discord_id, d.username AS discord_username
+               d.discord_id, d.username AS discord_username, d.in_guild AS discord_in_guild
         FROM teams t
         LEFT JOIN team_banners b ON b.team_id = t.id
         JOIN team_members m ON m.team_id = t.id

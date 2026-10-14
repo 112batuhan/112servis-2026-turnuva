@@ -4,6 +4,7 @@
 //! token and surface failures as `crate::error::AppError`.
 pub mod attributes;
 pub mod beatmap;
+pub mod matches;
 pub mod token;
 pub mod user;
 

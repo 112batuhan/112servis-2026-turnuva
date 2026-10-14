@@ -6,6 +6,7 @@ import { MiniPlayer } from "./components/MiniPlayer";
 import { NavBar } from "./components/NavBar";
 import { AdminIndexRedirect, AdminLayout } from "./pages/admin/AdminLayout";
 import { BracketAdminPage } from "./pages/admin/bracket/BracketAdminPage";
+import { DiscordAdminPage } from "./pages/admin/DiscordAdminPage";
 import { MapPoolEditorPage } from "./pages/admin/mappool/MapPoolEditorPage";
 import { QualifiersAdminPage } from "./pages/admin/QualifiersAdminPage";
 import { RefereeRoomPage } from "./pages/admin/referee/RefereeRoomPage";
@@ -92,6 +93,10 @@ export function App() {
             <Route
               path="teams"
               element={<RequireAuth minRole="host" redirect="/admin"><TeamsAdminPage /></RequireAuth>}
+            />
+            <Route
+              path="discord"
+              element={<RequireAuth minRole="host" redirect="/admin"><DiscordAdminPage /></RequireAuth>}
             />
           </Route>
 

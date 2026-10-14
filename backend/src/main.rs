@@ -1,6 +1,7 @@
 mod auth;
 mod config;
 mod db;
+mod discord;
 mod discord_api;
 mod error;
 mod handlers;
@@ -44,6 +45,8 @@ pub struct AppState {
     pub chat_loggers: handlers::irc::ChatLoggers,
     // Each user's Bancho IRC connection, shared by their tabs, and failed logins.
     pub irc_users: handlers::irc::IrcUsers,
+    // The tournament server's bot, when it's configured.
+    pub discord: discord::Discord,
 }
 
 #[tokio::main]
@@ -88,8 +91,10 @@ async fn main() {
         rank_refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
         chat_loggers: handlers::irc::ChatLoggers::default(),
         irc_users: handlers::irc::IrcUsers::default(),
+        discord: discord::Discord::new(&config.discord_bot),
     };
     rank_refresh::spawn_daily_refresh(state.clone());
+    discord::spawn(&state);
 
     let cors = CorsLayer::new()
         .allow_origin(
@@ -118,6 +123,7 @@ async fn main() {
         .merge(handlers::reschedule::routes())
         .merge(handlers::notifications::routes())
         .merge(handlers::irc::routes())
+        .merge(handlers::discord::routes())
         .merge(handlers::team::routes());
     if config.dev_login {
         tracing::warn!("DEV_LOGIN is on: anyone can sign in as any account via /api/dev");

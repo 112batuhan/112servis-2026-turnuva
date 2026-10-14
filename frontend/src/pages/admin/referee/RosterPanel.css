@@ -187,3 +187,27 @@
   gap: var(--space-2);
   font-size: var(--text-md);
 }
+
+/* Reads as text, like DiscordMention; clicking it pings the player in the match's channel. */
+.roster-discord-ping {
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.roster-discord-ping:hover:not(:disabled) {
+  color: var(--color-info);
+  text-decoration: underline;
+}
+
+.roster-discord-left {
+  color: var(--color-warning);
+}

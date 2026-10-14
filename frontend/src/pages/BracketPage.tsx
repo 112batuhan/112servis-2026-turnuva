@@ -7,6 +7,7 @@ import { BracketCalendar } from "../components/bracket/BracketCalendar";
 import { BracketGrid } from "../components/bracket/BracketGrid";
 import { BracketList } from "../components/bracket/BracketList";
 import { BracketSearch, useBracketSearch } from "../components/bracket/BracketSearch";
+import { SelectedMatchBar, SubscribeButton, useSubscriptions } from "../components/bracket/MatchSubscription";
 import {
   BracketViewTabs,
   CountdownToggle,
@@ -53,6 +54,9 @@ export function BracketPage() {
   const teams = useMemo(() => new Map<string, Team>(data?.teams.map((t) => [t.id, t])), [data]);
   const matches = useMemo(() => data?.matches ?? [], [data]);
   const search = useBracketSearch(matches, teams);
+  // Signed-in users can ask to be pinged on Discord when a match is about to start.
+  const subs = useSubscriptions(user != null);
+  const selected = matches.find((m) => m.id === selectedId);
   const shared = {
     matches,
     teams,
@@ -76,11 +80,13 @@ export function BracketPage() {
         )}
       </div>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
+      <ErrorAlert message={subs.error} onDismiss={subs.clearError} />
       {!data && !error && <p className="status">Yükleniyor…</p>}
       {data?.matches.length === 0 && <p className="status">Bracket henüz hazırlanmadı.</p>}
 
       {data && data.matches.length > 0 && (
         <>
+          {view !== "list" && <SelectedMatchBar match={selected} teams={teams} subs={subs} />}
           {view === "grid" && (
             <BracketGrid
               {...shared}
@@ -90,8 +96,15 @@ export function BracketPage() {
               countdown={countdown}
             />
           )}
-          {view === "list" && <BracketList {...shared} onShowInCalendar={showInCalendar} countdown={countdown} />}
-          {view === "calendar" && <BracketCalendar {...shared} focusId={calendarFocus} />}
+          {view === "list" && (
+            <BracketList
+              {...shared}
+              onShowInCalendar={showInCalendar}
+              countdown={countdown}
+              renderActions={subs.ids ? (m) => <SubscribeButton match={m} subs={subs} /> : undefined}
+            />
+          )}
+          {view === "calendar" && <BracketCalendar {...shared} focusId={calendarFocus} onSelect={setSelectedId} />}
         </>
       )}
     </div>

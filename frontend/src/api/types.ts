@@ -8,6 +8,8 @@ export interface DiscordAccount {
   discord_id: string;
   username: string;
   avatar: string | null;
+  /** Whether it's in the tournament's Discord server; null until the bot has checked. */
+  in_guild: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -170,6 +172,8 @@ export interface RankRefresh {
 export interface AdminTeamPlayer extends Player {
   discord_id: string | null;
   discord_username: string | null;
+  /** false once they've left the tournament's Discord server; null until the bot has checked. */
+  discord_in_guild: boolean | null;
 }
 
 export interface TeamStatus {
@@ -182,6 +186,8 @@ export interface TeamStatus {
   limit: number;
   sent: Invite[];
   received: Invite[];
+  /** The players of the caller's team who left the tournament's Discord server. */
+  left_discord: string[];
 }
 
 /** A time one of a bracket match's teams proposed for it. */
@@ -340,7 +346,8 @@ export type NotificationKind =
   | "confirm_time"
   | "staff_declined"
   | "reschedule_proposed"
-  | "rank_over_limit";
+  | "rank_over_limit"
+  | "discord_left";
 export type MatchStaffRole = "referee" | "streamer";
 
 /**
@@ -349,7 +356,8 @@ export type MatchStaffRole = "referee" | "streamer";
  * tells everyone who could take their place that one of them couldn't.
  * For players: reschedule_proposed says the opponent proposed times for a match (one notice for
  * every proposal made before it's read); rank_over_limit says a rank update took the team over the
- * limit (also sent to the hosts).
+ * limit (also sent to the hosts); discord_left says a team member left the Discord server (to their
+ * teammate and the hosts).
  */
 export interface AppNotification {
   id: string;
@@ -441,6 +449,8 @@ export interface RefereeRoom {
   /** Bracket matches only: the pool maps each team banned and picked, in the order they were made. */
   bans: MapBan[];
   picks: MapPick[];
+  /** The match has a Discord channel: clicking a player's Discord name pings them there. */
+  discord_channel: boolean;
 }
 
 /** A pool map (PublicPoolMap.id) banned in a match by one of its teams. */
@@ -468,4 +478,53 @@ export interface RoomChatMessage {
 export interface RoomChat {
   mp_id: number;
   messages: RoomChatMessage[];
+}
+
+/** What hosts pick on /admin/discord. Discord ids are strings; null means unset. */
+export interface DiscordSettings {
+  verified_role_id: string | null;
+  player_role_id: string | null;
+  team_announce_channel_id: string | null;
+  match_announce_channel_id: string | null;
+  results_channel_id: string | null;
+  host_channel_id: string | null;
+  referee_channel_id: string | null;
+  streamer_channel_id: string | null;
+  qualifier_category_id: string | null;
+  qualifier_archive_category_id: string | null;
+  bracket_category_id: string | null;
+  bracket_archive_category_id: string | null;
+}
+
+export interface GuildRole {
+  id: string;
+  name: string;
+  /** 0 for no colour. */
+  color: number;
+}
+
+export interface GuildChannel {
+  id: string;
+  name: string;
+  /** The category a text channel is in. */
+  parent_id: string | null;
+}
+
+/** GET /api/discord: the bot's state, its settings and what the server has to pick from. */
+export interface DiscordView {
+  /** DISCORD_BOT_TOKEN and DISCORD_GUILD_ID are set. */
+  enabled: boolean;
+  connected: boolean;
+  /** null when the bot is off or Discord couldn't be reached. */
+  guild: { roles: GuildRole[]; text_channels: GuildChannel[]; categories: GuildChannel[] } | null;
+  settings: DiscordSettings;
+}
+
+/** The bracket matches the signed-in user is pinged for on Discord. */
+export interface Subscriptions {
+  match_ids: string[];
+  /** The Discord bot is on; without it there's nothing to subscribe to. */
+  enabled: boolean;
+  /** Subscribing needs a linked Discord account. */
+  discord_linked: boolean;
 }

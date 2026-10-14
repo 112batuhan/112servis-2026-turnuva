@@ -148,6 +148,14 @@ export function TeamsAdminPage() {
               renderPlayerExtra={(p) => (
                 <span className="muted">
                   <DiscordMention player={p} fallback="Discord bağlı değil" />
+                  {p.discord_in_guild === false && (
+                    <>
+                      {" "}
+                      <span className="badge badge-warning" title="Turnuvanın Discord sunucusundan ayrıldı">
+                        Sunucuda değil
+                      </span>
+                    </>
+                  )}
                 </span>
               )}
               actions={

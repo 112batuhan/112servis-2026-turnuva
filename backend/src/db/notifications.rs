@@ -14,6 +14,7 @@ pub enum NotificationKind {
     StaffDeclined,
     RescheduleProposed,
     RankOverLimit,
+    DiscordLeft,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]

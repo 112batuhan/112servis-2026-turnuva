@@ -74,6 +74,9 @@ pub struct RefereeRoom {
     // they were made.
     bans: Vec<BanRow>,
     picks: Vec<PickRow>,
+    // The match has a Discord channel, so clicking a player's Discord name pings them
+    // there (handlers/discord.rs).
+    discord_channel: bool,
 }
 
 // GET /api/matches/:id/room — referees and up. Everything the referee page shows
@@ -146,6 +149,8 @@ pub async fn get_room(
         maps,
         bans,
         picks,
+        discord_channel: state.discord.enabled()
+            && db::discord::channel_of(&state.db, id).await?.is_some(),
     }))
 }
 

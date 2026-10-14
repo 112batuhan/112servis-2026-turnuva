@@ -10,7 +10,9 @@ use serde::Deserialize;
 
 use crate::{
     auth::{self, AuthUser},
-    db, discord_api,
+    db,
+    discord::{self, jobs::Job},
+    discord_api,
     error::AppError,
     osu_api, rank_refresh, AppState,
 };
@@ -95,11 +97,15 @@ pub async fn discord_link(
     State(state): State<AppState>,
     _user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
-    let (auth_url, csrf_token) = state
+    let mut request = state
         .discord_client
         .authorize_url(CsrfToken::new_random)
-        .add_scope(Scope::new("identify".to_string()))
-        .url();
+        .add_scope(Scope::new("identify".to_string()));
+    // Lets the bot add them to the tournament server as they link.
+    if state.discord.enabled() {
+        request = request.add_scope(Scope::new("guilds.join".to_string()));
+    }
+    let (auth_url, csrf_token) = request.url();
     state
         .csrf_tokens
         .lock()
@@ -136,6 +142,31 @@ pub async fn discord_callback(
 
     // The session reads Discord status from the database, so the link applies to
     // the very next request with no cookie changes.
+    let previous = db::discord::account_of(&state.db, user.id).await?;
     db::user::link_discord(&state.db, user.id, &profile).await?;
+
+    // Into the tournament server, then the roles. An account that was linked before
+    // loses its roles.
+    if let Some(bot) = state.discord.bot() {
+        match discord::add_to_guild(bot, &profile.id, token.access_token().secret()).await {
+            Ok(()) => {
+                db::discord::set_in_guild(&state.db, &profile.id, true).await?;
+            }
+            Err(err) => {
+                tracing::warn!(error = %err, "could not add a linked account to the server")
+            }
+        }
+        let mut jobs = vec![Job::SyncUser { user_id: user.id }];
+        if let Some((old, _)) = previous.filter(|(old, _)| *old != profile.id) {
+            jobs.push(Job::SyncMember { discord_id: old });
+        }
+        jobs.extend(
+            db::discord::open_matches_of(&state.db, user.id)
+                .await?
+                .into_iter()
+                .map(|match_id| Job::SyncMatch { match_id }),
+        );
+        state.discord.enqueue(&state.db, &jobs).await?;
+    }
     Ok(Redirect::to(&state.config.frontend_url))
 }

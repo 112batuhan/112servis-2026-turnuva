@@ -40,6 +40,9 @@ pub struct Config {
     #[arg(long, env = "DISCORD_REDIRECT_URI")]
     pub discord_redirect_uri: String,
 
+    #[command(flatten)]
+    pub discord_bot: DiscordBotConfig,
+
     /// Bancho's IRC server, which the referee page's chat relay connects to.
     /// cho.ppy.sh:6667 is an alternative if irc.ppy.sh doesn't work.
     #[arg(long, env = "BANCHO_IRC_ADDR", default_value = "irc.ppy.sh:6667")]
@@ -49,6 +52,26 @@ pub struct Config {
     /// the server refuses to start with it over https.
     #[arg(long, env = "DEV_LOGIN", default_value_t = false, action = clap::ArgAction::Set)]
     pub dev_login: bool,
+}
+
+/// The tournament server's Discord bot. It runs only when both are set; everything it
+/// points at in the server (roles, channels, categories) is picked on /admin/discord.
+#[derive(clap::Args, Debug, Clone)]
+pub struct DiscordBotConfig {
+    /// The bot's token, from the Discord application's Bot page. Needs the Server
+    /// Members intent.
+    #[arg(long, env = "DISCORD_BOT_TOKEN")]
+    pub discord_bot_token: Option<String>,
+
+    /// The tournament server's id.
+    #[arg(long, env = "DISCORD_GUILD_ID")]
+    pub discord_guild_id: Option<u64>,
+}
+
+impl DiscordBotConfig {
+    pub fn bot(&self) -> Option<(&str, u64)> {
+        Some((self.discord_bot_token.as_deref()?, self.discord_guild_id?))
+    }
 }
 
 impl Config {

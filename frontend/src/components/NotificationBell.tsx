@@ -184,8 +184,8 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
   const pending = n.kind === "confirm_time" && n.actionable;
   const classes = ["notif-item", !n.read && "is-unread", pending && "is-pending"].filter(Boolean).join(" ");
   // The player notifications lead to the team page; a host is sent to the teams admin instead.
-  const teamPath = n.kind === "rank_over_limit" && isHost ? "/admin/teams" : "/team";
-  const forPlayers = n.kind === "reschedule_proposed" || n.kind === "rank_over_limit";
+  const teamPath = (n.kind === "rank_over_limit" || n.kind === "discord_left") && isHost ? "/admin/teams" : "/team";
+  const forPlayers = n.kind === "reschedule_proposed" || n.kind === "rank_over_limit" || n.kind === "discord_left";
 
   let title: string;
   let body: string;
@@ -214,6 +214,10 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
       body =
         `${actor} oyuncusunun rank'ı ${formatRank(n.old_rank)} → ${formatRank(n.new_rank)} oldu; takım değeri ` +
         `${formatTeamValue(n.team_value)} ile ${formatTeamValue(n.limit)} limitini aşıyor. Bundan sonrasına host'lar karar verecek.`;
+      break;
+    case "discord_left":
+      title = "Oyuncu Discord'dan ayrıldı";
+      body = `${actor} turnuvanın Discord sunucusundan ayrıldı. Maç kanallarını görebilmesi için sunucuya geri dönmesi gerekiyor.`;
       break;
   }
 

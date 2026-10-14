@@ -8,6 +8,7 @@ export const ADMIN_TABS: { path: string; label: string; minRole: Role }[] = [
   { path: "/admin/bracket", label: "Maçlar", minRole: "streamer" },
   { path: "/admin/users", label: "Kullanıcılar", minRole: "host" },
   { path: "/admin/teams", label: "Takımlar", minRole: "host" },
+  { path: "/admin/discord", label: "Discord", minRole: "host" },
 ];
 
 export const isAdminPath = (pathname: string) => pathname === "/admin" || pathname.startsWith("/admin/");

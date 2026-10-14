@@ -17,8 +17,10 @@ use crate::{
         self,
         bracket::{BracketLock, BracketRow, LinkRow, MatchUpdate, Outcome, Side},
         matches::MatchKind,
+        notifications::StaffRole,
         team::{Player, TeamMemberRow},
     },
+    discord::jobs::Job,
     error::AppError,
     handlers::{
         matches::{
@@ -395,6 +397,14 @@ pub async fn update_match(
             .await
             .map_err(edit_error)?;
     }
+    // A match that already has a channel hears about its new time there; one that
+    // gets its channel now has the time in its welcome.
+    let mut jobs = vec![Job::SyncMatch { match_id: id }];
+    if current.starts_at != body.starts_at && db::discord::channel_of(&mut *tx, id).await?.is_some()
+    {
+        jobs.push(Job::TimeSet { match_id: id });
+    }
+    state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await.map_err(edit_error)?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -427,8 +437,21 @@ pub async fn delete_match(
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
+    let channel = db::discord::channel_of(&state.db, id).await?;
     if !db::bracket::delete_match(&state.db, id).await? {
         return Err(AppError::NotFound);
+    }
+    if let Some(channel_id) = channel {
+        state
+            .discord
+            .enqueue(
+                &state.db,
+                &[Job::ArchiveChannel {
+                    channel_id,
+                    kind: MatchKind::Bracket,
+                }],
+            )
+            .await?;
     }
     Ok(StatusCode::NO_CONTENT)
 }
@@ -587,6 +610,13 @@ pub async fn conclude(state: &AppState, id: Uuid) -> Result<(), AppError> {
     }
     let (winner, loser) =
         outcome(&m).ok_or(AppError::BadRequest("enter a score with a winner first"))?;
+    // The channel is archived, the results posted, and the matches the teams move on to
+    // may now have both teams and so their channel.
+    let mut jobs = vec![
+        Job::SyncMatch { match_id: id },
+        Job::Concluded { match_id: id },
+        Job::PostResults { match_id: id },
+    ];
     for target in db::bracket::lock_targets(&mut tx, id).await? {
         if target.concluded_at.is_some() {
             return Err(AppError::Conflict(
@@ -598,9 +628,13 @@ pub async fn conclude(state: &AppState, id: Uuid) -> Result<(), AppError> {
             Outcome::Loser => loser,
         };
         db::bracket::set_slot(&mut tx, target.target_id, target.slot, Some(team)).await?;
+        jobs.push(Job::SyncMatch {
+            match_id: target.target_id,
+        });
     }
     db::reschedule::delete_for_match(&mut tx, id).await?;
     db::matches::conclude(&mut *tx, id).await?;
+    state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await?;
     Ok(())
 }
@@ -616,6 +650,11 @@ pub async fn reopen(state: &AppState, id: Uuid) -> Result<(), AppError> {
         return Ok(());
     }
     let result = outcome(&m);
+    let mut jobs = vec![
+        Job::SyncMatch { match_id: id },
+        Job::Reopened { match_id: id },
+        Job::DeleteResults { match_id: id },
+    ];
     for target in db::bracket::lock_targets(&mut tx, id).await? {
         if target.concluded_at.is_some() {
             return Err(AppError::Conflict(
@@ -636,9 +675,13 @@ pub async fn reopen(state: &AppState, id: Uuid) -> Result<(), AppError> {
         };
         if current == Some(team) {
             db::bracket::set_slot(&mut tx, target.target_id, target.slot, None).await?;
+            jobs.push(Job::SyncMatch {
+                match_id: target.target_id,
+            });
         }
     }
     db::matches::reopen(&mut *tx, id).await?;
+    state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await?;
     Ok(())
 }
@@ -669,6 +712,7 @@ pub async fn set_streamer(
             }
         }
         db::bracket::set_streamer(&state.db, id, body.streamer_id).await?;
+        streamer_changed(&state, &user, id, m.streamer_id, body.streamer_id).await?;
         return Ok(StatusCode::NO_CONTENT);
     }
 
@@ -696,7 +740,37 @@ pub async fn set_streamer(
         }
         Some(_) => return Err(AppError::Forbidden),
     }
+    streamer_changed(&state, &user, id, m.streamer_id, body.streamer_id).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// The streamer joins (or leaves) the match's channel, which says so.
+async fn streamer_changed(
+    state: &AppState,
+    user: &AuthUser,
+    id: Uuid,
+    before: Option<Uuid>,
+    after: Option<Uuid>,
+) -> Result<(), AppError> {
+    if before == after {
+        return Ok(());
+    }
+    state
+        .discord
+        .enqueue(
+            &state.db,
+            &[
+                Job::SyncMatch { match_id: id },
+                Job::StaffChanged {
+                    match_id: id,
+                    role: StaffRole::Streamer,
+                    user_id: after,
+                    by: user.id,
+                },
+            ],
+        )
+        .await?;
+    Ok(())
 }
 
 // GET /api/streamers — host-only. Everyone a match's stream can be given to.

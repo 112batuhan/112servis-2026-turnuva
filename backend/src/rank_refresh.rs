@@ -6,6 +6,7 @@ use uuid::Uuid;
 
 use crate::{
     db::{self, ranks::RankChange},
+    discord::jobs::Job,
     error::AppError,
     osu_api::{self, user::USERS_PER_REQUEST},
     team_rank, AppState,
@@ -61,15 +62,29 @@ pub async fn notify_over_limit(state: &AppState, changes: &[RankChange]) {
             let (Some(rank_a), Some(rank_b)) = (a.global_rank, b.global_rank) else {
                 continue;
             };
+            let team_value = team_rank::team_value(rank_a, rank_b);
             db::notifications::notify_over_limit(
                 &state.db,
                 a.team_id,
                 cause.user_id,
                 old_rank,
                 new_rank,
-                team_rank::team_value(rank_a, rank_b),
+                team_value,
             )
             .await?;
+            state
+                .discord
+                .enqueue(
+                    &state.db,
+                    &[Job::RankOverLimit {
+                        team_id: a.team_id,
+                        user_id: cause.user_id,
+                        old_rank,
+                        new_rank,
+                        team_value,
+                    }],
+                )
+                .await?;
         }
         Ok::<_, sqlx::Error>(())
     }

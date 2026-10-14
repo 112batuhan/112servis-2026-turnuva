@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use super::{bracket::Side, team::Player};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, sqlx::Type)]
 #[sqlx(type_name = "match_kind", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum MatchKind {

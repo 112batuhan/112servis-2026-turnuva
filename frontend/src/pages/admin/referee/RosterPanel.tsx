@@ -1,3 +1,6 @@
+import { useEffect, useState } from "react";
+import { errorMessage } from "../../../api/client";
+import { pingPlayer } from "../../../api/discord";
 import type { AdminTeamPlayer, Team } from "../../../api/types";
 import { DiscordMention } from "../../../components/DiscordMention";
 import { IconButton } from "../../../components/IconButton";
@@ -34,7 +37,7 @@ function TeamBlock({
   color: SlotTeam | null;
   referee: RefereeRoomState;
 }) {
-  const { lobby, actions, inChannel } = referee;
+  const { lobby, actions, inChannel, room, canRun } = referee;
   return (
     <div className={`roster-team ${color ? `is-team-${color}` : ""}`}>
       <h3 className="roster-team-name">
@@ -52,7 +55,12 @@ function TeamBlock({
                   {p.username}
                 </a>
                 <span className="roster-player-meta">
-                  {formatRank(p.global_rank)} · <DiscordMention player={p} fallback="Discord yok" />
+                  {formatRank(p.global_rank)} ·{" "}
+                  {room?.discord_channel && canRun ? (
+                    <DiscordPing matchId={room.id} player={p} />
+                  ) : (
+                    <DiscordMention player={p} fallback="Discord yok" />
+                  )}
                 </span>
               </span>
               {slot ? (
@@ -73,6 +81,59 @@ function TeamBlock({
         })}
       </ul>
     </div>
+  );
+}
+
+const PING_NOTE_MS = 2500;
+
+/**
+ * A player's Discord name that has the bot ping them in the match's Discord channel when
+ * clicked, to call them into the room.
+ */
+function DiscordPing({ matchId, player }: { matchId: string; player: AdminTeamPlayer }) {
+  const [state, setState] = useState<{ kind: "idle" | "busy" | "done" } | { kind: "failed"; error: string }>({
+    kind: "idle",
+  });
+
+  useEffect(() => {
+    if (state.kind !== "done" && state.kind !== "failed") return;
+    const timer = setTimeout(() => setState({ kind: "idle" }), PING_NOTE_MS);
+    return () => clearTimeout(timer);
+  }, [state]);
+
+  if (!player.discord_username) return <>Discord yok</>;
+  if (player.discord_in_guild === false) {
+    return (
+      <span className="roster-discord-left" title="Turnuvanın Discord sunucusundan ayrıldı">
+        @{player.discord_username} ⚠<span className="sr-only"> (sunucuda değil)</span>
+      </span>
+    );
+  }
+
+  async function ping() {
+    setState({ kind: "busy" });
+    try {
+      await pingPlayer(matchId, player.id);
+      setState({ kind: "done" });
+    } catch (e) {
+      setState({ kind: "failed", error: errorMessage(e) });
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      className="roster-discord-ping"
+      title={state.kind === "failed" ? state.error : "Maçın Discord kanalında etiketle"}
+      aria-label={`@${player.discord_username}: maçın Discord kanalında etiketle`}
+      disabled={state.kind === "busy"}
+      onClick={ping}
+    >
+      {state.kind === "done" ? "Etiketlendi" : state.kind === "failed" ? "Etiketlenemedi" : `@${player.discord_username}`}
+      <span className="sr-only" role="status">
+        {state.kind === "done" ? "Oyuncu etiketlendi" : state.kind === "failed" ? state.error : ""}
+      </span>
+    </button>
   );
 }
 

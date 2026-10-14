@@ -12,6 +12,7 @@ use uuid::Uuid;
 use crate::{
     auth::AuthUser,
     db::{self, bracket::BracketLock, bracket::Side, reschedule::ProposalRow, team::Player},
+    discord::jobs::Job,
     error::AppError,
     AppState,
 };
@@ -209,6 +210,17 @@ pub async fn propose(
         .await?
         .ok_or(AppError::Conflict("your team already proposed that time"))?;
     db::notifications::notify_proposed(&mut tx, body.match_id, opponent_id, user.id).await?;
+    state
+        .discord
+        .enqueue(
+            &mut *tx,
+            &[Job::ProposalMade {
+                match_id: body.match_id,
+                team_id,
+                starts_at: body.starts_at,
+            }],
+        )
+        .await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -273,6 +285,22 @@ pub async fn accept(
         proposal.starts_at,
     )
     .await?;
+    // A match without a time had no channel yet.
+    state
+        .discord
+        .enqueue(
+            &mut *tx,
+            &[
+                Job::SyncMatch { match_id },
+                Job::Rescheduled {
+                    match_id,
+                    actor_id: user.id,
+                    old_starts_at: m.starts_at,
+                    new_starts_at: proposal.starts_at,
+                },
+            ],
+        )
+        .await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
