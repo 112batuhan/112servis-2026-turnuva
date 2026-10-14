@@ -71,7 +71,7 @@ pub async fn find_player(
     .await
 }
 
-// Case-insensitive search over players (basic role only), exact matches first.
+// Case-insensitive search over players (the roles that can play), exact matches first.
 pub async fn search_players(
     pool: &PgPool,
     caller: Uuid,
@@ -90,7 +90,7 @@ pub async fn search_players(
                EXISTS(SELECT 1 FROM team_invites i
                       WHERE i.inviter_id = u.id AND i.invitee_id = $1) AS invite_received
         FROM osu_users u
-        WHERE u.id <> $1 AND u.role = 'basic' AND u.username ILIKE '%' || $2 || '%'
+        WHERE u.id <> $1 AND u.role IN ('basic', 'streamer') AND u.username ILIKE '%' || $2 || '%'
         ORDER BY lower(u.username) = lower($3) DESC, u.global_rank ASC NULLS LAST
         LIMIT 25
         "#,

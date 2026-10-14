@@ -1,7 +1,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import { loginWithOsu } from "../api/auth";
 import { useAuth } from "../auth/AuthContext";
-import { hasRole } from "../auth/roles";
+import { canPlay, hasRole } from "../auth/roles";
 import "./NavBar.css";
 
 const linkClass = ({ isActive }: { isActive: boolean }) => (isActive ? "nav-link is-active" : "nav-link");
@@ -34,12 +34,15 @@ export function NavBar() {
         <NavLink to="/qualifiers" className={linkClass}>
           Elemeler
         </NavLink>
-        {user?.role === "basic" && (
+        <NavLink to="/bracket" className={linkClass}>
+          Bracket
+        </NavLink>
+        {canPlay(user) && (
           <NavLink to="/team" className={linkClass}>
             Takımım
           </NavLink>
         )}
-        {hasRole(user, "referee") && (
+        {hasRole(user, "streamer") && (
           <NavLink to="/admin" className={linkClass}>
             Yönetim
           </NavLink>

@@ -13,9 +13,16 @@ use uuid::Uuid;
 
 use crate::{
     auth::AuthUser,
-    db::{self, matches::MatchRow, matches::MatchState, team::Player, team::TeamMemberRow},
+    db::{
+        self,
+        matches::{MatchKind, MatchRow, MatchState, RefereeColumns},
+        team::{Player, TeamMemberRow},
+    },
     error::AppError,
-    handlers::team::{group_teams, AdminTeamPlayer, Team},
+    handlers::{
+        bracket,
+        team::{group_teams, AdminTeamPlayer, Team},
+    },
     role::Role,
     AppState,
 };
@@ -48,12 +55,12 @@ const LOBBY_SIZE: i64 = 7;
 
 const NOTES_MAX: usize = 2000;
 
-fn is_host(user: &AuthUser) -> bool {
+pub fn is_host(user: &AuthUser) -> bool {
     user.role.has_at_least(Role::Host)
 }
 
 #[derive(Debug, Serialize)]
-// Public on purpose: players need to reach their lobby's referee on Discord.
+// Public on purpose: players need to reach their match's referee on Discord.
 pub struct Referee {
     id: Uuid,
     osu_id: i64,
@@ -61,6 +68,27 @@ pub struct Referee {
     avatar_url: String,
     discord_id: Option<String>,
     discord_username: Option<String>,
+}
+
+impl Referee {
+    pub fn from_columns(cols: RefereeColumns) -> Option<Self> {
+        match (
+            cols.referee_id,
+            cols.referee_osu_id,
+            cols.referee_username,
+            cols.referee_avatar_url,
+        ) {
+            (Some(id), Some(osu_id), Some(username), Some(avatar_url)) => Some(Referee {
+                id,
+                osu_id,
+                username,
+                avatar_url,
+                discord_id: cols.referee_discord_id,
+                discord_username: cols.referee_discord_username,
+            }),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -79,27 +107,11 @@ pub struct Lobby<P> {
 
 // Splits off the staff-only notes so the public view can drop them.
 fn to_lobby<P>(row: MatchRow, teams: Vec<Team<P>>, now: OffsetDateTime) -> (Lobby<P>, String) {
-    let referee = match (
-        row.referee_id,
-        row.referee_osu_id,
-        row.referee_username,
-        row.referee_avatar_url,
-    ) {
-        (Some(id), Some(osu_id), Some(username), Some(avatar_url)) => Some(Referee {
-            id,
-            osu_id,
-            username,
-            avatar_url,
-            discord_id: row.referee_discord_id,
-            discord_username: row.referee_discord_username,
-        }),
-        _ => None,
-    };
     let lobby = Lobby {
         id: row.id,
         starts_at: row.starts_at,
         open: row.concluded_at.is_none() && row.starts_at > now,
-        referee,
+        referee: Referee::from_columns(row.referee),
         mp_url: row.mp_id.map(mp_url),
         concluded_at: row.concluded_at,
         teams,
@@ -377,14 +389,14 @@ pub async fn list_referees(
 
 // ---------- running a match ----------
 
-async fn load_match(state: &AppState, id: Uuid) -> Result<MatchState, AppError> {
+pub async fn load_match(state: &AppState, id: Uuid) -> Result<MatchState, AppError> {
     db::matches::find_match(&state.db, id)
         .await?
         .ok_or(AppError::NotFound)
 }
 
 // A match is run by its referee or by a host; other referees can only look.
-fn require_runs(user: &AuthUser, m: &MatchState) -> Result<(), AppError> {
+pub fn require_runs(user: &AuthUser, m: &MatchState) -> Result<(), AppError> {
     user.require_role(Role::Referee)?;
     if is_host(user) || m.referee_id == Some(user.id) {
         Ok(())
@@ -394,7 +406,7 @@ fn require_runs(user: &AuthUser, m: &MatchState) -> Result<(), AppError> {
 }
 
 // Once a match is concluded only hosts can change it (notes aside).
-fn require_unconcluded(user: &AuthUser, m: &MatchState) -> Result<(), AppError> {
+pub fn require_unconcluded(user: &AuthUser, m: &MatchState) -> Result<(), AppError> {
     if m.concluded() && !is_host(user) {
         return Err(AppError::Conflict("this match is concluded"));
     }
@@ -446,7 +458,7 @@ pub async fn set_referee(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn mp_url(mp_id: i64) -> String {
+pub fn mp_url(mp_id: i64) -> String {
     format!("https://osu.ppy.sh/community/matches/{mp_id}")
 }
 
@@ -525,7 +537,8 @@ pub async fn set_notes(
 }
 
 // POST /api/matches/:id/conclude — the match's referee or a host marks it as
-// played. Needs the room link.
+// played. Needs the room link; a bracket match also needs its score, and concluding
+// it sends its teams on to their next matches.
 pub async fn conclude(
     State(state): State<AppState>,
     user: AuthUser,
@@ -539,6 +552,10 @@ pub async fn conclude(
     if m.mp_id.is_none() {
         return Err(AppError::BadRequest("add the match link first"));
     }
+    if m.kind == MatchKind::Bracket {
+        bracket::conclude(&state, id).await?;
+        return Ok(StatusCode::NO_CONTENT);
+    }
     if !db::matches::conclude(&state.db, id).await? {
         return Err(AppError::Conflict(
             "this match changed, reload and try again",
@@ -547,14 +564,19 @@ pub async fn conclude(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// POST /api/matches/:id/reopen — host-only. Undoes a conclusion.
+// POST /api/matches/:id/reopen — host-only. Undoes a conclusion, taking a bracket
+// match's teams back out of the matches they advanced to.
 pub async fn reopen(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
-    load_match(&state, id).await?;
+    let m = load_match(&state, id).await?;
+    if m.kind == MatchKind::Bracket {
+        bracket::reopen(&state, id).await?;
+        return Ok(StatusCode::NO_CONTENT);
+    }
     db::matches::reopen(&state.db, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }

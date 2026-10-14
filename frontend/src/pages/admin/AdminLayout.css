@@ -30,9 +30,15 @@
   border-bottom-color: var(--color-primary);
 }
 
-/* Four tabs need tighter spacing to fit a phone. */
+/* Hosts see five tabs: tighter spacing on a phone, and they scroll sideways if they
+   still don't fit. */
 @media (max-width: 480px) {
+  .admin-tabs {
+    overflow-x: auto;
+  }
+
   .admin-tab {
+    flex-shrink: 0;
     padding: 0 var(--space-3);
   }
 }

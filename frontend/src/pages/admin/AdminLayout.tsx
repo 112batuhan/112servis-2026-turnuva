@@ -11,6 +11,7 @@ import "./AdminLayout.css";
 const TABS: { path: string; label: string; minRole: Role }[] = [
   { path: "/admin/mappool", label: "Mappool", minRole: "map_pooler" },
   { path: "/admin/qualifiers", label: "Elemeler", minRole: "referee" },
+  { path: "/admin/bracket", label: "Bracket", minRole: "streamer" },
   { path: "/admin/users", label: "Kullanıcılar", minRole: "host" },
   { path: "/admin/teams", label: "Takımlar", minRole: "host" },
 ];

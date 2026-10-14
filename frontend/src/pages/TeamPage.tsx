@@ -15,6 +15,7 @@ import {
 import { fetchPublicQualifiers } from "../api/matches";
 import type { Invite, PlayerResult, PublicQualifiers, Team, TeamStatus } from "../api/types";
 import { useSignedInUser } from "../auth/AuthContext";
+import { canPlay } from "../auth/roles";
 import { Countdown } from "../components/Countdown";
 import { DiscordMark } from "../components/DiscordMark";
 import { DiscordMention } from "../components/DiscordMention";
@@ -29,7 +30,7 @@ const SEARCH_DELAY_MS = 300;
 
 export function TeamPage() {
   const user = useSignedInUser();
-  const isStaff = user.role !== "basic";
+  const isStaff = !canPlay(user);
   const [status, setStatus] = useState<TeamStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -90,7 +91,7 @@ export function TeamPage() {
 
       {staffOnly && (
         <section className="panel">
-          <p className="status">Yetkililer (host'lar, map pooler'lar ve hakemler) turnuvayı yönettiği için takıma katılamaz.</p>
+          <p className="status">Yetkililer (host'lar, map pooler'lar ve hakemler) turnuvayı yönettiği için takıma katılamaz. Yayıncılar oynayabilir.</p>
         </section>
       )}
 

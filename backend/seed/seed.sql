@@ -6,6 +6,7 @@ INSERT INTO osu_users (osu_id, username, avatar_url, country_code, global_rank, 
     (-2,   'DevPooler',  'https://a.ppy.sh/', 'TR', 41000, 700,  'map_pooler'),
     (-3,   'DevReferee', 'https://a.ppy.sh/', 'TR', 63000, 1100, 'referee'),
     (-4,   'DevHakem',   'https://a.ppy.sh/', 'TR', 88000, 1500, 'referee'),
+    (-5,   'DevYayinci', 'https://a.ppy.sh/', 'TR', 99000, 1700, 'streamer'),
     (-101, 'Kedicik',    'https://a.ppy.sh/', 'TR', 1850,  12,   'basic'),
     (-102, 'Simit',      'https://a.ppy.sh/', 'TR', 3200,  25,   'basic'),
     (-103, 'Ayran',      'https://a.ppy.sh/', 'TR', 4700,  41,   'basic'),
@@ -15,7 +16,7 @@ INSERT INTO osu_users (osu_id, username, avatar_url, country_code, global_rank, 
     (-107, 'Kumpir',     'https://a.ppy.sh/', 'TR', 11500, 110,  'basic'),
     (-108, 'Manti',      'https://a.ppy.sh/', 'TR', 13200, 128,  'basic'),
     (-109, 'Borek',      'https://a.ppy.sh/', 'TR', 15800, 150,  'basic'),
-    (-110, 'Cay',        'https://a.ppy.sh/', 'TR', 18400, 172,  'basic'),
+    (-110, 'Cay',        'https://a.ppy.sh/', 'TR', 18400, 172,  'streamer'),
     (-111, 'Lahmacun',   'https://a.ppy.sh/', 'TR', 21000, 197,  'basic'),
     (-112, 'Doner',      'https://a.ppy.sh/', 'TR', 24500, 230,  'basic'),
     (-113, 'Kunefe',     'https://a.ppy.sh/', 'TR', 28000, 262,  'basic'),
@@ -37,7 +38,7 @@ INSERT INTO osu_users (osu_id, username, avatar_url, country_code, global_rank, 
 INSERT INTO discord_accounts (osu_user_id, discord_id, username)
 SELECT id, 'dummy' || osu_id, lower(username)
 FROM osu_users
-WHERE osu_id IN (-1, -2, -3, -4, -101, -103, -104, -106, -107, -109, -110, -112, -113, -115, -116, -118, -122, -124, -125, -126);
+WHERE osu_id IN (-1, -2, -3, -4, -5, -101, -103, -104, -106, -107, -109, -110, -112, -113, -115, -116, -118, -122, -124, -125, -126);
 
 -- The last two no longer fit, as if ranks changed after they formed: Kaymak
 -- climbed (21,203 against the 19,000 limit) and Ayva went inactive.
@@ -109,4 +110,72 @@ BEGIN
         INSERT INTO qualifier_entries (team_id, match_id)
         SELECT t.id, new_match FROM teams t WHERE t.name = ANY (lobby.teams);
     END LOOP;
+END $$;
+
+-- A double-elimination bracket for four teams. W1 is concluded, so its winner and
+-- loser have already moved on to W3 and L1. Every match has a dummy referee or dummy
+-- teams, so clear.sql removes it. Cay streams but also plays, in Çay Ocağı.
+-- Numbers continue after any bracket that's already there, and it's placed to its
+-- right. Positions are in board units (20px); a card is 12x5.
+DO $$
+DECLARE
+    x0 int := COALESCE((SELECT max(pos_x) + 30 FROM bracket_matches), 0);
+    w0 int := COALESCE((SELECT max(number) FROM bracket_matches WHERE side = 'winners'), 0);
+    l0 int := COALESCE((SELECT max(number) FROM bracket_matches WHERE side = 'losers'), 0);
+    ids uuid[] := ARRAY[]::uuid[];
+    spec record;
+    new_match uuid;
+BEGIN
+    FOR spec IN
+        SELECT * FROM (VALUES
+            (1, 'winners'::bracket_side, 1, 0, 0, interval '-1 day', 'DevReferee', 'DevYayinci',
+             'Sokak Kedileri', 'Simitçiler', 4, 2, 112233443::bigint, true),
+            (2, 'winners', 2, 0, 6, interval '2 hours', 'DevHakem', NULL,
+             'Tatlı Krizi', 'Fırın Ekibi', NULL, NULL, NULL, false),
+            (3, 'winners', 3, 15, 3, interval '1 day', NULL, 'Cay',
+             'Sokak Kedileri', NULL, NULL, NULL, NULL, false),
+            (4, 'losers', 1, 15, 13, interval '1 day 2 hours', 'DevReferee', NULL,
+             'Simitçiler', NULL, NULL, NULL, NULL, false),
+            (5, 'losers', 2, 30, 13, interval '2 days', 'DevHakem', NULL,
+             NULL, NULL, NULL, NULL, NULL, false),
+            (6, 'winners', 4, 45, 8, NULL, 'DevHakem', NULL,
+             NULL, NULL, NULL, NULL, NULL, false)
+        ) AS v (key, side, number, x, y, offset_by, referee, streamer,
+                team1, team2, score1, score2, mp_id, concluded)
+    LOOP
+        INSERT INTO matches (kind, starts_at, referee_id, mp_id, concluded_at)
+        VALUES (
+            'bracket',
+            date_trunc('hour', now()) + spec.offset_by,
+            (SELECT id FROM osu_users WHERE osu_id < 0 AND username = spec.referee),
+            spec.mp_id,
+            CASE WHEN spec.concluded THEN now() - interval '20 hours' END
+        )
+        RETURNING id INTO new_match;
+        INSERT INTO bracket_matches (match_id, side, number, pos_x, pos_y,
+                                     team1_id, team2_id, team1_score, team2_score, streamer_id)
+        VALUES (
+            new_match,
+            spec.side,
+            spec.number + CASE WHEN spec.side = 'winners' THEN w0 ELSE l0 END,
+            x0 + spec.x,
+            spec.y,
+            (SELECT id FROM teams WHERE name = spec.team1),
+            (SELECT id FROM teams WHERE name = spec.team2),
+            spec.score1,
+            spec.score2,
+            (SELECT id FROM osu_users WHERE osu_id < 0 AND username = spec.streamer)
+        );
+        ids[spec.key] := new_match;
+    END LOOP;
+
+    INSERT INTO bracket_links (source_id, outcome, target_id, slot)
+    SELECT ids[v.source], v.outcome::bracket_outcome, ids[v.target], v.slot
+    FROM (VALUES
+        (1, 'winner', 3, 1), (1, 'loser', 4, 1),
+        (2, 'winner', 3, 2), (2, 'loser', 4, 2),
+        (3, 'winner', 6, 1), (3, 'loser', 5, 1),
+        (4, 'winner', 5, 2),
+        (5, 'winner', 6, 2)
+    ) AS v (source, outcome, target, slot);
 END $$;

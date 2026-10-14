@@ -1,0 +1,136 @@
+/* A fixed frame the board pans and zooms inside; there are no scrollbars. The frame
+   takes every touch gesture (one finger pans, two pinch), so the page only scrolls
+   from outside it. */
+.bracket-viewport {
+  position: relative;
+  height: clamp(520px, 75vh, 1000px);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-sunken);
+  cursor: grab;
+  touch-action: none;
+}
+
+.bracket-viewport.is-panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* The editor shows the grid cards snap to: a dot on every unit, following the view. */
+.bracket-viewport.is-editable {
+  background-image: radial-gradient(circle, var(--color-border-strong) 1px, transparent 1.5px);
+  background-size: var(--grid-size) var(--grid-size);
+  background-position: var(--grid-x) var(--grid-y);
+}
+
+.bracket-board {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+.bracket-lines {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.bracket-line {
+  fill: none;
+  stroke: var(--color-border-strong);
+  stroke-width: 2;
+  transition: stroke var(--duration-fast) ease;
+}
+
+.bracket-line.is-loser {
+  stroke: var(--color-text-subtle);
+  stroke-dasharray: 5 5;
+  opacity: 0.45;
+}
+
+.bracket-line.is-active {
+  stroke: var(--color-primary);
+  opacity: 1;
+}
+
+.bracket-slot {
+  position: absolute;
+  width: var(--bracket-card-w);
+  height: var(--bracket-card-h);
+  border-radius: var(--radius-md);
+}
+
+.bracket-slot.is-clickable {
+  cursor: pointer;
+}
+
+/* `move` tells cards apart from the frame, which pans with `grab`. Touch gestures on
+   a card drag it rather than scrolling the page. */
+.bracket-viewport.is-editable .bracket-slot {
+  cursor: move;
+  touch-action: none;
+  user-select: none;
+}
+
+.bracket-slot:hover .bm-card {
+  border-color: var(--color-border-strong);
+}
+
+.bracket-slot.is-mine .bm-card {
+  border-color: var(--color-success);
+}
+
+.bracket-slot.is-selected .bm-card {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.bracket-viewport.is-editable .bracket-slot.is-dragging {
+  z-index: 1;
+}
+
+.bracket-slot.is-dragging .bm-card {
+  box-shadow: var(--shadow-popover);
+}
+
+.bracket-slot.is-blocked .bm-card {
+  border-color: var(--color-danger);
+  box-shadow: 0 0 0 1px var(--color-danger);
+}
+
+.bracket-controls {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-popover);
+  cursor: default;
+}
+
+.bracket-zoom-level {
+  min-width: 52px;
+  height: var(--icon-button-size);
+  padding: 0 var(--space-1);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bracket-zoom-level:hover {
+  color: var(--color-text);
+  background: var(--color-hover);
+}

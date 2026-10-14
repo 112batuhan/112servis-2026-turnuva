@@ -26,6 +26,7 @@ import { IconButton } from "../../components/IconButton";
 import { LobbyCard } from "../../components/LobbyCard";
 import { formatMatchTime, fromDateTimeLocal, toDateTimeLocal } from "../../lib/format";
 import { teamListPath } from "../../lib/teamLink";
+import { LinkEditor, StaffSelect } from "./MatchControls";
 import "./QualifiersAdminPage.css";
 
 type Run = (action: () => Promise<void>) => Promise<void>;
@@ -309,9 +310,11 @@ function StaffLobbyCard({
           <dt>Hakem</dt>
           <dd>
             {isHost ? (
-              <RefereeSelect
-                lobby={lobby}
-                referees={referees}
+              <StaffSelect
+                label="Hakem"
+                emptyLabel="— Hakem yok —"
+                current={lobby.referee}
+                options={referees}
                 disabled={busy}
                 onSelect={(id) => run(() => setReferee(lobby.id, id))}
               />
@@ -421,69 +424,13 @@ function LobbySelect({ label, team, current, lobbies, capacity, disabled, compac
   );
 }
 
-interface RefereeSelectProps {
-  lobby: StaffLobby;
-  referees: Player[];
-  disabled: boolean;
-  onSelect: (refereeId: string | null) => void;
-}
-
-function RefereeSelect({ lobby, referees, disabled, onSelect }: RefereeSelectProps) {
-  const current = lobby.referee;
-  // Someone who has since lost their staff role keeps showing until replaced.
-  const options = current && !referees.some((r) => r.id === current.id) ? [current, ...referees] : referees;
-  return (
-    <select
-      className="select select-sm"
-      value={current?.id ?? ""}
-      disabled={disabled}
-      aria-label="Hakem"
-      onChange={(e) => onSelect(e.target.value || null)}
-    >
-      <option value="">— Hakem yok —</option>
-      {options.map((r) => (
-        <option key={r.id} value={r.id}>
-          {r.username}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-interface EditorProps {
-  value: string | null;
+interface ScheduleEditorProps {
+  value: string;
   disabled: boolean;
   onSave: (next: string) => void;
 }
 
-function LinkEditor({ value, disabled, onSave }: EditorProps) {
-  const [draft, setDraft] = useState(value ?? "");
-  useEffect(() => setDraft(value ?? ""), [value]);
-  const changed = draft.trim() !== (value ?? "");
-
-  return (
-    <form
-      className="inline-form"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (changed) onSave(draft.trim());
-      }}
-    >
-      <input
-        className="input input-sm"
-        placeholder="osu.ppy.sh/community/matches/…"
-        aria-label="Maç linki"
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-      />
-      <button type="submit" className="btn btn-secondary btn-sm" disabled={disabled || !changed}>
-        Kaydet
-      </button>
-    </form>
-  );
-}
-
-function ScheduleEditor({ value, disabled, onSave }: EditorProps & { value: string }) {
+function ScheduleEditor({ value, disabled, onSave }: ScheduleEditorProps) {
   const initial = toDateTimeLocal(value);
   const [draft, setDraft] = useState(initial);
   useEffect(() => setDraft(initial), [initial]);

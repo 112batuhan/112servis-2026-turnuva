@@ -1,0 +1,148 @@
+import { useEffect, useMemo, useState } from "react";
+import { fetchStreamers } from "../../../api/bracket";
+import { errorMessage } from "../../../api/client";
+import { fetchReferees } from "../../../api/matches";
+import type { BracketSide, Player } from "../../../api/types";
+import { useSignedInUser } from "../../../auth/AuthContext";
+import { hasRole } from "../../../auth/roles";
+import { BracketCalendar } from "../../../components/bracket/BracketCalendar";
+import { BracketGrid } from "../../../components/bracket/BracketGrid";
+import { BracketList } from "../../../components/bracket/BracketList";
+import { BracketViewTabs, useBracketView } from "../../../components/bracket/BracketViewTabs";
+import { ErrorAlert } from "../../../components/ErrorAlert";
+import { firstFreeSpot, incomingSources, SIDE_LABELS } from "../../../lib/bracket";
+import { MatchPanel } from "./MatchPanel";
+import { useBracketEditor, type EditorMatch, type EditorTeam } from "./useBracketEditor";
+import "./BracketAdminPage.css";
+
+export function BracketAdminPage() {
+  const user = useSignedInUser();
+  const isHost = hasRole(user, "host");
+  const isReferee = hasRole(user, "referee");
+  const editor = useBracketEditor(isReferee);
+  const { data, error, setError, busy } = editor;
+  const [view, setView] = useBracketView("admin");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [newSide, setNewSide] = useState<BracketSide>("winners");
+  const [referees, setReferees] = useState<Player[]>([]);
+  const [streamers, setStreamers] = useState<Player[]>([]);
+
+  useEffect(() => {
+    if (!isHost) return;
+    fetchReferees().then(setReferees).catch((e) => setError(errorMessage(e)));
+    fetchStreamers().then(setStreamers).catch((e) => setError(errorMessage(e)));
+  }, [isHost, setError]);
+
+  const matches = data?.matches ?? [];
+  const teams = useMemo(() => new Map<string, EditorTeam>(data?.teams.map((t) => [t.id, t])), [data]);
+  const sources = useMemo(() => incomingSources<EditorMatch>(matches), [matches]);
+  const selected = matches.find((m) => m.id === selectedId) ?? null;
+
+  async function add(x: number, y: number) {
+    const id = await editor.add(newSide, x, y);
+    if (id) setSelectedId(id);
+  }
+
+  const unrefereed = matches.filter((m) => !m.referee && !m.concluded_at).length;
+  const unstreamed = matches.filter((m) => !m.streamer && !m.concluded_at).length;
+  const shared = {
+    matches,
+    teams,
+    myTeamId: data?.myTeamId,
+    viewerId: user.id,
+    selectedId,
+  };
+
+  return (
+    <section className="panel bracket-admin">
+      <div className="page-header">
+        <h1>Bracket</h1>
+        {data && <span className="badge">{matches.length} maç</span>}
+        {unrefereed > 0 && (
+          <span className="badge badge-warning" title="Henüz hakemi olmayan maçlar">
+            {unrefereed} hakemsiz
+          </span>
+        )}
+        {unstreamed > 0 && (
+          <span className="badge" title="Henüz yayıncısı olmayan maçlar">
+            {unstreamed} yayıncısız
+          </span>
+        )}
+        {data && (
+          <div className="page-header-aside">
+            <BracketViewTabs view={view} onChange={setView} />
+            {isHost && (
+              <span className="inline-form">
+                <select
+                  className="select select-sm"
+                  aria-label="Yeni maçın tarafı"
+                  value={newSide}
+                  onChange={(e) => setNewSide(e.target.value as BracketSide)}
+                >
+                  {(["winners", "losers"] as const).map((s) => (
+                    <option key={s} value={s}>
+                      {SIDE_LABELS[s]}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  disabled={busy}
+                  onClick={() => {
+                    const spot = firstFreeSpot(matches);
+                    add(spot.x, spot.y);
+                  }}
+                >
+                  Maç ekle
+                </button>
+              </span>
+            )}
+          </div>
+        )}
+      </div>
+      <ErrorAlert message={error} onDismiss={() => setError(null)} />
+      {!data && !error && <p className="status">Yükleniyor…</p>}
+      {data && isHost && view === "grid" && (
+        <p className="bracket-admin-hint">
+          Maçları sürükleyerek istediğin yere taşı, ızgaraya oturur. Boş alanı sürükleyerek görünümü kaydır, boş bir
+          yere çift tıklayarak oraya{" "}
+          {SIDE_LABELS[newSide]} maçı ekle. Bir maçı seçince kazananın ve kaybedenin nereye gideceğini panelden
+          ayarlayabilirsin.
+        </p>
+      )}
+      {data && matches.length === 0 && !isHost && <p className="status">Henüz bracket maçı yok.</p>}
+
+      {data && (matches.length > 0 || isHost) && (
+        <div className={selected ? "bracket-admin-body has-panel" : "bracket-admin-body"}>
+          <div className="bracket-admin-main">
+            {view === "grid" && (
+              <BracketGrid
+                {...shared}
+                onSelect={setSelectedId}
+                editable={isHost}
+                onMove={editor.move}
+                onAdd={isHost ? (x, y) => add(x, y) : undefined}
+              />
+            )}
+            {view === "list" && <BracketList {...shared} onSelect={setSelectedId} />}
+            {view === "calendar" && <BracketCalendar {...shared} onSelect={setSelectedId} />}
+          </div>
+          {selected && (
+            <MatchPanel
+              match={selected}
+              matches={matches}
+              teams={teams}
+              sources={sources}
+              myTeamId={data.myTeamId}
+              editor={editor}
+              referees={referees}
+              streamers={streamers}
+              onClose={() => setSelectedId(null)}
+            />
+          )}
+        </div>
+      )}
+    </section>
+  );
+}

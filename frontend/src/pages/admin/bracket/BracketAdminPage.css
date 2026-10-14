@@ -1,0 +1,223 @@
+.bracket-admin .input-sm {
+  height: var(--control-height-sm);
+  font-size: var(--text-sm);
+}
+
+.bracket-admin-hint {
+  margin-bottom: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.bracket-admin-body.has-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  align-items: start;
+  gap: var(--space-4);
+}
+
+.bracket-admin-main {
+  min-width: 0;
+}
+
+/* The panel drops under the bracket when there's no room beside it. */
+@media (max-width: 1100px) {
+  .bracket-admin-body.has-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.match-panel {
+  position: sticky;
+  top: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-height: calc(100vh - 2 * var(--space-4));
+  overflow-y: auto;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-raised);
+}
+
+@media (max-width: 1100px) {
+  .match-panel {
+    position: static;
+    max-height: none;
+  }
+}
+
+.match-panel-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.match-panel-code {
+  font-size: var(--text-xl);
+  font-variant-numeric: tabular-nums;
+}
+
+.match-panel-code.is-winners {
+  color: var(--color-info);
+}
+
+.match-panel-code.is-losers {
+  color: var(--color-warning);
+}
+
+.match-panel-close {
+  margin-left: auto;
+}
+
+.match-panel-teams {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.match-panel-team {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.match-panel-team-name {
+  font-weight: 600;
+}
+
+.match-panel-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.match-panel-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.match-panel-rows > div {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.match-panel-rows dt {
+  color: var(--color-text-muted);
+}
+
+.match-panel-rows dd {
+  min-width: 0;
+  margin: 0;
+}
+
+.match-panel-rows .select {
+  max-width: 100%;
+}
+
+/* The note sits near the panel's right edge, so its tooltip opens leftwards. */
+.match-panel-rows .note-tooltip {
+  left: auto;
+  right: 0;
+}
+
+.match-panel-person {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.match-panel-score {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.inline-form.match-panel-score-form {
+  align-items: center;
+  flex-wrap: nowrap;
+}
+
+.inline-form.match-panel-score-form .input {
+  flex: 0 0 64px;
+  width: 64px;
+}
+
+.match-panel-notes {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.match-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.match-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.match-form h3 {
+  font-size: var(--text-md);
+}
+
+.match-form > .btn {
+  align-self: flex-start;
+}
+
+.match-form-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.match-form-row > .match-form-field {
+  flex: 1;
+}
+
+.match-form-row > .match-form-number {
+  flex: 0 0 96px;
+}
+
+.match-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+
+.match-form-field > span:first-child {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.match-form-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.match-form-inline .input {
+  flex: 1;
+}
+
+.match-form-hint {
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+}

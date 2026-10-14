@@ -1,0 +1,113 @@
+.bm-card {
+  display: grid;
+  grid-template-rows: var(--bracket-header-h) 1fr 1fr;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+}
+
+.bm-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  background: var(--color-surface-raised);
+  font-size: var(--text-xs);
+}
+
+.bm-card-code {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.bm-card-code.is-winners {
+  color: var(--color-info);
+}
+
+.bm-card-code.is-losers {
+  color: var(--color-warning);
+}
+
+.bm-card-time {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.bm-card-icon {
+  display: inline-flex;
+  color: var(--color-text-muted);
+}
+
+.bm-card-icon.is-done {
+  color: var(--color-success);
+}
+
+.bm-card-team {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 0 var(--space-2);
+}
+
+.bm-card-team + .bm-card-team {
+  border-top: 1px solid var(--color-border);
+}
+
+.bm-card-banner {
+  flex-shrink: 0;
+  width: 36px;
+  height: 20px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+}
+
+.bm-card-banner img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bm-card-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 600;
+}
+
+.bm-card-name.is-empty {
+  color: var(--color-text-subtle);
+  font-weight: 400;
+  font-style: italic;
+}
+
+.bm-card-score {
+  min-width: 2ch;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.bm-card-team.is-winner .bm-card-score {
+  color: var(--color-success);
+}
+
+.bm-card-team.is-loser {
+  color: var(--color-text-muted);
+}
+
+.bm-card-team.is-mine {
+  background: var(--color-primary-soft);
+}

@@ -29,6 +29,22 @@ export function formatMatchTime(iso: string): string {
   });
 }
 
+/** "15 Eki Per 21:00" */
+export function formatShortMatchTime(iso: string): string {
+  return new Date(iso).toLocaleString("tr-TR", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** "21:00" */
+export function formatClock(iso: string): string {
+  return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+}
+
 /** ISO -> the local "YYYY-MM-DDTHH:mm" a datetime-local input takes. */
 export function toDateTimeLocal(iso: string): string {
   const d = new Date(iso);

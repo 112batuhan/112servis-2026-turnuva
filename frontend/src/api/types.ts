@@ -1,6 +1,6 @@
 // Response shapes returned by the Rust backend (see backend/src/db).
 
-export type Role = "host" | "map_pooler" | "referee" | "basic";
+export type Role = "host" | "map_pooler" | "referee" | "streamer" | "basic";
 
 export interface DiscordAccount {
   id: string;
@@ -223,6 +223,61 @@ export interface StaffQualifiers {
   capacity: number;
   /** Teams that haven't picked a lobby yet. */
   unassigned: Team<AdminTeamPlayer>[];
+}
+
+export type BracketSide = "winners" | "losers";
+
+/** Where a match's winner or loser goes: a match and which of its two team slots. */
+export interface NextMatch {
+  match_id: string;
+  slot: 1 | 2;
+}
+
+export interface MatchStreamer {
+  id: string;
+  osu_id: number;
+  username: string;
+  avatar_url: string;
+}
+
+export interface BracketMatch {
+  id: string;
+  side: BracketSide;
+  /** Numbered within its side: W1, W2, … and L1, L2, … */
+  number: number;
+  /** Top left corner on the editor's board, in board units (see lib/bracket.ts); can be negative. */
+  pos_x: number;
+  pos_y: number;
+  /** null until the match is scheduled. */
+  starts_at: string | null;
+  team1_id: string | null;
+  team2_id: string | null;
+  team1_score: number | null;
+  team2_score: number | null;
+  winner_to: NextMatch | null;
+  loser_to: NextMatch | null;
+  referee: MatchReferee | null;
+  streamer: MatchStreamer | null;
+  mp_url: string | null;
+  concluded_at: string | null;
+}
+
+export interface StaffBracketMatch extends BracketMatch {
+  /** Staff-only. */
+  referee_notes: string;
+}
+
+export interface PublicBracket {
+  matches: BracketMatch[];
+  /** Every team; matches refer to them by id. */
+  teams: Team[];
+  /** The signed-in player's team, or null. */
+  my_team_id: string | null;
+}
+
+export interface StaffBracket {
+  matches: StaffBracketMatch[];
+  teams: Team<AdminTeamPlayer>[];
 }
 
 export interface DevAccount {

@@ -4,6 +4,7 @@ import { errorMessage } from "../api/client";
 import { fetchPublicQualifiers, joinLobby, leaveLobby } from "../api/matches";
 import type { Lobby, PublicQualifiers } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
+import { canPlay } from "../auth/roles";
 import { Countdown } from "../components/Countdown";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { LobbyCard } from "../components/LobbyCard";
@@ -101,7 +102,7 @@ export function QualifiersPage() {
               Takımın henüz bir lobiye kayıtlı değil. Aşağıdan size uyan bir lobi seçin; her lobide en fazla{" "}
               {data.capacity} takım olabilir.
             </p>
-          ) : user?.role === "basic" ? (
+          ) : canPlay(user) ? (
             <p>
               Lobi seçmek için önce bir <Link to="/team">takım kur</Link>.
             </p>

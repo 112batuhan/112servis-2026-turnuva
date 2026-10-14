@@ -4,15 +4,17 @@ use uuid::Uuid;
 
 use super::team::Player;
 
-// A match with its referee folded in. The referee_* fields are null when nobody
-// has taken the match.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
+#[sqlx(type_name = "match_kind", rename_all = "snake_case")]
+pub enum MatchKind {
+    Qualifier,
+    Bracket,
+}
+
+// A match's referee, selected as referee_* columns. All null when nobody has taken
+// the match.
 #[derive(Debug, sqlx::FromRow)]
-pub struct MatchRow {
-    pub id: Uuid,
-    pub starts_at: OffsetDateTime,
-    pub mp_id: Option<i64>,
-    pub referee_notes: String,
-    pub concluded_at: Option<OffsetDateTime>,
+pub struct RefereeColumns {
     pub referee_id: Option<Uuid>,
     pub referee_osu_id: Option<i64>,
     pub referee_username: Option<String>,
@@ -21,9 +23,22 @@ pub struct MatchRow {
     pub referee_discord_username: Option<String>,
 }
 
+// A qualifier lobby with its referee folded in.
+#[derive(Debug, sqlx::FromRow)]
+pub struct MatchRow {
+    pub id: Uuid,
+    pub starts_at: OffsetDateTime,
+    pub mp_id: Option<i64>,
+    pub referee_notes: String,
+    pub concluded_at: Option<OffsetDateTime>,
+    #[sqlx(flatten)]
+    pub referee: RefereeColumns,
+}
+
 // What the match actions check before changing a match.
 #[derive(Debug, sqlx::FromRow)]
 pub struct MatchState {
+    pub kind: MatchKind,
     pub referee_id: Option<Uuid>,
     pub mp_id: Option<i64>,
     pub concluded_at: Option<OffsetDateTime>,
@@ -188,7 +203,7 @@ pub async fn delete_entry(ex: impl PgExecutor<'_>, team_id: Uuid) -> sqlx::Resul
 
 pub async fn find_match(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchState>> {
     sqlx::query_as::<_, MatchState>(
-        "SELECT referee_id, mp_id, concluded_at FROM matches WHERE id = $1",
+        "SELECT kind, referee_id, mp_id, concluded_at FROM matches WHERE id = $1",
     )
     .bind(id)
     .fetch_optional(pool)
@@ -246,7 +261,7 @@ pub async fn set_notes(pool: &PgPool, id: Uuid, notes: &str) -> sqlx::Result<()>
 
 // Concludes a match that has its room link. False when it's already concluded or
 // the link is missing.
-pub async fn conclude(pool: &PgPool, id: Uuid) -> sqlx::Result<bool> {
+pub async fn conclude(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<bool> {
     let result = sqlx::query(
         r#"
         UPDATE matches SET concluded_at = now()
@@ -254,26 +269,26 @@ pub async fn conclude(pool: &PgPool, id: Uuid) -> sqlx::Result<bool> {
         "#,
     )
     .bind(id)
-    .execute(pool)
+    .execute(ex)
     .await?;
     Ok(result.rows_affected() > 0)
 }
 
-pub async fn reopen(pool: &PgPool, id: Uuid) -> sqlx::Result<()> {
+pub async fn reopen(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<()> {
     sqlx::query("UPDATE matches SET concluded_at = NULL WHERE id = $1")
         .bind(id)
-        .execute(pool)
+        .execute(ex)
         .await?;
     Ok(())
 }
 
-// Everyone who can referee: every role above basic.
+// Everyone who can referee: referees and up.
 pub async fn list_referees(pool: &PgPool) -> sqlx::Result<Vec<Player>> {
     sqlx::query_as::<_, Player>(
         r#"
         SELECT id, osu_id, username, avatar_url, country_code, global_rank
         FROM osu_users
-        WHERE role <> 'basic'
+        WHERE role IN ('referee', 'map_pooler', 'host')
         ORDER BY lower(username)
         "#,
     )
@@ -282,7 +297,9 @@ pub async fn list_referees(pool: &PgPool) -> sqlx::Result<Vec<Player>> {
 }
 
 pub async fn can_referee(pool: &PgPool, user_id: Uuid) -> sqlx::Result<bool> {
-    sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM osu_users WHERE id = $1 AND role <> 'basic')")
+    sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM osu_users WHERE id = $1 AND role IN ('referee', 'map_pooler', 'host'))",
+    )
         .bind(user_id)
         .fetch_one(pool)
         .await

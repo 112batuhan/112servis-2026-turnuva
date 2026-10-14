@@ -62,7 +62,7 @@ pub enum Eligibility {
 
 impl Eligibility {
     fn of(me: &Player, other: &PlayerState) -> Self {
-        if other.role != Role::Basic {
+        if !other.role.can_play() {
             return Self::NotPlayer;
         }
         if other.in_team {
@@ -173,10 +173,10 @@ pub fn group_teams<P>(
         .collect()
 }
 
-// Only basic users play; hosts and map poolers run the tournament. Forming a team
-// also needs a linked Discord account.
+// Only basic users and streamers play; the rest of the staff run the tournament.
+// Forming a team also needs a linked Discord account.
 fn require_player(user: &AuthUser) -> Result<(), AppError> {
-    if user.role != Role::Basic {
+    if !user.role.can_play() {
         return Err(AppError::BadRequest("staff can't join teams"));
     }
     user.require_discord_verified()

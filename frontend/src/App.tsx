@@ -5,10 +5,12 @@ import { RequireAuth } from "./auth/RequireAuth";
 import { MiniPlayer } from "./components/MiniPlayer";
 import { NavBar } from "./components/NavBar";
 import { AdminIndexRedirect, AdminLayout } from "./pages/admin/AdminLayout";
+import { BracketAdminPage } from "./pages/admin/bracket/BracketAdminPage";
 import { MapPoolEditorPage } from "./pages/admin/mappool/MapPoolEditorPage";
 import { QualifiersAdminPage } from "./pages/admin/QualifiersAdminPage";
 import { TeamsAdminPage } from "./pages/admin/TeamsAdminPage";
 import { UsersPage } from "./pages/admin/UsersPage";
+import { BracketPage } from "./pages/BracketPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LinkDiscordPage } from "./pages/LinkDiscordPage";
 import { ProfilePage } from "./pages/ProfilePage";
@@ -56,18 +58,23 @@ export function App() {
           <Route path="/mappool" element={<PublicPoolPage />} />
           <Route path="/teams" element={<TeamsPage />} />
           <Route path="/qualifiers" element={<QualifiersPage />} />
+          <Route path="/bracket" element={<BracketPage />} />
 
           <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
           <Route path="/discord" element={<RequireAuth><LinkDiscordPage /></RequireAuth>} />
           <Route path="/team" element={<RequireAuth><TeamPage /></RequireAuth>} />
 
-          <Route path="/admin" element={<RequireAuth minRole="referee"><AdminLayout /></RequireAuth>}>
+          <Route path="/admin" element={<RequireAuth minRole="streamer"><AdminLayout /></RequireAuth>}>
             <Route index element={<AdminIndexRedirect />} />
             <Route
               path="mappool"
               element={<RequireAuth minRole="map_pooler" redirect="/admin"><MapPoolEditorPage /></RequireAuth>}
             />
-            <Route path="qualifiers" element={<QualifiersAdminPage />} />
+            <Route
+              path="qualifiers"
+              element={<RequireAuth minRole="referee" redirect="/admin"><QualifiersAdminPage /></RequireAuth>}
+            />
+            <Route path="bracket" element={<BracketAdminPage />} />
             <Route
               path="users"
               element={<RequireAuth minRole="host" redirect="/admin"><UsersPage /></RequireAuth>}
