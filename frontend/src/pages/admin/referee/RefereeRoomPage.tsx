@@ -14,6 +14,12 @@ import "./RefereeRoomPage.css";
 /** /admin/referee/:matchId — runs a match's osu! room over Bancho IRC. */
 export function RefereeRoomPage() {
   const { matchId = "" } = useParams();
+  // A fresh page per match, so nothing from the last one (like a room still being
+  // created) lands in the next.
+  return <RefereeRoom key={matchId} matchId={matchId} />;
+}
+
+function RefereeRoom({ matchId }: { matchId: string }) {
   const referee = useRefereeRoom(matchId);
   const { room, roomChats, loadError, error, roster } = referee;
 

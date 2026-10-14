@@ -23,7 +23,12 @@ export function IrcLogin() {
         <span>
           Bancho'ya <strong>{irc.nick}</strong> olarak bağlısın
         </span>
-        <button type="button" className="btn btn-secondary btn-sm" onClick={irc.disconnect}>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          title="Bütün sekmelerde bağlantıyı keser"
+          onClick={irc.disconnect}
+        >
           Bağlantıyı kes
         </button>
       </div>

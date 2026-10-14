@@ -42,6 +42,8 @@ pub struct AppState {
     pub rank_refresh_lock: Arc<tokio::sync::Mutex<()>>,
     // Which IRC relay connection saves each multiplayer room's chat.
     pub chat_loggers: handlers::irc::ChatLoggers,
+    // Each user's Bancho IRC connection, shared by their tabs, and failed logins.
+    pub irc_users: handlers::irc::IrcUsers,
 }
 
 #[tokio::main]
@@ -85,6 +87,7 @@ async fn main() {
         osu_app_token: Arc::new(Mutex::new(None)),
         rank_refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
         chat_loggers: handlers::irc::ChatLoggers::default(),
+        irc_users: handlers::irc::IrcUsers::default(),
     };
     rank_refresh::spawn_daily_refresh(state.clone());
 

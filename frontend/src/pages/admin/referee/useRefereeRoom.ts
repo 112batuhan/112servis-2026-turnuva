@@ -14,7 +14,6 @@ import {
   ircName,
   modsCommand,
   parseCreated,
-  parseJoined,
   playerRef,
   ROOM_PREFIX,
   sameName,
@@ -26,6 +25,7 @@ import {
   type SlotTeam,
 } from "../../../lib/bancho";
 import { matchCode } from "../../../lib/bracket";
+import { registerAutoTeams, unregisterAutoTeams } from "./autoTeams";
 import { mergeChat, toChatLine, type SavedChat } from "./roomChat";
 
 export interface RosterPlayer {
@@ -66,6 +66,23 @@ const CREATE_TIMEOUT_MS = 20_000;
 
 const PLAY_MODES: Record<string, number> = { osu: 0, taiko: 1, fruits: 2, mania: 3 };
 
+const DEFAULT_OPTIONS: RoomOptions = { scoreMode: 3, noFail: true, autoTeams: true };
+
+// Each match's options and uncounted maps, so switching to another match and back
+// keeps them. For this tab only, until it's reloaded.
+const matchSettings = new Map<string, { options: RoomOptions; ignored: Set<number> }>();
+
+// The tabs share one Bancho connection, and each takes BanchoBot's next "Created the
+// tournament match" reply as its own, so only one !mp make is out at a time. A Web
+// Lock covers every tab of this browser; the queue is for browsers without one.
+let makeQueue: Promise<unknown> = Promise.resolve();
+function oneAtATime<T>(task: () => Promise<T>): Promise<T> {
+  if ("locks" in navigator) return navigator.locks.request("bancho-mp-make", task);
+  const result = makeQueue.then(task, task);
+  makeQueue = result.catch(() => {});
+  return result;
+}
+
 /** "Lobi 3" or "W2". */
 export function roomLabel(room: RefereeRoom): string {
   if (room.kind === "qualifier") return `Lobi ${room.lobby_number ?? "?"}`;
@@ -101,9 +118,12 @@ export function useRefereeRoom(matchId: string) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [options, setOptions] = useState<RoomOptions>({ scoreMode: 3, noFail: true, autoTeams: true });
+  const [options, setOptions] = useState<RoomOptions>(() => matchSettings.get(matchId)?.options ?? DEFAULT_OPTIONS);
   // Finished maps the referee doesn't count (warmups, replays), by index.
-  const [ignored, setIgnored] = useState<Set<number>>(new Set());
+  const [ignored, setIgnored] = useState<Set<number>>(() => matchSettings.get(matchId)?.ignored ?? new Set());
+  useEffect(() => {
+    matchSettings.set(matchId, { options, ignored });
+  }, [matchId, options, ignored]);
   // Each room's saved chat, by room id.
   const [saved, setSaved] = useState<Map<number, SavedChat>>(new Map());
 
@@ -117,8 +137,6 @@ export function useRefereeRoom(matchId: string) {
   }, [matchId]);
 
   useEffect(() => {
-    setRoom(null);
-    setIgnored(new Set());
     reload();
   }, [reload]);
 
@@ -224,22 +242,21 @@ export function useRefereeRoom(matchId: string) {
     if (!conversation?.joined) join(channel);
   }, [status, channel, concluded, conversation?.joined, join]);
 
-  // Puts bracket players on their team's colour as they join.
-  const autoTeams = room?.kind === "bracket" && canRun && options.autoTeams;
-  const autoRef = useRef({ autoTeams, roster, channel, say });
-  autoRef.current = { autoTeams, roster, channel, say };
+  // Puts bracket players on their team's colour as they join, also while the referee
+  // is on another match (see autoTeams.ts). Replaced rooms stop.
+  const autoTeams = room?.kind === "bracket" && canRun && !concluded && options.autoTeams;
+  useEffect(() => {
+    for (const r of rooms.slice(0, -1)) unregisterAutoTeams(`#mp_${r.mp_id}`);
+    if (!channel) return;
+    if (!autoTeams) return unregisterAutoTeams(channel);
+    registerAutoTeams(
+      channel,
+      roster.flatMap((r) =>
+        r.color ? [{ osuId: r.player.osu_id, username: r.player.username, color: r.color }] : [],
+      ),
+    );
+  }, [rooms, channel, autoTeams, roster]);
   const { onMessage } = irc;
-  useEffect(
-    () =>
-      onMessage((msg) => {
-        const { autoTeams, roster, channel, say } = autoRef.current;
-        if (!autoTeams || msg.from !== BANCHO_BOT || !channel || !sameName(msg.target, channel)) return;
-        const joined = parseJoined(msg.text);
-        const r = joined && roster.find((p) => sameName(p.player.username, joined.username));
-        if (joined && r?.color && joined.team !== r.color) say(`!mp team ${playerRef(r.player.osu_id)} ${r.color}`);
-      }),
-    [onMessage],
-  );
 
   async function run(action: () => Promise<void>) {
     setBusy(true);
@@ -267,28 +284,31 @@ export function useRefereeRoom(matchId: string) {
 
   // Asks BanchoBot for a tournament room and waits for the room id in its reply.
   function makeRoom(name: string): Promise<number> {
-    return new Promise((resolve, reject) => {
-      const off = onMessage((msg) => {
-        if (msg.from !== BANCHO_BOT || isChannel(msg.target)) return;
-        const created = parseCreated(msg.text);
-        if (created) {
-          done();
-          resolve(created.mpId);
-        } else if (/cannot create/i.test(msg.text)) {
-          done();
-          reject(new Error(msg.text));
-        }
-      });
-      const timer = window.setTimeout(() => {
-        done();
-        reject(new Error("BanchoBot cevap vermedi. Sohbette ne dediğine bak."));
-      }, CREATE_TIMEOUT_MS);
-      function done() {
-        off();
-        window.clearTimeout(timer);
-      }
-      irc.send(BANCHO_BOT, `!mp make ${name}`);
-    });
+    return oneAtATime(
+      () =>
+        new Promise((resolve, reject) => {
+          const off = onMessage((msg) => {
+            if (msg.from !== BANCHO_BOT || isChannel(msg.target)) return;
+            const created = parseCreated(msg.text);
+            if (created) {
+              done();
+              resolve(created.mpId);
+            } else if (/cannot create/i.test(msg.text)) {
+              done();
+              reject(new Error(msg.text));
+            }
+          });
+          const timer = window.setTimeout(() => {
+            done();
+            reject(new Error("BanchoBot cevap vermedi. Sohbette ne dediğine bak."));
+          }, CREATE_TIMEOUT_MS);
+          function done() {
+            off();
+            window.clearTimeout(timer);
+          }
+          irc.send(BANCHO_BOT, `!mp make ${name}`);
+        }),
+    );
   }
 
   const actions = {
