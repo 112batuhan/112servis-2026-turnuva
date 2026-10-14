@@ -4,6 +4,7 @@
 //! functions take `&PgPool` and return typed rows, surfacing failures as `sqlx::Error`.
 pub mod admin;
 pub mod bracket;
+pub mod chat;
 pub mod dev;
 pub mod mappool;
 pub mod matches;

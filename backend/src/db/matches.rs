@@ -2,10 +2,11 @@ use sqlx::{PgConnection, PgExecutor, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::team::Player;
+use super::{bracket::Side, team::Player};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, sqlx::Type)]
 #[sqlx(type_name = "match_kind", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum MatchKind {
     Qualifier,
     Bracket,
@@ -68,6 +69,30 @@ impl LobbyLock {
 pub struct EntryRow {
     pub team_id: Uuid,
     pub match_id: Uuid,
+}
+
+// A match as the referee page shows it. The bracket_* fields are null for
+// qualifiers and lobby_number is null for bracket matches. The stage is the bracket
+// match's own, or the qualifier stage for a lobby.
+#[derive(Debug, sqlx::FromRow)]
+pub struct RoomRow {
+    pub id: Uuid,
+    pub kind: MatchKind,
+    pub starts_at: Option<OffsetDateTime>,
+    pub mp_id: Option<i64>,
+    pub referee_notes: String,
+    pub concluded_at: Option<OffsetDateTime>,
+    #[sqlx(flatten)]
+    pub referee: RefereeColumns,
+    pub side: Option<Side>,
+    pub number: Option<i32>,
+    pub team1_id: Option<Uuid>,
+    pub team2_id: Option<Uuid>,
+    pub team1_score: Option<i32>,
+    pub team2_score: Option<i32>,
+    pub lobby_number: Option<i64>,
+    pub stage_id: Option<Uuid>,
+    pub stage_name: Option<String>,
 }
 
 // Every qualifier lobby, earliest first.
@@ -204,6 +229,37 @@ pub async fn delete_entry(ex: impl PgExecutor<'_>, team_id: Uuid) -> sqlx::Resul
 pub async fn find_match(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchState>> {
     sqlx::query_as::<_, MatchState>(
         "SELECT kind, referee_id, mp_id, concluded_at FROM matches WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
+}
+
+// Lobbies are numbered in the order list_lobbies returns them.
+pub async fn find_room(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<RoomRow>> {
+    sqlx::query_as::<_, RoomRow>(
+        r#"
+        SELECT m.id, m.kind, m.starts_at, m.mp_id, m.referee_notes, m.concluded_at,
+               u.id AS referee_id, u.osu_id AS referee_osu_id,
+               u.username AS referee_username, u.avatar_url AS referee_avatar_url,
+               d.discord_id AS referee_discord_id, d.username AS referee_discord_username,
+               b.side, b.number, b.team1_id, b.team2_id, b.team1_score, b.team2_score,
+               CASE WHEN m.kind = 'qualifier' THEN
+                   (SELECT count(*) FROM matches q
+                    WHERE q.kind = 'qualifier'
+                      AND (q.starts_at, q.created_at) <= (m.starts_at, m.created_at))
+               END AS lobby_number,
+               st.id AS stage_id, st.name AS stage_name
+        FROM matches m
+        LEFT JOIN bracket_matches b ON b.match_id = m.id
+        LEFT JOIN osu_users u ON u.id = m.referee_id
+        LEFT JOIN discord_accounts d ON d.osu_user_id = u.id
+        LEFT JOIN stages st ON st.id = CASE
+            WHEN m.kind = 'qualifier' THEN (SELECT s.id FROM stages s WHERE s.is_qualifier)
+            ELSE b.stage_id
+        END
+        WHERE m.id = $1
+        "#,
     )
     .bind(id)
     .fetch_optional(pool)

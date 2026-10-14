@@ -8,6 +8,8 @@ import { AdminIndexRedirect, AdminLayout } from "./pages/admin/AdminLayout";
 import { BracketAdminPage } from "./pages/admin/bracket/BracketAdminPage";
 import { MapPoolEditorPage } from "./pages/admin/mappool/MapPoolEditorPage";
 import { QualifiersAdminPage } from "./pages/admin/QualifiersAdminPage";
+import { RefereeListPage } from "./pages/admin/referee/RefereeListPage";
+import { RefereeRoomPage } from "./pages/admin/referee/RefereeRoomPage";
 import { StagesAdminPage } from "./pages/admin/StagesAdminPage";
 import { TeamsAdminPage } from "./pages/admin/TeamsAdminPage";
 import { UsersPage } from "./pages/admin/UsersPage";
@@ -80,6 +82,14 @@ export function App() {
               element={<RequireAuth minRole="referee" redirect="/admin"><QualifiersAdminPage /></RequireAuth>}
             />
             <Route path="bracket" element={<BracketAdminPage />} />
+            <Route
+              path="referee"
+              element={<RequireAuth minRole="referee" redirect="/admin"><RefereeListPage /></RequireAuth>}
+            />
+            <Route
+              path="referee/:matchId"
+              element={<RequireAuth minRole="referee" redirect="/admin"><RefereeRoomPage /></RequireAuth>}
+            />
             <Route
               path="users"
               element={<RequireAuth minRole="host" redirect="/admin"><UsersPage /></RequireAuth>}

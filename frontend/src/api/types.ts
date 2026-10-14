@@ -304,3 +304,49 @@ export interface DevAccount {
   in_team: boolean;
   discord_linked: boolean;
 }
+
+export type MatchKind = "qualifier" | "bracket";
+
+/** GET /api/matches/:id/room: what the referee page shows about a match. */
+export interface RefereeRoom {
+  id: string;
+  kind: MatchKind;
+  /** Bracket matches only (W1, L3). */
+  side: BracketSide | null;
+  number: number | null;
+  /** Qualifiers only: the lobby's place by start time. */
+  lobby_number: number | null;
+  starts_at: string | null;
+  referee: MatchReferee | null;
+  mp_id: number | null;
+  mp_url: string | null;
+  referee_notes: string;
+  concluded_at: string | null;
+  /** Bracket matches only: the teams playing red (1) and blue (2). */
+  team1_id: string | null;
+  team2_id: string | null;
+  team1_score: number | null;
+  team2_score: number | null;
+  /** A bracket match's teams, or a lobby's in signup order. */
+  teams: Team<AdminTeamPlayer>[];
+  /** The map pool it's played in, published or not. */
+  stage: { id: string; name: string } | null;
+  categories: Category[];
+  slots: PublicSlot[];
+  maps: PublicPoolMap[];
+}
+
+export interface RoomChatMessage {
+  id: number;
+  sent_at: string;
+  sender: string;
+  text: string;
+  /** A /me line. */
+  action: boolean;
+}
+
+/** GET /api/matches/:id/chat: what was said in the match's room channel, oldest first. */
+export interface RoomChat {
+  mp_id: number | null;
+  messages: RoomChatMessage[];
+}

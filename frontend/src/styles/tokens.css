@@ -38,6 +38,12 @@
 
   --color-focus: #ffb3d6;
 
+  /* osu! multiplayer team colours */
+  --color-team-red: #f2666e;
+  --color-team-red-soft: rgba(242, 102, 110, 0.14);
+  --color-team-blue: #5ea8ff;
+  --color-team-blue-soft: rgba(94, 168, 255, 0.14);
+
   /* outlines text drawn over user images, which can be any colour */
   --color-text-outline: #000000;
 

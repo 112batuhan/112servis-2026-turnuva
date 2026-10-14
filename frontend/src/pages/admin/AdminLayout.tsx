@@ -3,6 +3,7 @@ import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import type { Role } from "../../api/types";
 import { useSignedInUser } from "../../auth/AuthContext";
 import { hasRole } from "../../auth/roles";
+import { IrcProvider } from "../../irc/IrcContext";
 import { readString, writeString } from "../../lib/storage";
 import "./AdminLayout.css";
 
@@ -13,6 +14,7 @@ const TABS: { path: string; label: string; minRole: Role }[] = [
   { path: "/admin/mappool", label: "Mappool", minRole: "map_pooler" },
   { path: "/admin/qualifiers", label: "Elemeler", minRole: "referee" },
   { path: "/admin/bracket", label: "Bracket", minRole: "streamer" },
+  { path: "/admin/referee", label: "Hakem", minRole: "referee" },
   { path: "/admin/users", label: "Kullanıcılar", minRole: "host" },
   { path: "/admin/teams", label: "Takımlar", minRole: "host" },
 ];
@@ -40,7 +42,10 @@ export function AdminLayout() {
           </NavLink>
         ))}
       </nav>
-      <Outlet />
+      {/* Here rather than on the referee page, so the Bancho connection outlives tab switches. */}
+      <IrcProvider>
+        <Outlet />
+      </IrcProvider>
     </div>
   );
 }

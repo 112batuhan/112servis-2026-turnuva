@@ -1,0 +1,71 @@
+.referee-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.referee-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+}
+
+.referee-back {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.referee-title {
+  font-size: var(--text-xl);
+}
+
+.referee-title-teams {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.referee-meta {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Teams | room + chat | pool. The middle column takes what's left. */
+.referee-grid {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr) 340px;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.referee-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.referee-main .chat-panel {
+  height: 480px;
+}
+
+@media (max-width: 1200px) {
+  .referee-grid {
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+
+  .referee-grid > :last-child {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 800px) {
+  .referee-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* The room and chat come first on a phone. */
+  .referee-main {
+    order: -1;
+  }
+}

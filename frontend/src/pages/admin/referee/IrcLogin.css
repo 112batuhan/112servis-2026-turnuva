@@ -1,0 +1,48 @@
+.irc-login {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+}
+
+.irc-login .input {
+  width: 180px;
+}
+
+.irc-login-title {
+  font-weight: 600;
+  margin-right: var(--space-2);
+}
+
+.irc-login-remember {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+}
+
+.irc-login-help {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.irc-login-error {
+  flex-basis: 100%;
+  color: var(--color-danger);
+}
+
+.irc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-success);
+}
+
+.irc-login.is-online button {
+  margin-left: auto;
+}

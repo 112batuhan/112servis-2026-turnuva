@@ -30,3 +30,11 @@ export function readJson<T>(key: string, fallback: T): T {
 export function writeJson(key: string, value: unknown) {
   writeString(key, JSON.stringify(value));
 }
+
+export function removeString(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
+}

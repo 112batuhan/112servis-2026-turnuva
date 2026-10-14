@@ -40,6 +40,8 @@ pub struct AppState {
     pub osu_app_token: Arc<Mutex<Option<osu_api::token::OsuAppToken>>>,
     // Held while every team member's rank is being refreshed.
     pub rank_refresh_lock: Arc<tokio::sync::Mutex<()>>,
+    // Which IRC relay connection saves each multiplayer room's chat.
+    pub chat_loggers: handlers::irc::ChatLoggers,
 }
 
 #[tokio::main]
@@ -82,6 +84,7 @@ async fn main() {
         config: Arc::clone(&config),
         osu_app_token: Arc::new(Mutex::new(None)),
         rank_refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
+        chat_loggers: handlers::irc::ChatLoggers::default(),
     };
     rank_refresh::spawn_daily_refresh(state.clone());
 
@@ -108,6 +111,8 @@ async fn main() {
         .merge(handlers::mappool::routes())
         .merge(handlers::matches::routes())
         .merge(handlers::bracket::routes())
+        .merge(handlers::referee::routes())
+        .merge(handlers::irc::routes())
         .merge(handlers::team::routes());
     if config.dev_login {
         tracing::warn!("DEV_LOGIN is on: anyone can sign in as any account via /api/dev");

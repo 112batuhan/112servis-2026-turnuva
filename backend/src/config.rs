@@ -40,6 +40,11 @@ pub struct Config {
     #[arg(long, env = "DISCORD_REDIRECT_URI")]
     pub discord_redirect_uri: String,
 
+    /// Bancho's IRC server, which the referee page's chat relay connects to.
+    /// cho.ppy.sh:6667 is an alternative if irc.ppy.sh doesn't work.
+    #[arg(long, env = "BANCHO_IRC_ADDR", default_value = "irc.ppy.sh:6667")]
+    pub bancho_irc_addr: String,
+
     /// Enables /api/dev/* (sign in as any account, seed dummy data). Local testing only;
     /// the server refuses to start with it over https.
     #[arg(long, env = "DEV_LOGIN", default_value_t = false, action = clap::ArgAction::Set)]

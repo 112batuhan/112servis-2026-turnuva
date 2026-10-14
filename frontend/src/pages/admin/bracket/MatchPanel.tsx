@@ -264,6 +264,9 @@ export function MatchPanel({
 
       {canRun && (
         <div className="match-panel-actions">
+          <Link to={`/admin/referee/${match.id}`} className="btn btn-secondary btn-sm">
+            Hakem odası
+          </Link>
           {!concluded && (
             <button
               type="button"

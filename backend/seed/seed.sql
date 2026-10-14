@@ -392,3 +392,57 @@ BEGIN
           WHERE tm.user_id = s.id AND tm.team_id IN (b.team1_id, b.team2_id)
       );
 END $$;
+
+-- A room chat for W1, so the referee page has a concluded match with a log to show.
+-- Team 1 plays red and takes five maps to blue's three, like the seeded 5-3.
+WITH w1 AS (
+    SELECT m.mp_id, m.starts_at AS t0, b.team1_id, b.team2_id, r.username AS referee
+    FROM bracket_matches b
+    JOIN matches m ON m.id = b.match_id
+    LEFT JOIN osu_users r ON r.id = m.referee_id
+    WHERE b.side = 'winners' AND b.number = 1 AND m.mp_id IS NOT NULL
+),
+players AS (
+    SELECT u.username, tm.team_id = w1.team1_id AS red,
+           row_number() OVER (ORDER BY tm.team_id = w1.team1_id DESC, u.username) AS slot
+    FROM w1
+    JOIN team_members tm ON tm.team_id IN (w1.team1_id, w1.team2_id)
+    JOIN osu_users u ON u.id = tm.user_id
+),
+lines (at, sender, text) AS (
+    SELECT interval '20 seconds' * p.slot, 'BanchoBot',
+           p.username || ' joined in slot ' || p.slot || ' for team '
+               || CASE WHEN p.red THEN 'red' ELSE 'blue' END || '.'
+    FROM players p
+    UNION ALL
+    SELECT interval '2 minutes', COALESCE(w1.referee, 'BanchoBot'), 'glhf! İlk pick kırmızı takımda.'
+    FROM w1
+    UNION ALL
+    SELECT interval '3 minutes' + (k - 1) * interval '6 minutes', 'BanchoBot',
+           'Changed beatmap to https://osu.ppy.sh/b/' || (4000000 + k)
+               || ' Seed Artist - Map ' || k || ' [Tournament]'
+    FROM generate_series(1, 8) k
+    UNION ALL
+    SELECT interval '3 minutes 30 seconds' + (k - 1) * interval '6 minutes', 'BanchoBot',
+           'The match has started!'
+    FROM generate_series(1, 8) k
+    UNION ALL
+    SELECT interval '7 minutes' + (k - 1) * interval '6 minutes' + p.slot * interval '1 second',
+           'BanchoBot',
+           p.username || ' finished playing (Score: '
+               || CASE WHEN p.red = (k NOT IN (2, 4, 6)) THEN 700000 ELSE 450000 END
+                  + p.slot * 13579 + k * 2468
+               || ', PASSED).'
+    FROM generate_series(1, 8) k, players p
+    UNION ALL
+    SELECT interval '7 minutes 10 seconds' + (k - 1) * interval '6 minutes', 'BanchoBot',
+           'The match has finished!'
+    FROM generate_series(1, 8) k
+    UNION ALL
+    SELECT interval '52 minutes' + p.slot * interval '2 seconds', p.username, 'gg'
+    FROM players p
+)
+INSERT INTO room_chat_messages (mp_id, sent_at, sender, text)
+SELECT w1.mp_id, w1.t0 + l.at, l.sender, l.text
+FROM w1, lines l
+ORDER BY l.at;

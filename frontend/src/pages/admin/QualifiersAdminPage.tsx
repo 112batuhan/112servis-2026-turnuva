@@ -266,6 +266,9 @@ function StaffLobbyCard({
                 Lobiyi sil
               </button>
             )}
+            <Link to={`/admin/referee/${lobby.id}`} className="btn btn-secondary btn-sm">
+              Hakem odası
+            </Link>
             {canRun && !concluded && (
               <button
                 type="button"
