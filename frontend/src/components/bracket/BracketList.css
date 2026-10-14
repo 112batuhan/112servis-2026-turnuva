@@ -13,10 +13,12 @@
   width: 100%;
 }
 
+/* Scrolls inside a frame as tall as the grid's, so the page header above stays in view. */
 .bracket-list-scroll {
   align-self: stretch;
   max-width: 100%;
-  overflow-x: auto;
+  max-height: clamp(520px, 75vh, 1000px);
+  overflow: auto;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
 }
@@ -36,6 +38,9 @@
 }
 
 .bracket-list thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   background: var(--color-surface-raised);
   color: var(--color-text-muted);
   font-size: var(--text-xs);
@@ -50,7 +55,17 @@
   background: var(--color-primary-soft);
 }
 
-.bracket-list tbody tr.is-selected {
+.bracket-list tbody tr.is-selectable {
+  cursor: pointer;
+}
+
+/* On the cells, so the translucent hover sits on top of the row's background. */
+.bracket-list tbody tr.is-selectable:hover > * {
+  background: var(--color-hover);
+}
+
+/* On the first cell, so the hover's cell backgrounds don't cover it. */
+.bracket-list tbody tr.is-selected > :first-child {
   box-shadow: inset 3px 0 0 var(--color-primary);
 }
 

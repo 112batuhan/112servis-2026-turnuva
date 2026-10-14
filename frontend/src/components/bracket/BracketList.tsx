@@ -33,6 +33,9 @@ const SIDE_FILTERS: { value: SideFilter; label: string }[] = [
 
 const SIDE_FILTER_KEY = "bracket-list-side";
 
+/** Clicks on these keep their own meaning instead of selecting the row's match. */
+const ROW_CONTROLS = "a, button, input, select, textarea, label";
+
 interface Props<M extends BracketMatch> {
   matches: M[];
   teams: Map<string, Team>;
@@ -157,11 +160,28 @@ export function BracketList<M extends BracketMatch>({
                       const mine =
                         viewerId !== undefined && (m.referee?.id === viewerId || m.streamer?.id === viewerId);
                       const playing = myTeamId != null && (m.team1_id === myTeamId || m.team2_id === myTeamId);
-                      const classes = [m.id === selectedId && "is-selected", (mine || playing) && "is-mine"]
+                      const classes = [
+                        m.id === selectedId && "is-selected",
+                        (mine || playing) && "is-mine",
+                        onSelect && "is-selectable",
+                      ]
                         .filter(Boolean)
                         .join(" ");
                       return (
-                        <tr key={m.id} className={classes}>
+                        <tr
+                          key={m.id}
+                          className={classes}
+                          // A click anywhere in the row selects the match, except on its own controls; the
+                          // code stays a button so the keyboard can reach it.
+                          onClick={
+                            onSelect &&
+                            ((e) => {
+                              if ((e.target as Element).closest(ROW_CONTROLS)) return;
+                              if (window.getSelection()?.toString()) return;
+                              onSelect(m.id);
+                            })
+                          }
+                        >
                           <th scope="row">
                             {onSelect ? (
                               <button
