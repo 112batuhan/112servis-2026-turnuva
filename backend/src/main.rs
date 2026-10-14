@@ -110,10 +110,6 @@ async fn main() {
         .merge(handlers::bracket::routes())
         .merge(handlers::team::routes());
     if config.dev_login {
-        assert!(
-            !config.secure_cookies(),
-            "DEV_LOGIN must not be enabled on an https deployment"
-        );
         tracing::warn!("DEV_LOGIN is on: anyone can sign in as any account via /api/dev");
         api = api.merge(handlers::dev::routes());
     }

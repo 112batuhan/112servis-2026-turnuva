@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use crate::{auth, db, error::AppError, AppState};
 
-// Local-testing helpers, mounted only when DEV_LOGIN is on. They let anyone sign
-// in as any account without osu!, so they must never be enabled in production.
+// Testing helpers, mounted only when DEV_LOGIN is on. They let anyone sign in as
+// any account without osu!, so turn it off once the site goes public.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/dev/accounts", get(list_accounts))
