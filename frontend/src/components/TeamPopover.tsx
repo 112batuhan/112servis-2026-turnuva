@@ -11,6 +11,7 @@ import {
   type SyntheticEvent,
 } from "react";
 import { createPortal } from "react-dom";
+import { useLocation } from "react-router-dom";
 import type { Team } from "../api/types";
 import { TeamCard } from "./TeamCard";
 import "./TeamPopover.css";
@@ -34,7 +35,7 @@ const stop = (e: SyntheticEvent) => e.stopPropagation();
  * A team's name that opens its `TeamCard` when clicked (or Enter/Space), e.g. to reach the
  * players' osu! profiles. The card is rendered into `document.body` with fixed positioning, so it
  * isn't clipped or scaled by the bracket board. It closes on another click on the name, a click
- * outside it, Escape, or anything that scrolls the name away from it.
+ * outside it, Escape, anything that scrolls the name away from it, or following a link in it.
  */
 export function TeamPopover({ team, className, children }: Props) {
   const triggerRef = useRef<HTMLSpanElement>(null);
@@ -47,6 +48,10 @@ export function TeamPopover({ team, className, children }: Props) {
     setPosition(null);
     if (refocus) triggerRef.current?.focus();
   }, []);
+
+  // A match in the card's history links to the bracket, which may be the page it's on.
+  const { pathname, search } = useLocation();
+  useEffect(() => hide(), [pathname, search, hide]);
 
   const toggle = () => (open ? hide() : setOpen(true));
 

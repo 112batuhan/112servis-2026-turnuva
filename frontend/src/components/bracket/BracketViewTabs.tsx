@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { readString, writeString } from "../../lib/storage";
 import { Icon, type IconName } from "../Icon";
 import "./BracketViewTabs.css";
@@ -23,6 +24,29 @@ export function useBracketView(key: string) {
     writeString(storageKey, next);
   };
   return [view, select] as const;
+}
+
+/**
+ * Calls `onLinked` with the match a link opened the page on (`?match=<id>`, see
+ * `bracketMatchPath`), then drops the parameter so the same link works again later.
+ */
+export function useLinkedMatch(onLinked: (id: string) => void) {
+  const [params, setParams] = useSearchParams();
+  const id = params.get("match");
+  const onLinkedRef = useRef(onLinked);
+  onLinkedRef.current = onLinked;
+
+  useEffect(() => {
+    if (!id) return;
+    onLinkedRef.current(id);
+    setParams(
+      (p) => {
+        p.delete("match");
+        return p;
+      },
+      { replace: true },
+    );
+  }, [id, setParams]);
 }
 
 /** Whether match times show as a countdown, remembered per browser under `key`. */

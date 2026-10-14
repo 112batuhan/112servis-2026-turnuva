@@ -12,6 +12,7 @@ import {
   CountdownToggle,
   useBracketView,
   useCountdownMode,
+  useLinkedMatch,
 } from "../components/bracket/BracketViewTabs";
 import { ErrorAlert } from "../components/ErrorAlert";
 
@@ -34,6 +35,14 @@ export function BracketPage() {
     setCalendarFocus(id);
     setView("calendar");
   };
+  // The match a team's match history linked to, which the grid centres on.
+  const [gridFocus, setGridFocus] = useState<{ id: string } | null>(null);
+  useLinkedMatch((id) => {
+    setSelectedId(id);
+    setCalendarFocus(null);
+    setView("grid");
+    setGridFocus({ id });
+  });
 
   const reload = useCallback(async () => setData(await fetchPublicBracket()), []);
 
@@ -56,7 +65,7 @@ export function BracketPage() {
   return (
     <div className="page">
       <div className="page-header">
-        <h1>Bracket</h1>
+        <h1>Maçlar</h1>
         {data && <span className="badge">{data.matches.length} maç</span>}
         {data && data.matches.length > 0 && (
           <div className="page-header-aside">
@@ -73,7 +82,13 @@ export function BracketPage() {
       {data && data.matches.length > 0 && (
         <>
           {view === "grid" && (
-            <BracketGrid {...shared} onSelect={setSelectedId} onShowInCalendar={showInCalendar} countdown={countdown} />
+            <BracketGrid
+              {...shared}
+              centerOn={gridFocus}
+              onSelect={setSelectedId}
+              onShowInCalendar={showInCalendar}
+              countdown={countdown}
+            />
           )}
           {view === "list" && <BracketList {...shared} onShowInCalendar={showInCalendar} countdown={countdown} />}
           {view === "calendar" && <BracketCalendar {...shared} focusId={calendarFocus} />}

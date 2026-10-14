@@ -61,6 +61,8 @@ interface Props {
   /** Marks the matches this user referees or streams. */
   viewerId?: string;
   selectedId?: string | null;
+  /** Centres the view on this match at 100%, again each time a new object is passed. */
+  centerOn?: { id: string } | null;
   onSelect?: (id: string | null) => void;
   /** Turns on dragging, keyboard nudging and adding matches. */
   editable?: boolean;
@@ -96,6 +98,7 @@ export function BracketGrid({
   myTeamId,
   viewerId,
   selectedId,
+  centerOn,
   onSelect,
   editable,
   onMove,
@@ -177,8 +180,22 @@ export function BracketGrid({
     setView({ scale, x: w / 2 - ((minX + maxX) / 2) * scale, y: h / 2 - ((minY + maxY) / 2) * scale });
   }, [matches]);
 
-  // Opens recentered once there's something to show.
+  // Opens recentered once there's something to show, unless it opens on a linked match.
   const fitted = useRef(false);
+  const centered = useRef<{ id: string } | null>(null);
+  useLayoutEffect(() => {
+    const frame = viewportRef.current;
+    const m = centerOn && matches.find((m) => m.id === centerOn.id);
+    if (!frame || !m || centered.current === centerOn) return;
+    centered.current = centerOn;
+    fitted.current = true;
+    setView({
+      scale: 1,
+      x: frame.clientWidth / 2 - px(m.pos_x) - CARD_W / 2,
+      y: frame.clientHeight / 2 - py(m.pos_y) - CARD_H / 2,
+    });
+  }, [centerOn, matches]);
+
   useLayoutEffect(() => {
     if (fitted.current || matches.length === 0) return;
     fitted.current = true;

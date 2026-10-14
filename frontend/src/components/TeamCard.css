@@ -17,6 +17,7 @@
 
 .team-card {
   --player-chip-avatar: 56px;
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -163,4 +164,86 @@
   margin-top: auto;
   padding-top: var(--space-3);
   border-top: 1px solid var(--color-border);
+}
+
+/* On the banner's top right corner, readable on any image. */
+.team-card-matches-toggle {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--control-height-sm);
+  padding: 0 var(--space-3);
+  color: var(--color-text);
+  background: var(--color-scrim-control);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.team-card-matches-toggle:hover {
+  border-color: var(--color-primary);
+}
+
+/* The overlay has its own close button where this one would show through the blur. */
+.team-card-matches-toggle[aria-expanded="true"] {
+  visibility: hidden;
+}
+
+/* The card stays where it is, blurred and darkened behind its matches. */
+.team-card.is-showing-matches > :not(.team-card-matches) {
+  filter: blur(6px);
+  pointer-events: none;
+  user-select: none;
+}
+
+.team-card-matches {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--color-scrim);
+  animation: team-card-matches-in var(--duration-normal) var(--ease-out);
+}
+
+.team-card-matches:focus {
+  outline: none;
+}
+
+.team-card-matches-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.team-card-matches-header h3 {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: var(--text-lg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@keyframes team-card-matches-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .team-card-matches {
+    animation: none;
+  }
 }

@@ -61,7 +61,7 @@ export function NavBar() {
               Elemeler
             </NavLink>
             <NavLink to="/bracket" className={linkClass}>
-              Bracket
+              Maçlar
             </NavLink>
             {canPlay(user) && (
               <NavLink to="/team" className={linkClass}>

@@ -1,11 +1,14 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { API_URL } from "../api/client";
 import type { Player, Team } from "../api/types";
 import { RANK_WARNING_LABELS } from "../lib/eligibility";
 import { formatTeamValue, TEAM_NAME_MAX } from "../lib/format";
 import { teamAnchorId } from "../lib/teamLink";
+import { Icon } from "./Icon";
+import { IconButton } from "./IconButton";
 import { InlineEdit } from "./InlineEdit";
 import { PlayerChip } from "./PlayerChip";
+import { TeamMatches } from "./TeamMatches";
 import "./TeamCard.css";
 
 interface Props<P extends Player> {
@@ -19,6 +22,8 @@ interface Props<P extends Player> {
   actions?: ReactNode;
   /** Marks the team someone was linked to. */
   highlight?: boolean;
+  /** Adds a button that shows the team's next match and match history over the card. */
+  showMatches?: boolean;
 }
 
 export function TeamCard<P extends Player>({
@@ -28,12 +33,47 @@ export function TeamCard<P extends Player>({
   onRename,
   actions,
   highlight,
+  showMatches = true,
 }: Props<P>) {
-  const classes = ["team-card", team.rank_warning && "is-warning", highlight && "is-target"].filter(Boolean).join(" ");
+  const [matchesOpen, setMatchesOpen] = useState(false);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const classes = [
+    "team-card",
+    team.rank_warning && "is-warning",
+    highlight && "is-target",
+    matchesOpen && "is-showing-matches",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  // Focus follows the overlay in and back out to the button that opened it.
+  useEffect(() => {
+    if (matchesOpen) overlayRef.current?.focus({ preventScroll: true });
+  }, [matchesOpen]);
+
+  const closeMatches = () => {
+    setMatchesOpen(false);
+    toggleRef.current?.focus({ preventScroll: true });
+  };
+
   return (
     <article id={teamAnchorId(team.id)} className={classes}>
-      <div className="team-card-banner">
+      <div className="team-card-banner" aria-hidden={matchesOpen || undefined}>
         {team.banner_url && <img src={`${API_URL}${team.banner_url}`} alt="" />}
+        {showMatches && (
+          <button
+            ref={toggleRef}
+            type="button"
+            className="team-card-matches-toggle"
+            aria-expanded={matchesOpen}
+            tabIndex={matchesOpen ? -1 : undefined}
+            onClick={() => setMatchesOpen(true)}
+          >
+            <Icon name="bracket" size={14} />
+            Maçlar
+          </button>
+        )}
         <div className="team-card-title">
           {position !== undefined && <span className="team-card-position">#{position}</span>}
           <h3 className="team-card-name">
@@ -45,7 +85,7 @@ export function TeamCard<P extends Player>({
           </h3>
         </div>
       </div>
-      <div className="team-card-body">
+      <div className="team-card-body" aria-hidden={matchesOpen || undefined}>
         <div className="team-card-value">
           <span className="team-card-value-label">Hesaplanan rank</span>
           <span className="team-card-value-number">{formatTeamValue(team.team_value)}</span>
@@ -60,7 +100,32 @@ export function TeamCard<P extends Player>({
           ))}
         </ul>
       </div>
-      {actions && <div className="team-card-actions">{actions}</div>}
+      {actions && (
+        <div className="team-card-actions" aria-hidden={matchesOpen || undefined}>
+          {actions}
+        </div>
+      )}
+      {matchesOpen && (
+        <div
+          ref={overlayRef}
+          className="team-card-matches"
+          role="region"
+          aria-label={`${team.name} maçları`}
+          tabIndex={-1}
+          onKeyDown={(e) => {
+            if (e.key !== "Escape") return;
+            // Only the overlay closes, not a popover the card is in.
+            e.stopPropagation();
+            closeMatches();
+          }}
+        >
+          <div className="team-card-matches-header">
+            <h3>{team.name}</h3>
+            <IconButton icon="close" label="Maçları kapat" onClick={closeMatches} />
+          </div>
+          <TeamMatches teamId={team.id} />
+        </div>
+      )}
     </article>
   );
 }

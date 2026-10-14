@@ -5,6 +5,11 @@ export function matchCode(m: Pick<BracketMatch, "side" | "number">): string {
   return `${m.side === "winners" ? "W" : "L"}${m.number}`;
 }
 
+/** Opens the bracket's grid on a match (`?match=`, read by `useLinkedMatch`): the admin bracket or the public one. */
+export function bracketMatchPath(matchId: string, admin: boolean): string {
+  return `${admin ? "/admin/bracket" : "/bracket"}?match=${matchId}`;
+}
+
 export const SIDE_LABELS: Record<BracketSide, string> = {
   winners: "Winners",
   losers: "Losers",

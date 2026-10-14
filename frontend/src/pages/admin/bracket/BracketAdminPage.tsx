@@ -15,6 +15,7 @@ import {
   CountdownToggle,
   useBracketView,
   useCountdownMode,
+  useLinkedMatch,
 } from "../../../components/bracket/BracketViewTabs";
 import { RefereeRoomLink } from "../../../components/bracket/RefereeRoomLink";
 import { ErrorAlert } from "../../../components/ErrorAlert";
@@ -44,6 +45,14 @@ export function BracketAdminPage() {
     setCalendarFocus(id);
     setView("calendar");
   };
+  // The match a team's match history linked to, which the grid centres on.
+  const [gridFocus, setGridFocus] = useState<{ id: string } | null>(null);
+  useLinkedMatch((id) => {
+    setSelectedId(id);
+    setCalendarFocus(null);
+    setView("grid");
+    setGridFocus({ id });
+  });
   const [newSide, setNewSide] = useState<BracketSide>("winners");
   const [referees, setReferees] = useState<Player[]>([]);
   const [streamers, setStreamers] = useState<Player[]>([]);
@@ -81,7 +90,7 @@ export function BracketAdminPage() {
   return (
     <section className="panel bracket-admin">
       <div className="page-header">
-        <h1>Bracket</h1>
+        <h1>Maçlar</h1>
         {data && <span className="badge">{matches.length} maç</span>}
         {unrefereed > 0 && (
           <span className="badge badge-warning" title="Henüz hakemi olmayan maçlar">
@@ -146,6 +155,7 @@ export function BracketAdminPage() {
             {view === "grid" && (
               <BracketGrid
                 {...shared}
+                centerOn={gridFocus}
                 onSelect={setSelectedId}
                 editable={isHost}
                 onMove={editor.move}

@@ -51,6 +51,10 @@
   /* outlines text drawn over user images, which can be any colour */
   --color-text-outline: #000000;
 
+  /* darkens what's behind a layer drawn over it, e.g. a team card behind its matches */
+  --color-scrim: rgba(10, 11, 15, 0.7);
+  --color-scrim-control: rgba(10, 11, 15, 0.7);
+
   /* type */
   --font-sans: "Fira Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;

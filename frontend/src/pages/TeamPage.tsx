@@ -23,6 +23,7 @@ import { ErrorAlert } from "../components/ErrorAlert";
 import { PlayerChip } from "../components/PlayerChip";
 import { RoomLinks } from "../components/RoomLinks";
 import { TeamCard } from "../components/TeamCard";
+import { TeamMatches } from "../components/TeamMatches";
 import { ELIGIBILITY_LABELS, eligibilityBadgeClass } from "../lib/eligibility";
 import { BANNER_MAX_BYTES, formatMatchTime, formatRank, formatTeamValue, TEAM_NAME_MAX } from "../lib/format";
 import "./TeamPage.css";
@@ -115,19 +116,25 @@ export function TeamPage() {
           )}
 
           {status.team ? (
-            <section className="panel">
-              <h2>Takımın</h2>
-              {status.team.rank_warning && (
-                <p className="alert alert-error team-rank-warning" role="status">
-                  {status.team.rank_warning === "over_limit"
-                    ? `Bir rank güncellemesinden sonra takım değerin ${formatTeamValue(status.team.team_value)} oldu ve ${formatTeamValue(status.limit)} limitini aşıyor.`
-                    : "Birinizin artık global rank'ı yok, bu yüzden takım limite göre kontrol edilemiyor."}{" "}
-                  Bundan sonrasına host'lar karar verecek.
-                </p>
-              )}
-              <MyTeam team={status.team} frozen={frozen} busy={busy} run={run} onError={setError} />
-              <QualifierInfo teamId={status.team.id} onError={setError} />
-            </section>
+            <>
+              <section className="panel">
+                <h2>Takımın</h2>
+                {status.team.rank_warning && (
+                  <p className="alert alert-error team-rank-warning" role="status">
+                    {status.team.rank_warning === "over_limit"
+                      ? `Bir rank güncellemesinden sonra takım değerin ${formatTeamValue(status.team.team_value)} oldu ve ${formatTeamValue(status.limit)} limitini aşıyor.`
+                      : "Birinizin artık global rank'ı yok, bu yüzden takım limite göre kontrol edilemiyor."}{" "}
+                    Bundan sonrasına host'lar karar verecek.
+                  </p>
+                )}
+                <MyTeam team={status.team} frozen={frozen} busy={busy} run={run} onError={setError} />
+                <QualifierInfo teamId={status.team.id} onError={setError} />
+              </section>
+              <section className="panel">
+                <h2>Maçlar</h2>
+                <TeamMatches teamId={status.team.id} />
+              </section>
+            </>
           ) : (
             <>
               <InviteList
@@ -243,7 +250,7 @@ interface MyTeamProps {
 
 function MyTeam({ team, frozen, busy, run, onError }: MyTeamProps) {
   const fileInput = useRef<HTMLInputElement>(null);
-  if (frozen) return <TeamCard team={team} />;
+  if (frozen) return <TeamCard team={team} showMatches={false} />;
 
   function upload(file: File | undefined) {
     if (!file) return;
@@ -258,6 +265,7 @@ function MyTeam({ team, frozen, busy, run, onError }: MyTeamProps) {
     <>
       <TeamCard
         team={team}
+        showMatches={false}
         onRename={(name) => run(() => renameMyTeam(name))}
         actions={
           <>
