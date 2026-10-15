@@ -187,7 +187,7 @@
 
 /* Phones: every map lays out the same compact way. The slot code shares its row with the id and
    download controls, the preview button sits on the cover, the title, diff and mapper stack beside
-   the cover, and the stats and the note run the full width under it. The slot, its body and the
+   the cover, and the stat row (with the note at its end) runs the full width under it. The slot, its body and the
    card are flattened into one grid so the code and the controls can share the first row. */
 @media (max-width: 560px) {
   .pool-board.is-public .slot {
@@ -196,8 +196,7 @@
     grid-template-areas:
       "code . id download"
       "cover head head head"
-      "stats stats stats stats"
-      "note note note note";
+      "stats stats stats stats";
     align-items: center;
     gap: var(--space-2) var(--space-3);
   }
@@ -270,17 +269,9 @@
     text-overflow: ellipsis;
   }
 
-  .pool-board.is-public .map-stats {
+  .pool-board.is-public .map-stats-row {
     grid-area: stats;
     margin: 0;
-  }
-
-  /* Sits right under the stats, as one more line of the map's details rather than its own block. */
-  .pool-board.is-public .map-card-public-note {
-    grid-area: note;
-    margin-top: calc(-1 * var(--space-1));
-    font-size: var(--text-xs);
-    line-height: 1.4;
   }
 
   .pool-board.is-public .map-id {

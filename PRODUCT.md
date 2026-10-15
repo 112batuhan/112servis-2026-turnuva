@@ -40,7 +40,7 @@ A purpose-built site for this one tournament and its community, not a generic to
 
 - Sign-in only through osu! OAuth. Discord linking is required to invite or accept a teammate.
 - Terms used across the UI: stage, mappool, qualifier lobby (Elemeler), bracket match (W1, L3…), referee, streamer, host, map pooler, NM/HD/HR/DT/FM/TB mod categories.
-- Editor notes and referee notes never appear on public pages. Players' Discord accounts are staff-only. Referees' Discord accounts are public on purpose.
+- Editor notes and referee notes never appear on public pages. Players' Discord accounts are staff-only. Staff Discord accounts (hosts, map poolers, referees, streamers) are public on purpose, on the `/staff` page and, for referees, beside their matches.
 - Anything done by dragging also needs a button or select alternative. Icon-only buttons always carry an accessible name.
 - The full feature and data model is documented in `CLAUDE.md`.
 

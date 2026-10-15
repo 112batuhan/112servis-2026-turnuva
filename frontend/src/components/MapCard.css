@@ -36,14 +36,36 @@
   align-items: start;
 }
 
-/* Under the stats, as one more line of the map's details. */
+/* The last item of the stat row, after a hairline: it stays on the stats' line while at least 18ch
+   are left there, wraps its own text inside the rest of the line, and only drops to a line of its
+   own when the stats leave less. The hairline sits in the gap before it, so when the note starts a
+   line the row's overflow clips it instead of leaving a stray bar. */
 .map-card-public-note {
-  margin: var(--space-1) 0 0;
+  position: relative;
+  flex: 1 1 18ch;
+  min-width: 0;
   max-width: 72ch;
+  margin: 0;
   font-size: var(--text-sm);
-  color: var(--color-text-muted);
+  line-height: 1.4;
+  color: var(--color-text);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* On a line of its own (measured in MapCard.tsx): centred under the stats. */
+.map-card-public-note.is-wrapped {
+  margin-inline: auto;
+  text-align: center;
+}
+
+.map-card-public-note::before {
+  content: "";
+  position: absolute;
+  top: 0.15em;
+  bottom: 0.15em;
+  left: calc(-1 * var(--space-3) / 2 - 0.5px);
+  border-left: 1px solid var(--color-border-strong);
 }
 
 .map-card-actions {
@@ -140,11 +162,21 @@
   color: var(--color-text-subtle);
 }
 
+/* The stats and, on public pages, the map's note. */
+.map-stats-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-1);
+  overflow: hidden;
+}
+
 .map-stats {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1) var(--space-3);
-  margin: var(--space-1) 0 0;
+  margin: 0;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;

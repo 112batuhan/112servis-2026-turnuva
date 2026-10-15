@@ -13,5 +13,6 @@ pub mod matches;
 pub mod notifications;
 pub mod referee;
 pub mod reschedule;
+pub mod rules;
 pub mod team;
 pub mod user;

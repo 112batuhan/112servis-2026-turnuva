@@ -124,6 +124,26 @@ export interface Player {
   global_rank: number | null;
 }
 
+/** GET /api/public/rules: the rules as osu! BBCode. `updated_at` is also the version a save is based on. */
+export interface Rules {
+  bbcode: string;
+  updated_at: string;
+  /** Who saved it last; null for the text the site started with. */
+  updated_by: string | null;
+}
+
+/** GET /api/public/staff: everyone holding a role. Staff Discord accounts are public on purpose. */
+export interface StaffMember {
+  id: string;
+  osu_id: number;
+  username: string;
+  avatar_url: string;
+  country_code: string | null;
+  roles: Role[];
+  discord_id: string | null;
+  discord_username: string | null;
+}
+
 export type Eligibility = "eligible" | "not_player" | "in_team" | "unranked" | "over_limit";
 
 export interface PlayerResult extends Player {

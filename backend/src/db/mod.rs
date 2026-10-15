@@ -12,6 +12,7 @@ pub mod matches;
 pub mod notifications;
 pub mod ranks;
 pub mod reschedule;
+pub mod rules;
 pub mod session;
 pub mod settings;
 pub mod team;

@@ -64,6 +64,9 @@ export function NavBar() {
             <NavLink to="/" end className={linkClass}>
               Ana sayfa
             </NavLink>
+            <NavLink to="/rules" className={linkClass}>
+              Kurallar
+            </NavLink>
             <NavLink to="/mappool" className={linkClass}>
               Mappool
             </NavLink>
@@ -75,6 +78,9 @@ export function NavBar() {
             </NavLink>
             <NavLink to="/bracket" className={linkClass}>
               Maçlar
+            </NavLink>
+            <NavLink to="/staff" className={linkClass}>
+              Ekip
             </NavLink>
             {canPlay(user) && (
               <NavLink to="/team" className={linkClass}>

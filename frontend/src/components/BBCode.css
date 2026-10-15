@@ -1,0 +1,185 @@
+/* osu! BBCode read like the rest of the sheet: headings open with a heavy rule, numbered rules sit
+   on hairlines with their numbers in the display face, and line breaks stay where the author put
+   them. */
+.bbcode {
+  max-width: 72ch;
+  font-size: var(--text-base);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.bbcode a {
+  text-decoration: underline;
+  text-decoration-color: var(--color-border-strong);
+  transition: color var(--duration-fast) ease;
+}
+
+.bbcode a:hover {
+  color: var(--color-primary);
+  text-decoration-color: currentColor;
+}
+
+.bbcode strong {
+  font-weight: 700;
+}
+
+.bbcode-heading {
+  /* Clears the sticky top bar when a contents link jumps here. */
+  scroll-margin-top: 96px;
+  margin: var(--space-7) 0 var(--space-3);
+  padding-top: var(--space-3);
+  border-top: var(--rule-heavy);
+  font-size: var(--text-2xl);
+  text-wrap: balance;
+}
+
+.bbcode > .bbcode-heading:first-child {
+  margin-top: 0;
+}
+
+.bbcode-centre {
+  text-align: center;
+}
+
+/* Capped so one large picture can't fill the first screen of the rules. */
+.bbcode-img {
+  display: inline-block;
+  width: auto;
+  height: auto;
+  max-height: 360px;
+  vertical-align: middle;
+  border-radius: var(--radius-sm);
+}
+
+/* ---- lists ---- */
+.bbcode-list {
+  margin: var(--space-2) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bbcode-list > li {
+  position: relative;
+  padding: var(--space-3) 0 var(--space-3) var(--space-6);
+  border-top: var(--rule);
+}
+
+.bbcode-list > li:last-child {
+  border-bottom: var(--rule);
+}
+
+/* A centred block keeps its own lines, but a list inside it still reads from the left. */
+.bbcode-centre .bbcode-list {
+  text-align: left;
+}
+
+ol.bbcode-list {
+  counter-reset: bbcode-item;
+}
+
+ol.bbcode-list > li {
+  counter-increment: bbcode-item;
+  padding-left: calc(var(--space-6) + var(--space-3));
+}
+
+/* The rule's number, set like every other figure on the site. */
+ol.bbcode-list > li::before {
+  content: counter(bbcode-item);
+  position: absolute;
+  top: var(--space-3);
+  left: 0;
+  width: var(--space-6);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.6rem;
+  text-align: right;
+}
+
+ul.bbcode-list > li::before {
+  content: "";
+  position: absolute;
+  top: calc(var(--space-3) + 0.8em - 3px);
+  left: var(--space-2);
+  width: 6px;
+  height: 6px;
+  background: var(--color-text-muted);
+}
+
+/* A list inside a rule drops the rules and indents less. */
+.bbcode-list .bbcode-list > li {
+  padding-top: var(--space-1);
+  padding-bottom: var(--space-1);
+  border: 0;
+}
+
+.bbcode-list .bbcode-list > li::before {
+  top: var(--space-1);
+}
+
+/* ---- boxes ---- */
+.bbcode-notice,
+.bbcode-quote,
+.bbcode-box {
+  margin: var(--space-3) 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.bbcode-notice,
+.bbcode-quote {
+  padding: var(--space-3) var(--space-4);
+}
+
+.bbcode-quote-author {
+  margin: 0 0 var(--space-1);
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.bbcode-box > summary {
+  padding: var(--space-2) var(--space-4);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bbcode-box-body {
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.bbcode-code,
+.bbcode-inline-code {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  background: var(--color-surface-sunken);
+  border-radius: var(--radius-sm);
+}
+
+.bbcode-code {
+  margin: var(--space-3) 0;
+  padding: var(--space-3) var(--space-4);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.bbcode-inline-code {
+  padding: 1px 5px;
+}
+
+/* Hidden until hovered or focused. */
+.bbcode-spoiler {
+  border-radius: 2px;
+  background: var(--color-text-subtle);
+  color: transparent;
+  transition: color var(--duration-fast) ease, background-color var(--duration-fast) ease;
+}
+
+.bbcode-spoiler:hover,
+.bbcode-spoiler:focus-visible {
+  background: var(--color-surface-raised);
+  color: inherit;
+}

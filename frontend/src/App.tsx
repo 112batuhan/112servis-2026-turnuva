@@ -10,6 +10,7 @@ import { DiscordAdminPage } from "./pages/admin/DiscordAdminPage";
 import { MapPoolEditorPage } from "./pages/admin/mappool/MapPoolEditorPage";
 import { QualifiersAdminPage } from "./pages/admin/QualifiersAdminPage";
 import { RefereeRoomPage } from "./pages/admin/referee/RefereeRoomPage";
+import { RulesAdminPage } from "./pages/admin/RulesAdminPage";
 import { StagesAdminPage } from "./pages/admin/StagesAdminPage";
 import { TeamsAdminPage } from "./pages/admin/TeamsAdminPage";
 import { UsersPage } from "./pages/admin/UsersPage";
@@ -19,6 +20,8 @@ import { LinkDiscordPage } from "./pages/LinkDiscordPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PublicPoolPage } from "./pages/PublicPoolPage";
 import { QualifiersPage } from "./pages/QualifiersPage";
+import { RulesPage } from "./pages/RulesPage";
+import { StaffPage } from "./pages/StaffPage";
 import { TeamPage } from "./pages/TeamPage";
 import { TeamsPage } from "./pages/TeamsPage";
 import { usePlayer } from "./player/PlayerContext";
@@ -58,10 +61,12 @@ export function App() {
       <main>
         <Routes>
           <Route path="/" element={<LandingPage />} />
+          <Route path="/rules" element={<RulesPage />} />
           <Route path="/mappool" element={<PublicPoolPage />} />
           <Route path="/teams" element={<TeamsPage />} />
           <Route path="/qualifiers" element={<QualifiersPage />} />
           <Route path="/bracket" element={<BracketPage />} />
+          <Route path="/staff" element={<StaffPage />} />
 
           <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
           <Route path="/discord" element={<RequireAuth><LinkDiscordPage /></RequireAuth>} />
@@ -93,6 +98,10 @@ export function App() {
             <Route
               path="teams"
               element={<RequireAuth access="host" redirect="/admin"><TeamsAdminPage /></RequireAuth>}
+            />
+            <Route
+              path="rules"
+              element={<RequireAuth access="host" redirect="/admin"><RulesAdminPage /></RequireAuth>}
             />
             <Route
               path="discord"

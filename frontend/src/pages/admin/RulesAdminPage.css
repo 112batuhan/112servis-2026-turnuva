@@ -1,0 +1,81 @@
+.rules-admin-status {
+  color: var(--color-text-muted);
+}
+
+.rules-admin-status.is-dirty {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+/* Source and preview side by side, each filling the window below the header. */
+.rules-admin-panes {
+  --rules-pane-height: max(420px, calc(100vh - 280px));
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.rules-admin-pane {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.rules-admin-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height-sm);
+}
+
+.rules-admin-source {
+  height: var(--rules-pane-height);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  resize: vertical;
+  tab-size: 2;
+}
+
+.rules-admin-source:focus-visible {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-soft);
+}
+
+.rules-admin-preview-title {
+  font-size: var(--text-lg);
+}
+
+.rules-admin-hint {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.rules-admin-preview {
+  height: var(--rules-pane-height);
+  padding: var(--space-4) var(--space-5);
+  overflow-y: auto;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+}
+
+/* Narrow: the preview follows the source. */
+@media (max-width: 1100px) {
+  .rules-admin-panes {
+    --rules-pane-height: 60vh;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rules-admin-preview {
+    height: auto;
+    min-height: 240px;
+  }
+}

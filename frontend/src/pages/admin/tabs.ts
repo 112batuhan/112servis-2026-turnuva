@@ -8,6 +8,7 @@ export const ADMIN_TABS: { path: string; label: string; access: Access }[] = [
   { path: "/admin/bracket", label: "Maçlar", access: "staff" },
   { path: "/admin/users", label: "Kullanıcılar", access: "host" },
   { path: "/admin/teams", label: "Takımlar", access: "host" },
+  { path: "/admin/rules", label: "Kurallar", access: "host" },
   { path: "/admin/discord", label: "Discord", access: "host" },
 ];
 

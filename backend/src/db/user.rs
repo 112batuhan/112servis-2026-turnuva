@@ -123,3 +123,33 @@ pub async fn find_user(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Option<User
 
     Ok(Some(UserProfile { osu, discord }))
 }
+
+// One person on the public staff page: everyone holding at least one role, with their linked
+// Discord. Staff Discord accounts are public on purpose (players contact staff there); players'
+// accounts stay staff-only.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct StaffMember {
+    pub id: Uuid,
+    pub osu_id: i64,
+    pub username: String,
+    pub avatar_url: String,
+    pub country_code: Option<String>,
+    pub roles: Vec<Role>,
+    pub discord_id: Option<String>,
+    pub discord_username: Option<String>,
+}
+
+pub async fn list_staff(pool: &PgPool) -> sqlx::Result<Vec<StaffMember>> {
+    sqlx::query_as::<_, StaffMember>(
+        r#"
+        SELECT o.id, o.osu_id, o.username, o.avatar_url, o.country_code, o.roles,
+               d.discord_id, d.username AS discord_username
+        FROM osu_users o
+        LEFT JOIN discord_accounts d ON d.osu_user_id = o.id
+        WHERE cardinality(o.roles) > 0
+        ORDER BY lower(o.username)
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+}

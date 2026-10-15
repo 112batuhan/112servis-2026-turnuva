@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { MapNoteField, PoolMap, PublicPoolMap } from "../api/types";
 import { mapDragProps } from "../lib/dragAndDrop";
 import { formatLength } from "../lib/format";
@@ -80,7 +80,7 @@ export function MapCard({ map, editor }: Props) {
   );
 }
 
-/** `note` is the public note, shown under the stats on public pages. */
+/** `note` is the public note, shown at the end of the stat row on public pages. */
 function MapInfo({ map, note }: { map: PublicPoolMap; note?: string }) {
   return (
     <div className="map-info">
@@ -103,24 +103,52 @@ function MapInfo({ map, note }: { map: PublicPoolMap; note?: string }) {
           </span>
         )}
       </div>
-      <dl className="map-stats">
-        {map.mods && <Stat label="Mods" value={map.mods} highlight />}
-        <Stat
-          label="Star rating"
-          value={
-            <>
-              <Icon name="star" size={12} className="map-stat-star" /> {map.star_rating.toFixed(2)}
-            </>
-          }
-        />
-        <Stat label="BPM" value={`${Math.round(map.bpm)} bpm`} />
-        <Stat label="Uzunluk" value={formatLength(map.total_length)} />
-        <Stat label="CS" value={`CS ${map.cs.toFixed(1)}`} />
-        <Stat label="AR" value={`AR ${map.ar.toFixed(1)}`} />
-        <Stat label="OD" value={`OD ${map.od.toFixed(1)}`} />
-      </dl>
-      {note && <p className="map-card-public-note">{note}</p>}
+      <div className="map-stats-row">
+        <dl className="map-stats">
+          {map.mods && <Stat label="Mods" value={map.mods} highlight />}
+          <Stat
+            label="Star rating"
+            value={
+              <>
+                <Icon name="star" size={12} className="map-stat-star" /> {map.star_rating.toFixed(2)}
+              </>
+            }
+          />
+          <Stat label="BPM" value={`${Math.round(map.bpm)} bpm`} />
+          <Stat label="Uzunluk" value={formatLength(map.total_length)} />
+          <Stat label="CS" value={`CS ${map.cs.toFixed(1)}`} />
+          <Stat label="AR" value={`AR ${map.ar.toFixed(1)}`} />
+          <Stat label="OD" value={`OD ${map.od.toFixed(1)}`} />
+        </dl>
+        {note && <PublicNote note={note} />}
+      </div>
     </div>
+  );
+}
+
+/** Centred when the stats leave too little room and it drops to a line of its own. CSS can't tell
+ *  a wrapped flex item apart, so the line it sits on is measured whenever the row resizes. */
+function PublicNote({ note }: { note: string }) {
+  const ref = useRef<HTMLParagraphElement>(null);
+  const [wrapped, setWrapped] = useState(false);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    const stats = el?.previousElementSibling;
+    if (!el || !stats) return;
+    const measure = () =>
+      setWrapped(el.getBoundingClientRect().top >= stats.getBoundingClientRect().bottom);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    observer.observe(stats);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <p ref={ref} className={`map-card-public-note ${wrapped ? "is-wrapped" : ""}`}>
+      {note}
+    </p>
   );
 }
 
