@@ -40,9 +40,17 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  /* Too narrow for the players to sit side by side next to the value. */
+  /* Too narrow for the players to sit side by side next to the value. Stacked,
+     the column is as wide as the longer chip and centred as one block, with the
+     chips aligned to its left edge so the avatars and names line up. */
   .team-card .team-card-players {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, max-content);
+    justify-content: center;
+    justify-items: start;
+  }
+
+  .team-card .team-card-players > li {
+    max-width: 100%;
   }
 }
 
