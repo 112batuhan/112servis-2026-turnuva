@@ -181,3 +181,7 @@
   color: var(--color-text-muted);
   font-size: var(--text-xs);
 }
+
+.pool-pick-star {
+  vertical-align: -1px;
+}

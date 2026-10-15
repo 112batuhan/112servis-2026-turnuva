@@ -1,0 +1,246 @@
+/* A match as a line of a fixture sheet. Rows sit on hairline rules rather than in boxes; put them
+   in a .fixture-list, which they size themselves to. */
+.fixture-list {
+  container-type: inline-size;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fixture-row {
+  --team-banner-w: 54px;
+  --team-banner-h: 18px;
+  display: grid;
+  grid-template-columns: 9.5rem minmax(0, 1fr) auto minmax(0, 1fr) 8.5rem;
+  grid-template-areas: "when t1 score t2 meta";
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-2);
+  border-bottom: var(--rule);
+  color: var(--color-text);
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.fixture-row:hover,
+.fixture-row:focus-visible {
+  background: var(--color-hover);
+}
+
+.fixture-when {
+  grid-area: when;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fixture-time {
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.fixture-countdown {
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fixture-live {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-primary);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 800;
+}
+
+.fixture-live::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Team 1 hugs the score from the left, team 2 from the right. */
+.fixture-team {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.fixture-team.is-slot-1 {
+  grid-area: t1;
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.fixture-team.is-slot-2 {
+  grid-area: t2;
+}
+
+/* No black box for a team without a banner. */
+.fixture-team .team-banner:empty {
+  display: none;
+}
+
+
+.fixture-team-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--text-base);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fixture-team-name.is-empty {
+  color: var(--color-text-subtle);
+  font-weight: 400;
+}
+
+.fixture-team.is-loser .fixture-team-name {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.fixture-team.is-own .fixture-team-name {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+/* The score in the two sides' colours, like the osu! multiplayer results: each half tinted and
+   underlined in its team's colour. */
+.fixture-score {
+  grid-area: score;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-width: 76px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background-image:
+    linear-gradient(90deg, var(--color-team-red) 50%, var(--color-team-blue) 50%),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-team-red) 30%, transparent) 50%,
+      color-mix(in srgb, var(--color-team-blue) 30%, transparent) 50%
+    );
+  background-size:
+    100% 3px,
+    100% 100%;
+  background-position:
+    bottom,
+    center;
+  background-repeat: no-repeat;
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.fixture-score > span {
+  padding: var(--space-2) var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-2xl);
+  font-weight: 600;
+  text-align: center;
+}
+
+.fixture-score > .is-winner {
+  color: var(--color-text);
+  font-weight: 800;
+}
+
+.fixture-score > .fixture-vs {
+  grid-column: 1 / -1;
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.fixture-meta {
+  grid-area: meta;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+  text-align: right;
+}
+
+.fixture-code {
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.fixture-code.is-losers {
+  color: var(--color-text-muted);
+}
+
+.fixture-stage {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Narrow: the time and code on a line above the teams. */
+@container (max-width: 720px) {
+  .fixture-row {
+    --team-banner-w: 36px;
+    --team-banner-h: 14px;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-areas:
+      "when when meta"
+      "t1 score t2";
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .fixture-when {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-1) var(--space-2);
+  }
+
+  .fixture-meta {
+    flex-direction: row-reverse;
+    align-items: baseline;
+    gap: var(--space-2);
+  }
+
+  .fixture-team .team-banner {
+    display: none;
+  }
+
+  .fixture-team-name {
+    font-size: var(--text-md);
+  }
+
+  .fixture-score {
+    min-width: 64px;
+  }
+
+  .fixture-score > span {
+    font-size: var(--text-xl);
+  }
+}

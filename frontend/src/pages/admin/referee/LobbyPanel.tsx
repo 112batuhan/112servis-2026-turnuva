@@ -169,23 +169,13 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
         ))}
       </ol>
 
-      <div className="lobby-actions" aria-label="Maç komutları">
-        <div className="lobby-action-group">
-          <input
-            className="input lobby-seconds"
-            type="number"
-            min={0}
-            aria-label="Zamanlayıcı süresi (saniye)"
-            value={timer}
-            onChange={(e) => setTimer(Number(e.target.value))}
-          />
-          <button type="button" className="btn btn-secondary btn-sm" disabled={!ready} onClick={() => actions.timer(timer)}>
-            Zamanlayıcı
-          </button>
-          <button type="button" className="btn btn-secondary btn-sm" disabled={!ready} onClick={actions.abortTimer}>
-            Durdur
-          </button>
-        </div>
+      {!ready && (
+        <p className="lobby-actions-hint">
+          {online ? "Komutlar, odanın kanalına katılınca açılır." : "Komutlar için önce Bancho'ya bağlan."}
+        </p>
+      )}
+      <div className="lobby-actions is-match" role="group" aria-label="Maç komutları">
+        <span className="lobby-actions-label">Maç</span>
         <div className="lobby-action-group">
           <input
             className="input lobby-seconds"
@@ -197,7 +187,7 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
           />
           <button
             type="button"
-            className="btn btn-primary btn-sm"
+            className="btn btn-primary lobby-start"
             disabled={!ready || lobby.playing}
             onClick={() => actions.start(countdown)}
           >
@@ -214,9 +204,26 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
             İptal et
           </button>
         </div>
+        <div className="lobby-action-group">
+          <input
+            className="input lobby-seconds"
+            type="number"
+            min={0}
+            aria-label="Zamanlayıcı süresi (saniye)"
+            value={timer}
+            onChange={(e) => setTimer(Number(e.target.value))}
+          />
+          <button type="button" className="btn btn-secondary btn-sm" disabled={!ready} onClick={() => actions.timer(timer)}>
+            Zamanlayıcı
+          </button>
+          <button type="button" className="btn btn-secondary btn-sm" disabled={!ready} onClick={actions.abortTimer}>
+            Durdur
+          </button>
+        </div>
       </div>
 
-      <div className="lobby-actions">
+      <div className="lobby-actions" role="group" aria-label="Oda komutları">
+        <span className="lobby-actions-label">Oda</span>
         <button type="button" className="btn btn-secondary btn-sm" disabled={!ready} onClick={actions.settings}>
           Odayı yenile
         </button>
@@ -247,7 +254,7 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
         </button>
         <button
           type="button"
-          className="btn btn-danger btn-sm"
+          className="btn btn-danger btn-sm lobby-close"
           disabled={!ready}
           onClick={() => {
             if (window.confirm("Oda kapatılsın mı (!mp close)? Bu geri alınamaz.")) actions.close();

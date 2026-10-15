@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { MapNoteField, PoolMap, PublicPoolMap } from "../api/types";
 import { mapDragProps } from "../lib/dragAndDrop";
 import { formatLength } from "../lib/format";
@@ -38,10 +38,10 @@ export function MapCard({ map, editor }: Props) {
       <div className="map-card-main">
         <PreviewButton map={map} />
         {map.cover_url && <Cover url={map.cover_url} />}
-        <MapInfo map={map} />
+        <MapInfo map={map} note={editor ? undefined : map.public_notes} />
       </div>
 
-      {editor ? (
+      {editor && (
         <div className="map-card-notes">
           <EditableNote
             label="Herkese açık not"
@@ -59,8 +59,6 @@ export function MapCard({ map, editor }: Props) {
             onSave={(v) => editor.onSaveNote("editor_notes", v)}
           />
         </div>
-      ) : (
-        map.public_notes && <p className="map-card-public-note">{map.public_notes}</p>
       )}
 
       <div className="map-card-actions">
@@ -82,7 +80,8 @@ export function MapCard({ map, editor }: Props) {
   );
 }
 
-function MapInfo({ map }: { map: PublicPoolMap }) {
+/** `note` is the public note, shown under the stats on public pages. */
+function MapInfo({ map, note }: { map: PublicPoolMap; note?: string }) {
   return (
     <div className="map-info">
       <div className="map-info-head">
@@ -95,23 +94,37 @@ function MapInfo({ map }: { map: PublicPoolMap }) {
         >
           {map.artist} — {map.title}
         </a>
-        <span className="map-meta">[{map.version}]</span>
-        {map.creator && <span className="map-meta">{map.creator} tarafından</span>}
+        <span className="map-meta">
+          <span className="map-meta-label">Diff:</span> {map.version}
+        </span>
+        {map.creator && (
+          <span className="map-meta">
+            <span className="map-meta-label">Mapper:</span> {map.creator}
+          </span>
+        )}
       </div>
       <dl className="map-stats">
         {map.mods && <Stat label="Mods" value={map.mods} highlight />}
-        <Stat label="Star rating" value={`★ ${map.star_rating.toFixed(2)}`} />
+        <Stat
+          label="Star rating"
+          value={
+            <>
+              <Icon name="star" size={12} className="map-stat-star" /> {map.star_rating.toFixed(2)}
+            </>
+          }
+        />
         <Stat label="BPM" value={`${Math.round(map.bpm)} bpm`} />
         <Stat label="Uzunluk" value={formatLength(map.total_length)} />
         <Stat label="CS" value={`CS ${map.cs.toFixed(1)}`} />
         <Stat label="AR" value={`AR ${map.ar.toFixed(1)}`} />
         <Stat label="OD" value={`OD ${map.od.toFixed(1)}`} />
       </dl>
+      {note && <p className="map-card-public-note">{note}</p>}
     </div>
   );
 }
 
-function Stat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+function Stat({ label, value, highlight }: { label: string; value: ReactNode; highlight?: boolean }) {
   return (
     <div className={`map-stat ${highlight ? "is-highlight" : ""}`}>
       <dt className="sr-only">{label}</dt>

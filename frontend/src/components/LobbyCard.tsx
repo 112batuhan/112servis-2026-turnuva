@@ -114,12 +114,12 @@ export function LobbyCard<P extends Player>({
             {renderTeamActions && <div className="lobby-team-actions">{renderTeamActions(team)}</div>}
           </li>
         ))}
-        {Array.from({ length: Math.max(0, capacity - lobby.teams.length) }, (_, i) => (
-          <li key={`empty-${i}`} className="lobby-team is-empty">
-            <div className="lobby-team-banner" />
-            <span className="lobby-team-text">Boş yer</span>
+        {/* The free places as one line, not a row each. */}
+        {!full && (
+          <li className="lobby-free">
+            {lobby.teams.length === 0 ? `${capacity} yerin hepsi boş` : `${capacity - lobby.teams.length} yer daha boş`}
           </li>
-        ))}
+        )}
       </ol>
 
       {actions && <div className="lobby-card-actions">{actions}</div>}

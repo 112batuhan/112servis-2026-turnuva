@@ -1,3 +1,4 @@
+import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { formatLength } from "../../../lib/format";
 import { BAN_LIMIT, matchTeams, poolEntries, type MatchTeam, type PoolEntry } from "./pool";
@@ -123,7 +124,8 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
                     {map.artist} - {map.title}
                   </span>
                   <span className="pool-pick-meta">
-                    [{map.version}] · {map.star_rating.toFixed(2)}★ · {Math.round(map.bpm)} BPM ·{" "}
+                    [{map.version}] · <Icon name="star" size={11} className="pool-pick-star" />
+                    {map.star_rating.toFixed(2)} · {Math.round(map.bpm)} BPM ·{" "}
                     {formatLength(map.total_length)} · {mods}
                   </span>
                 </span>

@@ -27,6 +27,15 @@ export function NavBar() {
     if (!inAdmin) lastPublic.current = pathname + search + hash;
   }, [inAdmin, pathname, search, hash]);
 
+  // On phones the links scroll sideways in one row; keep the current page's link in view.
+  const linksRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const links = linksRef.current;
+    const active = links?.querySelector<HTMLElement>(".nav-link.is-active");
+    if (!links || !active || links.scrollWidth <= links.clientWidth) return;
+    links.scrollLeft = active.offsetLeft - (links.clientWidth - active.offsetWidth) / 2;
+  }, [pathname, inAdmin]);
+
   async function handleSignOut() {
     await signOut();
     navigate("/");
@@ -36,11 +45,11 @@ export function NavBar() {
     <header className={inAdmin ? "navbar is-admin" : "navbar"}>
       <div className="nav-main">
         <NavLink to="/" className="nav-brand">
-          112 Servis <span className="nav-brand-year">2026</span>
+          112servis <span className="nav-brand-year">2026</span>
         </NavLink>
 
         {inAdmin ? (
-          <nav className="nav-links" aria-label="Yönetim bölümleri">
+          <nav ref={linksRef} className="nav-links" aria-label="Yönetim bölümleri">
             {ADMIN_TABS.filter((tab) => canAccess(user, tab.access)).map((tab) => (
               <NavLink key={tab.path} to={tab.path} className={linkClass}>
                 {tab.label}
@@ -48,7 +57,7 @@ export function NavBar() {
             ))}
           </nav>
         ) : (
-          <nav className="nav-links" aria-label="Ana menü">
+          <nav ref={linksRef} className="nav-links" aria-label="Ana menü">
             <NavLink to="/" end className={linkClass}>
               Ana sayfa
             </NavLink>
@@ -95,9 +104,9 @@ export function NavBar() {
           </Link>
         ) : (
           isStaff(user) && (
-            <Link to="/admin" className="btn btn-secondary btn-sm">
+            <Link to="/admin" className="btn btn-secondary btn-sm nav-admin-link" title="Yönetim">
               <Icon name="settings" size={14} />
-              Yönetim
+              <span className="nav-admin-text">Yönetim</span>
             </Link>
           )
         )}

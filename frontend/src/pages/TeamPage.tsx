@@ -140,8 +140,7 @@ export function TeamPage() {
 
           {status.team ? (
             <>
-              <section className="panel">
-                <h2>Takımın</h2>
+              <section className="panel" aria-label="Takımın">
                 {status.team.rank_warning && (
                   <p className="alert alert-error team-rank-warning" role="status">
                     {status.team.rank_warning === "over_limit"
@@ -172,6 +171,13 @@ export function TeamPage() {
                       type="button"
                       className="btn btn-primary btn-sm"
                       disabled={busy || !canForm || invite.eligibility !== "eligible"}
+                      title={
+                        !user.discord
+                          ? "Kabul etmek için Discord hesabını bağla"
+                          : invite.eligibility !== "eligible"
+                            ? `Bu takım kurulamaz: ${ELIGIBILITY_LABELS[invite.eligibility].toLocaleLowerCase("tr-TR")}`
+                            : undefined
+                      }
                       onClick={() => run(() => acceptInvite(invite.id))}
                     >
                       Kabul et
@@ -275,7 +281,7 @@ interface MyTeamProps {
 
 function MyTeam({ team, frozen, busy, run, onError }: MyTeamProps) {
   const fileInput = useRef<HTMLInputElement>(null);
-  if (frozen) return <TeamCard team={team} showMatches={false} />;
+  if (frozen) return <TeamCard team={team} showMatches={false} showValue={false} />;
 
   function upload(file: File | undefined) {
     if (!file) return;
@@ -291,6 +297,7 @@ function MyTeam({ team, frozen, busy, run, onError }: MyTeamProps) {
       <TeamCard
         team={team}
         showMatches={false}
+        showValue={false}
         onRename={(name) => run(() => renameMyTeam(name))}
         actions={
           <>
@@ -405,15 +412,53 @@ function QualifierInfo({ teamId, onError }: { teamId: string; onError: (message:
   );
 }
 
+/**
+ * Where the player stands against the team value limit: the team's value on a meter once it's
+ * formed, otherwise the best rank a teammate may have.
+ */
 function RankSummary({ status }: { status: TeamStatus }) {
-  return (
-    <section className="panel team-summary">
-      {status.global_rank && status.min_partner_rank ? (
-        <p>
-          Rank'ın <strong>{formatRank(status.global_rank)}</strong>. Takım değerinin{" "}
-          {formatTeamValue(status.limit)} limitini aşmaması için takım arkadaşının rank'ı{" "}
-          <strong>{formatRank(status.min_partner_rank)}</strong> veya daha düşük olmalı.
+  const value = status.team?.team_value ?? null;
+  if (status.team && value !== null) {
+    const over = value > status.limit;
+    return (
+      <section className="team-limit" aria-label="Takım değeri">
+        <p className="team-limit-figures">
+          <span className="team-limit-label">Takım değeri</span>
+          <span className={over ? "team-limit-value num is-over" : "team-limit-value num"}>{formatTeamValue(value)}</span>
+          <span className="team-limit-max num">/ {formatTeamValue(status.limit)}</span>
         </p>
+        <div
+          className={over ? "team-limit-meter is-over" : "team-limit-meter"}
+          role="meter"
+          aria-label="Takım değerinin limite oranı"
+          aria-valuemin={0}
+          aria-valuemax={status.limit}
+          aria-valuenow={Math.round(value)}
+        >
+          <span style={{ width: `${Math.min(100, (value / status.limit) * 100)}%` }} />
+        </div>
+        <p className="muted team-limit-note">
+          İki oyuncunun rank'ından hesaplanır ve en fazla {formatTeamValue(status.limit)} olabilir.
+          {status.global_rank && <> Senin rank'ın {formatRank(status.global_rank)}.</>}
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="team-limit" aria-label="Takım değeri limiti">
+      {status.global_rank && status.min_partner_rank ? (
+        <>
+          <p className="team-limit-figures">
+            <span className="team-limit-label">Takım arkadaşın en iyi</span>
+            <span className="team-limit-value num">{formatRank(status.min_partner_rank)}</span>
+          </p>
+          <p className="muted team-limit-note">
+            Rank'ın {formatRank(status.global_rank)}. İkinizin takım değeri {formatTeamValue(status.limit)} limitini
+            aşmamalı, bu yüzden takım arkadaşının rank'ı {formatRank(status.min_partner_rank)} ya da daha geride
+            olmalı.
+          </p>
+        </>
       ) : (
         <p>Global rank'ın olmadığı için takım kuramazsın.</p>
       )}

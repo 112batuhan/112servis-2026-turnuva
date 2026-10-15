@@ -11,7 +11,7 @@ import {
   type PointerEvent,
 } from "react";
 import type { BracketMatch, Team } from "../../api/types";
-import { BOARD, snapPosition, incomingSources, matchCode, overlapsAny, type Point } from "../../lib/bracket";
+import { BOARD, compareByTime, snapPosition, incomingSources, matchCode, overlapsAny, type Point } from "../../lib/bracket";
 import { IconButton } from "../IconButton";
 import { BracketMatchCard } from "./BracketMatchCard";
 import "./BracketGrid.css";
@@ -29,6 +29,10 @@ const MAX_SCALE = 2;
 const ZOOM_STEP = 1.25;
 // Space left around the matches when recentering.
 const FIT_MARGIN = 40;
+// Below this zoom the cards' text is too small to read, so the board opens on one match instead.
+const READABLE_SCALE = 0.6;
+// The zoom it opens at when it does.
+const OPEN_SCALE = 0.85;
 
 /** The board's offset in the frame, in screen pixels, and its zoom. */
 interface View {
@@ -196,11 +200,34 @@ export function BracketGrid({
     });
   }, [centerOn, matches]);
 
+  // Opens on the whole bracket when it's readable at that size; otherwise on the viewer's next
+  // match (or the next one to be played) at a readable zoom, which the recenter button widens.
   useLayoutEffect(() => {
-    if (fitted.current || matches.length === 0) return;
+    const frame = viewportRef.current;
+    if (fitted.current || matches.length === 0 || !frame) return;
     fitted.current = true;
-    recenter();
-  }, [matches, recenter]);
+    const minX = px(Math.min(...matches.map((m) => m.pos_x)));
+    const minY = py(Math.min(...matches.map((m) => m.pos_y)));
+    const maxX = px(Math.max(...matches.map((m) => m.pos_x + BOARD.cardW)));
+    const maxY = py(Math.max(...matches.map((m) => m.pos_y + BOARD.cardH)));
+    const fit = Math.min(
+      (frame.clientWidth - 2 * FIT_MARGIN) / (maxX - minX),
+      (frame.clientHeight - 2 * FIT_MARGIN) / (maxY - minY),
+    );
+    const open = matches.filter((m) => !m.concluded_at);
+    const focus =
+      open.filter((m) => myTeamId && (m.team1_id === myTeamId || m.team2_id === myTeamId)).sort(compareByTime)[0] ??
+      open.sort(compareByTime)[0];
+    if (fit >= READABLE_SCALE || !focus) {
+      recenter();
+      return;
+    }
+    setView({
+      scale: OPEN_SCALE,
+      x: frame.clientWidth / 2 - (px(focus.pos_x) + CARD_W / 2) * OPEN_SCALE,
+      y: frame.clientHeight / 2 - (py(focus.pos_y) + CARD_H / 2) * OPEN_SCALE,
+    });
+  }, [matches, recenter, myTeamId]);
 
   /** Zooms by `factor`, keeping the point at (cx, cy) in the frame where it is. */
   const zoomAt = useCallback((factor: number, cx: number, cy: number) => {

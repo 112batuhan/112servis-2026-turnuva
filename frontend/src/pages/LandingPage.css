@@ -1,77 +1,262 @@
-.hero {
+.landing {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-7) 0 var(--space-6);
-  text-align: center;
+  gap: var(--space-6);
 }
 
-.hero-eyebrow {
-  color: var(--color-primary);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-}
-
-.hero-title {
-  font-size: var(--text-hero);
-  line-height: 1.1;
-  text-wrap: balance;
-}
-
-.hero-lead {
-  max-width: 560px;
-  color: var(--color-text-muted);
-  font-size: var(--text-base);
-  line-height: 1.6;
-}
-
-.hero-actions {
+/* The headline: the wordmark set large, the facts under it, the actions on the right. */
+.landing-head {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-3);
-  margin-top: var(--space-2);
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-5);
+  padding: var(--space-5) 0 var(--space-5);
+  border-bottom: var(--rule-heavy);
 }
 
-.hero-signed-in {
+.landing-title-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.landing-title {
+  font-size: var(--text-hero);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 0.88;
+}
+
+.landing-year {
+  color: var(--color-primary);
+}
+
+.landing-lead {
+  max-width: 72ch;
   color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  font-variant-numeric: tabular-nums;
+}
+
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* The stages in play order, the current one lit. */
+.stage-track {
+  margin-top: calc(-1 * var(--space-3));
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.stage-track ol {
+  display: flex;
+  gap: var(--space-1);
+  min-width: max-content;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-track-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 0 auto;
+  min-width: 7.5rem;
+  padding-top: var(--space-2);
+  border-top: 3px solid var(--color-border);
+  color: var(--color-text-subtle);
+}
+
+.stage-track-item.is-done {
+  border-top-color: var(--color-text-muted);
+  color: var(--color-text-muted);
+}
+
+.stage-track-item.is-current {
+  border-top-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+.stage-track-name {
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.stage-track-now {
+  color: var(--color-primary);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+/* The signed-in player's team and next match. */
+.my-team-strip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-text);
+  text-decoration: none;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.my-team-strip:hover,
+.my-team-strip:focus-visible {
+  background: color-mix(in srgb, var(--color-primary) 22%, transparent);
+}
+
+.my-team .landing-section-head {
+  border-bottom-color: var(--color-primary);
+}
+
+.my-team-label {
+  color: var(--color-primary);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.my-team-main {
+  min-width: 0;
   font-size: var(--text-md);
 }
 
-.landing-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--space-4);
+.my-team-go {
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.landing-card {
+.landing-board {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-5);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  gap: var(--space-7);
+}
+
+.landing-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: var(--rule-heavy);
+}
+
+.landing-section-head h2 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  font-size: var(--text-3xl);
+}
+
+.landing-more {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.landing-more:hover {
+  color: var(--color-text);
+}
+
+.lobby-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.landing-empty {
+  padding: var(--space-4) 0;
+  color: var(--color-text-muted);
+}
+
+.lobby-line {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr) 4rem 10rem;
+  align-items: baseline;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-2);
+  border-bottom: var(--rule);
+  color: var(--color-text);
   text-decoration: none;
 }
 
-.landing-card h2 {
-  font-size: var(--text-base);
+.lobby-line:hover,
+.lobby-line:focus-visible {
+  background: var(--color-hover);
 }
 
-.landing-card p {
-  color: var(--color-text-muted);
+.lobby-line-name {
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-xl);
+  font-weight: 800;
+}
+
+.lobby-line-time {
   font-size: var(--text-md);
-  line-height: 1.6;
 }
 
-.landing-card.is-link {
-  transition: border-color var(--duration-fast) ease;
+.lobby-line-fill {
+  font-size: var(--text-xl);
+  text-align: right;
 }
 
-.landing-card.is-link:hover {
-  border-color: var(--color-primary);
+.lobby-line-left {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+@media (max-width: 720px) {
+  .landing {
+    gap: var(--space-5);
+  }
+
+  .landing-section-head h2 {
+    font-size: var(--text-2xl);
+  }
+
+  .my-team-strip {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--space-1) var(--space-3);
+  }
+
+  .my-team-main {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .lobby-line {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: var(--space-1) var(--space-3);
+  }
+
+  .lobby-line-left {
+    grid-column: 2 / -1;
+    text-align: left;
+  }
+}
+
+.my-team h2 .my-team-label {
+  font-size: inherit;
 }

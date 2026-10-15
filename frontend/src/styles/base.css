@@ -8,6 +8,10 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+html {
+  scrollbar-color: var(--color-border-strong) var(--color-bg);
+}
+
 body {
   margin: 0;
   min-height: 100vh;
@@ -16,6 +20,12 @@ body {
   line-height: 1.5;
   background: var(--color-bg);
   color: var(--color-text);
+  caret-color: var(--color-primary);
+}
+
+::selection {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
 }
 
 h1,
@@ -23,14 +33,25 @@ h2,
 h3 {
   margin: 0;
   line-height: 1.25;
+  text-wrap: balance;
+}
+
+/* Headings are set in the condensed display face, like the headlines of a fixture sheet. */
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1;
 }
 
 h1 {
-  font-size: var(--text-xl);
+  font-size: var(--text-title);
 }
 
 h2 {
-  font-size: var(--text-lg);
+  font-size: var(--text-xl);
 }
 
 h3 {
@@ -94,6 +115,18 @@ button:disabled {
 
 .mono {
   font-family: var(--font-mono);
+}
+
+/* Numbers people compare or watch change: scores, codes, values, countdowns. */
+.num {
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+a {
+  text-underline-offset: 0.2em;
 }
 
 @media (prefers-reduced-motion: reduce) {

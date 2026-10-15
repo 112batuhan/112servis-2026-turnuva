@@ -1,0 +1,35 @@
+{
+  "hook": {
+    "enabled": true,
+    "limits": {
+      "maxFindings": 5,
+      "maxChars": 8000
+    }
+  },
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "frontend/src/pages/admin/referee/LobbyPanel.css",
+          "frontend/src/pages/admin/referee/PoolPanel.css",
+          "frontend/src/pages/admin/referee/RosterPanel.css"
+        ],
+        "createdAt": "2026-10-15T15:32:11.077Z",
+        "reason": "Agent: the stripe is the osu! team red/blue side (is-team-red/is-team-blue overrides), data not decoration"
+      },
+      {
+        "rule": "border-accent-on-rounded",
+        "value": "*",
+        "files": [
+          "frontend/src/components/PoolSection.css"
+        ],
+        "createdAt": "2026-10-15T15:32:11.081Z",
+        "reason": "Agent: the public pool's mod-colour top rule sits on a section whose radius is reset to 0 in the same rule"
+      }
+    ]
+  }
+}

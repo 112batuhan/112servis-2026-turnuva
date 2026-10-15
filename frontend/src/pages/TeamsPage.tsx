@@ -45,9 +45,9 @@ export function TeamsPage() {
       {!teams && !error && <p className="status">Yükleniyor…</p>}
       {teams?.length === 0 && <p className="status">Henüz takım yok.</p>}
       {teams && teams.length > 0 && (
-        <div className="team-grid">
-          {teams.map((team, i) => (
-            <TeamCard key={team.id} team={team} position={i + 1} highlight={teamAnchorId(team.id) === target} />
+        <div className="team-grid is-ruled">
+          {teams.map((team) => (
+            <TeamCard key={team.id} team={team} highlight={teamAnchorId(team.id) === target} />
           ))}
         </div>
       )}

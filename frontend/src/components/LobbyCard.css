@@ -1,7 +1,7 @@
 .lobby-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
+  gap: var(--space-6) var(--space-5);
 }
 
 /* A slot needs about 500px for its banner, name and players, so two lobbies
@@ -12,19 +12,21 @@
   }
 }
 
+/* A block of the fixture sheet: a heavy rule over each lobby, hairlines between its teams. */
 .lobby-card {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-4);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  padding-top: var(--space-3);
+  border-top: var(--rule-heavy);
 }
 
 .lobby-card.is-mine {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 1px var(--color-primary);
+  border-top-color: var(--color-primary);
+}
+
+.lobby-card.is-mine .lobby-card-title h3 {
+  color: var(--color-primary);
 }
 
 .lobby-card-header {
@@ -41,15 +43,21 @@
 
 .lobby-card-title h3 {
   margin: 0;
-  font-size: var(--text-lg);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  line-height: 1;
 }
 
 .lobby-card-count {
   margin-left: auto;
-  color: var(--color-text-muted);
-  font-size: var(--text-md);
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-2xl);
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .lobby-card-count.is-full {
@@ -70,9 +78,10 @@
 
 .lobby-card-countdown {
   margin-left: auto;
-  color: var(--color-primary);
+  color: var(--color-text);
   font-size: var(--text-sm);
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Referee on the left, the match link on the right. */
@@ -168,17 +177,10 @@
   transform: scale(1.1);
 }
 
-.lobby-team.is-empty .lobby-team-banner {
-  background: transparent;
-  border: 1px dashed var(--color-border);
-}
-
-.lobby-team.is-empty .lobby-team-text {
-  display: block;
-  grid-area: players;
-  color: var(--color-text-subtle);
+.lobby-free {
+  padding: var(--space-3) 0 0;
+  color: var(--color-text-muted);
   font-size: var(--text-sm);
-  font-style: italic;
 }
 
 /* Opens the team's card; covers the whole banner so all of it is clickable. */
@@ -302,11 +304,6 @@
       "num actions actions";
     column-gap: 0;
     padding: var(--space-1) 0;
-  }
-
-  /* Only filled slots are listed; the count in the header still shows the room left. */
-  .lobby-team.is-empty {
-    display: none;
   }
 
   /* Stretched over its row; the row's align-items: center would collapse it, since

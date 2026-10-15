@@ -1,5 +1,8 @@
 /* Reads as text; the hover underline and cursor hint that it's clickable. */
 .discord-mention {
+  /* Anchors its visually hidden text, which would otherwise widen the page from inside a
+     scrolling table. */
+  position: relative;
   max-width: 100%;
   padding: 0;
   overflow: hidden;

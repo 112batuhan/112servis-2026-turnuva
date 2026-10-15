@@ -36,9 +36,10 @@
   align-items: start;
 }
 
+/* Under the stats, as one more line of the map's details. */
 .map-card-public-note {
-  flex: 1 1 200px;
-  max-width: 360px;
+  margin: var(--space-1) 0 0;
+  max-width: 72ch;
   font-size: var(--text-sm);
   color: var(--color-text-muted);
   white-space: pre-wrap;
@@ -109,7 +110,10 @@
   min-width: 0;
 }
 
+/* Doesn't shrink for the diff and mapper: they wrap under it instead, and it only truncates when
+   it alone is longer than the line. */
 .map-title {
+  flex-shrink: 0;
   min-width: 0;
   max-width: 100%;
   font-size: var(--text-md);
@@ -130,6 +134,10 @@
   font-size: var(--text-xs);
   color: var(--color-text-muted);
   white-space: nowrap;
+}
+
+.map-meta-label {
+  color: var(--color-text-subtle);
 }
 
 .map-stats {
@@ -180,4 +188,8 @@
 
 .map-move {
   width: 112px;
+}
+
+.map-stat-star {
+  vertical-align: -1px;
 }

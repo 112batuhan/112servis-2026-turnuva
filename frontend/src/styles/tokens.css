@@ -1,5 +1,13 @@
 /* Every colour, size and timing used by the app. Components should reference these
-   variables rather than raw values, so restyling happens here. */
+   variables rather than raw values, so restyling happens here.
+
+   PALETTE STATUS: the colour values below are placeholders. The tournament's designers will supply
+   the real scheme; swap the values here (keep the role names) and the whole site follows. Each
+   colour is named for the job it does, not for its hue:
+   - surfaces/text: the ground and its ink
+   - brand: the tournament's accent; only for "live", "yours" and the one primary action per view
+   - team red/blue: osu! multiplayer sides; the structure of every head-to-head
+   - status: success / warning / danger / info, never decoration */
 :root {
   color-scheme: dark;
 
@@ -55,7 +63,17 @@
   --color-scrim: rgba(10, 11, 15, 0.7);
   --color-scrim-control: rgba(10, 11, 15, 0.7);
 
-  /* type */
+  /* rules: the fixture-sheet grouping. A heavy rule opens a section, a hairline separates rows.
+     Prefer these over boxing content in bordered cards. */
+  --rule-heavy: 3px solid var(--color-text);
+  --rule: 1px solid var(--color-border);
+
+  /* type
+     display: headings, match codes, scores, countdowns and values (condensed, heavy, tabular)
+     sans: body text and controls
+     mono: ids and code only */
+  --font-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --font-display-stretch: 68%;
   --font-sans: "Fira Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
   --text-xs: 12px;
@@ -65,7 +83,10 @@
   --text-lg: 18px;
   --text-xl: 24px;
   --text-2xl: 30px;
-  --text-hero: clamp(32px, 6vw, 48px);
+  --text-3xl: 40px;
+  /* page titles and the big figures under them (the team value) */
+  --text-title: 44px;
+  --text-hero: clamp(56px, 10vw, 96px);
 
   /* spacing (dense scale) */
   --space-1: 4px;
@@ -93,6 +114,12 @@
   --icon-button-size: 32px;
 
   --content-width: 1440px;
+}
+
+@media (max-width: 560px) {
+  :root {
+    --text-title: 34px;
+  }
 }
 
 /* Bigger hit targets on touch screens. */

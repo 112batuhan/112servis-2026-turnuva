@@ -8,14 +8,15 @@ import { MapCard } from "../components/MapCard";
 import { PoolSection } from "../components/PoolSection";
 import { EmptySlot, Slot } from "../components/Slot";
 import { StageTabs } from "../components/StageTabs";
-import { useExpandedSet } from "../lib/useExpandedSet";
+import { useStoredSet } from "../lib/useExpandedSet";
 
 export function PublicPoolPage() {
   const [stages, setStages] = useState<Stage[] | null>(null);
   const [detail, setDetail] = useState<PublicStageDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
-  const { isExpanded, toggle } = useExpandedSet("public-pool-expanded");
+  // Every category starts open: the maps are what visitors come for. Only the ones they close are remembered.
+  const { has: isCollapsed, toggle } = useStoredSet("public-pool-collapsed");
 
   // The open stage lives in the URL (?stage=…) so links to a stage can be shared.
   const requested = searchParams.get("stage");
@@ -53,14 +54,14 @@ export function PublicPoolPage() {
       )}
 
       {detail && detail.id === selectedId && (
-        <div className="pool-board">
+        <div className="pool-board is-public">
           {detail.categories.length === 0 && <p className="status">Bu stage'de henüz kategori yok.</p>}
           {detail.categories.map((category) => (
             <PublicCategory
               key={category.id}
               category={category}
               detail={detail}
-              expanded={isExpanded(category.id)}
+              expanded={!isCollapsed(category.id)}
               onToggle={() => toggle(category.id)}
             />
           ))}
@@ -92,7 +93,7 @@ function PublicCategory({ category, detail, expanded, onToggle }: PublicCategory
       {slots.map((slot, i) => {
         const map = detail.maps.find((m) => m.slot_id === slot.id);
         return (
-          <Slot key={slot.id} number={i + 1}>
+          <Slot key={slot.id} number={i + 1} label={`${category.name}${i + 1}`}>
             {map ? <MapCard map={map} /> : <EmptySlot>Daha sonra açıklanacak</EmptySlot>}
           </Slot>
         );

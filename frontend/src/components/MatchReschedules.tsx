@@ -192,9 +192,9 @@ interface ListProps {
 function ProposalList({ title, empty, proposals, actions }: ListProps) {
   return (
     <div className="reschedule-group">
-      <h4 className="reschedule-label">
-        {title} {proposals.length > 0 && <span className="badge">{proposals.length}</span>}
-      </h4>
+      <h3 className="reschedule-label">
+        {title} {proposals.length > 0 && <span className="num">{proposals.length}</span>}
+      </h3>
       {proposals.length === 0 ? (
         <p className="reschedule-empty">{empty}</p>
       ) : (

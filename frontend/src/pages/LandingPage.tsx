@@ -1,54 +1,285 @@
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { loginWithOsu } from "../api/auth";
+import { fetchPublicBracket } from "../api/bracket";
+import { errorMessage } from "../api/client";
+import { fetchPublicStages } from "../api/mappool";
+import { fetchPublicQualifiers } from "../api/matches";
+import type { BracketMatch, PublicBracket, PublicQualifiers, Stage } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
-import { hasRole } from "../auth/roles";
+import { canPlay } from "../auth/roles";
+import { Countdown } from "../components/Countdown";
+import { FixtureRow } from "../components/FixtureRow";
+import { bracketMatchPath, compareByTime, incomingSources } from "../lib/bracket";
+import { formatMatchTime } from "../lib/format";
 import "./LandingPage.css";
 
+const UPCOMING_LIMIT = 6;
+const RESULTS_LIMIT = 4;
+
+interface Data {
+  bracket: PublicBracket | null;
+  qualifiers: PublicQualifiers | null;
+  stages: Stage[] | null;
+}
+
+type StageState = "done" | "current" | "upcoming";
+
+interface TrackStage {
+  id: string;
+  name: string;
+  state: StageState;
+}
+
+/**
+ * The front page as a "now" board: what stage the tournament is in, the visitor's own team and
+ * next match, the coming matches and the latest results, all from the public data.
+ */
 export function LandingPage() {
   const { user } = useAuth();
+  const [data, setData] = useState<Data | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Each part degrades on its own: a failing request only empties its section.
+    Promise.allSettled([fetchPublicBracket(), fetchPublicQualifiers(), fetchPublicStages()]).then(
+      ([bracket, qualifiers, stages]) => {
+        const value = <T,>(r: PromiseSettledResult<T>) => (r.status === "fulfilled" ? r.value : null);
+        if (bracket.status === "rejected" && qualifiers.status === "rejected") setError(errorMessage(bracket.reason));
+        setData({ bracket: value(bracket), qualifiers: value(qualifiers), stages: value(stages) });
+      },
+    );
+  }, []);
+
+  const matches = useMemo(() => data?.bracket?.matches ?? [], [data]);
+  const teamsById = useMemo(() => new Map(data?.bracket?.teams.map((t) => [t.id, t])), [data]);
+  const sources = useMemo(() => incomingSources(matches), [matches]);
+  const track = useMemo(() => (data ? stageTrack(data) : []), [data]);
+
+  const upcoming = matches
+    .filter((m) => !m.concluded_at && m.starts_at)
+    .sort(compareByTime)
+    .slice(0, UPCOMING_LIMIT);
+  const results = matches
+    .filter((m) => m.concluded_at)
+    .sort((a, b) => (b.concluded_at ?? "").localeCompare(a.concluded_at ?? ""))
+    .slice(0, RESULTS_LIMIT);
+  const lobbies = (data?.qualifiers?.lobbies ?? []).map((lobby, i) => ({ lobby, number: i + 1 }));
+  // Lobbies matter until the bracket starts; one a referee forgot to close shouldn't linger after.
+  const openLobbies = matches.some((m) => m.concluded_at) ? [] : lobbies.filter(({ lobby }) => !lobby.concluded_at);
+
+  const myTeamId = data?.bracket?.my_team_id ?? null;
+  const played = matches.filter((m) => m.concluded_at).length;
+  const teamCount = data?.bracket?.teams.length;
+
+  const row = (m: BracketMatch) => (
+    <li key={m.id}>
+      <FixtureRow
+        match={m}
+        to={bracketMatchPath(m.id, false)}
+        team1={m.team1_id ? teamsById.get(m.team1_id) : undefined}
+        team2={m.team2_id ? teamsById.get(m.team2_id) : undefined}
+        sources={sources.get(m.id)}
+        ownTeamId={myTeamId}
+      />
+    </li>
+  );
 
   return (
-    <div className="page page-narrow">
-      <section className="hero">
-        <p className="hero-eyebrow">osu! turnuvası</p>
-        <h1 className="hero-title">112 Servis 2026 Turnuva</h1>
-        <p className="hero-lead">
-          Turnuvayı takip et: stage'ler, mappool'lar ve sonuçlar. Katılmak için osu! ile giriş yap ya da sadece
-          göz at.
-        </p>
-
-        <div className="hero-actions">
-          <Link className="btn btn-secondary btn-lg" to="/mappool">
-            Mappool'u gör
-          </Link>
-          {!user && (
-            <button type="button" className="btn btn-primary btn-lg" onClick={loginWithOsu}>
-              osu! ile giriş yap
-            </button>
-          )}
-          {hasRole(user, "map_pooler") && (
-            <Link className="btn btn-primary btn-lg" to="/admin/mappool">
-              Mappool editörünü aç
+    <div className="page landing">
+      <section className="landing-head" aria-labelledby="landing-title">
+        <div className="landing-title-block">
+          <h1 id="landing-title" className="landing-title">
+            112servis <span className="landing-year">2026</span>
+          </h1>
+          <p className="landing-lead">
+            osu! 2v2 turnuvası
+            {teamCount !== undefined && <> · {teamCount} takım</>}
+            {matches.length > 0 && (
+              <>
+                {" "}
+                · {played}/{matches.length} maç oynandı
+              </>
+            )}
+          </p>
+        </div>
+        <div className="landing-actions">
+          {!user ? (
+            <>
+              <button type="button" className="btn btn-primary btn-lg" onClick={loginWithOsu}>
+                osu! ile giriş yap
+              </button>
+              <Link className="btn btn-secondary btn-lg" to="/mappool">
+                Mappool
+              </Link>
+            </>
+          ) : (
+            <Link className="btn btn-secondary btn-lg" to="/bracket">
+              Maçlar
             </Link>
           )}
         </div>
-        {user && <p className="hero-signed-in">{user.username} olarak giriş yapıldı</p>}
       </section>
 
-      <section className="landing-cards" aria-label="Turnuva hakkında">
-        <Link className="landing-card is-link" to="/mappool">
-          <h2>Stage'ler ve mappool'lar</h2>
-          <p>Her stage'in mod kategorilerine ayrılmış kendi mappool'u var. Önizlemeleri dinle, map'leri indir.</p>
-        </Link>
-        <div className="landing-card">
-          <h2>Program ve bracket</h2>
-          <p>Turnuva ilerledikçe maç saatleri ve bracket burada yayınlanacak.</p>
+      {track.length > 0 && (
+        <nav className="stage-track" aria-label="Turnuva aşamaları">
+          <ol>
+            {track.map((s) => (
+              <li key={s.id} className={`stage-track-item is-${s.state}`} aria-current={s.state === "current" ? "step" : undefined}>
+                <span className="stage-track-name">{s.name}</span>
+                {s.state === "current" && <span className="stage-track-now">Şu an</span>}
+              </li>
+            ))}
+          </ol>
+        </nav>
+      )}
+
+      {user && canPlay(user) && data?.bracket && (
+        <MyTeamSection data={data.bracket} myTeamId={myTeamId} />
+      )}
+
+      {error && <p className="status">{error}</p>}
+      {!data && <p className="status">Yükleniyor…</p>}
+
+      {data && (
+        <div className="landing-board">
+          {openLobbies.length > 0 && (
+            <section className="landing-section" aria-labelledby="landing-lobbies">
+              <header className="landing-section-head">
+                <h2 id="landing-lobbies">Eleme lobileri</h2>
+                <Link to="/qualifiers" className="landing-more">
+                  Tümü
+                </Link>
+              </header>
+              <ul className="lobby-lines">
+                {openLobbies.map(({ lobby, number }) => (
+                  <li key={lobby.id}>
+                    <Link to="/qualifiers" className="lobby-line">
+                      <span className="lobby-line-name">Lobi {number}</span>
+                      <span className="lobby-line-time">{formatMatchTime(lobby.starts_at)}</span>
+                      <span className="lobby-line-fill num">
+                        {lobby.teams.length}/{data.qualifiers?.capacity}
+                      </span>
+                      <span className="lobby-line-left">
+                        {lobby.open ? <Countdown to={lobby.starts_at} suffix="kaldı" /> : "Başladı"}
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          <section className="landing-section" aria-labelledby="landing-upcoming">
+            <header className="landing-section-head">
+              <h2 id="landing-upcoming">Sıradaki maçlar</h2>
+              <Link to="/bracket" className="landing-more">
+                Tüm maçlar
+              </Link>
+            </header>
+            {upcoming.length > 0 ? (
+              <ul className="fixture-list">{upcoming.map(row)}</ul>
+            ) : (
+              <p className="landing-empty">
+                {matches.length === 0 ? "Bracket maçları henüz açıklanmadı." : "Planlanmış maç kalmadı."}
+              </p>
+            )}
+          </section>
+
+          {results.length > 0 && (
+            <section className="landing-section" aria-labelledby="landing-results">
+              <header className="landing-section-head">
+                <h2 id="landing-results">Son sonuçlar</h2>
+              </header>
+              <ul className="fixture-list">{results.map(row)}</ul>
+            </section>
+          )}
         </div>
-        <div className="landing-card">
-          <h2>Katıl</h2>
-          <p>Katılmak için osu! ile giriş yap ve Discord hesabını bağla. Mappool'ları ve rolleri yetkililer yönetir.</p>
-        </div>
-      </section>
+      )}
     </div>
   );
+}
+
+/** The signed-in player's team and its next match as a fixture row, or a nudge to form a team. */
+function MyTeamSection({ data, myTeamId }: { data: PublicBracket; myTeamId: string | null }) {
+  const team = myTeamId ? data.teams.find((t) => t.id === myTeamId) : undefined;
+  const sources = useMemo(() => incomingSources(data.matches), [data]);
+  if (!team) {
+    return (
+      <Link to="/team" className="my-team-strip">
+        <span className="my-team-label">Takımın yok</span>
+        <span className="my-team-main">Bir takım arkadaşı bul ve takımını kur</span>
+        <span className="my-team-go">Takım kur</span>
+      </Link>
+    );
+  }
+
+  const next = data.matches
+    .filter((m) => !m.concluded_at && (m.team1_id === team.id || m.team2_id === team.id))
+    .sort(compareByTime)[0];
+  const teamOf = (id: string | null) => (id ? data.teams.find((t) => t.id === id) : undefined);
+
+  return (
+    <section className="landing-section my-team" aria-labelledby="landing-my-team">
+      <header className="landing-section-head">
+        <h2 id="landing-my-team">
+          <span className="my-team-label">Takımın</span> {team.name}
+        </h2>
+        <Link to="/team" className="landing-more">
+          Takımım
+        </Link>
+      </header>
+      {next ? (
+        <ul className="fixture-list">
+          <li>
+            <FixtureRow
+              match={next}
+              to={bracketMatchPath(next.id, false)}
+              team1={teamOf(next.team1_id)}
+              team2={teamOf(next.team2_id)}
+              sources={sources.get(next.id)}
+              ownTeamId={team.id}
+            />
+          </li>
+        </ul>
+      ) : (
+        <p className="landing-empty">Planlanmış maçın yok.</p>
+      )}
+    </section>
+  );
+}
+
+/**
+ * The tournament's stages in play order (the qualifier first), each marked done, current or
+ * upcoming from its matches: the current one is where the earliest unfinished match is.
+ */
+function stageTrack({ bracket, qualifiers, stages }: Data): TrackStage[] {
+  const matches = bracket?.matches ?? [];
+  const byId = new Map<string, { id: string; name: string; position: number; qualifier: boolean }>();
+  for (const s of stages ?? []) byId.set(s.id, { id: s.id, name: s.name, position: s.position, qualifier: s.is_qualifier });
+  for (const m of matches) {
+    if (m.stage && !byId.has(m.stage.id))
+      byId.set(m.stage.id, { id: m.stage.id, name: m.stage.name, position: m.stage.position, qualifier: false });
+  }
+  const ordered = [...byId.values()].sort((a, b) => Number(b.qualifier) - Number(a.qualifier) || a.position - b.position);
+
+  const lobbies = qualifiers?.lobbies ?? [];
+  const qualifiersOpen = lobbies.some((l) => !l.concluded_at);
+  const nextMatch = matches.filter((m) => !m.concluded_at).sort(compareByTime)[0];
+  // Once a bracket match is played the qualifiers are over, even if a lobby was never closed.
+  const bracketStarted = matches.some((m) => m.concluded_at);
+  const currentId = qualifiersOpen && !bracketStarted
+    ? ordered.find((s) => s.qualifier)?.id
+    : nextMatch?.stage?.id;
+
+  const currentIndex = ordered.findIndex((s) => s.id === currentId);
+  return ordered.map((s, i) => {
+    const own = matches.filter((m) => m.stage?.id === s.id);
+    const finished = s.qualifier
+      ? (lobbies.length > 0 && !qualifiersOpen) || bracketStarted
+      : own.length > 0 && own.every((m) => m.concluded_at);
+    const state: StageState =
+      s.id === currentId ? "current" : finished || (currentIndex >= 0 && i < currentIndex) ? "done" : "upcoming";
+    return { id: s.id, name: s.name, state };
+  });
 }

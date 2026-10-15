@@ -1,0 +1,63 @@
+.profile-header {
+  align-items: center;
+}
+
+.profile-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+}
+
+.profile-roles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+
+/* The account's facts as ruled rows: label on the left, value on the right. */
+.profile-facts {
+  margin: 0 0 var(--space-5);
+}
+
+.profile-facts > div {
+  display: grid;
+  grid-template-columns: 10rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: var(--rule);
+}
+
+.profile-facts dt {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.profile-facts dd {
+  margin: 0;
+}
+
+.profile-facts dd.num {
+  font-size: var(--text-2xl);
+  line-height: 1.1;
+}
+
+.profile-discord {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.profile-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+@media (max-width: 560px) {
+  .profile-facts > div {
+    grid-template-columns: 7rem minmax(0, 1fr);
+  }
+}

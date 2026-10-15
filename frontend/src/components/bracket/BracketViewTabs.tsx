@@ -17,7 +17,9 @@ export function useBracketView(key: string) {
   const storageKey = `bracket-view:${key}`;
   const [view, setView] = useState<BracketView>(() => {
     const saved = readString(storageKey);
-    return VIEWS.some((v) => v.view === saved) ? (saved as BracketView) : "grid";
+    if (VIEWS.some((v) => v.view === saved)) return saved as BracketView;
+    // Phones open on the list: the board is too small to read there until zoomed.
+    return window.matchMedia("(max-width: 720px)").matches ? "list" : "grid";
   });
   const select = (next: BracketView) => {
     setView(next);

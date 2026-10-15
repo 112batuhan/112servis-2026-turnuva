@@ -24,6 +24,8 @@ interface Props<P extends Player> {
   highlight?: boolean;
   /** Adds a button that shows the team's next match and match history over the card. */
   showMatches?: boolean;
+  /** Shows the team value; off where the page already shows it, like /team's meter. */
+  showValue?: boolean;
 }
 
 export function TeamCard<P extends Player>({
@@ -34,6 +36,7 @@ export function TeamCard<P extends Player>({
   actions,
   highlight,
   showMatches = true,
+  showValue = true,
 }: Props<P>) {
   const [matchesOpen, setMatchesOpen] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -59,8 +62,18 @@ export function TeamCard<P extends Player>({
 
   return (
     <article id={teamAnchorId(team.id)} className={classes}>
-      <div className="team-card-banner" aria-hidden={matchesOpen || undefined}>
-        {team.banner_url && <img src={`${API_URL}${team.banner_url}`} alt="" />}
+      <div
+        className={team.banner_url ? "team-card-banner" : "team-card-banner is-empty"}
+        aria-hidden={matchesOpen || undefined}
+      >
+        {team.banner_url ? (
+          <img src={`${API_URL}${team.banner_url}`} alt="" />
+        ) : (
+          // No banner yet: the team's initial, set large, holds the space instead of an empty box.
+          <span className="team-card-monogram" aria-hidden="true">
+            {Array.from(team.name)[0]?.toLocaleUpperCase("tr-TR")}
+          </span>
+        )}
         {showMatches && (
           <button
             ref={toggleRef}
@@ -85,12 +98,14 @@ export function TeamCard<P extends Player>({
           </h3>
         </div>
       </div>
-      <div className="team-card-body" aria-hidden={matchesOpen || undefined}>
-        <div className="team-card-value">
-          <span className="team-card-value-label">Hesaplanan rank</span>
-          <span className="team-card-value-number">{formatTeamValue(team.team_value)}</span>
-          {team.rank_warning && <span className="team-card-warning">{RANK_WARNING_LABELS[team.rank_warning]}</span>}
-        </div>
+      <div className={showValue ? "team-card-body" : "team-card-body is-players-only"} aria-hidden={matchesOpen || undefined}>
+        {showValue && (
+          <div className="team-card-value">
+            <span className="team-card-value-label">Takım değeri</span>
+            <span className="team-card-value-number num">{formatTeamValue(team.team_value)}</span>
+            {team.rank_warning && <span className="team-card-warning">{RANK_WARNING_LABELS[team.rank_warning]}</span>}
+          </div>
+        )}
         <ul className="team-card-players">
           {team.players.map((p) => (
             <li key={p.id}>

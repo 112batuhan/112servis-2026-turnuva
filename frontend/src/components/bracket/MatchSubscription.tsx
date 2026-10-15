@@ -4,6 +4,7 @@ import { errorMessage } from "../../api/client";
 import { fetchSubscriptions, subscribe, unsubscribe } from "../../api/discord";
 import type { BracketMatch, Team } from "../../api/types";
 import { matchCode } from "../../lib/bracket";
+import { Icon } from "../Icon";
 import { IconButton } from "../IconButton";
 import "./MatchSubscription.css";
 
@@ -116,7 +117,14 @@ export function SelectedMatchBar({
           aria-pressed={on}
           onClick={() => subs.toggle(match.id)}
         >
-          {on ? "Discord'da haber verilecek ✓" : "Başlarken Discord'da etiketle"}
+          {on ? (
+            <>
+              <Icon name="check" size={14} />
+              Discord'da haber verilecek
+            </>
+          ) : (
+            "Başlarken Discord'da etiketle"
+          )}
         </button>
       ) : (
         <span className="muted">

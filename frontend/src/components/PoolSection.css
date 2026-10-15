@@ -75,6 +75,10 @@
   color: var(--color-text-muted);
 }
 
+.pool-section.has-color .pool-section-meta {
+  color: color-mix(in srgb, var(--color-text) 85%, var(--section-color));
+}
+
 .pool-section-actions {
   display: flex;
   align-items: center;
@@ -96,4 +100,194 @@
 .pool-empty {
   font-size: var(--text-sm);
   color: var(--color-text-muted);
+}
+
+/* The public pool reads as a list, not boxes in boxes: each category opens with a rule in its
+   colour, and its maps sit on hairlines under the slot codes. */
+.pool-board.is-public {
+  gap: var(--space-6);
+}
+
+.pool-board.is-public .pool-section {
+  background: none;
+  border: 0;
+  border-top: 4px solid var(--section-color);
+  border-radius: 0;
+}
+
+.pool-board.is-public .pool-section-head,
+.pool-board.is-public .pool-section.has-color .pool-section-head {
+  padding-right: 0;
+  border-radius: 0;
+  background: none;
+}
+
+.pool-board.is-public .pool-section-toggle {
+  padding: var(--space-2) 0;
+}
+
+.pool-board.is-public .pool-section-title {
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-3xl);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.pool-board.is-public .pool-section-meta {
+  font-size: var(--text-sm);
+}
+
+.pool-board.is-public .pool-section-body {
+  gap: 0;
+  padding: 0;
+  border-top: 0;
+}
+
+.pool-board.is-public .slot {
+  align-items: center;
+  padding: var(--space-3) 0;
+  background: none;
+  border: 0;
+  border-top: var(--rule);
+  border-radius: 0;
+}
+
+.pool-board.is-public .slot-number {
+  min-width: 4.5rem;
+  padding-top: 0;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-2xl);
+  font-weight: 800;
+}
+
+/* One line at every width above phones: the details shrink (the title truncates) so the id and
+   download buttons always stay on the right instead of wrapping under the map. */
+.pool-board.is-public .map-card {
+  flex-wrap: nowrap;
+  padding: 0;
+  background: none;
+  border: 0;
+}
+
+.pool-board.is-public .map-card-main {
+  flex: 1 1 0;
+}
+
+.pool-board.is-public .map-card-actions {
+  flex-shrink: 0;
+}
+
+.pool-board.is-public .map-cover-thumb {
+  width: 96px;
+  height: 54px;
+}
+
+/* Phones: every map lays out the same compact way. The slot code shares its row with the id and
+   download controls, the preview button sits on the cover, the title, diff and mapper stack beside
+   the cover, and the stats and the note run the full width under it. The slot, its body and the
+   card are flattened into one grid so the code and the controls can share the first row. */
+@media (max-width: 560px) {
+  .pool-board.is-public .slot {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-areas:
+      "code . id download"
+      "cover head head head"
+      "stats stats stats stats"
+      "note note note note";
+    align-items: center;
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .pool-board.is-public .slot-body,
+  .pool-board.is-public .map-card,
+  .pool-board.is-public .map-card-main,
+  .pool-board.is-public .map-info,
+  .pool-board.is-public .map-card-actions {
+    display: contents;
+  }
+
+  .pool-board.is-public .slot-number {
+    grid-area: code;
+    font-size: var(--text-xl);
+    line-height: 1;
+  }
+
+  .pool-board.is-public .slot-empty {
+    grid-column: 1 / -1;
+  }
+
+  .pool-board.is-public .map-cover {
+    grid-area: cover;
+    align-self: start;
+  }
+
+  .pool-board.is-public .map-cover-thumb {
+    width: 104px;
+    height: 58px;
+  }
+
+  /* The preview button sits on the middle of the cover, on a scrim so it reads over any image. */
+  .pool-board.is-public .map-card-main > .icon-btn {
+    grid-area: cover;
+    z-index: 1;
+    align-self: start;
+    justify-self: center;
+    margin-top: calc((58px - var(--icon-button-size)) / 2);
+  }
+
+  .pool-board.is-public .map-card-main > .icon-btn:not(.icon-btn-active) {
+    background: var(--color-scrim-control);
+    border-color: transparent;
+    color: var(--color-text);
+  }
+
+  .pool-board.is-public .map-info-head {
+    grid-area: head;
+    align-self: start;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  /* The title gets two lines before it truncates. */
+  .pool-board.is-public .map-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    white-space: normal;
+    line-height: 1.3;
+  }
+
+  .pool-board.is-public .map-meta {
+    flex-shrink: 1;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .pool-board.is-public .map-stats {
+    grid-area: stats;
+    margin: 0;
+  }
+
+  /* Sits right under the stats, as one more line of the map's details rather than its own block. */
+  .pool-board.is-public .map-card-public-note {
+    grid-area: note;
+    margin-top: calc(-1 * var(--space-1));
+    font-size: var(--text-xs);
+    line-height: 1.4;
+  }
+
+  .pool-board.is-public .map-id {
+    grid-area: id;
+  }
+
+  .pool-board.is-public .map-card-actions > a.icon-btn {
+    grid-area: download;
+  }
 }

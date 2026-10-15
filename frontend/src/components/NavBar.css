@@ -74,6 +74,7 @@
 }
 
 .nav-links {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1);
@@ -112,6 +113,16 @@
   margin-left: auto;
 }
 
+/* Every control in the account row shares one height and one border, so the text buttons and the
+   bell's icon button line up as a set. */
+.nav-account .btn {
+  height: var(--icon-button-size);
+}
+
+.nav-account .icon-btn-outlined {
+  border-color: var(--color-border-strong);
+}
+
 .nav-user {
   display: inline-flex;
   align-items: center;
@@ -138,8 +149,48 @@
     display: none;
   }
 
+  .navbar {
+    column-gap: var(--space-2);
+  }
+
+  .nav-account {
+    gap: var(--space-1);
+  }
+
+  .nav-user {
+    padding: 0 var(--space-1);
+  }
+
+  /* Just the gear on phones, so the account row fits on one line; the text stays for screen readers. */
+  .nav-admin-link {
+    width: var(--icon-button-size);
+    padding: 0;
+  }
+
+  .nav-admin-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
   .nav-links {
     order: 3;
     flex-basis: 100%;
+    flex-wrap: nowrap;
+    margin: 0 calc(-1 * var(--space-4));
+    padding: 0 var(--space-4);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-link {
+    flex-shrink: 0;
   }
 }

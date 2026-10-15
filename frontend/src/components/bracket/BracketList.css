@@ -122,7 +122,10 @@
   padding: 0;
   border: none;
   background: none;
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
@@ -130,12 +133,8 @@ button.bracket-list-code:hover {
   text-decoration: underline;
 }
 
-.bracket-list-code.is-winners {
-  color: var(--color-warning);
-}
-
 .bracket-list-code.is-losers {
-  color: var(--color-info);
+  color: var(--color-text-muted);
 }
 
 .bracket-list-time {
@@ -170,9 +169,44 @@ button.bracket-list-code:hover {
   font-style: italic;
 }
 
+/* The score halves in the sides' colours, as in the fixture rows. */
 .bracket-list-score {
-  font-weight: 700;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  min-width: 56px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background-image:
+    linear-gradient(90deg, var(--color-team-red) 50%, var(--color-team-blue) 50%),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-team-red) 30%, transparent) 50%,
+      color-mix(in srgb, var(--color-team-blue) 30%, transparent) 50%
+    );
+  background-size:
+    100% 3px,
+    100% 100%;
+  background-position:
+    bottom,
+    center;
+  background-repeat: no-repeat;
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-xl);
   font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.bracket-list-score > span {
+  padding: var(--space-1) var(--space-2) 6px;
+  color: var(--color-text-muted);
+  font-weight: 600;
+  text-align: center;
+}
+
+.bracket-list-score > .is-winner {
+  color: var(--color-text);
+  font-weight: 800;
 }
 
 .bracket-list-person,
@@ -186,4 +220,120 @@ button.bracket-list-code:hover {
 .bracket-list-actions {
   justify-content: flex-end;
   width: 100%;
+}
+
+/* No black box for a team without a banner. */
+.bracket-list-team .team-banner:empty {
+  display: none;
+}
+
+/* Narrow: each match becomes a stacked block instead of a table row, so both teams stay in view
+   without scrolling sideways: code and time, then the pairing, then the staff and status. */
+.bracket-list-wrap {
+  container-type: inline-size;
+}
+
+@container (max-width: 720px) {
+  .bracket-list-scroll {
+    max-height: none;
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .bracket-list,
+  .bracket-list tbody {
+    display: block;
+  }
+
+  .bracket-list thead {
+    display: none;
+  }
+
+  .bracket-list tbody tr.bracket-list-group {
+    display: block;
+    border-top: var(--rule-heavy);
+    background: none;
+  }
+
+  .bracket-list tbody tr.bracket-list-group > th {
+    display: block;
+    padding: var(--space-3) 0;
+  }
+
+  .bracket-list tbody tr:not(.bracket-list-group) {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "code time"
+      "pair pair"
+      "ref ref"
+      "stream stream"
+      "status status"
+      "actions actions";
+    align-items: center;
+    gap: var(--space-1) var(--space-3);
+    padding: var(--space-3) 0;
+  }
+
+  .bracket-list tbody tr:not(.bracket-list-group) > * {
+    min-width: 0;
+    padding: 0;
+    white-space: normal;
+  }
+
+  .bracket-list tbody tr:not(.bracket-list-group) .select {
+    max-width: 100%;
+  }
+
+  .bracket-list-actions {
+    justify-content: flex-start;
+  }
+
+  .bracket-list tbody tr > th[scope="row"] {
+    grid-area: code;
+  }
+
+  .bracket-list-time {
+    grid-area: time;
+  }
+
+  .bracket-list-pairing-cell {
+    grid-area: pair;
+  }
+
+  .bracket-list-referee {
+    grid-area: ref;
+  }
+
+  .bracket-list-streamer {
+    grid-area: stream;
+  }
+
+  .bracket-list-status-cell {
+    grid-area: status;
+  }
+
+  .bracket-list-actions-cell {
+    grid-area: actions;
+  }
+
+  .bracket-list-referee::before,
+  .bracket-list-streamer::before {
+    content: attr(data-label) " ";
+    color: var(--color-text-muted);
+  }
+
+  .bracket-list-pairing {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
+  .bracket-list-team {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .bracket-list-team .team-banner {
+    display: none;
+  }
 }

@@ -20,16 +20,15 @@
 }
 
 .bm-card-code {
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-md);
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
-.bm-card-code.is-winners {
-  color: var(--color-warning);
-}
-
 .bm-card-code.is-losers {
-  color: var(--color-info);
+  color: var(--color-text-muted);
 }
 
 .bm-card-time {
@@ -78,17 +77,36 @@
 
 /* Pushed to the right edge; the name before it only takes its own width, so only it opens the team card. */
 .bm-card-score {
-  margin-left: auto;
-  min-width: 2ch;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.25em;
+  margin: 0 calc(-1 * var(--space-2)) 0 auto;
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  text-align: right;
 }
 
-.bm-card-team.is-winner /* Pushed to the right edge; the name before it only takes its own width, so only it opens the team card. */
-.bm-card-score {
-  margin-left: auto;
-  color: var(--color-success);
+/* Team 1 plays red and team 2 blue, as in the osu! room: the score cells carry the side. */
+.bm-card-team:nth-child(2) .bm-card-score {
+  background: color-mix(in srgb, var(--color-team-red) 34%, transparent);
+}
+
+.bm-card-team:nth-child(3) .bm-card-score {
+  background: color-mix(in srgb, var(--color-team-blue) 34%, transparent);
+}
+
+/* No black box for a team without a banner. */
+.bm-card-team .team-banner:empty {
+  display: none;
+}
+
+.bm-card-team.is-winner .bm-card-score {
+  color: var(--color-text);
+  font-weight: 800;
 }
 
 .bm-card-team.is-loser {

@@ -13,6 +13,9 @@ export function UsersPage() {
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  // "" shows everyone, "staff" anyone with a role, a role only its holders.
+  const [roleFilter, setRoleFilter] = useState<"" | "staff" | Role>("");
 
   useEffect(() => {
     fetchUsers()
@@ -39,11 +42,47 @@ export function UsersPage() {
     }
   }
 
+  const needle = query.trim().toLocaleLowerCase("tr-TR");
+  const shown = users?.filter(
+    (u) =>
+      (roleFilter === "" || (roleFilter === "staff" ? u.roles.length > 0 : u.roles.includes(roleFilter))) &&
+      (!needle ||
+        u.username.toLocaleLowerCase("tr-TR").includes(needle) ||
+        String(u.osu_id).includes(needle) ||
+        (u.discord_username?.toLocaleLowerCase("tr-TR").includes(needle) ?? false)),
+  );
+
   return (
     <section className="panel">
       <div className="page-header">
         <h1>Kayıtlı kullanıcılar</h1>
         {users && <span className="badge">{users.length}</span>}
+        {users && (
+          <div className="page-header-aside">
+            <input
+              className="input input-sm"
+              type="search"
+              placeholder="Ad, osu! id veya Discord ara"
+              aria-label="Kullanıcı ara"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            <select
+              className="select select-sm"
+              aria-label="Role göre süz"
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)}
+            >
+              <option value="">Herkes</option>
+              <option value="staff">Yetkililer</option>
+              {ROLES.map((r) => (
+                <option key={r} value={r}>
+                  {ROLE_LABELS[r]}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
@@ -66,7 +105,7 @@ export function UsersPage() {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {shown?.map((u) => (
                 <tr key={u.id}>
                   <td>{u.avatar_url && <img className="row-avatar" src={u.avatar_url} alt="" loading="lazy" />}</td>
                   <td>
@@ -105,6 +144,7 @@ export function UsersPage() {
               ))}
             </tbody>
           </table>
+          {shown?.length === 0 && <p className="status users-empty">Aramayla eşleşen kullanıcı yok.</p>}
         </div>
       )}
     </section>

@@ -11,12 +11,27 @@
   max-width: 960px;
 }
 
+/* The page's headline over a heavy rule, like the top of a fixture sheet. A count right after the
+   title (a .badge) reads as a figure, not a pill. */
 .page-header {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
   margin-bottom: var(--space-5);
+  padding-bottom: var(--space-3);
+  border-bottom: var(--rule-heavy);
+}
+
+.page-header > h1 + .badge {
+  padding: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 /* Pushes trailing header content (status text, buttons) to the right. */
@@ -24,6 +39,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  align-self: center;
   gap: var(--space-3);
   margin-left: auto;
   font-size: var(--text-sm);
@@ -74,33 +90,7 @@
   text-align: center;
 }
 
-.card-avatar {
-  width: 80px;
-  height: 80px;
-  border-radius: 50%;
-}
-
 .card-subtitle {
   color: var(--color-text-muted);
-  font-size: var(--text-md);
-}
-
-/* A row of badges on a card, like a user's roles. */
-.card-badges {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-1);
-}
-
-.card-section {
-  width: 100%;
-  margin-top: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
   font-size: var(--text-md);
 }

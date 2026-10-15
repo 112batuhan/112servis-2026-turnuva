@@ -17,7 +17,8 @@ export function PlayerChip({ player }: { player: Player }) {
         </a>
         <span className="player-chip-meta">
           {formatRank(player.global_rank)}
-          {player.country_code && <> · {player.country_code}</>}
+          {/* Every player is assumed Turkish; only the exceptions are worth naming. */}
+          {player.country_code && player.country_code !== "TR" && <> · {player.country_code}</>}
         </span>
       </div>
     </div>

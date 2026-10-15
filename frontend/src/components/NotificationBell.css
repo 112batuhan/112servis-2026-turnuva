@@ -74,7 +74,8 @@
 }
 
 .notif-item.is-unread {
-  border-left: 3px solid var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface-raised));
 }
 
 .notif-item.is-pending {

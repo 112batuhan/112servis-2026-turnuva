@@ -5,13 +5,13 @@ export const ELIGIBILITY_LABELS: Record<Eligibility, string> = {
   not_player: "Yetkili",
   in_team: "Zaten bir takımda",
   unranked: "Unranked",
-  over_limit: "Rank limitini aşıyor",
+  over_limit: "Limiti aşıyor",
 };
 
 export const eligibilityBadgeClass = (e: Eligibility) =>
   e === "eligible" ? "badge badge-success" : "badge badge-warning";
 
 export const RANK_WARNING_LABELS: Record<RankWarning, string> = {
-  over_limit: "Rank limitini aşıyor",
+  over_limit: "Takım değeri limiti aşıyor",
   unranked: "Bir oyuncunun rank'ı yok",
 };

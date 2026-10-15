@@ -195,7 +195,7 @@ export function BracketList<M extends BracketMatch>({
                               <span className={`bracket-list-code is-${m.side}`}>{matchCode(m)}</span>
                             )}
                           </th>
-                          <td className="bracket-list-time">
+                          <td className="bracket-list-time" data-label="Zaman">
                             {!m.starts_at ? (
                               <span className="muted">—</span>
                             ) : onShowInCalendar ? (
@@ -209,16 +209,17 @@ export function BracketList<M extends BracketMatch>({
                               <MatchTime startsAt={m.starts_at} countdown={countdown} />
                             )}
                           </td>
-                          <td>
+                          <td className="bracket-list-pairing-cell">
                             <div className="bracket-list-pairing">
                               <TeamName id={m.team1_id} source={s1} teams={teams} won={winner === 1} bannerEnd />
                               <span className="bracket-list-score">
-                                {m.team1_score ?? "–"} : {m.team2_score ?? "–"}
+                                <span className={winner === 1 ? "is-winner" : undefined}>{m.team1_score ?? "–"}</span>
+                                <span className={winner === 2 ? "is-winner" : undefined}>{m.team2_score ?? "–"}</span>
                               </span>
                               <TeamName id={m.team2_id} source={s2} teams={teams} won={winner === 2} />
                             </div>
                           </td>
-                          <td>
+                          <td className="bracket-list-referee" data-label="Hakem">
                             {renderReferee ? (
                               renderReferee(m)
                             ) : m.referee ? (
@@ -230,7 +231,7 @@ export function BracketList<M extends BracketMatch>({
                               <span className="muted">—</span>
                             )}
                           </td>
-                          <td>
+                          <td className="bracket-list-streamer" data-label="Yayıncı">
                             {renderStreamer ? (
                               renderStreamer(m)
                             ) : m.streamer ? (
@@ -239,14 +240,14 @@ export function BracketList<M extends BracketMatch>({
                               <span className="muted">—</span>
                             )}
                           </td>
-                          <td>
+                          <td className="bracket-list-status-cell">
                             <span className="bracket-list-status">
                               <MatchStatus match={m} now={now} />
                               <RoomLinks rooms={m.rooms} />
                             </span>
                           </td>
                           {renderActions && (
-                            <td>
+                            <td className="bracket-list-actions-cell">
                               <div className="bracket-list-actions">{renderActions(m)}</div>
                             </td>
                           )}

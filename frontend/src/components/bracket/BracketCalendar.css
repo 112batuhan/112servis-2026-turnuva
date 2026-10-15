@@ -114,7 +114,6 @@
   align-self: stretch;
   overflow: hidden;
   padding: 2px var(--space-2);
-  border-left: 3px solid var(--color-info);
   border-radius: var(--radius-sm);
   background: var(--color-info-soft);
   font-size: var(--text-xs);
@@ -124,7 +123,6 @@
 }
 
 .cal-day-count.is-mine {
-  border-left-color: var(--color-primary);
   background: var(--color-primary-soft);
 }
 
@@ -228,16 +226,16 @@
   flex-direction: column;
   min-width: 0;
   padding: 2px var(--space-2);
-  border: 1px solid transparent;
-  border-left: 3px solid var(--color-warning);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 35%, transparent);
   border-radius: var(--radius-sm);
-  background: var(--color-surface-raised);
+  background: color-mix(in srgb, var(--color-warning) 8%, var(--color-surface-raised));
   font-size: var(--text-xs);
   text-align: left;
 }
 
 .cal-match.is-losers {
-  border-left-color: var(--color-info);
+  border-color: color-mix(in srgb, var(--color-info) 35%, transparent);
+  background: color-mix(in srgb, var(--color-info) 8%, var(--color-surface-raised));
 }
 
 .cal-match.is-done {
@@ -250,7 +248,6 @@
 
 .cal-match.is-selected {
   border-color: var(--color-primary);
-  border-left-color: var(--color-primary);
 }
 
 .cal-match[role="button"] {

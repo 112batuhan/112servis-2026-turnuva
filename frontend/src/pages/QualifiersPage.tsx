@@ -88,7 +88,7 @@ export function QualifiersPage() {
       {!data && !error && <p className="status">Yükleniyor…</p>}
 
       {data && (
-        <section className="panel qualifiers-summary">
+        <section className={myLobby ? "qualifiers-summary is-mine" : "qualifiers-summary"}>
           {myLobby ? (
             <>
               <p>

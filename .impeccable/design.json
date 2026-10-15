@@ -1,0 +1,753 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-15T15:47:42.120122+00:00",
+  "title": "Design System: 112servis 2026 Turnuva",
+  "extensions": {
+    "paletteStatus": "placeholder: every colour value is a stand-in until the designers supply the scheme; swap values in frontend/src/styles/tokens.css and keep the role names",
+    "tokenSource": "frontend/src/styles/tokens.css",
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "Ground",
+        "canonical": "#15161b",
+        "cssVar": "--color-bg",
+        "placeholder": true,
+        "tonalRamp": [
+          "#0a0b0f",
+          "#24252a",
+          "#404247",
+          "#5f6167",
+          "#808288",
+          "#a3a5ab",
+          "#c7c9d0",
+          "#eceef5"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "ground-sunken": {
+        "role": "neutral",
+        "displayName": "Ground Sunken",
+        "canonical": "#111217",
+        "cssVar": "--color-surface-sunken",
+        "placeholder": true,
+        "tonalRamp": [
+          "#0a0b10",
+          "#24252a",
+          "#404248",
+          "#5f6167",
+          "#808289",
+          "#a3a5ac",
+          "#c7c9d0",
+          "#eceef6"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "surface": {
+        "role": "neutral",
+        "displayName": "Surface",
+        "canonical": "#1e2027",
+        "cssVar": "--color-surface",
+        "placeholder": true,
+        "tonalRamp": [
+          "#090b11",
+          "#23252c",
+          "#3f4249",
+          "#5e6169",
+          "#7f828b",
+          "#a2a5ae",
+          "#c6c9d2",
+          "#ebeef8"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "surface-raised": {
+        "role": "neutral",
+        "displayName": "Surface Raised",
+        "canonical": "#272932",
+        "cssVar": "--color-surface-raised",
+        "placeholder": true,
+        "tonalRamp": [
+          "#090b12",
+          "#23252d",
+          "#3f414b",
+          "#5e616b",
+          "#7f828d",
+          "#a2a4b0",
+          "#c6c8d4",
+          "#ebeefa"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "hover-wash": {
+        "role": "neutral",
+        "displayName": "Hover Wash",
+        "canonical": "rgba(255, 255, 255, 0.06)",
+        "cssVar": "--color-hover",
+        "placeholder": true,
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "hairline": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "#33353f",
+        "cssVar": "--color-border",
+        "placeholder": true,
+        "tonalRamp": [
+          "#090a13",
+          "#23242e",
+          "#3f414c",
+          "#5e616c",
+          "#7f828d",
+          "#a2a4b0",
+          "#c6c8d5",
+          "#ebeefb"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "hairline-strong": {
+        "role": "neutral",
+        "displayName": "Hairline Strong",
+        "canonical": "#4a4d5a",
+        "cssVar": "--color-border-strong",
+        "placeholder": true,
+        "tonalRamp": [
+          "#080a14",
+          "#222430",
+          "#3e414e",
+          "#5d606e",
+          "#7e8290",
+          "#a1a4b3",
+          "#c5c8d8",
+          "#eaeefe"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "#f1f2f5",
+        "cssVar": "--color-text",
+        "placeholder": true,
+        "tonalRamp": [
+          "#0a0b0d",
+          "#242527",
+          "#414244",
+          "#606164",
+          "#818285",
+          "#a4a5a8",
+          "#c8c9cc",
+          "#edeef1"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "ink-muted": {
+        "role": "neutral",
+        "displayName": "Ink Muted",
+        "canonical": "#a5a8b3",
+        "cssVar": "--color-text-muted",
+        "placeholder": true,
+        "tonalRamp": [
+          "#090b12",
+          "#22252d",
+          "#3f424b",
+          "#5e616b",
+          "#7f828c",
+          "#a2a5af",
+          "#c6c9d4",
+          "#ebeefa"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "ink-subtle": {
+        "role": "neutral",
+        "displayName": "Ink Subtle",
+        "canonical": "#8b8e9a",
+        "cssVar": "--color-text-subtle",
+        "placeholder": true,
+        "tonalRamp": [
+          "#090b13",
+          "#22242e",
+          "#3f414c",
+          "#5e616c",
+          "#7f828e",
+          "#a1a4b1",
+          "#c5c9d5",
+          "#ebeefb"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "brand": {
+        "role": "primary",
+        "displayName": "Brand Accent",
+        "canonical": "#ff66ab",
+        "cssVar": "--color-primary",
+        "placeholder": true,
+        "tonalRamp": [
+          "#31000e",
+          "#560029",
+          "#7b0046",
+          "#a22d65",
+          "#c95287",
+          "#f076aa",
+          "#ff9ace",
+          "#ffbff4"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "brand-hover": {
+        "role": "primary",
+        "displayName": "Brand Accent Hover",
+        "canonical": "#ff85bc",
+        "cssVar": "--color-primary-hover",
+        "placeholder": true,
+        "tonalRamp": [
+          "#300010",
+          "#55002b",
+          "#7a0049",
+          "#a02e69",
+          "#c7538a",
+          "#ef76ad",
+          "#ff9bd2",
+          "#ffc0f8"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "on-brand": {
+        "role": "primary",
+        "displayName": "Ink On Brand",
+        "canonical": "#1c0b14",
+        "cssVar": "--color-on-primary",
+        "placeholder": true,
+        "tonalRamp": [
+          "#15050e",
+          "#311e28",
+          "#503b45",
+          "#705a65",
+          "#927b86",
+          "#b69da9",
+          "#dbc1cd",
+          "#ffe6f2"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "brand-soft": {
+        "role": "primary",
+        "displayName": "Brand Soft",
+        "canonical": "rgba(255, 102, 171, 0.14)",
+        "cssVar": "--color-primary-soft",
+        "placeholder": true,
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "focus": {
+        "role": "primary",
+        "displayName": "Focus Ring",
+        "canonical": "#ffb3d6",
+        "cssVar": "--color-focus",
+        "placeholder": true,
+        "tonalRamp": [
+          "#240011",
+          "#45072b",
+          "#672849",
+          "#8a4869",
+          "#ae698a",
+          "#d48bad",
+          "#fbafd2",
+          "#ffd4f8"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "team-red": {
+        "role": "secondary",
+        "displayName": "Team Red",
+        "canonical": "#f2666e",
+        "cssVar": "--color-team-red",
+        "placeholder": true,
+        "tonalRamp": [
+          "#360000",
+          "#5c0000",
+          "#82001c",
+          "#a92d3a",
+          "#d1525a",
+          "#f9767c",
+          "#ff9b9f",
+          "#ffc0c3"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "team-red-soft": {
+        "role": "secondary",
+        "displayName": "Team Red Soft",
+        "canonical": "rgba(242, 102, 110, 0.14)",
+        "cssVar": "--color-team-red-soft",
+        "placeholder": true,
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "team-blue": {
+        "role": "secondary",
+        "displayName": "Team Blue",
+        "canonical": "#5ea8ff",
+        "cssVar": "--color-team-blue",
+        "placeholder": true,
+        "tonalRamp": [
+          "#000046",
+          "#001c69",
+          "#003f8d",
+          "#0f61b2",
+          "#3a84d8",
+          "#5ea8ff",
+          "#82cdff",
+          "#a7f3ff"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "team-blue-soft": {
+        "role": "secondary",
+        "displayName": "Team Blue Soft",
+        "canonical": "rgba(94, 168, 255, 0.14)",
+        "cssVar": "--color-team-blue-soft",
+        "placeholder": true,
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "success": {
+        "role": "tertiary",
+        "displayName": "Success",
+        "canonical": "#5fd38d",
+        "cssVar": "--color-success",
+        "placeholder": true,
+        "tonalRamp": [
+          "#001700",
+          "#003600",
+          "#005618",
+          "#007838",
+          "#159b59",
+          "#49bf7b",
+          "#72e59e",
+          "#99ffc2"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "warning": {
+        "role": "tertiary",
+        "displayName": "Warning",
+        "canonical": "#e8b84a",
+        "cssVar": "--color-warning",
+        "placeholder": true,
+        "tonalRamp": [
+          "#220000",
+          "#421800",
+          "#623700",
+          "#845800",
+          "#a87a00",
+          "#cc9d28",
+          "#f2c255",
+          "#ffe77c"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Danger",
+        "canonical": "#f3877e",
+        "cssVar": "--color-danger",
+        "placeholder": true,
+        "tonalRamp": [
+          "#300000",
+          "#550000",
+          "#791718",
+          "#9f3c37",
+          "#c65e57",
+          "#ed8279",
+          "#ffa69c",
+          "#ffcbc0"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "danger-soft": {
+        "role": "tertiary",
+        "displayName": "Danger Soft",
+        "canonical": "rgba(243, 135, 126, 0.12)",
+        "cssVar": "--color-danger-soft",
+        "placeholder": true,
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "info": {
+        "role": "tertiary",
+        "displayName": "Info",
+        "canonical": "#aab2ff",
+        "cssVar": "--color-info",
+        "placeholder": true,
+        "tonalRamp": [
+          "#090037",
+          "#1d1958",
+          "#37387a",
+          "#55599e",
+          "#747ac3",
+          "#969ee9",
+          "#b9c2ff",
+          "#dee7ff"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "info-soft": {
+        "role": "tertiary",
+        "displayName": "Info Soft",
+        "canonical": "rgba(88, 101, 242, 0.18)",
+        "cssVar": "--color-info-soft",
+        "placeholder": true,
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "now-line": {
+        "role": "tertiary",
+        "displayName": "Now Line",
+        "canonical": "#d93036",
+        "cssVar": "--color-now",
+        "placeholder": true,
+        "tonalRamp": [
+          "#360000",
+          "#5c0000",
+          "#82000d",
+          "#a92e2f",
+          "#d1534f",
+          "#f97871",
+          "#ff9c94",
+          "#ffc2b8"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "discord": {
+        "role": "tertiary",
+        "displayName": "Discord",
+        "canonical": "#5865f2",
+        "cssVar": "--color-discord",
+        "placeholder": true,
+        "tonalRamp": [
+          "#0d004d",
+          "#170670",
+          "#2c3195",
+          "#4854ba",
+          "#6677e1",
+          "#879bff",
+          "#a9c0ff",
+          "#cde6ff"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "discord-hover": {
+        "role": "tertiary",
+        "displayName": "Discord Hover",
+        "canonical": "#4752c4",
+        "cssVar": "--color-discord-hover",
+        "placeholder": true,
+        "tonalRamp": [
+          "#0d004d",
+          "#170670",
+          "#2d3195",
+          "#4854ba",
+          "#6677e1",
+          "#879bff",
+          "#a9c0ff",
+          "#cde6ff"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "admin-bar": {
+        "role": "neutral",
+        "displayName": "Admin Bar",
+        "canonical": "#22243a",
+        "cssVar": "--color-admin-surface",
+        "placeholder": true,
+        "tonalRamp": [
+          "#08081c",
+          "#212339",
+          "#3d4058",
+          "#5c5f79",
+          "#7d809b",
+          "#9fa3bf",
+          "#c3c7e4",
+          "#e8ecff"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      },
+      "admin-bar-border": {
+        "role": "neutral",
+        "displayName": "Admin Bar Border",
+        "canonical": "#3d4170",
+        "cssVar": "--color-admin-border",
+        "placeholder": true,
+        "tonalRamp": [
+          "#07032b",
+          "#1e1f4a",
+          "#393d6b",
+          "#575c8e",
+          "#777eb2",
+          "#99a0d7",
+          "#bdc5fd",
+          "#e2eaff"
+        ],
+        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The landing wordmark only (--text-hero)."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Page titles, every h1 (--text-title; 34px under 560px)."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Landing section heads (--text-3xl)."
+      },
+      "section": {
+        "displayName": "Section",
+        "purpose": "Every h2 (--text-xl)."
+      },
+      "figure": {
+        "displayName": "Figure",
+        "purpose": "Times, match codes, stage names, Canlı, bracket scores; .num utility."
+      },
+      "score": {
+        "displayName": "Score",
+        "purpose": "Fixture row score halves (--text-2xl; 24px in narrow rows)."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Reading text."
+      },
+      "control": {
+        "displayName": "Control",
+        "purpose": "Buttons, nav links, inputs."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Badges, stage names under codes, small meta."
+      },
+      "mono": {
+        "displayName": "Mono",
+        "purpose": "osu! ids and room ids only."
+      }
+    },
+    "rules": [
+      {
+        "name": "rule-heavy",
+        "value": "3px solid var(--color-text)",
+        "purpose": "Under page and section headings; over each lobby and team block."
+      },
+      {
+        "name": "rule",
+        "value": "1px solid var(--color-border)",
+        "purpose": "Between rows."
+      }
+    ],
+    "fontLoading": {
+      "display": "Archivo variable, wdth 62..125, wght 500..900, used at font-stretch 68% (--font-display-stretch)",
+      "body": "Fira Sans 400-700",
+      "mono": "Fira Code 400-500",
+      "source": "Google Fonts link in frontend/index.html"
+    },
+    "shadows": [
+      {
+        "name": "popover",
+        "value": "0 10px 28px rgba(0, 0, 0, 0.5)",
+        "purpose": "Notification panel, team popovers, mini player, map card menus, bracket board floating controls."
+      },
+      {
+        "name": "card",
+        "value": "0 12px 32px rgba(0, 0, 0, 0.35)",
+        "purpose": "The single centred card on card pages."
+      },
+      {
+        "name": "focus-halo",
+        "value": "0 0 0 3px var(--color-primary-soft)",
+        "purpose": "Input focus."
+      }
+    ],
+    "motion": [
+      {
+        "name": "duration-fast",
+        "value": "150ms",
+        "purpose": "Hover and focus colour/background transitions."
+      },
+      {
+        "name": "duration-normal",
+        "value": "220ms",
+        "purpose": "Larger state changes."
+      },
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "purpose": "Default easing."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "transitions and animations collapse to 0.01ms",
+        "purpose": "prefers-reduced-motion: reduce."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "title-compact",
+        "value": "560px",
+        "purpose": "--text-title drops to 34px."
+      },
+      {
+        "name": "fixture-row-stack",
+        "value": "720px (container)",
+        "purpose": "Fixture row stacks time and code above the teams."
+      },
+      {
+        "name": "team-grid-single",
+        "value": "720px"
+      },
+      {
+        "name": "lobby-grid-single",
+        "value": "1100px"
+      },
+      {
+        "name": "coarse-pointer",
+        "value": "(pointer: coarse)",
+        "purpose": "Controls 44px tall."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one primary action per view; disabled turns grey, not dim brand.",
+      "html": "<button class=\"ds-btn ds-btn-primary\">Takım kur</button> <button class=\"ds-btn ds-btn-primary\" disabled>Takım kur</button>",
+      "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;height:var(--control-height,36px);padding:0 var(--space-4,16px);border:1px solid transparent;border-radius:var(--radius-md,8px);font-family:var(--font-sans);font-size:var(--text-md,14px);font-weight:600;cursor:pointer;transition:background-color 150ms ease,border-color 150ms ease,color 150ms ease}.ds-btn:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}.ds-btn-primary{background:var(--color-primary);color:var(--color-on-primary)}.ds-btn-primary:hover:not(:disabled){background:var(--color-primary-hover)}.ds-btn-primary:disabled{cursor:not-allowed;background:var(--color-surface-raised);border-color:var(--color-border);color:var(--color-text-subtle)}"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Outlined, muted; most actions.",
+      "html": "<button class=\"ds-btn-secondary\">Bracket'i aç</button>",
+      "css": ".ds-btn-secondary{display:inline-flex;align-items:center;height:var(--control-height,36px);padding:0 var(--space-4,16px);background:transparent;border:1px solid var(--color-border-strong);border-radius:var(--radius-md,8px);color:var(--color-text-muted);font-family:var(--font-sans);font-size:var(--text-md,14px);font-weight:600;cursor:pointer;transition:color 150ms ease,border-color 150ms ease}.ds-btn-secondary:hover{color:var(--color-text);border-color:var(--color-text-muted)}.ds-btn-secondary:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}"
+    },
+    {
+      "name": "Danger Button",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Destructive actions, kept apart from primary.",
+      "html": "<button class=\"ds-btn-danger\">Takımı dağıt</button>",
+      "css": ".ds-btn-danger{display:inline-flex;align-items:center;height:var(--control-height,36px);padding:0 var(--space-4,16px);background:transparent;border:1px solid color-mix(in srgb,var(--color-danger) 45%,transparent);border-radius:var(--radius-md,8px);color:var(--color-danger);font-family:var(--font-sans);font-size:var(--text-md,14px);font-weight:600;cursor:pointer;transition:background-color 150ms ease}.ds-btn-danger:hover{background:var(--color-danger-soft)}.ds-btn-danger:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}"
+    },
+    {
+      "name": "Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Sunken well; brand border and soft halo on focus.",
+      "html": "<input class=\"ds-input\" placeholder=\"Maç, takım, oyuncu veya hakem ara\">",
+      "css": ".ds-input{height:var(--control-height,36px);width:320px;padding:0 var(--space-3,12px);background:var(--color-surface-sunken);border:1px solid var(--color-border-strong);border-radius:var(--radius-md,8px);color:var(--color-text);font-family:var(--font-sans);font-size:var(--text-md,14px)}.ds-input::placeholder{color:var(--color-text-subtle)}.ds-input:focus-visible{outline:none;border-color:var(--color-primary);box-shadow:0 0 0 3px var(--color-primary-soft)}"
+    },
+    {
+      "name": "Badge",
+      "kind": "chip",
+      "refersTo": "badge",
+      "description": "Small status pill; status variants tint by status colour.",
+      "html": "<span class=\"ds-badge\">Kaptan</span> <span class=\"ds-badge ds-badge-warning\">Limit aşıldı</span>",
+      "css": ".ds-badge{display:inline-flex;align-items:center;padding:2px 10px;border-radius:999px;background:var(--color-hover);color:var(--color-text-muted);font-family:var(--font-sans);font-size:var(--text-xs,12px);font-weight:600}.ds-badge-warning{background:color-mix(in srgb,var(--color-warning) 16%,transparent);color:var(--color-warning)}"
+    },
+    {
+      "name": "Navigation",
+      "kind": "nav",
+      "refersTo": "nav-link-active",
+      "description": "Wordmark with brand year; active link in brand-soft with a brand underline.",
+      "html": "<nav class=\"ds-nav\"><span class=\"ds-brand\">112servis <b>2026</b></span><a class=\"ds-link is-active\" href=\"#\">Ana sayfa</a><a class=\"ds-link\" href=\"#\">Mappool</a><a class=\"ds-link\" href=\"#\">Maçlar</a></nav>",
+      "css": ".ds-nav{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--color-bg);border-bottom:1px solid var(--color-border);font-family:var(--font-sans)}.ds-brand{margin-right:12px;font-weight:700;color:var(--color-text)}.ds-brand b{color:var(--color-primary)}.ds-link{padding:6px 12px;border-radius:var(--radius-md,8px);color:var(--color-text-muted);font-size:var(--text-md,14px);text-decoration:none;transition:background-color 150ms ease,color 150ms ease}.ds-link:hover{color:var(--color-text);background:var(--color-hover)}.ds-link.is-active{color:var(--color-text);background:var(--color-primary-soft);box-shadow:inset 0 -2px 0 var(--color-primary)}.ds-link:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}"
+    },
+    {
+      "name": "Fixture Row",
+      "kind": "custom",
+      "refersTo": "fixture-row",
+      "description": "Signature versus row: time | red team | score halves | blue team | code and stage.",
+      "html": "<ul class=\"ds-fl\"><li><a class=\"ds-fr\" href=\"#\"><span class=\"ds-when\"><span class=\"ds-live\">Canlı</span></span><span class=\"ds-team ds-t1 is-own\">Sokak Kedileri</span><span class=\"ds-score\"><span class=\"ds-vs\">vs</span></span><span class=\"ds-team ds-t2\">Kış Hazırlığı</span><span class=\"ds-meta\"><b class=\"ds-code\">W58</b><small>Quarterfinals</small></span></a></li><li><a class=\"ds-fr\" href=\"#\"><span class=\"ds-when\"><span class=\"ds-time\">14 Eki Çar 19:00</span></span><span class=\"ds-team ds-t1\">Kış Hazırlığı</span><span class=\"ds-score\"><span class=\"is-winner\">5</span><span>4</span></span><span class=\"ds-team ds-t2 is-loser\">Şerbet Ustaları</span><span class=\"ds-meta\"><b class=\"ds-code is-losers\">L12</b><small>Round of 16</small></span></a></li></ul>",
+      "css": ".ds-fl{list-style:none;margin:0;padding:0;font-family:var(--font-sans);color:var(--color-text)}.ds-fr{display:grid;grid-template-columns:9.5rem minmax(0,1fr) auto minmax(0,1fr) 8.5rem;align-items:center;gap:16px;padding:12px 8px;border-bottom:var(--rule);color:inherit;text-decoration:none;transition:background-color 150ms cubic-bezier(.2,.8,.2,1)}.ds-fr:hover,.ds-fr:focus-visible{background:var(--color-hover)}.ds-fr:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}.ds-time,.ds-code,.ds-live,.ds-score{font-family: var(--font-display); font-stretch: var(--font-display-stretch); font-variant-numeric: tabular-nums;}.ds-time{font-size:18px;font-weight:700}.ds-live{display:inline-flex;align-items:center;gap:8px;color:var(--color-primary);font-size:18px;font-weight:800}.ds-live::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor}.ds-team{display:flex;align-items:center;gap:8px;font-weight:600;white-space:nowrap}.ds-t1{justify-content:flex-start;flex-direction:row-reverse;text-align:right}.ds-team.is-own{color:var(--color-primary);font-weight:700}.ds-team.is-loser{color:var(--color-text-muted);font-weight:400}.ds-score{display:grid;grid-template-columns:1fr 1fr;min-width:76px;border-radius:6px;overflow:hidden;line-height:1;background-image:linear-gradient(90deg,var(--color-team-red) 50%,var(--color-team-blue) 50%),linear-gradient(90deg,color-mix(in srgb,var(--color-team-red) 30%,transparent) 50%,color-mix(in srgb,var(--color-team-blue) 30%,transparent) 50%);background-size:100% 3px,100% 100%;background-position:bottom,center;background-repeat:no-repeat}.ds-score>span{padding:8px;text-align:center;font-size:30px;font-weight:600;color:var(--color-text-muted)}.ds-score>.is-winner{color:var(--color-text);font-weight:800}.ds-score>.ds-vs{grid-column:1/-1;font-size:18px;font-weight:700}.ds-meta{display:flex;flex-direction:column;align-items:flex-end;gap:2px}.ds-code{font-size:18px;font-weight:800;line-height:1}.ds-code.is-losers{color:var(--color-text-muted)}.ds-meta small{color:var(--color-text-muted);font-size:12px}"
+    },
+    {
+      "name": "Ruled Section Head",
+      "kind": "custom",
+      "description": "Condensed headline over the heavy rule; the 'yours' variant rules in brand.",
+      "html": "<div class=\"ds-head\"><h2>Sıradaki maçlar</h2><a href=\"#\">Tüm maçlar</a></div><div class=\"ds-head is-mine\"><h2><span>Takımın</span> Sokak Kedileri</h2></div>",
+      "css": ".ds-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding-bottom:8px;margin-bottom:24px;border-bottom:var(--rule-heavy)}.ds-head h2{margin:0;font-family:var(--font-display);font-stretch:var(--font-display-stretch);font-size:40px;font-weight:800;line-height:1;letter-spacing:-0.01em;color:var(--color-text)}.ds-head a{color:var(--color-text-muted);font-family:var(--font-sans);font-size:13px;font-weight:600}.ds-head a:hover{color:var(--color-text)}.ds-head.is-mine{border-bottom-color:var(--color-primary)}.ds-head.is-mine h2 span{color:var(--color-primary)}"
+    },
+    {
+      "name": "Bracket Card",
+      "kind": "card",
+      "description": "Board card: score cells tinted in team colours, own row in brand-soft.",
+      "html": "<div class=\"ds-bm\"><div class=\"ds-bm-h\"><b>W53</b> 14 Eki Çar 19:00</div><div class=\"ds-bm-t is-win is-mine\"><span>Kış Hazırlığı</span><span class=\"ds-bm-s r\">5</span></div><div class=\"ds-bm-t is-lose\"><span>Şerbet Ustaları</span><span class=\"ds-bm-s b\">4</span></div></div>",
+      "css": ".ds-bm{width:240px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:6px;overflow:hidden;font-family:var(--font-sans);font-size:13px;color:var(--color-text)}.ds-bm:hover{border-color:var(--color-border-strong)}.ds-bm-h{padding:4px 8px;color:var(--color-text-muted);font-size:12px;background:var(--color-surface-raised)}.ds-bm-h b{font-family:var(--font-display);font-stretch:var(--font-display-stretch);color:var(--color-text)}.ds-bm-t{display:flex;justify-content:space-between;align-items:stretch;padding-left:8px;border-top:1px solid var(--color-border);font-weight:600}.ds-bm-t>span:first-child{padding:6px 0}.ds-bm-t.is-mine{background:var(--color-primary-soft)}.ds-bm-t.is-lose{color:var(--color-text-muted)}.ds-bm-s{display:flex;align-items:center;justify-content:center;min-width:2.25em;font-family: var(--font-display); font-stretch: var(--font-display-stretch); font-variant-numeric: tabular-nums;font-size:18px;font-weight:700}.ds-bm-s.r{background:color-mix(in srgb,var(--color-team-red) 34%,transparent)}.ds-bm-s.b{background:color-mix(in srgb,var(--color-team-blue) 34%,transparent)}.is-win .ds-bm-s{font-weight:800;color:var(--color-text)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Fikstür Sheet",
+    "overview": "The tournament reads like a Turkish sports fixture sheet: big condensed headlines, numbers as the heroes, matches as versus rows, and content grouped by horizontal rules rather than boxed in nested cards. Every public page (landing, teams, qualifiers, bracket list, team page) is a stack of ruled sections under a heavy-ruled headline, with dense rows on hairlines beneath. The admin side keeps boxed tool panels where a tool genuinely needs a container (the referee page, the map pool editor, the bracket board), but its page headers follow the same sheet.\n\nThe colour layer is deliberately provisional. **Every colour value in this system is a placeholder.** The tournament's designers will supply the real scheme and graphics; until then the build carries a dark ground with an osu!-pink accent purely so the roles are visible. What is fixed is the structure: which role a colour plays, where it may appear, and how much of a screen it may take. No logo or artwork exists, and none is invented; the wordmark is set in type.\n\nDensity is high and calm: a 16px body, a dense 4px-based spacing scale, rows of about 60px, and a 1440px content width. Motion is limited to short colour and background transitions on hover and focus.",
+    "keyCharacteristics": [
+      "Condensed heavy Archivo (68% width, 700–900) for every heading, code, score, time, countdown and value; always tabular figures.",
+      "Fira Sans for body and controls; Fira Code only for ids.",
+      "A heavy ink rule opens each page and section; hairline rules separate rows.",
+      "Team red and team blue structure every head-to-head; one brand accent marks live, yours and the primary action.",
+      "All colours are role tokens with placeholder values, swappable in one file."
+    ],
+    "rules": [
+      {
+        "name": "The Placeholder Palette Rule",
+        "body": "No hex value in this file is the brand. Colours are documented and consumed by role only. Components reference role tokens (`--color-*`, `--rule*` in `frontend/src/styles/tokens.css`); a raw colour value in a component stylesheet is a defect.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Accent Rule",
+        "body": "The brand colour appears only for live, yours, current position and the single primary action. It never decorates a heading, a divider or a category.",
+        "section": "colors"
+      },
+      {
+        "name": "The Sides Rule",
+        "body": "Any time two teams face each other, team 1 is red and team 2 is blue, and both colours appear. A head-to-head without its side colours is incomplete.",
+        "section": "colors"
+      },
+      {
+        "name": "The Numbers Are Heroes Rule",
+        "body": "Any score, time, countdown, match code, rank or team value is set in the condensed display face with tabular figures. Never set a number someone compares in the body sans.",
+        "section": "typography"
+      },
+      {
+        "name": "The Mono Is For Ids Rule",
+        "body": "Fira Code appears only on identifiers. It is not a \"technical\" flavour face.",
+        "section": "typography"
+      },
+      {
+        "name": "The Ruled Sheet Rule",
+        "body": "Content is grouped by rules, not boxes: `--rule-heavy` (3px ink) under page and section headings and over each lobby and team block; `--rule` (1px hairline) between rows. Public pages prefer ruled lists over bordered cards. Admin tool panels may keep boxes.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat Sheet Rule",
+        "body": "A row, a section or a team block never takes a shadow. If it needs separation, it gets a rule.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** reference role tokens from `frontend/src/styles/tokens.css` for every colour, size, radius and timing.",
+      "**Do** treat every colour value as a placeholder and swap palettes by changing values in `tokens.css` while keeping role names.",
+      "**Do** set every score, time, countdown, code and value in condensed Archivo (68% width) with tabular figures.",
+      "**Do** group public content with a heavy rule under headings and over blocks, and hairlines between rows.",
+      "**Do** show both team colours in every head-to-head: team 1 red, team 2 blue.",
+      "**Do** reuse the fixture row for any list of matches.",
+      "**Do** mark the viewer's own team, lobby or row with brand ink, a brand rule or the brand-soft wash.",
+      "**Do** show disabled primary buttons as grey (surface-raised, subtle ink), not as a dimmed brand fill."
+    ],
+    "donts": [
+      "**Don't** present the placeholder hex values as the brand, or add a logo, artwork or illustration before the designers supply one.",
+      "**Don't** use the brand colour for decoration, headings, dividers or categories; it means live, yours, current or primary.",
+      "**Don't** box public lists in same-size bordered cards or nest boxes inside boxes; use rules.",
+      "**Don't** put shadows on rows, sections or blocks.",
+      "**Don't** set numbers in the body sans or use Fira Code outside ids.",
+      "**Don't** add small uppercase tracked labels above headings or fields; let the heading and the value carry the hierarchy."
+    ]
+  }
+}
