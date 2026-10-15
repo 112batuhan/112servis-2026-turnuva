@@ -64,6 +64,16 @@
   background: var(--color-hover);
 }
 
+/* A deeper step of the wash, so hovering a row of yours never reads as just "yours". */
+.bracket-list tbody tr.is-mine.is-selectable:hover > * {
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+/* On the "yours" wash, subtle ink is too faint; muted keeps its role and stays legible. */
+.bracket-list tbody tr.is-mine .bracket-list-team.is-empty {
+  color: var(--color-text-muted);
+}
+
 /* On the first cell, so the hover's cell backgrounds don't cover it. */
 .bracket-list tbody tr.is-selected > :first-child {
   box-shadow: inset 3px 0 0 var(--color-primary);
@@ -161,6 +171,12 @@ button.bracket-list-code:hover {
 }
 
 .bracket-list-team.is-winner {
+  font-weight: 700;
+}
+
+/* The viewer's team, as in the fixture rows: frost ink at full weight, not the wash alone. */
+.bracket-list-team.is-own {
+  color: var(--color-primary);
   font-weight: 700;
 }
 

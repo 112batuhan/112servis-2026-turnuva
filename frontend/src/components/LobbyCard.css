@@ -27,6 +27,7 @@
 
 .lobby-card.is-mine .lobby-card-title h3 {
   color: var(--color-primary);
+  font-weight: 900;
 }
 
 .lobby-card-header {

@@ -116,3 +116,9 @@
 .bm-card-team.is-mine {
   background: var(--color-primary-soft);
 }
+
+/* The wash alone is too close to the card in frost; the name carries it too. */
+.bm-card-team.is-mine .bm-card-name {
+  color: var(--color-primary);
+  font-weight: 700;
+}

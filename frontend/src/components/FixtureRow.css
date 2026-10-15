@@ -72,6 +72,7 @@
   height: 8px;
   border-radius: 50%;
   background: currentColor;
+  box-shadow: var(--glow);
 }
 
 /* Team 1 hugs the score from the left, team 2 from the right. */

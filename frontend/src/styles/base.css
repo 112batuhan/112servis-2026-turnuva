@@ -23,6 +23,31 @@ body {
   caret-color: var(--color-primary);
 }
 
+/* The banner's atmosphere on the ground, behind everything: gear linework in the top-left and
+   bottom-right corners (a mask, so it takes its colour from the token), and a film of grain. */
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+body::before {
+  background: var(--color-linework);
+  mask:
+    url("../assets/gear-tl.svg") left top / min(52vw, 560px) auto no-repeat,
+    url("../assets/gear-br.svg") right bottom / min(60vw, 640px) auto no-repeat;
+}
+
+/* Grey noise in overlay averages out, so the grain never lifts the slate off the banner's own. */
+body::after {
+  opacity: var(--grain-opacity);
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
 ::selection {
   background: var(--color-primary);
   color: var(--color-on-primary);
@@ -115,6 +140,16 @@ button:disabled {
 
 .mono {
   font-family: var(--font-mono);
+}
+
+/* The 112 crystal, cut from the banner as an alpha mask, so it takes the current text colour. */
+.brand-mark {
+  display: inline-block;
+  flex: none;
+  aspect-ratio: 199 / 220;
+  height: 1.5em;
+  background: currentColor;
+  mask: url("../assets/mark.png") center / contain no-repeat;
 }
 
 /* Numbers people compare or watch change: scores, codes, values, countdowns. */

@@ -48,12 +48,13 @@ A purpose-built site for this one tournament and its community, not a generic to
 
 - The name is **112servis**: one word, lowercase, no space. The site title is "112servis 2026 Turnuva".
 - The site is **Turkish only**, and no English version is planned. Technical terms used by the osu! community (mappool, stage, bracket, referee) stay as the community says them.
-- No visual identity is fixed yet. There's no logo or artwork. The current dark osu!-pink design is work in progress, not a commitment.
-- Designers will provide the colour scheme and graphics later. Until then, keep every colour behind a role token and leave room for artwork without inventing any. When the designs arrive, they replace those placeholders.
+- The edition is **"112'nin Son Kış Turnuvası"** (112's last winter tournament).
+- The designers' first banner (`design/bannertest.png`, still a test version) sets the look: a cold slate ground, faint gear linework, a frosted trophy and, at its centre, the tournament's mark: **an ice crystal drawn with the digits 1, 1 and 2** (not a letter K). The site's palette, the nav mark, the favicon and the landing hero all come from it.
+- More artwork may follow. Keep every colour behind a role token, and re-export the assets from the final banner the same way (`frontend/src/assets/README.md`) rather than inventing new artwork.
 
 ## Evidence on Hand
 
-- No logo, past editions, results, testimonials or sponsor material exist yet. Don't invent any.
+- The banner and the 112 crystal mark cut from it are the only artwork. No past editions, results, testimonials or sponsor material exist yet. Don't invent any.
 - Real data on the site comes from the osu! API (ranks, beatmap metadata, match scores) and from team banners players upload.
 - `backend/seed/` holds dummy accounts, teams and matches for testing only. They aren't real content.
 

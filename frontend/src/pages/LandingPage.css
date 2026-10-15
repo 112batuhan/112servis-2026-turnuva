@@ -4,15 +4,61 @@
   gap: var(--space-6);
 }
 
-/* The headline: the wordmark set large, the facts under it, the actions on the right. */
+/* The headline: the banner and, beside it on wide screens (under it on narrow ones), the wordmark,
+   the facts and the actions. The banner's ground is the page's slate, so its edges are feathered
+   away and the artwork sits in the page rather than in a frame. */
 .landing-head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-5);
-  padding: var(--space-5) 0 var(--space-5);
+  flex-direction: column;
+  gap: var(--space-4);
+  padding-bottom: var(--space-5);
   border-bottom: var(--rule-heavy);
+}
+
+.landing-hero {
+  margin: calc(-1 * var(--space-5)) 0 calc(-1 * var(--space-3));
+}
+
+.landing-hero img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: clamp(160px, 28svh, 260px);
+  margin: 0 auto;
+  /* The crest's centre is lighter than the page, so it fades out in an ellipse rather than at
+     its crop edges. Mask colours only carry alpha. */
+  mask: radial-gradient(closest-side, #000 62%, transparent);
+}
+
+@media (min-width: 1200px) {
+  .landing-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 680px);
+    align-items: end;
+    gap: var(--space-5);
+  }
+
+  .landing-hero {
+    grid-column: 2;
+    grid-row: 1;
+    margin: calc(-1 * var(--space-6)) calc(-1 * var(--space-4)) calc(-1 * var(--space-4)) 0;
+  }
+
+  .landing-hero img {
+    width: 100%;
+    max-height: none;
+    mask:
+      linear-gradient(to right, transparent, #000 14%, #000 86%, transparent),
+      linear-gradient(to bottom, transparent, #000 12%, #000 82%, transparent);
+    mask-composite: intersect;
+  }
+
+  .landing-title-block {
+    grid-column: 1;
+    grid-row: 1;
+    padding-bottom: var(--space-2);
+  }
 }
 
 .landing-title-block {
@@ -22,11 +68,27 @@
   min-width: 0;
 }
 
+.landing-title-block .landing-actions {
+  margin-top: var(--space-3);
+}
+
+/* The wordmark in the banner's lettering: the display face expanded and light. */
 .landing-title {
+  font-stretch: var(--font-wordmark-stretch);
   font-size: var(--text-hero);
-  font-weight: 900;
-  letter-spacing: -0.02em;
-  line-height: 0.88;
+  font-weight: var(--font-wordmark-weight);
+  letter-spacing: -0.03em;
+  line-height: 0.95;
+}
+
+/* The banner's line, set as type in the same expanded light voice as the wordmark. */
+.landing-tagline {
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-stretch: var(--font-wordmark-stretch);
+  font-size: var(--text-xl);
+  font-weight: var(--font-wordmark-weight);
+  line-height: 1.2;
 }
 
 .landing-year {
@@ -81,6 +143,14 @@
 .stage-track-item.is-current {
   border-top-color: var(--color-primary);
   color: var(--color-text);
+}
+
+/* The lit stage glows like the crystal; a shadow above the rule keeps the glow on it. */
+.stage-track-item.is-current::before {
+  content: "";
+  height: 3px;
+  margin: calc(-1 * var(--space-2) - 3px) 0 calc(var(--space-2) - 2px);
+  box-shadow: var(--glow);
 }
 
 .stage-track-name {

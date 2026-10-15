@@ -45,7 +45,10 @@ export function NavBar() {
     <header className={inAdmin ? "navbar is-admin" : "navbar"}>
       <div className="nav-main">
         <NavLink to="/" className="nav-brand">
-          112servis <span className="nav-brand-year">2026</span>
+          <span className="brand-mark" aria-hidden="true" />
+          <span>
+            112servis <span className="nav-brand-year">2026</span>
+          </span>
         </NavLink>
 
         {inAdmin ? (

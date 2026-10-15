@@ -211,12 +211,12 @@ export function BracketList<M extends BracketMatch>({
                           </td>
                           <td className="bracket-list-pairing-cell">
                             <div className="bracket-list-pairing">
-                              <TeamName id={m.team1_id} source={s1} teams={teams} won={winner === 1} bannerEnd />
+                              <TeamName id={m.team1_id} source={s1} teams={teams} won={winner === 1} own={m.team1_id != null && m.team1_id === myTeamId} bannerEnd />
                               <span className="bracket-list-score">
                                 <span className={winner === 1 ? "is-winner" : undefined}>{m.team1_score ?? "–"}</span>
                                 <span className={winner === 2 ? "is-winner" : undefined}>{m.team2_score ?? "–"}</span>
                               </span>
-                              <TeamName id={m.team2_id} source={s2} teams={teams} won={winner === 2} />
+                              <TeamName id={m.team2_id} source={s2} teams={teams} won={winner === 2} own={m.team2_id != null && m.team2_id === myTeamId} />
                             </div>
                           </td>
                           <td className="bracket-list-referee" data-label="Hakem">
@@ -269,13 +269,15 @@ interface TeamNameProps {
   source: Source | null;
   teams: Map<string, Team>;
   won: boolean;
+  /** The viewer's own team. */
+  own: boolean;
   /** Puts the banner after the name, next to the score, for the left-hand team. */
   bannerEnd?: boolean;
 }
 
-function TeamName({ id, source, teams, won, bannerEnd }: TeamNameProps) {
+function TeamName({ id, source, teams, won, own, bannerEnd }: TeamNameProps) {
   const team = id ? teams.get(id) : undefined;
-  const classes = ["bracket-list-team", !team && "is-empty", won && "is-winner", bannerEnd && "is-banner-end"]
+  const classes = ["bracket-list-team", !team && "is-empty", won && "is-winner", own && "is-own", bannerEnd && "is-banner-end"]
     .filter(Boolean)
     .join(" ");
   return (

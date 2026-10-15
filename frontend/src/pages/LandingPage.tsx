@@ -12,6 +12,9 @@ import { Countdown } from "../components/Countdown";
 import { FixtureRow } from "../components/FixtureRow";
 import { bracketMatchPath, compareByTime, incomingSources } from "../lib/bracket";
 import { formatMatchTime } from "../lib/format";
+import bannerLarge from "../assets/banner-1316.webp";
+import bannerSmall from "../assets/banner-760.webp";
+import crest from "../assets/crest.webp";
 import "./LandingPage.css";
 
 const UPCOMING_LIMIT = 6;
@@ -88,10 +91,26 @@ export function LandingPage() {
   return (
     <div className="page landing">
       <section className="landing-head" aria-labelledby="landing-title">
+        <figure className="landing-hero">
+          {/* Narrow screens get just the trophy and the crystal, so the matches stay in view. */}
+          <picture>
+            <source media="(max-width: 1199px)" srcSet={crest} width={640} height={580} />
+            <img
+              src={bannerLarge}
+              srcSet={`${bannerSmall} 760w, ${bannerLarge} 1316w`}
+              sizes="680px"
+              width={1316}
+              height={590}
+              alt="Buzlu bir kupanın önünde 1, 1 ve 2 rakamlarından çizilmiş buz kristali"
+              fetchPriority="high"
+            />
+          </picture>
+        </figure>
         <div className="landing-title-block">
           <h1 id="landing-title" className="landing-title">
             112servis <span className="landing-year">2026</span>
           </h1>
+          <p className="landing-tagline">112'nin Son Kış Turnuvası</p>
           <p className="landing-lead">
             osu! 2v2 turnuvası
             {teamCount !== undefined && <> · {teamCount} takım</>}
@@ -102,22 +121,22 @@ export function LandingPage() {
               </>
             )}
           </p>
-        </div>
-        <div className="landing-actions">
-          {!user ? (
-            <>
-              <button type="button" className="btn btn-primary btn-lg" onClick={loginWithOsu}>
-                osu! ile giriş yap
-              </button>
-              <Link className="btn btn-secondary btn-lg" to="/mappool">
-                Mappool
+          <div className="landing-actions">
+            {!user ? (
+              <>
+                <button type="button" className="btn btn-primary btn-lg" onClick={loginWithOsu}>
+                  osu! ile giriş yap
+                </button>
+                <Link className="btn btn-secondary btn-lg" to="/mappool">
+                  Mappool
+                </Link>
+              </>
+            ) : (
+              <Link className="btn btn-secondary btn-lg" to="/bracket">
+                Maçlar
               </Link>
-            </>
-          ) : (
-            <Link className="btn btn-secondary btn-lg" to="/bracket">
-              Maçlar
-            </Link>
-          )}
+            )}
+          </div>
         </div>
       </section>
 

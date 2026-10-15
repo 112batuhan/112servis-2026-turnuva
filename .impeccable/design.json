@@ -1,496 +1,488 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-15T15:47:42.120122+00:00",
+  "generatedAt": "2026-10-15T16:47:10.267178+00:00",
   "title": "Design System: 112servis 2026 Turnuva",
   "extensions": {
-    "paletteStatus": "placeholder: every colour value is a stand-in until the designers supply the scheme; swap values in frontend/src/styles/tokens.css and keep the role names",
+    "paletteStatus": "from the designers' test banner (design/bannertest.png); every colour is consumed by role, so the final banner is a value swap in frontend/src/styles/tokens.css plus an asset re-export per frontend/src/assets/README.md",
     "tokenSource": "frontend/src/styles/tokens.css",
     "colorMeta": {
       "ground": {
         "role": "neutral",
-        "displayName": "Ground",
-        "canonical": "#15161b",
+        "displayName": "Slate Ground",
+        "canonical": "#171e23",
         "cssVar": "--color-bg",
-        "placeholder": true,
+        "oklch": "oklch(23.0% 0.014 239)",
         "tonalRamp": [
-          "#0a0b0f",
-          "#24252a",
-          "#404247",
-          "#5f6167",
-          "#808288",
-          "#a3a5ab",
-          "#c7c9d0",
-          "#eceef5"
+          "#060c11",
+          "#1e252a",
+          "#394147",
+          "#575f65",
+          "#767f85",
+          "#97a0a6",
+          "#bcc6cc",
+          "#e6f0f7"
         ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+        "note": "The banner's slate."
       },
       "ground-sunken": {
         "role": "neutral",
         "displayName": "Ground Sunken",
-        "canonical": "#111217",
+        "canonical": "#11171b",
         "cssVar": "--color-surface-sunken",
-        "placeholder": true,
+        "oklch": "oklch(20.0% 0.012 237)",
         "tonalRamp": [
-          "#0a0b10",
-          "#24252a",
-          "#404248",
-          "#5f6167",
-          "#808289",
-          "#a3a5ac",
-          "#c7c9d0",
-          "#eceef6"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#070c10",
+          "#1f2529",
+          "#3a4145",
+          "#575f64",
+          "#777e84",
+          "#98a0a5",
+          "#bdc5cb",
+          "#e7f0f6"
+        ]
       },
       "surface": {
         "role": "neutral",
         "displayName": "Surface",
-        "canonical": "#1e2027",
+        "canonical": "#1d262c",
         "cssVar": "--color-surface",
-        "placeholder": true,
+        "oklch": "oklch(26.3% 0.017 237)",
         "tonalRamp": [
-          "#090b11",
-          "#23252c",
-          "#3f4249",
-          "#5e6169",
-          "#7f828b",
-          "#a2a5ae",
-          "#c6c9d2",
-          "#ebeef8"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#050c11",
+          "#1c252b",
+          "#384148",
+          "#555f66",
+          "#747f86",
+          "#95a0a8",
+          "#bac6ce",
+          "#e4f0f9"
+        ]
       },
       "surface-raised": {
         "role": "neutral",
         "displayName": "Surface Raised",
-        "canonical": "#272932",
+        "canonical": "#26323a",
         "cssVar": "--color-surface-raised",
-        "placeholder": true,
+        "oklch": "oklch(31.0% 0.022 238)",
         "tonalRamp": [
-          "#090b12",
-          "#23252d",
-          "#3f414b",
-          "#5e616b",
-          "#7f828d",
-          "#a2a4b0",
-          "#c6c8d4",
-          "#ebeefa"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#030c13",
+          "#1a262d",
+          "#35424a",
+          "#536069",
+          "#727f89",
+          "#92a1ab",
+          "#b8c7d1",
+          "#e2f1fc"
+        ]
       },
       "hover-wash": {
         "role": "neutral",
         "displayName": "Hover Wash",
-        "canonical": "rgba(255, 255, 255, 0.06)",
-        "cssVar": "--color-hover",
-        "placeholder": true,
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+        "canonical": "rgba(207, 236, 242, 0.06)",
+        "cssVar": "--color-hover"
       },
       "hairline": {
         "role": "neutral",
         "displayName": "Hairline",
-        "canonical": "#33353f",
+        "canonical": "#2c3a41",
         "cssVar": "--color-border",
-        "placeholder": true,
+        "oklch": "oklch(33.9% 0.022 230)",
         "tonalRamp": [
-          "#090a13",
-          "#23242e",
-          "#3f414c",
-          "#5e616c",
-          "#7f828d",
-          "#a2a4b0",
-          "#c6c8d5",
-          "#ebeefb"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#030d13",
+          "#19262d",
+          "#344249",
+          "#516068",
+          "#708088",
+          "#91a1aa",
+          "#b6c7d0",
+          "#e0f2fb"
+        ]
       },
       "hairline-strong": {
         "role": "neutral",
         "displayName": "Hairline Strong",
-        "canonical": "#4a4d5a",
+        "canonical": "#40535c",
         "cssVar": "--color-border-strong",
-        "placeholder": true,
+        "oklch": "oklch(43.0% 0.028 228)",
         "tonalRamp": [
-          "#080a14",
-          "#222430",
-          "#3e414e",
-          "#5d606e",
-          "#7e8290",
-          "#a1a4b3",
-          "#c5c8d8",
-          "#eaeefe"
+          "#010d14",
+          "#15272f",
+          "#30434c",
+          "#4e616a",
+          "#6d818b",
+          "#8da2ac",
+          "#b2c8d3",
+          "#dcf3fe"
+        ]
+      },
+      "linework": {
+        "role": "neutral",
+        "displayName": "Gear Linework",
+        "canonical": "#2a383f",
+        "cssVar": "--color-linework",
+        "oklch": "oklch(33.1% 0.022 230)",
+        "tonalRamp": [
+          "#030d13",
+          "#19262d",
+          "#344249",
+          "#516068",
+          "#708088",
+          "#91a1aa",
+          "#b6c7d0",
+          "#e0f2fb"
         ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+        "note": "Gear masks in the page corners only."
       },
       "ink": {
         "role": "neutral",
-        "displayName": "Ink",
-        "canonical": "#f1f2f5",
+        "displayName": "Frost Ink",
+        "canonical": "#e9eef0",
         "cssVar": "--color-text",
-        "placeholder": true,
+        "oklch": "oklch(94.6% 0.006 223)",
         "tonalRamp": [
-          "#0a0b0d",
-          "#242527",
-          "#414244",
-          "#606164",
-          "#818285",
-          "#a4a5a8",
-          "#c8c9cc",
-          "#edeef1"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#090c0d",
+          "#212526",
+          "#3c4042",
+          "#5a5e60",
+          "#7a7e80",
+          "#9b9fa1",
+          "#c0c5c7",
+          "#eaeff1"
+        ]
       },
       "ink-muted": {
         "role": "neutral",
         "displayName": "Ink Muted",
-        "canonical": "#a5a8b3",
+        "canonical": "#a0b1b8",
         "cssVar": "--color-text-muted",
-        "placeholder": true,
+        "oklch": "oklch(74.9% 0.021 224)",
         "tonalRamp": [
-          "#090b12",
-          "#22252d",
-          "#3f424b",
-          "#5e616b",
-          "#7f828c",
-          "#a2a5af",
-          "#c6c9d4",
-          "#ebeefa"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#020d12",
+          "#19262c",
+          "#344248",
+          "#516067",
+          "#708087",
+          "#91a2a8",
+          "#b6c7cf",
+          "#e0f2f9"
+        ]
       },
       "ink-subtle": {
         "role": "neutral",
         "displayName": "Ink Subtle",
-        "canonical": "#8b8e9a",
+        "canonical": "#8a9da4",
         "cssVar": "--color-text-subtle",
-        "placeholder": true,
+        "oklch": "oklch(68.3% 0.024 222)",
         "tonalRamp": [
-          "#090b13",
-          "#22242e",
-          "#3f414c",
-          "#5e616c",
-          "#7f828e",
-          "#a1a4b1",
-          "#c5c9d5",
-          "#ebeefb"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#010d12",
+          "#17272c",
+          "#324349",
+          "#4f6167",
+          "#6e8188",
+          "#8fa2a9",
+          "#b4c8cf",
+          "#def3fa"
+        ]
       },
       "brand": {
         "role": "primary",
-        "displayName": "Brand Accent",
-        "canonical": "#ff66ab",
+        "displayName": "Crystal Frost",
+        "canonical": "#a3dae4",
         "cssVar": "--color-primary",
-        "placeholder": true,
+        "oklch": "oklch(85.4% 0.058 210)",
         "tonalRamp": [
-          "#31000e",
-          "#560029",
-          "#7b0046",
-          "#a22d65",
-          "#c95287",
-          "#f076aa",
-          "#ff9ace",
-          "#ffbff4"
+          "#001018",
+          "#002b33",
+          "#0e4851",
+          "#326770",
+          "#528790",
+          "#73a9b2",
+          "#98cfd9",
+          "#c2faff"
         ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+        "note": "The glow of the 112 crystal in the banner."
       },
       "brand-hover": {
         "role": "primary",
-        "displayName": "Brand Accent Hover",
-        "canonical": "#ff85bc",
+        "displayName": "Crystal Frost Hover",
+        "canonical": "#c3e8ee",
         "cssVar": "--color-primary-hover",
-        "placeholder": true,
+        "oklch": "oklch(90.6% 0.039 208)",
         "tonalRamp": [
-          "#300010",
-          "#55002b",
-          "#7a0049",
-          "#a02e69",
-          "#c7538a",
-          "#ef76ad",
-          "#ff9bd2",
-          "#ffc0f8"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#000f14",
+          "#06292e",
+          "#25464b",
+          "#436469",
+          "#62848a",
+          "#82a6ab",
+          "#a7ccd2",
+          "#d1f6fd"
+        ]
       },
       "on-brand": {
         "role": "primary",
-        "displayName": "Ink On Brand",
-        "canonical": "#1c0b14",
+        "displayName": "Slate Ink On Frost",
+        "canonical": "#0e171b",
         "cssVar": "--color-on-primary",
-        "placeholder": true,
+        "oklch": "oklch(19.8% 0.016 227)",
         "tonalRamp": [
-          "#15050e",
-          "#311e28",
-          "#503b45",
-          "#705a65",
-          "#927b86",
-          "#b69da9",
-          "#dbc1cd",
-          "#ffe6f2"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#050c10",
+          "#1c262a",
+          "#374246",
+          "#556065",
+          "#747f85",
+          "#95a1a6",
+          "#bac6cc",
+          "#e4f1f7"
+        ]
       },
       "brand-soft": {
         "role": "primary",
-        "displayName": "Brand Soft",
-        "canonical": "rgba(255, 102, 171, 0.14)",
-        "cssVar": "--color-primary-soft",
-        "placeholder": true,
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+        "displayName": "Frost Wash",
+        "canonical": "rgba(163, 218, 228, 0.13)",
+        "cssVar": "--color-primary-soft"
       },
       "focus": {
         "role": "primary",
-        "displayName": "Focus Ring",
-        "canonical": "#ffb3d6",
+        "displayName": "Focus Frost",
+        "canonical": "#cdeef4",
         "cssVar": "--color-focus",
-        "placeholder": true,
+        "oklch": "oklch(92.7% 0.035 210)",
         "tonalRamp": [
-          "#240011",
-          "#45072b",
-          "#672849",
-          "#8a4869",
-          "#ae698a",
-          "#d48bad",
-          "#fbafd2",
-          "#ffd4f8"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#000f13",
+          "#0c292d",
+          "#28454a",
+          "#466369",
+          "#658389",
+          "#86a5ab",
+          "#abcbd1",
+          "#d4f6fc"
+        ]
       },
       "team-red": {
         "role": "secondary",
         "displayName": "Team Red",
-        "canonical": "#f2666e",
+        "canonical": "#f06c74",
         "cssVar": "--color-team-red",
-        "placeholder": true,
+        "oklch": "oklch(69.3% 0.163 19)",
         "tonalRamp": [
-          "#360000",
-          "#5c0000",
-          "#82001c",
-          "#a92d3a",
-          "#d1525a",
-          "#f9767c",
-          "#ff9b9f",
-          "#ffc0c3"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#2d0000",
+          "#4f000a",
+          "#721b26",
+          "#953c42",
+          "#ba5d61",
+          "#df7e81",
+          "#ffa4a6",
+          "#ffcecf"
+        ]
       },
       "team-red-soft": {
         "role": "secondary",
-        "displayName": "Team Red Soft",
-        "canonical": "rgba(242, 102, 110, 0.14)",
-        "cssVar": "--color-team-red-soft",
-        "placeholder": true,
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+        "displayName": "Team Red Wash",
+        "canonical": "rgba(240, 108, 116, 0.14)",
+        "cssVar": "--color-team-red-soft"
       },
       "team-blue": {
         "role": "secondary",
         "displayName": "Team Blue",
-        "canonical": "#5ea8ff",
+        "canonical": "#62acff",
         "cssVar": "--color-team-blue",
-        "placeholder": true,
+        "oklch": "oklch(73.2% 0.142 253)",
         "tonalRamp": [
-          "#000046",
-          "#001c69",
-          "#003f8d",
-          "#0f61b2",
-          "#3a84d8",
-          "#5ea8ff",
-          "#82cdff",
-          "#a7f3ff"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#00003b",
+          "#00205b",
+          "#003f7c",
+          "#225f9f",
+          "#4480c2",
+          "#65a2e7",
+          "#8ac9ff",
+          "#b4f4ff"
+        ]
       },
       "team-blue-soft": {
         "role": "secondary",
-        "displayName": "Team Blue Soft",
-        "canonical": "rgba(94, 168, 255, 0.14)",
-        "cssVar": "--color-team-blue-soft",
-        "placeholder": true,
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+        "displayName": "Team Blue Wash",
+        "canonical": "rgba(98, 172, 255, 0.14)",
+        "cssVar": "--color-team-blue-soft"
       },
       "success": {
         "role": "tertiary",
         "displayName": "Success",
         "canonical": "#5fd38d",
         "cssVar": "--color-success",
-        "placeholder": true,
+        "oklch": "oklch(78.2% 0.146 155)",
         "tonalRamp": [
-          "#001700",
-          "#003600",
-          "#005618",
-          "#007838",
-          "#159b59",
-          "#49bf7b",
-          "#72e59e",
-          "#99ffc2"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#001600",
+          "#003202",
+          "#005120",
+          "#00703d",
+          "#36925c",
+          "#5ab47c",
+          "#81dba1",
+          "#acffcb"
+        ]
       },
       "warning": {
         "role": "tertiary",
         "displayName": "Warning",
         "canonical": "#e8b84a",
         "cssVar": "--color-warning",
-        "placeholder": true,
+        "oklch": "oklch(80.6% 0.136 85)",
         "tonalRamp": [
-          "#220000",
-          "#421800",
-          "#623700",
-          "#845800",
-          "#a87a00",
-          "#cc9d28",
-          "#f2c255",
-          "#ffe77c"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#200000",
+          "#3d1a00",
+          "#5c3700",
+          "#7c5600",
+          "#9e7604",
+          "#c1983a",
+          "#e8be62",
+          "#ffe98d"
+        ]
       },
       "danger": {
         "role": "tertiary",
         "displayName": "Danger",
         "canonical": "#f3877e",
         "cssVar": "--color-danger",
-        "placeholder": true,
+        "oklch": "oklch(73.9% 0.133 26)",
         "tonalRamp": [
-          "#300000",
-          "#550000",
-          "#791718",
-          "#9f3c37",
-          "#c65e57",
-          "#ed8279",
-          "#ffa69c",
-          "#ffcbc0"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#2d0000",
+          "#4f0000",
+          "#721c1b",
+          "#963d38",
+          "#ba5e57",
+          "#df7f77",
+          "#ffa59b",
+          "#ffcfc5"
+        ]
       },
       "danger-soft": {
         "role": "tertiary",
-        "displayName": "Danger Soft",
+        "displayName": "Danger Wash",
         "canonical": "rgba(243, 135, 126, 0.12)",
-        "cssVar": "--color-danger-soft",
-        "placeholder": true,
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+        "cssVar": "--color-danger-soft"
       },
       "info": {
         "role": "tertiary",
         "displayName": "Info",
         "canonical": "#aab2ff",
         "cssVar": "--color-info",
-        "placeholder": true,
+        "oklch": "oklch(78.6% 0.110 279)",
         "tonalRamp": [
           "#090037",
-          "#1d1958",
-          "#37387a",
-          "#55599e",
-          "#747ac3",
-          "#969ee9",
-          "#b9c2ff",
+          "#1c1757",
+          "#353678",
+          "#51559a",
+          "#7075bd",
+          "#9097e2",
+          "#b5bdff",
           "#dee7ff"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+        ]
       },
       "info-soft": {
         "role": "tertiary",
-        "displayName": "Info Soft",
+        "displayName": "Info Wash",
         "canonical": "rgba(88, 101, 242, 0.18)",
-        "cssVar": "--color-info-soft",
-        "placeholder": true,
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+        "cssVar": "--color-info-soft"
       },
       "now-line": {
         "role": "tertiary",
         "displayName": "Now Line",
         "canonical": "#d93036",
         "cssVar": "--color-now",
-        "placeholder": true,
+        "oklch": "oklch(58.0% 0.204 25)",
         "tonalRamp": [
-          "#360000",
-          "#5c0000",
-          "#82000d",
-          "#a92e2f",
-          "#d1534f",
-          "#f97871",
-          "#ff9c94",
-          "#ffc2b8"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#2d0000",
+          "#4f0001",
+          "#721c1d",
+          "#963d3a",
+          "#ba5e58",
+          "#df7f78",
+          "#ffa59d",
+          "#ffcfc6"
+        ]
       },
       "discord": {
         "role": "tertiary",
         "displayName": "Discord",
         "canonical": "#5865f2",
         "cssVar": "--color-discord",
-        "placeholder": true,
+        "oklch": "oklch(57.7% 0.209 274)",
         "tonalRamp": [
-          "#0d004d",
-          "#170670",
-          "#2c3195",
-          "#4854ba",
-          "#6677e1",
-          "#879bff",
-          "#a9c0ff",
-          "#cde6ff"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#07003c",
+          "#16175c",
+          "#2e367e",
+          "#4956a0",
+          "#6776c4",
+          "#8798e9",
+          "#acbeff",
+          "#d5e9ff"
+        ]
       },
       "discord-hover": {
         "role": "tertiary",
         "displayName": "Discord Hover",
         "canonical": "#4752c4",
         "cssVar": "--color-discord-hover",
-        "placeholder": true,
+        "oklch": "oklch(49.7% 0.176 274)",
         "tonalRamp": [
-          "#0d004d",
-          "#170670",
-          "#2d3195",
-          "#4854ba",
-          "#6677e1",
-          "#879bff",
-          "#a9c0ff",
-          "#cde6ff"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#07003c",
+          "#16175c",
+          "#2e367e",
+          "#4956a0",
+          "#6776c4",
+          "#8798e9",
+          "#acbeff",
+          "#d5e9ff"
+        ]
       },
       "admin-bar": {
         "role": "neutral",
         "displayName": "Admin Bar",
-        "canonical": "#22243a",
+        "canonical": "#1f2438",
         "cssVar": "--color-admin-surface",
-        "placeholder": true,
+        "oklch": "oklch(26.5% 0.038 273)",
         "tonalRamp": [
-          "#08081c",
-          "#212339",
-          "#3d4058",
-          "#5c5f79",
-          "#7d809b",
-          "#9fa3bf",
-          "#c3c7e4",
-          "#e8ecff"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#06091b",
+          "#1e2337",
+          "#393f54",
+          "#565d74",
+          "#757c95",
+          "#969db7",
+          "#bbc3de",
+          "#e6eeff"
+        ]
       },
       "admin-bar-border": {
         "role": "neutral",
         "displayName": "Admin Bar Border",
-        "canonical": "#3d4170",
+        "canonical": "#3b4470",
         "cssVar": "--color-admin-border",
-        "placeholder": true,
+        "oklch": "oklch(40.0% 0.075 274)",
         "tonalRamp": [
-          "#07032b",
-          "#1e1f4a",
-          "#393d6b",
-          "#575c8e",
-          "#777eb2",
-          "#99a0d7",
-          "#bdc5fd",
-          "#e2eaff"
-        ],
-        "note": "Placeholder value; swap in frontend/src/styles/tokens.css, keep the role name."
+          "#05042a",
+          "#191f48",
+          "#333c67",
+          "#505a88",
+          "#6f7aaa",
+          "#8f9cce",
+          "#b4c1f6",
+          "#deecff"
+        ]
       }
     },
     "typographyMeta": {
       "display": {
         "displayName": "Display",
-        "purpose": "The landing wordmark only (--text-hero)."
+        "purpose": "The landing wordmark only (--text-hero), expanded 125% at weight 300."
+      },
+      "tagline": {
+        "displayName": "Tagline",
+        "purpose": "The banner's line \"112'nin Son Kış Turnuvası\" under the landing wordmark, muted."
+      },
+      "wordmark": {
+        "displayName": "Wordmark",
+        "purpose": "The nav brand beside the crystal mark."
       },
       "headline": {
         "displayName": "Headline",
@@ -542,7 +534,7 @@
       }
     ],
     "fontLoading": {
-      "display": "Archivo variable, wdth 62..125, wght 500..900, used at font-stretch 68% (--font-display-stretch)",
+      "display": "Archivo variable, wdth 62..125, wght 200..900; condensed at font-stretch 68% (--font-display-stretch), wordmark at 125% (--font-wordmark-stretch) and weight 300 (--font-wordmark-weight)",
       "body": "Fira Sans 400-700",
       "mono": "Fira Code 400-500",
       "source": "Google Fonts link in frontend/index.html"
@@ -562,6 +554,58 @@
         "name": "focus-halo",
         "value": "0 0 0 3px var(--color-primary-soft)",
         "purpose": "Input focus."
+      },
+      {
+        "name": "glow",
+        "value": "0 0 10px rgba(163, 218, 228, 0.55)",
+        "cssVar": "--glow",
+        "purpose": "The crystal glow; only the live dot and the current stage rule on the stage track."
+      }
+    ],
+    "atmosphere": [
+      {
+        "name": "gear-linework",
+        "value": "body::before, --color-linework through gear-tl.svg (left top, min(52vw, 560px)) and gear-br.svg (right bottom, min(60vw, 640px)) masks, fixed, z-index -1",
+        "purpose": "The banner cogs on the page ground, behind content."
+      },
+      {
+        "name": "grain",
+        "value": "body::after, desaturated fractal noise SVG at --grain-opacity (0.07), mix-blend-mode overlay, fixed, z-index -1",
+        "purpose": "The banner grain; neutral grey so it never lifts the slate."
+      }
+    ],
+    "assets": [
+      {
+        "name": "banner",
+        "files": [
+          "frontend/src/assets/banner-1316.webp",
+          "frontend/src/assets/banner-760.webp"
+        ],
+        "where": "Landing hero from 1200px wide, feathered on four sides."
+      },
+      {
+        "name": "crest",
+        "files": [
+          "frontend/src/assets/crest.webp"
+        ],
+        "where": "Landing hero under 1200px, elliptical feather."
+      },
+      {
+        "name": "crystal-mark",
+        "files": [
+          "frontend/src/assets/mark.png",
+          "frontend/public/favicon.png",
+          "frontend/public/apple-touch-icon.png"
+        ],
+        "where": "Nav brand (.brand-mark, CSS mask in currentColor, 199:220) and favicon / touch icon only."
+      },
+      {
+        "name": "gears",
+        "files": [
+          "frontend/src/assets/gear-tl.svg",
+          "frontend/src/assets/gear-br.svg"
+        ],
+        "where": "Page ground corners only."
       }
     ],
     "motion": [
@@ -609,6 +653,11 @@
         "name": "coarse-pointer",
         "value": "(pointer: coarse)",
         "purpose": "Controls 44px tall."
+      },
+      {
+        "name": "landing-hero-wide",
+        "value": "1200px",
+        "purpose": "Banner beside the headline; below it the crest crop above."
       }
     ]
   },
@@ -617,7 +666,7 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The one primary action per view; disabled turns grey, not dim brand.",
+      "description": "The one primary action per view; disabled turns grey, not dim frost.",
       "html": "<button class=\"ds-btn ds-btn-primary\">Takım kur</button> <button class=\"ds-btn ds-btn-primary\" disabled>Takım kur</button>",
       "css": ".ds-btn{display:inline-flex;align-items:center;justify-content:center;height:var(--control-height,36px);padding:0 var(--space-4,16px);border:1px solid transparent;border-radius:var(--radius-md,8px);font-family:var(--font-sans);font-size:var(--text-md,14px);font-weight:600;cursor:pointer;transition:background-color 150ms ease,border-color 150ms ease,color 150ms ease}.ds-btn:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}.ds-btn-primary{background:var(--color-primary);color:var(--color-on-primary)}.ds-btn-primary:hover:not(:disabled){background:var(--color-primary-hover)}.ds-btn-primary:disabled{cursor:not-allowed;background:var(--color-surface-raised);border-color:var(--color-border);color:var(--color-text-subtle)}"
     },
@@ -641,7 +690,7 @@
       "name": "Input",
       "kind": "input",
       "refersTo": "input",
-      "description": "Sunken well; brand border and soft halo on focus.",
+      "description": "Sunken well; frost border and soft halo on focus.",
       "html": "<input class=\"ds-input\" placeholder=\"Maç, takım, oyuncu veya hakem ara\">",
       "css": ".ds-input{height:var(--control-height,36px);width:320px;padding:0 var(--space-3,12px);background:var(--color-surface-sunken);border:1px solid var(--color-border-strong);border-radius:var(--radius-md,8px);color:var(--color-text);font-family:var(--font-sans);font-size:var(--text-md,14px)}.ds-input::placeholder{color:var(--color-text-subtle)}.ds-input:focus-visible{outline:none;border-color:var(--color-primary);box-shadow:0 0 0 3px var(--color-primary-soft)}"
     },
@@ -657,9 +706,9 @@
       "name": "Navigation",
       "kind": "nav",
       "refersTo": "nav-link-active",
-      "description": "Wordmark with brand year; active link in brand-soft with a brand underline.",
-      "html": "<nav class=\"ds-nav\"><span class=\"ds-brand\">112servis <b>2026</b></span><a class=\"ds-link is-active\" href=\"#\">Ana sayfa</a><a class=\"ds-link\" href=\"#\">Mappool</a><a class=\"ds-link\" href=\"#\">Maçlar</a></nav>",
-      "css": ".ds-nav{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--color-bg);border-bottom:1px solid var(--color-border);font-family:var(--font-sans)}.ds-brand{margin-right:12px;font-weight:700;color:var(--color-text)}.ds-brand b{color:var(--color-primary)}.ds-link{padding:6px 12px;border-radius:var(--radius-md,8px);color:var(--color-text-muted);font-size:var(--text-md,14px);text-decoration:none;transition:background-color 150ms ease,color 150ms ease}.ds-link:hover{color:var(--color-text);background:var(--color-hover)}.ds-link.is-active{color:var(--color-text);background:var(--color-primary-soft);box-shadow:inset 0 -2px 0 var(--color-primary)}.ds-link:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}"
+      "description": "Crystal mark and expanded wordmark with frost year; active link in frost wash with a frost underline. The crystal (26px, a CSS mask of frontend/src/assets/mark.png in currentColor) sits before the wordmark in the build; it is designer artwork, so the snippet omits it rather than redraw it.",
+      "html": "<nav class=\"ds-nav\"><span class=\"ds-brand\"><span>112servis <b>2026</b></span></span><a class=\"ds-link is-active\" href=\"#\">Ana sayfa</a><a class=\"ds-link\" href=\"#\">Mappool</a><a class=\"ds-link\" href=\"#\">Maçlar</a></nav>",
+      "css": ".ds-nav{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--color-bg);border-bottom:1px solid var(--color-border);font-family:var(--font-sans)}.ds-brand{display:inline-flex;align-items:center;gap:8px;margin-right:12px;font-family:var(--font-display);font-stretch:var(--font-wordmark-stretch,125%);font-size:var(--text-base,16px);font-weight:500;color:var(--color-text)}.ds-brand b{font-weight:500}.ds-brand b{color:var(--color-primary)}.ds-link{padding:6px 12px;border-radius:var(--radius-md,8px);color:var(--color-text-muted);font-size:var(--text-md,14px);text-decoration:none;transition:background-color 150ms ease,color 150ms ease}.ds-link:hover{color:var(--color-text);background:var(--color-hover)}.ds-link.is-active{color:var(--color-text);background:var(--color-primary-soft);box-shadow:inset 0 -2px 0 var(--color-primary)}.ds-link:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}"
     },
     {
       "name": "Fixture Row",
@@ -667,7 +716,7 @@
       "refersTo": "fixture-row",
       "description": "Signature versus row: time | red team | score halves | blue team | code and stage.",
       "html": "<ul class=\"ds-fl\"><li><a class=\"ds-fr\" href=\"#\"><span class=\"ds-when\"><span class=\"ds-live\">Canlı</span></span><span class=\"ds-team ds-t1 is-own\">Sokak Kedileri</span><span class=\"ds-score\"><span class=\"ds-vs\">vs</span></span><span class=\"ds-team ds-t2\">Kış Hazırlığı</span><span class=\"ds-meta\"><b class=\"ds-code\">W58</b><small>Quarterfinals</small></span></a></li><li><a class=\"ds-fr\" href=\"#\"><span class=\"ds-when\"><span class=\"ds-time\">14 Eki Çar 19:00</span></span><span class=\"ds-team ds-t1\">Kış Hazırlığı</span><span class=\"ds-score\"><span class=\"is-winner\">5</span><span>4</span></span><span class=\"ds-team ds-t2 is-loser\">Şerbet Ustaları</span><span class=\"ds-meta\"><b class=\"ds-code is-losers\">L12</b><small>Round of 16</small></span></a></li></ul>",
-      "css": ".ds-fl{list-style:none;margin:0;padding:0;font-family:var(--font-sans);color:var(--color-text)}.ds-fr{display:grid;grid-template-columns:9.5rem minmax(0,1fr) auto minmax(0,1fr) 8.5rem;align-items:center;gap:16px;padding:12px 8px;border-bottom:var(--rule);color:inherit;text-decoration:none;transition:background-color 150ms cubic-bezier(.2,.8,.2,1)}.ds-fr:hover,.ds-fr:focus-visible{background:var(--color-hover)}.ds-fr:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}.ds-time,.ds-code,.ds-live,.ds-score{font-family: var(--font-display); font-stretch: var(--font-display-stretch); font-variant-numeric: tabular-nums;}.ds-time{font-size:18px;font-weight:700}.ds-live{display:inline-flex;align-items:center;gap:8px;color:var(--color-primary);font-size:18px;font-weight:800}.ds-live::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor}.ds-team{display:flex;align-items:center;gap:8px;font-weight:600;white-space:nowrap}.ds-t1{justify-content:flex-start;flex-direction:row-reverse;text-align:right}.ds-team.is-own{color:var(--color-primary);font-weight:700}.ds-team.is-loser{color:var(--color-text-muted);font-weight:400}.ds-score{display:grid;grid-template-columns:1fr 1fr;min-width:76px;border-radius:6px;overflow:hidden;line-height:1;background-image:linear-gradient(90deg,var(--color-team-red) 50%,var(--color-team-blue) 50%),linear-gradient(90deg,color-mix(in srgb,var(--color-team-red) 30%,transparent) 50%,color-mix(in srgb,var(--color-team-blue) 30%,transparent) 50%);background-size:100% 3px,100% 100%;background-position:bottom,center;background-repeat:no-repeat}.ds-score>span{padding:8px;text-align:center;font-size:30px;font-weight:600;color:var(--color-text-muted)}.ds-score>.is-winner{color:var(--color-text);font-weight:800}.ds-score>.ds-vs{grid-column:1/-1;font-size:18px;font-weight:700}.ds-meta{display:flex;flex-direction:column;align-items:flex-end;gap:2px}.ds-code{font-size:18px;font-weight:800;line-height:1}.ds-code.is-losers{color:var(--color-text-muted)}.ds-meta small{color:var(--color-text-muted);font-size:12px}"
+      "css": ".ds-fl{list-style:none;margin:0;padding:0;font-family:var(--font-sans);color:var(--color-text)}.ds-fr{display:grid;grid-template-columns:9.5rem minmax(0,1fr) auto minmax(0,1fr) 8.5rem;align-items:center;gap:16px;padding:12px 8px;border-bottom:var(--rule);color:inherit;text-decoration:none;transition:background-color 150ms cubic-bezier(.2,.8,.2,1)}.ds-fr:hover,.ds-fr:focus-visible{background:var(--color-hover)}.ds-fr:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}.ds-time,.ds-code,.ds-live,.ds-score{font-family: var(--font-display); font-stretch: var(--font-display-stretch); font-variant-numeric: tabular-nums;}.ds-time{font-size:18px;font-weight:700}.ds-live{display:inline-flex;align-items:center;gap:8px;color:var(--color-primary);font-size:18px;font-weight:800}.ds-live::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor;box-shadow:var(--glow)}.ds-team{display:flex;align-items:center;gap:8px;font-weight:600;white-space:nowrap}.ds-t1{justify-content:flex-start;flex-direction:row-reverse;text-align:right}.ds-team.is-own{color:var(--color-primary);font-weight:700}.ds-team.is-loser{color:var(--color-text-muted);font-weight:400}.ds-score{display:grid;grid-template-columns:1fr 1fr;min-width:76px;border-radius:6px;overflow:hidden;line-height:1;background-image:linear-gradient(90deg,var(--color-team-red) 50%,var(--color-team-blue) 50%),linear-gradient(90deg,color-mix(in srgb,var(--color-team-red) 30%,transparent) 50%,color-mix(in srgb,var(--color-team-blue) 30%,transparent) 50%);background-size:100% 3px,100% 100%;background-position:bottom,center;background-repeat:no-repeat}.ds-score>span{padding:8px;text-align:center;font-size:30px;font-weight:600;color:var(--color-text-muted)}.ds-score>.is-winner{color:var(--color-text);font-weight:800}.ds-score>.ds-vs{grid-column:1/-1;font-size:18px;font-weight:700}.ds-meta{display:flex;flex-direction:column;align-items:flex-end;gap:2px}.ds-code{font-size:18px;font-weight:800;line-height:1}.ds-code.is-losers{color:var(--color-text-muted)}.ds-meta small{color:var(--color-text-muted);font-size:12px}"
     },
     {
       "name": "Ruled Section Head",
@@ -679,36 +728,62 @@
     {
       "name": "Bracket Card",
       "kind": "card",
-      "description": "Board card: score cells tinted in team colours, own row in brand-soft.",
+      "description": "Board card: score cells tinted in team colours, own row in frost wash with its name in frost 700.",
       "html": "<div class=\"ds-bm\"><div class=\"ds-bm-h\"><b>W53</b> 14 Eki Çar 19:00</div><div class=\"ds-bm-t is-win is-mine\"><span>Kış Hazırlığı</span><span class=\"ds-bm-s r\">5</span></div><div class=\"ds-bm-t is-lose\"><span>Şerbet Ustaları</span><span class=\"ds-bm-s b\">4</span></div></div>",
-      "css": ".ds-bm{width:240px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:6px;overflow:hidden;font-family:var(--font-sans);font-size:13px;color:var(--color-text)}.ds-bm:hover{border-color:var(--color-border-strong)}.ds-bm-h{padding:4px 8px;color:var(--color-text-muted);font-size:12px;background:var(--color-surface-raised)}.ds-bm-h b{font-family:var(--font-display);font-stretch:var(--font-display-stretch);color:var(--color-text)}.ds-bm-t{display:flex;justify-content:space-between;align-items:stretch;padding-left:8px;border-top:1px solid var(--color-border);font-weight:600}.ds-bm-t>span:first-child{padding:6px 0}.ds-bm-t.is-mine{background:var(--color-primary-soft)}.ds-bm-t.is-lose{color:var(--color-text-muted)}.ds-bm-s{display:flex;align-items:center;justify-content:center;min-width:2.25em;font-family: var(--font-display); font-stretch: var(--font-display-stretch); font-variant-numeric: tabular-nums;font-size:18px;font-weight:700}.ds-bm-s.r{background:color-mix(in srgb,var(--color-team-red) 34%,transparent)}.ds-bm-s.b{background:color-mix(in srgb,var(--color-team-blue) 34%,transparent)}.is-win .ds-bm-s{font-weight:800;color:var(--color-text)}"
+      "css": ".ds-bm{width:240px;background:var(--color-surface);border:1px solid var(--color-border);border-radius:6px;overflow:hidden;font-family:var(--font-sans);font-size:13px;color:var(--color-text)}.ds-bm:hover{border-color:var(--color-border-strong)}.ds-bm-h{padding:4px 8px;color:var(--color-text-muted);font-size:12px;background:var(--color-surface-raised)}.ds-bm-h b{font-family:var(--font-display);font-stretch:var(--font-display-stretch);color:var(--color-text)}.ds-bm-t{display:flex;justify-content:space-between;align-items:stretch;padding-left:8px;border-top:1px solid var(--color-border);font-weight:600}.ds-bm-t>span:first-child{padding:6px 0}.ds-bm-t.is-mine{background:var(--color-primary-soft)}.ds-bm-t.is-lose{color:var(--color-text-muted)}.ds-bm-s{display:flex;align-items:center;justify-content:center;min-width:2.25em;font-family: var(--font-display); font-stretch: var(--font-display-stretch); font-variant-numeric: tabular-nums;font-size:18px;font-weight:700}.ds-bm-s.r{background:color-mix(in srgb,var(--color-team-red) 34%,transparent)}.ds-bm-s.b{background:color-mix(in srgb,var(--color-team-blue) 34%,transparent)}.is-win .ds-bm-s{font-weight:800;color:var(--color-text)}.ds-bm-t.is-mine>span:first-child{color:var(--color-primary);font-weight:700}"
+    },
+    {
+      "name": "Landing Headline",
+      "kind": "custom",
+      "description": "Wordmark in expanded light Archivo, the banner line as type, facts and actions over the heavy rule (banner image omitted: designer artwork only).",
+      "html": "<div class=\"ds-lh\"><h1>112servis <span>2026</span></h1><p class=\"ds-tag\">112'nin Son Kış Turnuvası</p><p class=\"ds-lead\">osu! 2v2 turnuvası · 32 takım</p><div class=\"ds-act\"><button class=\"ds-p\">osu! ile giriş yap</button><button class=\"ds-s\">Mappool</button></div></div>",
+      "css": ".ds-lh{display:flex;flex-direction:column;gap:12px;padding-bottom:24px;border-bottom:var(--rule-heavy);color:var(--color-text);font-family:var(--font-sans)}.ds-lh h1{margin:0;font-family:var(--font-display);font-stretch:var(--font-wordmark-stretch);font-weight:var(--font-wordmark-weight);font-size:var(--text-hero);letter-spacing:-0.03em;line-height:.95}.ds-lh h1 span{color:var(--color-primary)}.ds-tag{margin:0;color:var(--color-text-muted);font-family:var(--font-display);font-stretch:var(--font-wordmark-stretch);font-weight:var(--font-wordmark-weight);font-size:var(--text-xl);line-height:1.2}.ds-lead{margin:0;color:var(--color-text-muted);font-size:var(--text-lg)}.ds-act{display:flex;gap:12px;margin-top:12px}.ds-p,.ds-s{height:48px;padding:0 24px;border-radius:var(--radius-md);font:600 var(--text-base)/1 var(--font-sans);cursor:pointer;transition:background-color 150ms ease,color 150ms ease}.ds-p{background:var(--color-primary);color:var(--color-on-primary);border:1px solid transparent}.ds-p:hover{background:var(--color-primary-hover)}.ds-s{background:transparent;color:var(--color-text-muted);border:1px solid var(--color-border-strong)}.ds-s:hover{color:var(--color-text)}.ds-p:focus-visible,.ds-s:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}"
+    },
+    {
+      "name": "Stage Track",
+      "kind": "custom",
+      "description": "Stages as 3px top rules; the current one in frost with the crystal glow.",
+      "html": "<ol class=\"ds-st\"><li class=\"is-done\"><b>Elemeler</b></li><li class=\"is-current\"><b>Round of 16</b><small>Şu an</small></li><li><b>Quarterfinals</b></li><li><b>Grand Final</b></li></ol>",
+      "css": ".ds-st{display:flex;gap:4px;margin:0;padding:0;list-style:none;font-family:var(--font-sans)}.ds-st li{display:flex;flex-direction:column;gap:2px;flex:1 0 auto;min-width:7.5rem;padding-top:8px;border-top:3px solid var(--color-border);color:var(--color-text-subtle)}.ds-st li.is-done{border-top-color:var(--color-text-muted);color:var(--color-text-muted)}.ds-st li.is-current{border-top-color:var(--color-primary);color:var(--color-text)}.ds-st li.is-current::before{content:'';height:3px;margin:-11px 0 6px;box-shadow:var(--glow)}.ds-st b{font-family:var(--font-display);font-stretch:var(--font-display-stretch);font-size:var(--text-lg);font-weight:700;line-height:1.1;white-space:nowrap}.ds-st small{color:var(--color-primary);font-size:var(--text-xs);font-weight:600}"
     }
   ],
   "narrative": {
     "northStar": "The Fikstür Sheet",
-    "overview": "The tournament reads like a Turkish sports fixture sheet: big condensed headlines, numbers as the heroes, matches as versus rows, and content grouped by horizontal rules rather than boxed in nested cards. Every public page (landing, teams, qualifiers, bracket list, team page) is a stack of ruled sections under a heavy-ruled headline, with dense rows on hairlines beneath. The admin side keeps boxed tool panels where a tool genuinely needs a container (the referee page, the map pool editor, the bracket board), but its page headers follow the same sheet.\n\nThe colour layer is deliberately provisional. **Every colour value in this system is a placeholder.** The tournament's designers will supply the real scheme and graphics; until then the build carries a dark ground with an osu!-pink accent purely so the roles are visible. What is fixed is the structure: which role a colour plays, where it may appear, and how much of a screen it may take. No logo or artwork exists, and none is invented; the wordmark is set in type.\n\nDensity is high and calm: a 16px body, a dense 4px-based spacing scale, rows of about 60px, and a 1440px content width. Motion is limited to short colour and background transitions on hover and focus.",
+    "overview": "The tournament reads like a Turkish sports fixture sheet: big condensed headlines, numbers as the heroes, matches as versus rows, and content grouped by horizontal rules rather than boxed in nested cards. Every public page (landing, teams, qualifiers, bracket list, team page) is a stack of ruled sections under a heavy-ruled headline, with dense rows on hairlines beneath. The admin side keeps boxed tool panels where a tool genuinely needs a container (the referee page, the map pool editor, the bracket board), but its page headers follow the same sheet.\n\nThe sheet is printed in the world of the designers' first banner (`design/bannertest.png`, \"112'nin Son Kış Turnuvası\", still a test version): a cold slate ground, frost-white ink, and the icy glow of the tournament's mark, an ice crystal drawn with the digits 1, 1 and 2. The banner also lends the page its atmosphere (faint gear linework in two corners and a film of grain, behind the content) and the wordmark its voice (the display face expanded and light). The artwork is the designers'; the site uses what was cut from it and invents none of its own.\n\nDensity is high and calm: a 16px body, a dense 4px-based spacing scale, rows of about 60px, and a 1440px content width. Motion is limited to short colour and background transitions on hover and focus.",
     "keyCharacteristics": [
       "Condensed heavy Archivo (68% width, 700–900) for every heading, code, score, time, countdown and value; always tabular figures.",
+      "The wordmark and the banner's line in the same Archivo expanded to 125% and light; nowhere else.",
       "Fira Sans for body and controls; Fira Code only for ids.",
       "A heavy ink rule opens each page and section; hairline rules separate rows.",
-      "Team red and team blue structure every head-to-head; one brand accent marks live, yours and the primary action.",
-      "All colours are role tokens with placeholder values, swappable in one file."
+      "Team red and team blue structure every head-to-head; one frost accent marks live, yours, current and the primary action.",
+      "Slate ground with gear linework and grain behind the content; the crystal mark in the nav and favicon; the banner as the landing hero.",
+      "Every colour is a role token taken from the test banner, so the final banner is a value swap."
     ],
     "rules": [
       {
-        "name": "The Placeholder Palette Rule",
-        "body": "No hex value in this file is the brand. Colours are documented and consumed by role only. Components reference role tokens (`--color-*`, `--rule*` in `frontend/src/styles/tokens.css`); a raw colour value in a component stylesheet is a defect.",
+        "name": "The Banner Palette Rule",
+        "body": "The palette comes from the designers' test banner, and every colour is still consumed by role only: components reference role tokens (`--color-*`, `--rule*`, `--glow` in `frontend/src/styles/tokens.css`), and a raw colour value in a component stylesheet is a defect (mask gradients, which carry only alpha, are the exception). When the final banner arrives: (1) change the values in `tokens.css` only, keeping every role name; (2) keep `on-brand` legible on `brand` (frost is a light fill, so it takes slate ink); (3) keep team red and team blue distinguishable from each other and from `brand` and `danger`; (4) re-export the assets from the final banner as `frontend/src/assets/README.md` describes, keeping the file names; (5) re-run the document pass so this file and its sidecar record the new values. Soft variants (`brand-soft`, `team-*-soft`, `danger-soft`) are the base colour at 12–18% alpha, and several components derive tints with `color-mix()` from the base team and brand colours, so they follow automatically.",
         "section": "colors"
       },
       {
         "name": "The One Accent Rule",
-        "body": "The brand colour appears only for live, yours, current position and the single primary action. It never decorates a heading, a divider or a category.",
+        "body": "Frost appears only for live, yours, current position, the single primary action and the wordmark's year. It never decorates a heading, a divider or a category.",
+        "section": "colors"
+      },
+      {
+        "name": "The Strong Yours Rule",
+        "body": "Frost sits close to the ink, so \"yours\" is never carried by a wash alone: an own team name is frost at 700, an own lobby title frost at 900, and an own bracket row that is hovered steps to a deeper frost wash (10%) so hover never reads as just \"yours\".",
         "section": "colors"
       },
       {
         "name": "The Sides Rule",
         "body": "Any time two teams face each other, team 1 is red and team 2 is blue, and both colours appear. A head-to-head without its side colours is incomplete.",
         "section": "colors"
+      },
+      {
+        "name": "The Two Widths Rule",
+        "body": "Archivo has two voices and they never trade places: condensed and heavy for headings and numbers, expanded and light for the tournament's name and the banner's line. A page title, a score or a section head is never set expanded; the wordmark is never set condensed.",
+        "section": "typography"
       },
       {
         "name": "The Numbers Are Heroes Rule",
@@ -729,23 +804,31 @@
         "name": "The Flat Sheet Rule",
         "body": "A row, a section or a team block never takes a shadow. If it needs separation, it gets a rule.",
         "section": "elevation"
+      },
+      {
+        "name": "The Lit Things Rule",
+        "body": "The crystal's glow is the one sanctioned exception to the flat sheet and to zero-offset halos, earned by the banner: it is allowed only on the live dot and on the current stage's rule on the stage track. A button, a card, a heading or the primary action never glows.",
+        "section": "elevation"
       }
     ],
     "dos": [
       "**Do** reference role tokens from `frontend/src/styles/tokens.css` for every colour, size, radius and timing.",
-      "**Do** treat every colour value as a placeholder and swap palettes by changing values in `tokens.css` while keeping role names.",
+      "**Do** take the palette from the designers' banner and swap it by changing values in `tokens.css` while keeping role names; re-export the assets per `frontend/src/assets/README.md`.",
       "**Do** set every score, time, countdown, code and value in condensed Archivo (68% width) with tabular figures.",
+      "**Do** keep the expanded light Archivo (125%) for the wordmark and the banner's line.",
       "**Do** group public content with a heavy rule under headings and over blocks, and hairlines between rows.",
       "**Do** show both team colours in every head-to-head: team 1 red, team 2 blue.",
       "**Do** reuse the fixture row for any list of matches.",
-      "**Do** mark the viewer's own team, lobby or row with brand ink, a brand rule or the brand-soft wash.",
-      "**Do** show disabled primary buttons as grey (surface-raised, subtle ink), not as a dimmed brand fill."
+      "**Do** mark the viewer's own team, lobby or row with frost ink at full weight, a frost rule or the frost wash, never the wash alone on a name.",
+      "**Do** show disabled primary buttons as grey (surface-raised, subtle ink), not as a dimmed frost fill.",
+      "**Do** feather the banner into the ground rather than framing it."
     ],
     "donts": [
-      "**Don't** present the placeholder hex values as the brand, or add a logo, artwork or illustration before the designers supply one.",
-      "**Don't** use the brand colour for decoration, headings, dividers or categories; it means live, yours, current or primary.",
+      "**Don't** invent artwork, illustration or a new mark; use only what the designers supplied, in the places listed under Atmosphere and artwork.",
+      "**Don't** put the glow on anything but the live dot and the current stage.",
+      "**Don't** use frost for decoration, headings, dividers or categories; it means live, yours, current or primary.",
       "**Don't** box public lists in same-size bordered cards or nest boxes inside boxes; use rules.",
-      "**Don't** put shadows on rows, sections or blocks.",
+      "**Don't** put shadows on rows, sections or blocks, or let the gear linework and grain into a surface.",
       "**Don't** set numbers in the body sans or use Fira Code outside ids.",
       "**Don't** add small uppercase tracked labels above headings or fields; let the heading and the value carry the hierarchy."
     ]
