@@ -1,5 +1,5 @@
 import { del, get, post, put } from "./client";
-import type { BracketSide, NextMatch, Player, PublicBracket, StaffBracket } from "./types";
+import type { BracketSide, MapResultRow, NextMatch, Player, PublicBracket, StaffBracket } from "./types";
 
 export const fetchPublicBracket = () => get<PublicBracket>("/api/public/bracket");
 
@@ -31,8 +31,13 @@ export const fetchStreamers = () => get<Player[]>("/api/streamers");
 
 // The match's referee, or a host. Linking, notes, concluding and the referee itself go
 // through the shared match routes in ./matches.
-export const setBracketScore = (id: string, team1Score: number | null, team2Score: number | null) =>
-  put<void>(`/api/bracket/${id}/score`, { team1_score: team1Score, team2_score: team2Score });
+/** `maps`, from the referee page, replaces the map results the score was counted from. */
+export const setBracketScore = (
+  id: string,
+  team1Score: number | null,
+  team2Score: number | null,
+  maps?: MapResultRow[],
+) => put<void>(`/api/bracket/${id}/score`, { team1_score: team1Score, team2_score: team2Score, maps });
 
 /** Concludes a match by forfeit: `slot` (1 or 2) is the team that forfeited, the other one moves on. */
 export const forfeitMatch = (id: string, slot: 1 | 2) => post<void>(`/api/bracket/${id}/forfeit`, { slot });

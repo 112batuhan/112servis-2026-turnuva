@@ -1,6 +1,7 @@
 //! Each match's private channel: its players, referee and streamer can see it. A bracket
 //! match gets one once it has both teams and a time, a qualifier lobby once a team signs
-//! up. A concluded match's channel turns read-only and moves to the archive category.
+//! up. An hour after a match is concluded its channel turns read-only and moves to the
+//! archive category; until then the players can still talk there.
 
 use serenity::all::{
     ChannelId, ChannelType, CreateChannel, EditChannel, MessageId, PermissionOverwrite,
@@ -20,6 +21,19 @@ use crate::{
 
 // Discord's limit on channels in a category.
 const CATEGORY_LIMIT: usize = 50;
+
+// Deletes a message, counting one that's already gone as deleted.
+pub async fn delete_message(bot: &Bot, channel: i64, message: i64) -> BotResult {
+    match snowflake::channel(channel)
+        .delete_message(&bot.http, MessageId::new(message as u64))
+        .await
+        .map_err(BotError::from)
+    {
+        Ok(()) => Ok(()),
+        Err(err) if err.not_found() => Ok(()),
+        Err(err) => Err(err),
+    }
+}
 
 fn active_perms() -> Permissions {
     Permissions::VIEW_CHANNEL
@@ -163,7 +177,9 @@ async fn sync_channel(
     if stored.channel_id.is_none() && !should_open(info) {
         return Ok(None);
     }
-    let archived = info.concluded_at.is_some();
+    // An hour after it was concluded (db::discord::ARCHIVE_AFTER_SECS); until then
+    // the players can still talk there.
+    let archived = info.archived;
     let settings = db::discord::settings(&state.db).await?;
     let base = base_category(&settings, info.kind, archived);
 

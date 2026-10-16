@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { IconButton } from "../../../components/IconButton";
-import { SCORE_MODES, sameName, type RoomSlot, type ScoreMode } from "../../../lib/bancho";
+import { isFreemod, SCORE_MODES, sameName, splitMods, type RoomSlot, type ScoreMode } from "../../../lib/bancho";
 import { RoomsEditor } from "../MatchControls";
 import type { RefereeRoomState } from "./useRefereeRoom";
 import "./LobbyPanel.css";
@@ -163,7 +163,12 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
         </div>
       </dl>
 
-      <ol className="lobby-slots" aria-label="Slotlar">
+      {/* Filled down then across: slots 1-2 on the left, 3-4 on the right. */}
+      <ol
+        className="lobby-slots"
+        aria-label="Slotlar"
+        style={{ "--slot-rows": Math.ceil(slots.length / 2) } as CSSProperties}
+      >
         {slots.map((slot, i) => (
           <SlotRow key={i} number={i + 1} slot={slot} referee={referee} />
         ))}
@@ -301,7 +306,7 @@ function SlotRow({ number, slot, referee }: { number: number; slot: RoomSlot | u
         )}
         {wrongTeam && <span className="badge badge-danger">Yanlış takım</span>}
       </span>
-      {slot.mods && <span className="lobby-slot-mods">{slot.mods}</span>}
+      <SlotMods slot={slot} freemod={isFreemod(lobby.mods)} />
       <span className={`lobby-slot-status ${score && !score.passed ? "is-failed" : ""}`}>{status}</span>
       {slot.team && (
         <IconButton
@@ -313,4 +318,21 @@ function SlotRow({ number, slot, referee }: { number: number; slot: RoomSlot | u
       )}
     </li>
   );
+}
+
+/**
+ * The mods a player picked, read from !mp settings (asked for as each map starts). Without freemod
+ * everyone plays the room's mods, shown above the slots, so there's nothing per player.
+ */
+function SlotMods({ slot, freemod }: { slot: RoomSlot; freemod: boolean }) {
+  if (slot.mods) return <span className="lobby-slot-mods">{splitMods(slot.mods).join("")}</span>;
+  if (!freemod) return null;
+  if (!slot.modsKnown) {
+    return (
+      <span className="lobby-slot-mods is-unknown" title="Modları henüz okunmadı; Odayı yenile ile okunur">
+        ?
+      </span>
+    );
+  }
+  return <span className="lobby-slot-mods is-nomod">NM</span>;
 }

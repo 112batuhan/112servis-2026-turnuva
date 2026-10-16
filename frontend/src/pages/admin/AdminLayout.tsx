@@ -5,7 +5,7 @@ import { useSignedInUser } from "../../auth/AuthContext";
 import { canAccess, hasRole } from "../../auth/roles";
 import { IrcProvider } from "../../irc/IrcContext";
 import { readString, writeString } from "../../lib/storage";
-import { AutoTeams } from "./referee/autoTeams";
+import { RoomAutomation } from "./referee/roomAutomation";
 import { ADMIN_TABS } from "./tabs";
 
 // The first tab a user can open is their default, except that hosts start on Users.
@@ -36,7 +36,7 @@ export function AdminLayout() {
     <div className="page admin-page">
       {/* Here rather than on the referee page, so the Bancho connection outlives tab switches. */}
       <IrcProvider>
-        <AutoTeams />
+        <RoomAutomation />
         <Outlet />
       </IrcProvider>
     </div>

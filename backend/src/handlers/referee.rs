@@ -12,7 +12,7 @@ use crate::{
     auth::AuthUser,
     db::{
         self,
-        bracket::{BanRow, ManualResultRow, PickRow, Side},
+        bracket::{BanRow, ManualResultRow, MapResultRow, PickRow, Side},
         chat::ChatMessage,
         mappool::{Category, PublicPoolMap, PublicSlot},
         matches::MatchKind,
@@ -22,6 +22,7 @@ use crate::{
         matches::{match_rooms, MatchRoom, Referee},
         team::{group_teams, AdminTeamPlayer, Team},
     },
+    osu_api,
     role::Role,
     AppState,
 };
@@ -33,6 +34,7 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/matches/:id/room", get(get_room))
         .route("/matches/:id/chat", get(get_chat))
+        .route("/matches/:id/osu-games", get(get_osu_games))
 }
 
 #[derive(Debug, Serialize)]
@@ -78,6 +80,9 @@ pub struct RefereeRoom {
     picks: Vec<PickRow>,
     // Bracket matches only: map wins the referee awarded by hand, oldest first.
     manual_results: Vec<ManualResultRow>,
+    // Bracket matches only: the pool maps the saved score was counted from, as the
+    // referee page last saved them.
+    map_results: Vec<MapResultRow>,
     // The match has a Discord channel, so clicking a player's Discord name pings them
     // there (handlers/discord.rs).
     discord_channel: bool,
@@ -123,13 +128,14 @@ pub async fn get_room(
         ),
         _ => (None, Vec::new(), Vec::new(), Vec::new()),
     };
-    let (bans, picks, manual_results) = match row.kind {
+    let (bans, picks, manual_results, map_results) = match row.kind {
         MatchKind::Bracket => (
             db::bracket::list_bans(&state.db, id).await?,
             db::bracket::list_picks(&state.db, id).await?,
             db::bracket::list_manual_results(&state.db, id).await?,
+            db::bracket::list_map_results(&state.db, id).await?,
         ),
-        MatchKind::Qualifier => (Vec::new(), Vec::new(), Vec::new()),
+        MatchKind::Qualifier => (Vec::new(), Vec::new(), Vec::new(), Vec::new()),
     };
 
     Ok(Json(RefereeRoom {
@@ -156,6 +162,7 @@ pub async fn get_room(
         bans,
         picks,
         manual_results,
+        map_results,
         discord_channel: state.discord.enabled()
             && db::discord::channel_of(&state.db, id).await?.is_some(),
     }))
@@ -183,6 +190,80 @@ pub async fn get_chat(
     for mp_id in m.mp_ids {
         let messages = db::chat::list_messages(&state.db, mp_id).await?;
         rooms.push(RoomChat { mp_id, messages });
+    }
+    Ok(Json(rooms))
+}
+
+#[derive(Debug, Serialize)]
+pub struct OsuGameScore {
+    osu_id: i64,
+    score: i64,
+    passed: bool,
+    // The mods the player played with, as acronyms ("HD", "HR").
+    mods: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OsuGame {
+    beatmap_id: Option<i64>,
+    // The room's mods, as acronyms.
+    mods: Vec<String>,
+    scores: Vec<OsuGameScore>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OsuRoomGames {
+    mp_id: i64,
+    // Every finished map of the room in the order played, or null when osu! has no
+    // record of it (a mistyped or test link).
+    games: Option<Vec<OsuGame>>,
+}
+
+// GET /api/matches/:id/osu-games — referees and up. Each of the match's rooms as osu!
+// recorded it, for when the room's chat missed something (the relay was down, nobody
+// had the page open): the referee page can count the score from these instead.
+pub async fn get_osu_games(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<impl IntoResponse, AppError> {
+    user.require_role(Role::Referee)?;
+    let m = db::matches::find_match(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let token = osu_api::token::app_token(&state.osu_client, &state.osu_app_token).await?;
+    let mut rooms = Vec::with_capacity(m.mp_ids.len());
+    for mp_id in m.mp_ids {
+        let games = match osu_api::matches::fetch_games(&state.http_client, &token, mp_id).await {
+            Ok(games) => Some(games),
+            Err(AppError::OsuApiRequest(err)) if osu_api::matches::refused(&err) => {
+                tracing::warn!(error = %err, mp_id, match_id = %id, "osu! has no readable record of the room");
+                None
+            }
+            Err(err) => return Err(err),
+        };
+        rooms.push(OsuRoomGames {
+            mp_id,
+            games: games.map(|games| {
+                games
+                    .into_iter()
+                    .map(|g| OsuGame {
+                        beatmap_id: g.beatmap_id,
+                        mods: g.mods,
+                        scores: g
+                            .scores
+                            .into_iter()
+                            .map(|s| OsuGameScore {
+                                osu_id: s.user_id,
+                                score: s.score,
+                                passed: s.passed,
+                                mods: s.mods,
+                            })
+                            .collect(),
+                    })
+                    .collect()
+            }),
+        });
     }
     Ok(Json(rooms))
 }

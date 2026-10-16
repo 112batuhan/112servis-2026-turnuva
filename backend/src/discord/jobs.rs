@@ -143,6 +143,11 @@ pub enum Job {
         to: Target,
         // Boxed: a message is far bigger than any other job.
         message: Box<OutMessage>,
+        // The match whose channel this tells that it was concluded or reopened: the
+        // message replaces the last such one there, so a reopened match doesn't keep
+        // its old result in the channel.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        status_of: Option<Uuid>,
     },
 }
 
@@ -430,12 +435,21 @@ async fn run(state: &AppState, bot: &Bot, job: &Job) -> BotResult {
         Job::Announce { match_id } => announcement::post(state, bot, *match_id).await,
         Job::PostResults { match_id } => results::post(state, bot, *match_id).await,
         Job::DeleteResults { match_id } => results::delete(state, bot, *match_id).await,
-        Job::Post { to, message } => post(state, bot, to, message).await,
+        Job::Post {
+            to,
+            message,
+            status_of,
+        } => post(state, bot, to, message, *status_of).await,
         event => {
             let posts = messages::render(state, event).await?;
+            let status_of = match event {
+                Job::Concluded { match_id } | Job::Reopened { match_id } => Some(*match_id),
+                _ => None,
+            };
             let jobs: Vec<Job> = posts
                 .into_iter()
                 .map(|(to, message)| Job::Post {
+                    status_of: status_of.filter(|_| matches!(to, Target::MatchChannel(_))),
                     to,
                     message: Box::new(message),
                 })
@@ -446,7 +460,13 @@ async fn run(state: &AppState, bot: &Bot, job: &Job) -> BotResult {
     }
 }
 
-async fn post(state: &AppState, bot: &Bot, to: &Target, message: &OutMessage) -> BotResult {
+async fn post(
+    state: &AppState,
+    bot: &Bot,
+    to: &Target,
+    message: &OutMessage,
+    status_of: Option<Uuid>,
+) -> BotResult {
     let channel = match to {
         Target::Channel(id) => snowflake::channel(*id),
         Target::MatchChannel(match_id) => {
@@ -462,6 +482,13 @@ async fn post(state: &AppState, bot: &Bot, to: &Target, message: &OutMessage) ->
             user.create_dm_channel(&bot.http).await?.id
         }
     };
-    channel.send_message(&bot.http, message.build()).await?;
+    let sent = channel.send_message(&bot.http, message.build()).await?;
+    if let Some(match_id) = status_of {
+        let previous =
+            db::discord::swap_status_message(&state.db, match_id, sent.id.get() as i64).await?;
+        if let Some(previous) = previous {
+            channels::delete_message(bot, channel.get() as i64, previous).await?;
+        }
+    }
     Ok(())
 }

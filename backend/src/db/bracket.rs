@@ -588,3 +588,186 @@ pub async fn delete_manual_result(pool: &PgPool, match_id: Uuid, id: Uuid) -> sq
         .await?;
     Ok(result.rows_affected() > 0)
 }
+
+// A finished pool map that counts towards a match's score, with each team's summed
+// score on it and each player's, as the referee page last saved them.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct MapResultRow {
+    // Always set by the referee page; null once the map was deleted from the site.
+    pub map_id: Option<Uuid>,
+    pub team1_score: i64,
+    pub team2_score: i64,
+    #[sqlx(skip)]
+    #[serde(default)]
+    pub players: Vec<MapPlayerScore>,
+}
+
+// A player's score on a map result, with the mods they played it with.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct MapPlayerScore {
+    pub user_id: Uuid,
+    pub score: i64,
+    // Acronyms, the room's included ("HDNF"); null when they weren't read.
+    pub mods: Option<String>,
+    pub passed: bool,
+}
+
+#[derive(sqlx::FromRow)]
+struct PositionedScore {
+    position: i32,
+    #[sqlx(flatten)]
+    score: MapPlayerScore,
+}
+
+// A match's map results, in the order the maps were played, each with its players'
+// scores, best first.
+pub async fn list_map_results(pool: &PgPool, match_id: Uuid) -> sqlx::Result<Vec<MapResultRow>> {
+    let mut rows = sqlx::query_as::<_, MapResultRow>(
+        r#"
+        SELECT pool_map_id AS map_id, team1_score, team2_score
+        FROM match_map_results
+        WHERE match_id = $1
+        ORDER BY position
+        "#,
+    )
+    .bind(match_id)
+    .fetch_all(pool)
+    .await?;
+    let scores = sqlx::query_as::<_, PositionedScore>(
+        r#"
+        SELECT position, user_id, score, mods, passed
+        FROM match_map_scores
+        WHERE match_id = $1
+        ORDER BY position, score DESC, user_id
+        "#,
+    )
+    .bind(match_id)
+    .fetch_all(pool)
+    .await?;
+    // Positions run from 1, in the order replace_map_results wrote them.
+    for s in scores {
+        if let Some(row) = usize::try_from(s.position - 1)
+            .ok()
+            .and_then(|i| rows.get_mut(i))
+        {
+            row.players.push(s.score);
+        }
+    }
+    Ok(rows)
+}
+
+// Replaces a match's map results and their players' scores with `rows`, in their order.
+pub async fn replace_map_results(
+    conn: &mut PgConnection,
+    match_id: Uuid,
+    rows: &[MapResultRow],
+) -> sqlx::Result<()> {
+    // The players' scores go with their rows (ON DELETE CASCADE).
+    sqlx::query("DELETE FROM match_map_results WHERE match_id = $1")
+        .bind(match_id)
+        .execute(&mut *conn)
+        .await?;
+    let maps: Vec<Option<Uuid>> = rows.iter().map(|r| r.map_id).collect();
+    let team1: Vec<i64> = rows.iter().map(|r| r.team1_score).collect();
+    let team2: Vec<i64> = rows.iter().map(|r| r.team2_score).collect();
+    sqlx::query(
+        r#"
+        INSERT INTO match_map_results (match_id, position, pool_map_id, team1_score, team2_score)
+        SELECT $1, r.position, r.map_id, r.team1_score, r.team2_score
+        FROM UNNEST($2::uuid[], $3::bigint[], $4::bigint[])
+             WITH ORDINALITY AS r(map_id, team1_score, team2_score, position)
+        "#,
+    )
+    .bind(match_id)
+    .bind(&maps)
+    .bind(&team1)
+    .bind(&team2)
+    .execute(&mut *conn)
+    .await?;
+
+    let players = rows
+        .iter()
+        .enumerate()
+        .flat_map(|(i, r)| r.players.iter().map(move |p| (i as i32 + 1, p)));
+    let mut positions = Vec::new();
+    let mut users = Vec::new();
+    let mut scores = Vec::new();
+    let mut mods = Vec::new();
+    let mut passed = Vec::new();
+    for (position, p) in players {
+        positions.push(position);
+        users.push(p.user_id);
+        scores.push(p.score);
+        mods.push(p.mods.clone());
+        passed.push(p.passed);
+    }
+    sqlx::query(
+        r#"
+        INSERT INTO match_map_scores (match_id, position, user_id, score, mods, passed)
+        SELECT $1, s.position, s.user_id, s.score, s.mods, s.passed
+        FROM UNNEST($2::int[], $3::uuid[], $4::bigint[], $5::text[], $6::bool[])
+             AS s(position, user_id, score, mods, passed)
+        "#,
+    )
+    .bind(match_id)
+    .bind(&positions)
+    .bind(&users)
+    .bind(&scores)
+    .bind(&mods)
+    .bind(&passed)
+    .execute(&mut *conn)
+    .await?;
+    Ok(())
+}
+
+// Whether every one of `user_ids` plays for one of the match's two teams.
+pub async fn players_in_match(
+    ex: impl PgExecutor<'_>,
+    match_id: Uuid,
+    user_ids: &[Uuid],
+) -> sqlx::Result<bool> {
+    sqlx::query_scalar(
+        r#"
+        SELECT NOT EXISTS (
+            SELECT 1 FROM UNNEST($2::uuid[]) AS wanted(id)
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM bracket_matches b
+                JOIN team_members tm ON tm.team_id IN (b.team1_id, b.team2_id)
+                WHERE b.match_id = $1 AND tm.user_id = wanted.id
+            )
+        )
+        "#,
+    )
+    .bind(match_id)
+    .bind(user_ids)
+    .fetch_one(ex)
+    .await
+}
+
+// Whether every one of `map_ids` is placed in the pool of the match's stage.
+pub async fn maps_in_pool(
+    ex: impl PgExecutor<'_>,
+    match_id: Uuid,
+    map_ids: &[Uuid],
+) -> sqlx::Result<bool> {
+    sqlx::query_scalar(
+        r#"
+        SELECT NOT EXISTS (
+            SELECT 1 FROM UNNEST($2::uuid[]) AS wanted(id)
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM bracket_matches b
+                JOIN stage_categories c ON c.stage_id = b.stage_id
+                JOIN category_slots s ON s.category_id = c.id
+                JOIN pool_maps pm ON pm.slot_id = s.id
+                WHERE b.match_id = $1 AND pm.id = wanted.id
+            )
+        )
+        "#,
+    )
+    .bind(match_id)
+    .bind(map_ids)
+    .fetch_one(ex)
+    .await
+}

@@ -1,7 +1,8 @@
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { formatLength } from "../../../lib/format";
-import { BAN_LIMIT, matchTeams, poolEntries, type MatchTeam, type PoolEntry } from "./pool";
+import { isFreemod, modAcronyms } from "../../../lib/bancho";
+import { BAN_LIMIT, entryOf, matchTeams, poolEntries, type MatchTeam, type PoolEntry } from "./pool";
 import type { RefereeRoomState } from "./useRefereeRoom";
 import "./PoolPanel.css";
 
@@ -11,10 +12,20 @@ import "./PoolPanel.css";
  * which team picked which map; a pick sets the map too. Banned maps can't be picked.
  */
 export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
-  const { room, lobby, inChannel, canRun, busy, actions } = referee;
+  const { room, lobby, finished, inChannel, canRun, busy, actions } = referee;
   if (!room) return null;
   const entries = poolEntries(room);
-  const played = new Set(lobby.results.map((r) => r.beatmapId));
+  const picks = new Set(room.picks.map((p) => p.map_id));
+  // By entry, so a beatmap that's in the pool twice is told apart by its mods.
+  const played = new Set(finished.map((f) => entryOf(entries, f.result, picks)?.map.id));
+  const currentEntry =
+    lobby.beatmapId === null
+      ? undefined
+      : entryOf(
+          entries,
+          { beatmapId: lobby.beatmapId, roomMods: modAcronyms(lobby.mods ?? ""), freemod: isFreemod(lobby.mods) },
+          picks,
+        );
   const teams = matchTeams(room);
   const teamOf = (id: string) => teams.find((t) => t.id === id);
   const bannedBy = new Map(room.bans.map((b) => [b.map_id, teamOf(b.team_id)]));
@@ -39,7 +50,7 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
           icon="ban"
           className={`pool-mark-button is-team-${team.color}`}
           label={`${label}: ${team.name} yasakladı`}
-          disabled={busy || played.has(map.beatmap_id)}
+          disabled={busy || played.has(map.id)}
           onClick={() => actions.ban(map.id, team.id)}
         />
       ));
@@ -90,7 +101,7 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
       <ul className="pool-panel-list">
         {entries.map((entry) => {
           const { label, color, freemod, map } = entry;
-          const current = lobby.beatmapId === map.beatmap_id;
+          const current = currentEntry === entry;
           const banned = bannedBy.get(map.id);
           const picked = pickedBy.get(map.id);
           const mods = freemod ? "Freemod" : map.mods || "NM";
@@ -106,7 +117,7 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
                 className={[
                   "pool-pick",
                   current && "is-current",
-                  played.has(map.beatmap_id) && "is-played",
+                  played.has(map.id) && "is-played",
                   banned && `is-banned is-marked-${banned.color}`,
                   picked && `is-marked-${picked.color}`,
                 ]
@@ -140,7 +151,7 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
                   </span>
                 )}
                 {!banned && !picked && current && <span className="badge badge-info">Seçili</span>}
-                {!banned && !picked && !current && played.has(map.beatmap_id) && <span className="badge">Oynandı</span>}
+                {!banned && !picked && !current && played.has(map.id) && <span className="badge">Oynandı</span>}
               </button>
               {canMark && <span className="pool-mark-actions">{markActions(entry, banned, picked)}</span>}
             </li>

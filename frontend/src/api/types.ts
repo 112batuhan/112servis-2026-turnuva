@@ -487,6 +487,8 @@ export interface RefereeRoom {
   picks: MapPick[];
   /** Bracket matches only: map wins the referee awarded by hand, oldest first. */
   manual_results: ManualResult[];
+  /** Bracket matches only: the pool maps the saved score was counted from, in the order played. */
+  map_results: MapResultRow[];
   /** The match has a Discord channel: clicking a player's Discord name pings them there. */
   discord_channel: boolean;
 }
@@ -499,6 +501,40 @@ export interface RefereeViewer {
 }
 
 /** A map win the referee awarded by hand: counts as one map won by the team. */
+/** A finished pool map that counts towards a bracket match's score, with each team's summed score. */
+export interface MapResultRow {
+  /** PublicPoolMap.id; null once the map was deleted from the site. */
+  map_id: string | null;
+  team1_score: number;
+  team2_score: number;
+  /** Each player's score on it, best first. */
+  players: MapPlayerScore[];
+}
+
+export interface MapPlayerScore {
+  /** The player's user id (AdminTeamPlayer.id). */
+  user_id: string;
+  score: number;
+  /** Acronyms, the room's included ("HDNF"); null when they weren't read. */
+  mods: string | null;
+  passed: boolean;
+}
+
+/** A finished map of one of the match's rooms, as osu! recorded it. */
+export interface OsuGame {
+  beatmap_id: number | null;
+  /** The room's mods as acronyms ("HR", "NF"). */
+  mods: string[];
+  /** Each player's mods as acronyms, the room's included. */
+  scores: { osu_id: number; score: number; passed: boolean; mods: string[] }[];
+}
+
+/** One of the match's rooms as osu! recorded it; `games` is null when osu! has no record of it. */
+export interface OsuRoomGames {
+  mp_id: number;
+  games: OsuGame[] | null;
+}
+
 export interface ManualResult {
   id: string;
   /** A pool map (PublicPoolMap.id), or null for a point given without one. */

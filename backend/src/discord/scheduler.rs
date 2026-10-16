@@ -1,6 +1,7 @@
 //! Messages tied to the clock: a reminder in a match's channel an hour before it
 //! starts, and the public announcement 15 minutes before a bracket match. A match moved
-//! after either went out gets it again for its new time.
+//! after either went out gets it again for its new time. Also archives the channel of
+//! a match an hour after it was concluded.
 
 use std::time::Duration;
 
@@ -35,6 +36,12 @@ async fn tick(state: &AppState) -> sqlx::Result<()> {
             .await?
             .into_iter()
             .map(|match_id| Job::Announce { match_id }),
+    );
+    jobs.extend(
+        db::discord::take_due_archives(&mut tx)
+            .await?
+            .into_iter()
+            .map(|match_id| Job::SyncMatch { match_id }),
     );
     state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await

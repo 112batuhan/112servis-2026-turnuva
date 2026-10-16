@@ -305,6 +305,11 @@ pub async fn open_matches_of_team(
 
 // ---------- matches ----------
 
+// How long a concluded match's channel stays open, so the players can still talk,
+// before it turns read-only and moves to the archive. Compared with the database's
+// clock both when the scheduler queues the sync and when the sync reads the match.
+pub const ARCHIVE_AFTER_SECS: f64 = 60.0 * 60.0;
+
 // A match with everything the bot writes about it.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct MatchInfo {
@@ -312,6 +317,8 @@ pub struct MatchInfo {
     pub kind: MatchKind,
     pub starts_at: Option<OffsetDateTime>,
     pub concluded_at: Option<OffsetDateTime>,
+    // Concluded at least ARCHIVE_AFTER_SECS ago: its channel belongs in the archive.
+    pub archived: bool,
     pub side: Option<Side>,
     pub number: Option<i32>,
     pub lobby_number: Option<i64>,
@@ -344,6 +351,7 @@ pub async fn match_info(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Optio
     sqlx::query_as::<_, MatchInfo>(
         r#"
         SELECT m.id, m.kind, m.starts_at, m.concluded_at,
+               COALESCE(m.concluded_at <= now() - make_interval(secs => $2), false) AS archived,
                b.side, b.number,
                CASE WHEN m.kind = 'qualifier' THEN
                    (SELECT count(*) FROM matches q
@@ -379,6 +387,7 @@ pub async fn match_info(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Optio
         "#,
     )
     .bind(id)
+    .bind(ARCHIVE_AFTER_SECS)
     .fetch_optional(ex)
     .await
 }
@@ -556,6 +565,48 @@ pub async fn take_due_reminders(
     .bind(window_secs as f64)
     .fetch_all(conn)
     .await
+}
+
+// Matches with a channel that were concluded at least ARCHIVE_AFTER_SECS ago and whose
+// channel hasn't been archived for that conclusion yet. Marks them archived; the caller
+// queues the sync that moves the channel.
+pub async fn take_due_archives(conn: &mut PgConnection) -> sqlx::Result<Vec<Uuid>> {
+    sqlx::query_scalar(
+        r#"
+        UPDATE match_discord md SET archived_for = m.concluded_at
+        FROM matches m
+        WHERE m.id = md.match_id AND md.channel_id IS NOT NULL
+          AND m.concluded_at <= now() - make_interval(secs => $1)
+          AND md.archived_for IS DISTINCT FROM m.concluded_at
+        RETURNING md.match_id
+        "#,
+    )
+    .bind(ARCHIVE_AFTER_SECS)
+    .fetch_all(conn)
+    .await
+}
+
+// Records the newest "concluded"/"reopened" message in a match's channel and returns
+// the one before it, which the caller deletes.
+pub async fn swap_status_message(
+    pool: &PgPool,
+    match_id: Uuid,
+    message_id: i64,
+) -> sqlx::Result<Option<i64>> {
+    let previous: Option<Option<i64>> = sqlx::query_scalar(
+        r#"
+        UPDATE match_discord md SET status_message_id = $2
+        FROM (SELECT match_id, status_message_id FROM match_discord
+              WHERE match_id = $1 FOR UPDATE) AS old
+        WHERE md.match_id = old.match_id
+        RETURNING old.status_message_id
+        "#,
+    )
+    .bind(match_id)
+    .bind(message_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(previous.flatten())
 }
 
 // Bracket matches with both teams starting within `window` that haven't been announced
@@ -880,7 +931,8 @@ pub async fn clear_channel(pool: &PgPool, match_id: Uuid) -> sqlx::Result<()> {
     sqlx::query(
         r#"
         UPDATE match_discord
-        SET channel_id = NULL, synced = NULL, card_message_id = NULL, card_synced = NULL
+        SET channel_id = NULL, synced = NULL, card_message_id = NULL, card_synced = NULL,
+            status_message_id = NULL
         WHERE match_id = $1
         "#,
     )

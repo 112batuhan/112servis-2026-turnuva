@@ -10,6 +10,7 @@ use serenity::all::{EditMessage, MessageId};
 use uuid::Uuid;
 
 use super::{
+    channels,
     jobs::{Embed, Job, OutMessage, Target},
     messages, snowflake, Bot, BotError, BotResult,
 };
@@ -25,19 +26,6 @@ use crate::{
 // What a rendered announcement is compared by, to skip edits that change nothing.
 fn key(message: &OutMessage) -> String {
     serde_json::to_string(&(&message.content, &message.embed, &message.gallery)).unwrap_or_default()
-}
-
-// Deletes a message, counting one that's already gone as deleted.
-async fn delete(bot: &Bot, channel: i64, message: i64) -> BotResult {
-    match snowflake::channel(channel)
-        .delete_message(&bot.http, MessageId::new(message as u64))
-        .await
-        .map_err(BotError::from)
-    {
-        Ok(()) => Ok(()),
-        Err(err) if err.not_found() => Ok(()),
-        Err(err) => Err(err),
-    }
 }
 
 // Job::Announce: posts the announcement for the match's current time, pinging its
@@ -87,6 +75,7 @@ pub async fn post(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResult {
         .map(|ids| Job::Post {
             to: Target::Channel(channel),
             message: Box::new(OutMessage::text(messages::mentions(&ids), ids)),
+            status_of: None,
         })
         .collect();
     state.discord.enqueue(&state.db, &extra).await?;
@@ -94,7 +83,7 @@ pub async fn post(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResult {
     if let (Some(old_channel), Some(old_message)) =
         (stored.announce_channel_id, stored.announce_message_id)
     {
-        delete(bot, old_channel, old_message).await?;
+        channels::delete_message(bot, old_channel, old_message).await?;
     }
     Ok(())
 }
@@ -114,7 +103,7 @@ pub async fn sync(
     };
     // Concluded, played or forfeited: the results channel has it now.
     if info.concluded_at.is_some() {
-        delete(bot, channel, message_id).await?;
+        channels::delete_message(bot, channel, message_id).await?;
         return db::discord::set_announcement(&state.db, info.id, None, None)
             .await
             .map_err(Into::into);

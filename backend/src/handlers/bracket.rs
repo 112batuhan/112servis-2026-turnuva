@@ -15,7 +15,7 @@ use crate::{
     auth::AuthUser,
     db::{
         self,
-        bracket::{BracketLock, BracketRow, LinkRow, MatchUpdate, Outcome, Side},
+        bracket::{BracketLock, BracketRow, LinkRow, MapResultRow, MatchUpdate, Outcome, Side},
         matches::MatchKind,
         notifications::StaffRole,
         team::{Player, TeamMemberRow},
@@ -58,6 +58,10 @@ pub fn routes() -> Router<AppState> {
 
 const SCORE_MAX: i32 = 99;
 const RESULT_NOTE_MAX: usize = 200;
+// More finished maps than any match plays, warmups and replays included.
+const MAP_RESULTS_MAX: usize = 50;
+// Longer than any set of mod acronyms a player can have on.
+const MODS_MAX: usize = 40;
 
 #[derive(Debug, Serialize)]
 pub struct Streamer {
@@ -503,10 +507,15 @@ pub async fn delete_match(
 pub struct ScoreBody {
     team1_score: Option<i32>,
     team2_score: Option<i32>,
+    // The referee page sends the pool maps the score was counted from, which replace
+    // the saved ones (the results post lists them). Left out, they stay as they are.
+    #[serde(default)]
+    maps: Option<Vec<MapResultRow>>,
 }
 
-// PUT /api/bracket/:id/score — the match's referee or a host enters the score.
-// The score decides who moves on, so a concluded match has to be reopened first.
+// PUT /api/bracket/:id/score — the match's referee or a host enters the score, and
+// from the referee page the map results behind it. The score decides who moves on,
+// so a concluded match has to be reopened first.
 pub async fn set_score(
     State(state): State<AppState>,
     user: AuthUser,
@@ -522,6 +531,41 @@ pub async fn set_score(
     if !valid(body.team1_score) || !valid(body.team2_score) {
         return Err(AppError::BadRequest("scores must be between 0 and 99"));
     }
+    if let Some(maps) = &body.maps {
+        if maps.len() > MAP_RESULTS_MAX {
+            return Err(AppError::BadRequest("too many map results"));
+        }
+        if maps.iter().any(|m| m.team1_score < 0 || m.team2_score < 0) {
+            return Err(AppError::BadRequest("map scores can't be negative"));
+        }
+        for map in maps {
+            let mut seen = HashSet::new();
+            for p in &map.players {
+                if p.score < 0 || !seen.insert(p.user_id) {
+                    return Err(AppError::BadRequest("bad player scores on a map"));
+                }
+                // Mod acronyms: "HDHR", "NF".
+                if p.mods.as_deref().is_some_and(|m| {
+                    m.len() > MODS_MAX || !m.chars().all(|c| c.is_ascii_alphanumeric())
+                }) {
+                    return Err(AppError::BadRequest("bad mods on a map"));
+                }
+            }
+        }
+        let players: Vec<Uuid> = maps
+            .iter()
+            .flat_map(|m| m.players.iter().map(|p| p.user_id))
+            .collect();
+        if !db::bracket::players_in_match(&state.db, id, &players).await? {
+            return Err(AppError::BadRequest("a player doesn't play in this match"));
+        }
+        let Some(ids) = maps.iter().map(|m| m.map_id).collect::<Option<Vec<Uuid>>>() else {
+            return Err(AppError::BadRequest("every map result needs its map"));
+        };
+        if !db::bracket::maps_in_pool(&state.db, id, &ids).await? {
+            return Err(AppError::BadRequest("a map isn't in this match's pool"));
+        }
+    }
     // The match card in its Discord channel shows the running score, so it's synced
     // with every change; the open pages hear it right away.
     let mut tx = state.db.begin().await?;
@@ -529,6 +573,9 @@ pub async fn set_score(
         return Err(AppError::Conflict(
             "this match is concluded, reopen it to change the score",
         ));
+    }
+    if let Some(maps) = &body.maps {
+        db::bracket::replace_map_results(&mut tx, id, maps).await?;
     }
     let mut jobs = vec![Job::SyncMatch { match_id: id }];
     // A match being played that never got its public announcement (its time passed

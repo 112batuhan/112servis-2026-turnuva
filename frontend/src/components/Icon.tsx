@@ -53,6 +53,7 @@ const ICONS = {
   minus: <path d="M5 12h14" />,
   pencil: <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />,
   plus: <path d="M12 5v14M5 12h14" />,
+  refresh: <path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" />,
   recenter: (
     <>
       <circle cx="12" cy="12" r="3" />

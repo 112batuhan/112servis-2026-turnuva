@@ -4,6 +4,9 @@
 
 export const BANCHO_BOT = "BanchoBot";
 
+/** BanchoBot's line as a map starts. */
+export const MATCH_STARTED = "The match has started!";
+
 /** Prefixed to every room name: "112S: (Team A) vs (Team B)". */
 export const ROOM_PREFIX = "112S";
 
@@ -19,19 +22,32 @@ export interface RoomSlot {
   team: SlotTeam | null;
   status: SlotStatus;
   host: boolean;
-  /** Mods the player picked, with freemod on (from !mp settings). */
+  /** Mods the player picked, with freemod on, as acronyms ("HDHR"); from !mp settings. */
   mods: string;
+  /** Whether `mods` came from !mp settings; a player who just joined hasn't been read yet. */
+  modsKnown: boolean;
 }
 
 export interface MapScore {
   username: string;
+  /** Known when the score came from osu! rather than the chat, which only names players. */
+  userId?: number;
   score: number;
   passed: boolean;
+  /**
+   * The mods the player played with, as acronyms ("HDHR"), the room's included; null when
+   * unknown (the chat only knows them from the last !mp settings).
+   */
+  mods: string | null;
 }
 
 export interface MapResult {
   beatmapId: number | null;
   beatmapName: string | null;
+  /** The room's own mods as acronyms ("HRNF"), without freemod. */
+  roomMods: string;
+  /** Whether the players picked their own mods. */
+  freemod: boolean;
   scores: MapScore[];
   /** Each player's team when the map finished. */
   teams: Record<string, SlotTeam | null>;
@@ -94,7 +110,8 @@ const RE = {
   teamMode: /^Team mode: (\w+), Win condition: (\w+)$/,
   activeMods: /^Active mods: (.*)$/,
   players: /^Players: (\d+)$/,
-  slot: new RegExp(String.raw`^Slot (\d+) +(Ready|Not Ready|No Map) +${OSU}/u/(-?\d+) (.+?)(?: +\[(.*)\])?$`),
+  // Any status, so an unexpected one (while a map is played) doesn't drop the slot.
+  slot: new RegExp(String.raw`^Slot (\d+) +([A-Za-z][A-Za-z ]*?) +${OSU}/u/(-?\d+) (.+?)(?: +\[(.*)\])?$`),
   joined: /^(.+) joined in slot (\d+)(?: for team (red|blue))?\.$/,
   moved: /^(.+) moved to slot (\d+)$/,
   changedTeam: /^(.+) changed to (Red|Blue)$/,
@@ -137,6 +154,48 @@ function changeBeatmap(room: RoomState, beatmapId: number, beatmapName: string):
   return { ...room, beatmapId, beatmapName, slots: room.slots.map((s) => ({ ...s, status: "not_ready" })) };
 }
 
+// BanchoBot's mod names, as osu! abbreviates them.
+const MOD_ACRONYMS: Record<string, string> = {
+  nofail: "NF",
+  easy: "EZ",
+  touchdevice: "TD",
+  hidden: "HD",
+  hardrock: "HR",
+  suddendeath: "SD",
+  doubletime: "DT",
+  relax: "RX",
+  halftime: "HT",
+  nightcore: "NC",
+  flashlight: "FL",
+  spunout: "SO",
+  relax2: "AP",
+  autopilot: "AP",
+  perfect: "PF",
+  fadein: "FI",
+  mirror: "MR",
+  scorev2: "V2",
+};
+
+/** "Hidden, HardRock" (BanchoBot's names, freemod left out) as acronyms: "HDHR". */
+export function modAcronyms(names: string): string {
+  return names
+    .split(",")
+    .map((n) => n.trim().replace(/\s+/g, "").toLowerCase())
+    .filter((n) => n !== "" && n !== "freemod" && n !== "none")
+    .map((n) => MOD_ACRONYMS[n] ?? n.toUpperCase())
+    .join("");
+}
+
+/** "HDHR" -> ["HD", "HR"]; "NM" and "" are no mods. */
+export function splitMods(acronyms: string): string[] {
+  return (acronyms.toUpperCase().match(/[A-Z0-9]{2}/g) ?? []).filter((m) => m !== "NM");
+}
+
+/** Whether the room's mods, as BanchoBot described them, include freemod. */
+export function isFreemod(mods: string | null): boolean {
+  return /free ?mod/i.test(mods ?? "");
+}
+
 // "Enabled Hidden, NoFail, disabled FreeMod" / "Disabled all mods, enabled FreeMod"
 function describeMods(text: string): string {
   if (/enabled FreeMod/i.test(text)) return "Freemod";
@@ -165,7 +224,8 @@ export function applyBancho(room: RoomState, text: string): RoomState {
       team: teamPart ? (teamPart.slice(5).toLowerCase() as SlotTeam) : null,
       status: status === "Ready" ? "ready" : status === "No Map" ? "no_map" : "not_ready",
       host: parts.includes("Host"),
-      mods: parts.filter((p) => p !== "Host" && p !== teamPart && p !== "").join(", "),
+      mods: modAcronyms(parts.filter((p) => p !== "Host" && p !== teamPart && p !== "").join(", ")),
+      modsKnown: true,
     };
     return {
       ...room,
@@ -185,6 +245,7 @@ export function applyBancho(room: RoomState, text: string): RoomState {
       status: "not_ready",
       host: false,
       mods: "",
+      modsKnown: false,
     };
     return {
       ...room,
@@ -217,24 +278,40 @@ export function applyBancho(room: RoomState, text: string): RoomState {
     return { ...room, size: m[1] ? Number(m[1]) : room.size, teamMode: m[2], winCondition: m[3] };
   }
   if ((m = RE.size.exec(text))) return { ...room, size: Number(m[1]) };
-  if ((m = RE.mods.exec(text))) return { ...room, mods: describeMods(text) };
+  if ((m = RE.mods.exec(text))) {
+    const mods = describeMods(text);
+    // Without freemod, osu! takes the players' own mods off.
+    const slots = isFreemod(mods) ? room.slots : room.slots.map((s) => ({ ...s, mods: "" }));
+    return { ...room, mods, slots };
+  }
   if (text === "Locked the match") return { ...room, locked: true };
   if (text === "Unlocked the match") return { ...room, locked: false };
   if (text === "All players are ready") {
     return { ...room, slots: room.slots.map((s) => ({ ...s, status: "ready" })) };
   }
-  if (text === "The match has started!") return { ...room, playing: true, current: [] };
+  if (text === MATCH_STARTED) return { ...room, playing: true, current: [] };
   if ((m = RE.finished.exec(text))) {
-    const score: MapScore = { username: m[1], score: Number(m[2]), passed: m[3] === "PASSED" };
+    const score: MapScore = { username: m[1], score: Number(m[2]), passed: m[3] === "PASSED", mods: null };
     return { ...room, current: [...room.current.filter((s) => !sameName(s.username, score.username)), score] };
   }
   if (text === "The match has finished!") {
     const teams: Record<string, SlotTeam | null> = {};
     for (const s of room.slots) teams[normalizeName(s.username)] = s.team;
+    const freemod = isFreemod(room.mods);
+    const roomMods = modAcronyms(room.mods ?? "");
+    // Each player's mods: the room's, plus their own with freemod as the last
+    // !mp settings showed them (the referee page asks for it as each map starts).
+    const scores = room.current.map((score) => {
+      const slot = room.slots.find((s) => sameName(s.username, score.username));
+      const own = freemod ? (slot?.modsKnown ? slot.mods : null) : "";
+      return { ...score, mods: own === null ? null : roomMods + own };
+    });
     const result: MapResult = {
       beatmapId: room.beatmapId,
       beatmapName: room.beatmapName,
-      scores: room.current,
+      roomMods,
+      freemod,
+      scores,
       teams,
     };
     return {

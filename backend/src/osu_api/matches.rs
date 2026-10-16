@@ -22,6 +22,9 @@ struct MatchEvent {
 #[derive(Debug, Deserialize)]
 pub struct MatchGame {
     pub beatmap_id: Option<i64>,
+    // The room's mods, as acronyms ("HR", "NF"); with freemod, only the ones everyone has.
+    #[serde(default)]
+    pub mods: Vec<String>,
     // Null while the map is still being played.
     pub end_time: Option<String>,
     #[serde(default)]
@@ -33,6 +36,41 @@ pub struct GameScore {
     pub user_id: i64,
     #[serde(default)]
     pub score: i64,
+    #[serde(default = "passed_default")]
+    pub passed: bool,
+    // The mods the player played with, as acronyms.
+    #[serde(default, deserialize_with = "acronyms")]
+    pub mods: Vec<String>,
+}
+
+// Mods come as acronyms ("HD") or, in newer API versions, as objects with one; either
+// reads as the acronyms.
+fn acronyms<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<String>, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Mod {
+        Acronym(String),
+        Object { acronym: String },
+    }
+    let mods: Option<Vec<Mod>> = Option::deserialize(d)?;
+    Ok(mods
+        .unwrap_or_default()
+        .into_iter()
+        .map(|m| match m {
+            Mod::Acronym(a) | Mod::Object { acronym: a } => a,
+        })
+        .collect())
+}
+
+fn passed_default() -> bool {
+    true
+}
+
+// osu! answered the request and refused it (no such room, no access), as opposed to
+// failing to answer or asking us to slow down, which are worth retrying.
+pub fn refused(err: &reqwest::Error) -> bool {
+    err.status()
+        .is_some_and(|s| s.is_client_error() && s != reqwest::StatusCode::TOO_MANY_REQUESTS)
 }
 
 // GET /matches/{id} — every finished game of a multiplayer room, in the order played.

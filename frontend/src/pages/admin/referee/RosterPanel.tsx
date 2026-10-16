@@ -6,10 +6,10 @@ import { DiscordMention } from "../../../components/DiscordMention";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { LiveMark } from "../../../components/LiveMark";
-import { sameName, type SlotTeam } from "../../../lib/bancho";
+import { sameName, splitMods, type MapResult, type SlotTeam } from "../../../lib/bancho";
 import { formatRank } from "../../../lib/format";
-import { matchTeams, poolEntries, type MatchTeam } from "./pool";
-import { teamTotals, type RefereeRoomState } from "./useRefereeRoom";
+import { entryOf, matchTeams, poolEntries, type MatchTeam } from "./pool";
+import { scorer, teamTotals, type RefereeRoomState, type RosterPlayer } from "./useRefereeRoom";
 import "./RosterPanel.css";
 
 /** The match's teams and players with their Discords and where they are in the room. */
@@ -146,11 +146,11 @@ function DiscordPing({ matchId, player }: { matchId: string; player: AdminTeamPl
  * that aren't in the pool (warmups, mistakes) are left out entirely.
  */
 function Results({ referee }: { referee: RefereeRoomState }) {
-  const { room, lobby, roster, ignored, actions, canRun, busy, tally } = referee;
+  const { room, finished, roster, ignored, actions, canRun, busy, tally } = referee;
   if (!room) return null;
   const teams = matchTeams(room);
   const bracket = teams.length === 2 && tally !== null;
-  if (!bracket && lobby.results.length === 0) return null;
+  if (!bracket && finished.length === 0 && room.rooms.length === 0) return null;
   const name = (teamId: string) => room.teams.find((t) => t.id === teamId)?.name ?? "?";
   const teamClass = (teamId: string) => {
     const team = teams.find((t) => t.id === teamId);
@@ -163,26 +163,27 @@ function Results({ referee }: { referee: RefereeRoomState }) {
   // A lobby has no score: just its finished pool maps.
   const rows =
     tally?.rows ??
-    lobby.results.flatMap((result, index) => {
-      const entry = entries.find((e) => e.map.beatmap_id === result.beatmapId);
-      return entry ? [{ result, index, entry, totals: teamTotals(result, roster), winnerId: null }] : [];
+    finished.flatMap(({ result, key }) => {
+      const entry = entryOf(entries, result, new Set());
+      return entry ? [{ result, key, entry, totals: teamTotals(result, roster), winnerId: null }] : [];
     });
-  const outsidePool = lobby.results.length - rows.length;
+  const outsidePool = tally?.outsidePool ?? finished.length - rows.length;
 
   return (
     <div className="roster-results">
       <h3 className="roster-title">Sonuçlar</h3>
       {bracket && <ScoreBoard referee={referee} teams={teams} />}
+      {room.rooms.length > 0 && <ResultSourceControl referee={referee} />}
       {rows.length === 0 && room.manual_results.length === 0 && (
         <p className="muted">Havuzdan henüz map oynanmadı.</p>
       )}
       {(rows.length > 0 || room.manual_results.length > 0) && (
         <ol className="roster-result-list">
-          {rows.map(({ result, index, entry, totals }) => {
+          {rows.map(({ result, key, entry, totals }) => {
             const tied = totals.length > 1 && totals[0].score === totals[1].score;
             const pick = room.picks.find((p) => p.map_id === entry.map.id);
             return (
-              <li key={index} className={ignored.has(index) ? "is-ignored" : undefined}>
+              <li key={key} className={ignored.has(key) ? "is-ignored" : undefined}>
                 <span className="roster-result-map">
                   <span className="roster-result-label" style={{ borderColor: entry.color, color: entry.color }}>
                     {entry.label}
@@ -205,12 +206,18 @@ function Results({ referee }: { referee: RefereeRoomState }) {
                     <span className={`roster-result-pick ${teamClass(pick.team_id)}`}>{name(pick.team_id)} seçti</span>
                   )}
                 </span>
+                <PlayerScores
+                  result={result}
+                  freemod={entry.freemod || result.freemod}
+                  roster={roster}
+                  teamClass={teamClass}
+                />
                 <label className="roster-result-ignore">
                   <input
                     type="checkbox"
-                    checked={ignored.has(index)}
+                    checked={ignored.has(key)}
                     disabled={concluded}
-                    onChange={() => actions.toggleIgnored(index)}
+                    onChange={() => actions.toggleIgnored(key)}
                   />{" "}
                   Sayma
                 </label>
@@ -260,11 +267,53 @@ function Results({ referee }: { referee: RefereeRoomState }) {
 }
 
 /**
+ * Each player's score on a finished map with the mods they played it with, by team, best first.
+ * NoFail is left out unless the players picked their own mods, since the referee adds it to every
+ * other map. "?" is a player whose mods weren't read (the chat only knows them from !mp settings).
+ */
+function PlayerScores({
+  result,
+  freemod,
+  roster,
+  teamClass,
+}: {
+  result: MapResult;
+  freemod: boolean;
+  roster: RosterPlayer[];
+  teamClass: (teamId: string) => string;
+}) {
+  if (result.scores.length === 0) return null;
+  const rows = result.scores
+    .map((score) => {
+      const r = scorer(score, roster);
+      const mods =
+        score.mods === null
+          ? "?"
+          : splitMods(score.mods)
+              .filter((m) => freemod || m !== "NF")
+              .join("") || "NM";
+      return { score, mods, name: r?.player.username ?? (score.username || `#${score.userId}`), teamId: r?.team.id };
+    })
+    .sort((a, b) => (a.teamId ?? "").localeCompare(b.teamId ?? "") || b.score.score - a.score.score);
+  return (
+    <ul className={`roster-result-players${freemod ? " is-freemod" : ""}`} aria-label="Oyuncu skorları">
+      {rows.map(({ score, mods, name, teamId }, i) => (
+        <li key={i} className={teamId ? teamClass(teamId) : undefined}>
+          <span className="roster-result-player">{name}</span>
+          <span className={`roster-result-mods${mods === "?" || mods === "NM" ? " is-plain" : ""}`}>{mods}</span>
+          <span className={score.passed ? undefined : "is-failed"}>{score.score.toLocaleString("tr-TR")}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
  * The score as the match's head-to-head: the red team's figure and the blue team's, read from
  * the room plus the hand-awarded maps, and whether the site shows it yet.
  */
 function ScoreBoard({ referee, teams }: { referee: RefereeRoomState; teams: MatchTeam[] }) {
-  const { room, tally, liveScore, scoreSaving, canRun, busy, actions } = referee;
+  const { room, tally, liveScore, scoreSaving, scoreSaved: saved, canRun, busy, actions } = referee;
   if (!room || !tally) return null;
   const concluded = room.concluded_at !== null;
   const forfeit = room.forfeit_slot;
@@ -276,7 +325,6 @@ function ScoreBoard({ referee, teams }: { referee: RefereeRoomState; teams: Matc
     : concluded
       ? [String(room.team1_score ?? "–"), String(room.team2_score ?? "–")]
       : [String(tally.team1), String(tally.team2)];
-  const saved = room.team1_score === tally.team1 && room.team2_score === tally.team2;
   const lead = figures[0] === figures[1] ? null : Number(figures[0]) > Number(figures[1]) || figures[0] === "W" ? 0 : 1;
 
   let status: ReactNode = null;
@@ -300,7 +348,7 @@ function ScoreBoard({ referee, teams }: { referee: RefereeRoomState; teams: Matc
           type="button"
           className="btn btn-secondary btn-sm"
           disabled={busy}
-          onClick={() => actions.saveScore(tally.team1, tally.team2)}
+          onClick={actions.saveScore}
         >
           Skoru kaydet
         </button>
@@ -319,6 +367,48 @@ function ScoreBoard({ referee, teams }: { referee: RefereeRoomState; teams: Matc
         ))}
       </div>
       {status}
+    </div>
+  );
+}
+
+/**
+ * Where the results are read from. The rooms' chat by default; when it missed something (the
+ * connection dropped, nobody had the page open), the referee syncs them from osu!'s record of
+ * the match's rooms, which they're then counted from, and saved, until the referee goes back.
+ * A concluded match shows what was saved with its score, with nothing to change.
+ */
+function ResultSourceControl({ referee }: { referee: RefereeRoomState }) {
+  const { source, osuSyncedAt, syncing, busy, actions } = referee;
+  if (source === "saved") {
+    return (
+      <div className="roster-result-source">
+        <span className="roster-result-source-label">Maç bitti: skorla kaydedilen sonuçlar</span>
+      </div>
+    );
+  }
+  const at = osuSyncedAt
+    ? new Date(osuSyncedAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
+    : null;
+  return (
+    <div className="roster-result-source">
+      <span className="roster-result-source-label">
+        {source === "osu" ? `Maç linkinden okundu (${at})` : "Oda sohbetinden okunuyor"}
+      </span>
+      <button
+        type="button"
+        className="btn btn-secondary btn-sm"
+        disabled={syncing || busy}
+        title="Sonuçları osu!'nun maç kaydından (mp linki) al. Sohbet bir map'i kaçırdıysa düzeltir."
+        onClick={actions.syncFromOsu}
+      >
+        <Icon name="refresh" size={14} />
+        {syncing ? "Okunuyor…" : source === "osu" ? "Yeniden oku" : "Maç linkinden eşitle"}
+      </button>
+      {source === "osu" && (
+        <button type="button" className="btn btn-secondary btn-sm" disabled={syncing || busy} onClick={actions.readFromChat}>
+          Sohbete dön
+        </button>
+      )}
     </div>
   );
 }

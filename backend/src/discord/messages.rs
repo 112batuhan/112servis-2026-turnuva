@@ -311,29 +311,13 @@ impl Ctx<'_> {
     }
 }
 
-// The pinned card at the top of a match's channel: the match as it is now. channels.rs
-// posts it with the channel (pinging everyone in the match) and edits it whenever this
-// renders differently, so it has no "last updated" time.
-pub fn match_card(state: &AppState, info: &MatchInfo, players: &[MatchPlayer]) -> OutMessage {
-    let mut p = Pings::default();
+// The match as its card and its public announcement show it: the time, the stage, the
+// teams with their players, the staff, the rooms and, while it's played, the running
+// score. `p` collects the people it names, whom the card pings and the announcement
+// doesn't.
+fn match_fields(info: &MatchInfo, players: &[MatchPlayer], p: &mut Pings, embed: Embed) -> Embed {
     let concluded = info.concluded_at.is_some();
-    let mut about = vec![
-        "Maçla ilgili bildirimler bu kanala gelir; bu mesaj maç değiştikçe güncellenir."
-            .to_string(),
-    ];
-    if info.kind == MatchKind::Bracket && !concluded {
-        about.push(format!(
-            "Maçın saatini değiştirmek için takım sayfasından yeni saat önerebilirsiniz: {}",
-            site_url(state, "/team")
-        ));
-    }
-    let mut embed = Embed::new(
-        format!("📌 {}", title(info)),
-        if concluded { COLOR_DONE } else { COLOR },
-    )
-    .url(match_url(state, info))
-    .description(about.join("\n\n"))
-    .field(
+    let mut embed = embed.field(
         "🕒 Maç saati",
         info.starts_at
             .map_or("Henüz belirlenmedi".to_string(), when),
@@ -393,12 +377,38 @@ pub fn match_card(state: &AppState, info: &MatchInfo, players: &[MatchPlayer]) -
         embed = embed.field("🎮 Maç linki", rooms, false);
     }
     // While it's being played, the running score as the referee page saves it: every
-    // change queues a sync, and the card is edited when it renders differently.
+    // change queues a sync, which edits the card and the announcement.
     if info.kind == MatchKind::Bracket && !concluded && !info.mp_ids.is_empty() {
         if let Some(line) = result_line(info) {
             embed = embed.field("🔴 Canlı skor", format!("**{line}**"), false);
         }
     }
+    embed
+}
+
+// The pinned card at the top of a match's channel: the match as it is now. channels.rs
+// posts it with the channel (pinging everyone in the match) and edits it whenever this
+// renders differently, so it has no "last updated" time.
+pub fn match_card(state: &AppState, info: &MatchInfo, players: &[MatchPlayer]) -> OutMessage {
+    let mut p = Pings::default();
+    let concluded = info.concluded_at.is_some();
+    let mut about = vec![
+        "Maçla ilgili bildirimler bu kanala gelir; bu mesaj maç değiştikçe güncellenir."
+            .to_string(),
+    ];
+    if info.kind == MatchKind::Bracket && !concluded {
+        about.push(format!(
+            "Maçın saatini değiştirmek için takım sayfasından yeni saat önerebilirsiniz: {}",
+            site_url(state, "/team")
+        ));
+    }
+    let embed = Embed::new(
+        format!("📌 {}", title(info)),
+        if concluded { COLOR_DONE } else { COLOR },
+    )
+    .url(match_url(state, info))
+    .description(about.join("\n\n"));
+    let mut embed = match_fields(info, players, &mut p, embed);
     if concluded {
         let result = match (info.kind, result_line(info)) {
             (MatchKind::Bracket, Some(line)) if info.forfeit_slot.is_some() => {
@@ -754,16 +764,19 @@ async fn match_event(
                 p,
             );
         }
+        // jobs.rs deletes this message if the match is reopened, and the reopening's
+        // when it's concluded again.
         Job::Concluded { .. } => {
             let text = match (info.kind, result_line(info)) {
                 (MatchKind::Bracket, Some(line)) if info.forfeit_slot.is_some() => {
-                    format!("🏁 Maç hükmen sonuçlandı: **{line}**. Kanal arşive taşındı.")
+                    format!("🏁 Maç hükmen sonuçlandı: **{line}**.")
                 }
                 (MatchKind::Bracket, Some(line)) => {
-                    format!("🏁 Maç bitti: **{line}**. İyi oyundu! Kanal arşive taşındı.")
+                    format!("🏁 Maç bitti: **{line}**. İyi oyundu!")
                 }
-                _ => "🏁 Maç tamamlandı. Kanal arşive taşındı.".to_string(),
+                _ => "🏁 Maç tamamlandı.".to_string(),
             };
+            let text = format!("{text} Kanal 1 saat daha açık kalacak, sonra arşive taşınacak.");
             let mut p = Pings::default();
             let all = p.everyone(info, players);
             cx.post_match(id, format!("{text}\n{all}"), p);
@@ -904,79 +917,32 @@ pub fn announcement(
     announced_for: Option<OffsetDateTime>,
 ) -> OutMessage {
     let title = title(info);
-    let state_now = announced_state(info, announced_for);
-    let live = state_now == Announced::Live;
-    let (status, description, color) = if state_now == Announced::Cancelled {
-        (
+    let (status, description, color) = match announced_state(info, announced_for) {
+        Announced::Cancelled => (
             format!("❌ **{title}** iptal edildi."),
-            "Bu maç iptal edildi.".to_string(),
+            Some("Bu maç iptal edildi.".to_string()),
             COLOR_DONE,
-        )
-    } else if state_now == Announced::Moved {
-        let new_time = info
-            .starts_at
-            .map_or("Yeni saati henüz belli değil.".to_string(), |at| {
-                format!("Yeni saat: {}", when(at))
-            });
-        (
+        ),
+        Announced::Moved => (
             format!("📅 **{title}** ertelendi."),
-            format!("{new_time}\nYeni saatinden önce yeniden duyurulur."),
+            Some("Maçın saati değişti; yeni saatinden önce yeniden duyurulur.".to_string()),
             COLOR_WARN,
-        )
-    } else if live {
-        let description = match result_line(info) {
-            Some(line) => format!("Canlı skor: **{line}**"),
-            None => "Maç başladı.".to_string(),
-        };
-        (
-            format!("🔴 **{title}** şu an oynanıyor!"),
-            description,
-            COLOR_BAD,
-        )
-    } else {
-        (
+        ),
+        // The running score is a field, as on the match card.
+        Announced::Live => (format!("🔴 **{title}** şu an oynanıyor!"), None, COLOR_BAD),
+        Announced::Upcoming => (
             format!("📣 **{title}** birazdan başlıyor!"),
             info.starts_at
-                .map_or(String::new(), |at| format!("Maç {} başlıyor!", when(at))),
+                .map(|at| format!("Maç {} başlıyor!", when(at))),
             COLOR,
-        )
+        ),
     };
 
-    // Names only: the players and staff hear about it in their own channel.
-    let mut silent = Pings::default();
-    let mut embed = Embed {
-        title: Some(title.clone()),
-        url: Some(match_url(state, info)),
-        description: Some(description),
-        color: Some(color),
-        ..Embed::default()
-    };
-    for team_id in [info.team1_id, info.team2_id].into_iter().flatten() {
-        let Some(name) = players
-            .iter()
-            .find(|p| p.team_id == team_id)
-            .map(|p| p.team_name.clone())
-        else {
-            continue;
-        };
-        embed
-            .fields
-            .push((name, silent.players_of(players, Some(team_id)), true));
-    }
-    if let Some(stage) = &info.stage_name {
-        embed.fields.push(("Aşama".into(), stage.clone(), false));
-    }
-    if let Some(r) = silent.referee(info) {
-        embed.fields.push(("Hakem".into(), r, true));
-    }
-    if let Some(s) = silent.streamer(info) {
-        embed.fields.push(("Yayıncı".into(), s, true));
-    }
-    if let Some(latest) = info.mp_ids.last().filter(|_| live) {
-        embed
-            .fields
-            .push(("Maç linki".into(), room_url(*latest), false));
-    }
+    // Laid out like the match card, but naming people without pinging them: the
+    // players and staff hear about it in their own channel.
+    let mut embed = Embed::new(title.clone(), color).url(match_url(state, info));
+    embed.description = description;
+    let embed = match_fields(info, players, &mut Pings::default(), embed);
     let (embed, gallery) = with_banners(state, info, embed);
     OutMessage {
         content: status,
@@ -1084,6 +1050,7 @@ mod tests {
             kind: MatchKind::Bracket,
             starts_at: Some(datetime!(2026-10-20 18:00 UTC)),
             concluded_at: None,
+            archived: false,
             side: Some(Side::Winners),
             number: Some(3),
             lobby_number: None,

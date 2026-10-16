@@ -583,7 +583,7 @@ WITH w1 AS (
     WHERE b.side = 'winners' AND b.number = 1
 ),
 players AS (
-    SELECT u.username, tm.team_id = w1.team1_id AS red,
+    SELECT u.username, u.osu_id, tm.team_id = w1.team1_id AS red,
            row_number() OVER (ORDER BY tm.team_id = w1.team1_id DESC, u.username) AS slot
     FROM w1
     JOIN team_members tm ON tm.team_id IN (w1.team1_id, w1.team2_id)
@@ -648,6 +648,30 @@ lines (room, at, sender, text) AS (
     UNION ALL
     SELECT m.room, m.at + interval '30 seconds', 'BanchoBot', 'The match has started!'
     FROM maps m
+    -- The referee page asks for the room's settings as each map starts, which is how it
+    -- reads the mods the players picked on the freemod map.
+    UNION ALL
+    SELECT m.room, m.at + interval '31 seconds', COALESCE(w1.referee, 'BanchoBot'), '!mp settings'
+    FROM maps m, w1
+    UNION ALL
+    SELECT m.room, m.at + interval '32 seconds', 'BanchoBot',
+           'Active mods: ' || CASE m.category WHEN 'HD' THEN 'Hidden, NoFail' WHEN 'HR' THEN 'HardRock, NoFail'
+                                              WHEN 'DT' THEN 'DoubleTime, NoFail' WHEN 'FM' THEN 'Freemod'
+                                              ELSE 'NoFail' END
+    FROM maps m
+    UNION ALL
+    SELECT m.room, m.at + interval '33 seconds', 'BanchoBot', 'Players: ' || (SELECT count(*) FROM players)
+    FROM maps m
+    UNION ALL
+    SELECT m.room, m.at + interval '33 seconds' + p.slot * interval '1 second', 'BanchoBot',
+           'Slot ' || p.slot || '  Not Ready https://osu.ppy.sh/u/' || p.osu_id || ' ' || rpad(p.username, 16)
+               || ' [Team ' || CASE WHEN p.red THEN 'Red' ELSE 'Blue' END
+               || CASE WHEN m.category <> 'FM' OR p.slot = 3 THEN ''
+                       WHEN p.slot = 1 THEN ' / Hidden'
+                       WHEN p.slot = 2 THEN ' / HardRock'
+                       ELSE ' / Hidden, HardRock'
+                  END || ']'
+    FROM maps m, players p
     UNION ALL
     SELECT m.room, m.at + interval '4 minutes' + p.slot * interval '1 second', 'BanchoBot',
            p.username || ' finished playing (Score: '
@@ -699,6 +723,210 @@ JOIN category_slots s ON s.category_id = c.id AND s.position = v.slot
 JOIN pool_maps pm ON pm.slot_id = s.id
 WHERE b.side = 'winners' AND b.number = 1
   AND b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL;
+
+-- The first winners match being played right now, mid-match: red took NM1, blue HD1,
+-- and FM1 is being played, with everyone's mods read from !mp settings as it started.
+-- Its score and the two finished maps are saved as the referee page saves them, so the
+-- page shows them live on the site.
+WITH live AS (
+    SELECT m.id, m.starts_at AS t0, b.team1_id, b.team2_id, b.stage_id, ref.username AS referee,
+           (SELECT r.mp_id FROM match_rooms r WHERE r.match_id = m.id
+            ORDER BY r.added_at DESC LIMIT 1) AS mp_id
+    FROM bracket_matches b
+    JOIN matches m ON m.id = b.match_id
+    LEFT JOIN osu_users ref ON ref.id = m.referee_id
+    WHERE b.side = 'winners' AND m.concluded_at IS NULL
+      AND b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL
+      AND EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id)
+      AND NOT EXISTS (
+          SELECT 1 FROM team_members tm JOIN osu_users u ON u.id = tm.user_id
+          WHERE tm.team_id IN (b.team1_id, b.team2_id) AND u.osu_id >= 0
+      )
+    ORDER BY b.number
+    LIMIT 1
+),
+players AS (
+    SELECT u.id AS user_id, u.username, u.osu_id, tm.team_id = live.team1_id AS red,
+           row_number() OVER (ORDER BY tm.team_id = live.team1_id DESC, u.username) AS slot
+    FROM live
+    JOIN team_members tm ON tm.team_id IN (live.team1_id, live.team2_id)
+    JOIN osu_users u ON u.id = tm.user_id
+),
+maps AS (
+    SELECT pk.k, pk.category, pk.finished, pk.k % 2 = 1 AS red_wins,
+           interval '3 minutes' + (pk.k - 1) * interval '6 minutes' AS at,
+           pm.id AS map_id,
+           COALESCE(pm.beatmap_id, 4100000 + pk.k) AS beatmap_id,
+           COALESCE(pm.artist || ' - ' || pm.title || ' [' || pm.version || ']',
+                    'Seed Artist - Map ' || pk.k || ' [Tournament]') AS name
+    FROM live
+    CROSS JOIN (VALUES (1, 'NM', 0, true), (2, 'HD', 0, true), (3, 'FM', 0, false))
+        AS pk (k, category, slot, finished)
+    LEFT JOIN LATERAL (
+        SELECT pm.id, pm.beatmap_id, pm.artist, pm.title, pm.version
+        FROM stage_categories c
+        JOIN category_slots s ON s.category_id = c.id
+        JOIN pool_maps pm ON pm.slot_id = s.id
+        WHERE c.stage_id = live.stage_id AND c.name = pk.category
+        ORDER BY s.position
+        OFFSET pk.slot LIMIT 1
+    ) pm ON true
+),
+-- Each player's score and mods on the finished maps, like W1's chat makes them up.
+scores AS (
+    SELECT m.k, p.user_id, p.username, p.slot, p.red,
+           CASE WHEN p.red = m.red_wins THEN 700000 ELSE 450000 END
+               + p.slot * 13579 + m.k * 2468 AS score,
+           CASE m.category WHEN 'HD' THEN 'HDNF' ELSE 'NF' END AS mods
+    FROM maps m, players p
+    WHERE m.finished
+),
+lines (at, sender, text) AS (
+    SELECT interval '20 seconds' * p.slot, 'BanchoBot',
+           p.username || ' joined in slot ' || p.slot || ' for team '
+               || CASE WHEN p.red THEN 'red' ELSE 'blue' END || '.'
+    FROM players p
+    UNION ALL
+    SELECT m.at - interval '10 seconds', COALESCE(live.referee, 'BanchoBot'),
+           '!mp map ' || m.beatmap_id || ' 0'
+    FROM maps m, live
+    UNION ALL
+    SELECT m.at, 'BanchoBot', 'Changed beatmap to https://osu.ppy.sh/b/' || m.beatmap_id || ' ' || m.name
+    FROM maps m
+    UNION ALL
+    SELECT m.at + interval '6 seconds', 'BanchoBot',
+           CASE m.category
+               WHEN 'HD' THEN 'Enabled Hidden, NoFail, disabled FreeMod'
+               WHEN 'FM' THEN 'Disabled all mods, enabled FreeMod'
+               ELSE 'Enabled NoFail, disabled FreeMod'
+           END
+    FROM maps m
+    UNION ALL
+    SELECT m.at + interval '30 seconds', 'BanchoBot', 'The match has started!'
+    FROM maps m
+    UNION ALL
+    SELECT m.at + interval '31 seconds', COALESCE(live.referee, 'BanchoBot'), '!mp settings'
+    FROM maps m, live
+    UNION ALL
+    SELECT m.at + interval '32 seconds', 'BanchoBot',
+           'Active mods: ' || CASE m.category WHEN 'HD' THEN 'Hidden, NoFail' WHEN 'FM' THEN 'Freemod'
+                                              ELSE 'NoFail' END
+    FROM maps m
+    UNION ALL
+    SELECT m.at + interval '33 seconds', 'BanchoBot', 'Players: ' || (SELECT count(*) FROM players)
+    FROM maps m
+    UNION ALL
+    SELECT m.at + interval '33 seconds' + p.slot * interval '1 second', 'BanchoBot',
+           'Slot ' || p.slot || '  Not Ready https://osu.ppy.sh/u/' || p.osu_id || ' ' || rpad(p.username, 16)
+               || ' [Team ' || CASE WHEN p.red THEN 'Red' ELSE 'Blue' END
+               || CASE WHEN m.category <> 'FM' OR p.slot = 3 THEN ''
+                       WHEN p.slot = 1 THEN ' / Hidden'
+                       WHEN p.slot = 2 THEN ' / HardRock'
+                       ELSE ' / Hidden, HardRock'
+                  END || ']'
+    FROM maps m, players p
+    UNION ALL
+    SELECT m.at + interval '4 minutes' + sc.slot * interval '1 second', 'BanchoBot',
+           sc.username || ' finished playing (Score: ' || sc.score || ', PASSED).'
+    FROM maps m JOIN scores sc ON sc.k = m.k
+    UNION ALL
+    SELECT m.at + interval '4 minutes 10 seconds', 'BanchoBot', 'The match has finished!'
+    FROM maps m
+    WHERE m.finished
+),
+chat AS (
+    INSERT INTO room_chat_messages (mp_id, sent_at, sender, text)
+    SELECT live.mp_id, live.t0 + l.at, l.sender, l.text
+    FROM live, lines l
+    ORDER BY l.at
+),
+score AS (
+    UPDATE bracket_matches b SET team1_score = 1, team2_score = 1
+    FROM live
+    WHERE b.match_id = live.id
+),
+results AS (
+    INSERT INTO match_map_results (match_id, position, pool_map_id, team1_score, team2_score)
+    SELECT live.id, m.k, m.map_id,
+           (SELECT sum(sc.score) FROM scores sc WHERE sc.k = m.k AND sc.red),
+           (SELECT sum(sc.score) FROM scores sc WHERE sc.k = m.k AND NOT sc.red)
+    FROM live, maps m
+    WHERE m.finished AND m.map_id IS NOT NULL
+)
+INSERT INTO match_map_scores (match_id, position, user_id, score, mods, passed)
+SELECT live.id, sc.k, sc.user_id, sc.score, sc.mods, true
+FROM live, scores sc
+JOIN maps m ON m.k = sc.k
+WHERE m.map_id IS NOT NULL;
+
+-- The saved map results of every concluded seeded bracket match, as the referee page
+-- would have saved them with the score: maps from its stage's pool in W1's pick order,
+-- with the tiebreaker for a 5-4, the losing team taking the even maps up to its score.
+-- Each player's score is made up like W1's chat (so W1's agree with it), and their
+-- mods are the category's plus NoFail, or their own on FM and TB.
+WITH done AS (
+    SELECT b.match_id, b.stage_id, b.team1_id, b.team2_id,
+           b.team1_score > b.team2_score AS red_won,
+           LEAST(b.team1_score, b.team2_score) AS lost_maps,
+           b.team1_score + b.team2_score AS played
+    FROM bracket_matches b
+    JOIN matches m ON m.id = b.match_id
+    WHERE m.concluded_at IS NOT NULL AND b.forfeit_slot IS NULL
+      AND b.team1_score <> b.team2_score
+      AND NOT EXISTS (SELECT 1 FROM match_map_results r WHERE r.match_id = b.match_id)
+      AND NOT EXISTS (
+          SELECT 1 FROM team_members tm JOIN osu_users u ON u.id = tm.user_id
+          WHERE tm.team_id IN (b.team1_id, b.team2_id) AND u.osu_id >= 0
+      )
+),
+picks (k, category, slot) AS (
+    VALUES (1, 'NM', 0), (2, 'HD', 0), (3, 'HR', 0), (4, 'DT', 0),
+           (5, 'NM', 1), (6, 'FM', 0), (7, 'DT', 1), (8, 'HR', 1), (9, 'TB', 0)
+),
+maps AS (
+    SELECT d.match_id, pk.category, pm.id AS map_id,
+           row_number() OVER (PARTITION BY d.match_id ORDER BY pk.k)::int AS position,
+           -- The winner's maps are the odd ones and every one after the loser's last.
+           (pk.k % 2 = 1 OR pk.k > 2 * d.lost_maps) = d.red_won AS red_wins
+    FROM done d
+    JOIN picks pk ON pk.k <= d.played
+    JOIN stage_categories c ON c.stage_id = d.stage_id AND c.name = pk.category
+    JOIN category_slots s ON s.category_id = c.id AND s.position = pk.slot
+    JOIN pool_maps pm ON pm.slot_id = s.id
+),
+players AS (
+    SELECT d.match_id, u.id AS user_id, tm.team_id = d.team1_id AS red,
+           row_number() OVER (PARTITION BY d.match_id
+                              ORDER BY tm.team_id = d.team1_id DESC, u.username) AS slot
+    FROM done d
+    JOIN team_members tm ON tm.team_id IN (d.team1_id, d.team2_id)
+    JOIN osu_users u ON u.id = tm.user_id
+),
+scores AS (
+    SELECT m.match_id, m.position, p.user_id, p.red,
+           CASE WHEN p.red = m.red_wins THEN 700000 ELSE 450000 END
+               + p.slot * 13579 + m.position * 2468 AS score,
+           CASE m.category
+               WHEN 'NM' THEN 'NF' WHEN 'HD' THEN 'HDNF' WHEN 'HR' THEN 'HRNF' WHEN 'DT' THEN 'DTNF'
+               WHEN 'FM' THEN (ARRAY['HD', 'HR', '', 'HDHR'])[p.slot]
+               ELSE (ARRAY['HR', 'HDHR', 'HD', ''])[p.slot]
+           END AS mods
+    FROM maps m
+    JOIN players p ON p.match_id = m.match_id
+),
+results AS (
+    INSERT INTO match_map_results (match_id, position, pool_map_id, team1_score, team2_score)
+    SELECT m.match_id, m.position, m.map_id,
+           (SELECT sum(sc.score) FROM scores sc
+            WHERE sc.match_id = m.match_id AND sc.position = m.position AND sc.red),
+           (SELECT sum(sc.score) FROM scores sc
+            WHERE sc.match_id = m.match_id AND sc.position = m.position AND NOT sc.red)
+    FROM maps m
+    RETURNING match_id
+)
+INSERT INTO match_map_scores (match_id, position, user_id, score, mods, passed)
+SELECT match_id, position, user_id, score, mods, true
+FROM scores;
 
 -- Proposed times for the first two upcoming seeded matches with both teams and no room
 -- yet: team 1 offers two later times, team 2 one, each by the team's first player.

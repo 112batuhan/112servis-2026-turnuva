@@ -1,20 +1,17 @@
 //! A concluded bracket match's results: posted in the results channel, and deleted
 //! again if the match is reopened. /mac shows the same.
 
-use std::collections::HashMap;
-
-use serenity::all::MessageId;
 use uuid::Uuid;
 
 use super::{
+    channels,
     jobs::Embed,
     messages::{self, number, side_code, site_url},
-    snowflake, Bot, BotError, BotResult,
+    snowflake, Bot, BotResult,
 };
 use crate::{
     db::{self, discord::MatchInfo, matches::MatchKind},
-    error::AppError,
-    osu_api, AppState,
+    AppState,
 };
 
 pub async fn post(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResult {
@@ -59,22 +56,17 @@ pub async fn post(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResult {
 pub async fn delete(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResult {
     let stored = db::discord::match_discord(&state.db, match_id).await?;
     if let (Some(channel), Some(message)) = (stored.results_channel_id, stored.results_message_id) {
-        let deleted = snowflake::channel(channel)
-            .delete_message(&bot.http, MessageId::new(message as u64))
-            .await
-            .map_err(BotError::from);
-        match deleted {
-            Ok(()) => {}
-            Err(err) if err.not_found() => {}
-            Err(err) => return Err(err),
-        }
+        channels::delete_message(bot, channel, message).await?;
     }
     db::discord::set_results(&state.db, match_id, None).await?;
     Ok(())
 }
 
 // The score, the bans, and each pool map played with who picked it and both teams'
-// scores, from the match's osu! rooms. Maps outside the pool (warmups) are left out.
+// scores, all from the site: the map results the referee page saved with the score
+// (read from the room's chat or synced from osu!) and the maps the referee awarded by
+// hand. The rooms are linked, but osu! is never asked about them, so a room it has no
+// record of can't hold the post back.
 pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embed> {
     let team1 = info.team1_name.as_deref().unwrap_or("?");
     let team2 = info.team2_name.as_deref().unwrap_or("?");
@@ -84,8 +76,6 @@ pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embe
         _ => messages::code(info),
     };
 
-    let players = db::discord::match_players(&state.db, info.id).await?;
-    let team_of: HashMap<i64, Uuid> = players.iter().map(|p| (p.osu_id, p.team_id)).collect();
     let name_of = |team: Uuid| {
         if Some(team) == info.team1_id {
             team1
@@ -100,74 +90,69 @@ pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embe
         Some(stage) => db::discord::stage_maps(&state.db, stage).await?,
         None => Vec::new(),
     };
-    let label_of = |map_id: Uuid| {
-        maps.iter()
-            .find(|m| m.map_id == map_id)
-            .map(|m| m.label.as_str())
-    };
+    let map_of = |map_id: Uuid| maps.iter().find(|m| m.map_id == map_id);
+    let label_of = |map_id: Uuid| map_of(map_id).map(|m| m.label.as_str());
     let bans = db::bracket::list_bans(&state.db, info.id).await?;
     let picks = db::bracket::list_picks(&state.db, info.id).await?;
     let manual = db::bracket::list_manual_results(&state.db, info.id).await?;
+    let played = db::bracket::list_map_results(&state.db, info.id).await?;
+    let players = db::discord::match_players(&state.db, info.id).await?;
 
     let mut lines = Vec::new();
-    let token = osu_api::token::app_token(&state.osu_client, &state.osu_app_token).await?;
-    // Rooms osu! has no record of, left out of the maps but named in the post.
-    let mut unreadable = Vec::new();
-    for &mp_id in &info.mp_ids {
-        let games = match osu_api::matches::fetch_games(&state.http_client, &token, mp_id).await {
-            Ok(games) => games,
-            // The room doesn't exist on osu! (a mistyped or test link) or can't be read.
-            // Retrying won't change that, and it mustn't hold back the whole post.
-            Err(AppError::OsuApiRequest(err)) if refused(&err) => {
-                tracing::warn!(error = %err, mp_id, match_id = %info.id, "osu! room left out of the results");
-                unreadable.push(mp_id);
-                continue;
-            }
-            Err(err) => return Err(err.into()),
+    for result in &played {
+        let (t1, t2) = (result.team1_score, result.team2_score);
+        let winner = match t1.cmp(&t2) {
+            std::cmp::Ordering::Greater => team1,
+            std::cmp::Ordering::Less => team2,
+            std::cmp::Ordering::Equal => "berabere",
         };
-        for game in games {
-            let Some(map) = game
-                .beatmap_id
-                .and_then(|b| maps.iter().find(|m| m.beatmap_id == b))
-            else {
-                continue;
-            };
-            let total = |team: Option<Uuid>| -> i64 {
-                game.scores
-                    .iter()
-                    .filter(|s| team.is_some() && team_of.get(&s.user_id).copied() == team)
-                    .map(|s| s.score)
-                    .sum()
-            };
-            let (t1, t2) = (total(info.team1_id), total(info.team2_id));
-            let winner = match t1.cmp(&t2) {
-                std::cmp::Ordering::Greater => team1,
-                std::cmp::Ordering::Less => team2,
-                std::cmp::Ordering::Equal => "berabere",
-            };
-            let picker = picks
-                .iter()
-                .find(|p| p.map_id == map.map_id)
-                .map(|p| format!(" · seçen: {}", name_of(p.team_id)))
-                .unwrap_or_default();
-            lines.push(format!(
-                "`{}` [{} [{}]](https://osu.ppy.sh/b/{}){picker}\n└ **{winner}** · {} – {}",
-                map.label,
-                map.title,
-                map.version,
-                map.beatmap_id,
-                number(t1),
-                number(t2),
-            ));
+        let picker = picks
+            .iter()
+            .find(|p| Some(p.map_id) == result.map_id)
+            .map(|p| format!(" · seçen: {}", name_of(p.team_id)))
+            .unwrap_or_default();
+        let map = result.map_id.and_then(map_of);
+        let what = match map {
+            Some(map) => format!(
+                "`{}` [{} [{}]](https://osu.ppy.sh/b/{})",
+                map.label, map.title, map.version, map.beatmap_id
+            ),
+            // Deleted from the site, or the stage's pool changed since.
+            None => "Havuzdan çıkmış map".to_string(),
+        };
+        let mut line = format!(
+            "{what}{picker}\n└ **{winner}** · {} – {}",
+            number(t1),
+            number(t2),
+        );
+        // On freemod and tiebreaker maps the players chose their mods: each one's, by team.
+        if map.is_some_and(|m| is_freemod(&m.label)) {
+            let sides = [(info.team1_id, "🔴"), (info.team2_id, "🔵")]
+                .into_iter()
+                .filter_map(|(team, mark)| {
+                    let scores: Vec<String> = result
+                        .players
+                        .iter()
+                        .filter_map(|s| {
+                            let p = players.iter().find(|p| p.user_id == s.user_id)?;
+                            (Some(p.team_id) == team).then(|| {
+                                format!("{} `{}` {}", p.username, mods_label(s), number(s.score))
+                            })
+                        })
+                        .collect();
+                    (!scores.is_empty()).then(|| format!("{mark} {}", scores.join(" · ")))
+                })
+                .collect::<Vec<_>>();
+            if !sides.is_empty() {
+                line.push_str(&format!("\n└ {}", sides.join("  ")));
+            }
         }
+        lines.push(line);
     }
 
     // Map wins the referee gave by hand, after the ones the rooms settled.
     for result in &manual {
-        let map = result
-            .map_id
-            .and_then(|id| maps.iter().find(|m| m.map_id == id));
-        let what = match map {
+        let what = match result.map_id.and_then(map_of) {
             Some(map) => format!(
                 "`{}` [{} [{}]](https://osu.ppy.sh/b/{})",
                 map.label, map.title, map.version, map.beatmap_id
@@ -257,19 +242,20 @@ pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embe
             .collect();
         embed.fields.push(("Odalar".into(), rooms.join(" "), false));
     }
-    if !unreadable.is_empty() {
-        let ids: Vec<String> = unreadable.iter().map(|id| format!("#{id}")).collect();
-        embed.footer = Some(format!(
-            "osu!'dan okunamayan odaların mapleri listede yok: {}",
-            ids.join(", ")
-        ));
-    }
     Ok(embed)
 }
 
-// osu! answered the request and refused it (no such room, no access), as opposed to
-// failing to answer or asking us to slow down, which are worth retrying.
-fn refused(err: &reqwest::Error) -> bool {
-    err.status()
-        .is_some_and(|s| s.is_client_error() && s != reqwest::StatusCode::TOO_MANY_REQUESTS)
+// A freemod (FM1) or tiebreaker (TB) map, by its pool label, as the referee page tells them.
+fn is_freemod(label: &str) -> bool {
+    let label = label.trim().to_ascii_uppercase();
+    label.starts_with("FM") || label.starts_with("TB")
+}
+
+// A player's mods as acronyms ("HDHR"), "NM" for none, "?" when they weren't read.
+fn mods_label(score: &db::bracket::MapPlayerScore) -> String {
+    match score.mods.as_deref() {
+        None => "?".to_string(),
+        Some("") => "NM".to_string(),
+        Some(mods) => mods.to_ascii_uppercase(),
+    }
 }

@@ -1,5 +1,5 @@
 import type { PublicPoolMap, RefereeRoom } from "../../../api/types";
-import { isFreemodCategory, type SlotTeam } from "../../../lib/bancho";
+import { isFreemodCategory, splitMods, type MapResult, type SlotTeam } from "../../../lib/bancho";
 
 // The match's pool as the referee page shows it, shared by the pool panel and the
 // results.
@@ -53,4 +53,34 @@ export function matchTeams(room: RefereeRoom): MatchTeam[] {
   };
   const both = [team(room.team1_id, "red"), team(room.team2_id, "blue")];
   return both.every((t) => t !== null) ? (both as MatchTeam[]) : [];
+}
+
+// Mods compared without NoFail (the referee adds it to everything), Nightcore as the
+// DoubleTime it is, in a fixed order.
+function modKey(acronyms: string): string {
+  return splitMods(acronyms)
+    .filter((m) => m !== "NF")
+    .map((m) => (m === "NC" ? "DT" : m))
+    .sort()
+    .join("");
+}
+
+/**
+ * The pool entry a finished map was: the one with its beatmap. When the pool has that beatmap
+ * more than once (under different mods, or as both FM and TB), the one whose mods it was played
+ * with, then the one a team picked, then the first.
+ */
+export function entryOf(
+  entries: PoolEntry[],
+  result: Pick<MapResult, "beatmapId" | "roomMods" | "freemod">,
+  picked: Set<string>,
+): PoolEntry | undefined {
+  const candidates = entries.filter((e) => e.map.beatmap_id === result.beatmapId);
+  if (candidates.length <= 1) return candidates[0];
+  const played = modKey(result.roomMods);
+  const byMods = candidates.filter((e) =>
+    result.freemod ? e.freemod : !e.freemod && modKey(e.map.mods) === played,
+  );
+  const pool = byMods.length > 0 ? byMods : candidates;
+  return pool.find((e) => picked.has(e.map.id)) ?? pool[0];
 }
