@@ -26,12 +26,14 @@ pub async fn post(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResult {
     if info.kind != MatchKind::Bracket || info.concluded_at.is_none() {
         return Ok(());
     }
-    if db::discord::match_discord(&state.db, match_id)
-        .await?
-        .results_message_id
-        .is_some()
+    // A post still on record (from before a reopening whose DeleteResults didn't get
+    // through, or a retry of this job) is replaced, so there's one post per match.
+    let stored = db::discord::match_discord(&state.db, match_id).await?;
+    if let (Some(old_channel), Some(old_message)) =
+        (stored.results_channel_id, stored.results_message_id)
     {
-        return Ok(());
+        channels::delete_message(bot, old_channel, old_message).await?;
+        db::discord::set_results(&state.db, match_id, None).await?;
     }
     let embed = results_embed(state, &info).await?;
     let message = snowflake::channel(channel)

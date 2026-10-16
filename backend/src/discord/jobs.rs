@@ -17,6 +17,11 @@ use crate::{
     AppState,
 };
 
+// How long one job may run. Serenity waits out Discord's rate limits by sleeping, and
+// some last minutes (a channel can be renamed twice per 10 minutes), which would hold
+// up every job behind it; a job that runs over is retried later instead.
+const JOB_TIMEOUT: Duration = Duration::from_secs(60);
+
 // A failed job is tried this many times in all, waiting longer each time.
 const MAX_ATTEMPTS: i32 = 8;
 const FIRST_RETRY_SECS: i64 = 15;
@@ -387,7 +392,14 @@ async fn process(state: &AppState, bot: &Bot, row: db::discord::OutboxRow) {
             return;
         }
     };
-    let result = run(state, bot, &job).await;
+    // A full sync makes a call per member and channel, so it may take a while.
+    let result = if matches!(job, Job::SyncAll) {
+        run(state, bot, &job).await
+    } else {
+        tokio::time::timeout(JOB_TIMEOUT, run(state, bot, &job))
+            .await
+            .unwrap_or(Err(super::BotError::Timeout))
+    };
     let done = match &result {
         Ok(()) => true,
         Err(err) if err.permanent() => {

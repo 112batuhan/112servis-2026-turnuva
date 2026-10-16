@@ -32,6 +32,7 @@ use std::{
 
 use serenity::{
     all::{GatewayIntents, GuildId, Http, UserId},
+    http::{HttpBuilder, Ratelimiter},
     Client,
 };
 use sqlx::PgExecutor;
@@ -43,6 +44,48 @@ pub use members::add_to_guild;
 
 // How often a referee can ping the same player.
 const PING_COOLDOWN: Duration = Duration::from_secs(30);
+
+// Serenity's HTTP client has no timeouts of its own, so a request Discord never answers
+// would hold up the job worker for good.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+// Rate-limit waits at least this long are logged: serenity sleeps through them silently,
+// and the job worker waits with it.
+const LOG_RATELIMIT_OVER: Duration = Duration::from_secs(2);
+
+// The bot's HTTP client: serenity's, with timeouts and a warning for long rate-limit
+// waits.
+fn http_client(token: &str) -> Http {
+    let client = reqwest::Client::builder()
+        .use_rustls_tls()
+        .connect_timeout(CONNECT_TIMEOUT)
+        .timeout(REQUEST_TIMEOUT)
+        .build()
+        .expect("could not build the discord http client");
+    // The ratelimiter sends the token as is, so it needs the prefix serenity adds.
+    let token = token.trim();
+    let auth = if token.starts_with("Bot ") {
+        token.to_string()
+    } else {
+        format!("Bot {token}")
+    };
+    let mut ratelimiter = Ratelimiter::new(client.clone(), auth);
+    ratelimiter.set_ratelimit_callback(Box::new(|info| {
+        if info.timeout >= LOG_RATELIMIT_OVER {
+            tracing::warn!(
+                method = ?info.method,
+                path = %info.path,
+                wait_secs = info.timeout.as_secs_f64(),
+                global = info.global,
+                "discord rate limit, waiting"
+            );
+        }
+    }));
+    HttpBuilder::new(token)
+        .client(client)
+        .ratelimiter(ratelimiter)
+        .build()
+}
 
 pub struct Bot {
     pub http: Arc<Http>,
@@ -91,7 +134,7 @@ impl Discord {
             return Self(None);
         };
         Self(Some(Arc::new(Bot {
-            http: Arc::new(Http::new(token)),
+            http: Arc::new(http_client(token)),
             guild_id: GuildId::new(guild_id),
             token: token.to_string(),
             user_id: tokio::sync::OnceCell::new(),
@@ -130,6 +173,10 @@ pub enum BotError {
     // Something picked on /admin/discord doesn't exist in the server.
     #[error("{0}")]
     Setup(String),
+    // The job took longer than jobs::JOB_TIMEOUT, most likely waiting out a Discord rate
+    // limit (serenity sleeps through those); it's retried later.
+    #[error("timed out")]
+    Timeout,
 }
 
 impl BotError {

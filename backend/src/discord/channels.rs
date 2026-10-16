@@ -1,6 +1,6 @@
 //! Each match's private channel: its players, referee and streamer can see it. A bracket
 //! match gets one once it has both teams and a time, a qualifier lobby once a team signs
-//! up. An hour after a match is concluded its channel turns read-only and moves to the
+//! up; an unconcluded match that loses a team (or a lobby every team) loses its channel. An hour after a match is concluded its channel turns read-only and moves to the
 //! archive category; until then the players can still talk there.
 
 use serenity::all::{
@@ -22,7 +22,9 @@ use crate::{
 // Discord's limit on channels in a category.
 const CATEGORY_LIMIT: usize = 50;
 
-// Deletes a message, counting one that's already gone as deleted.
+// Deletes a message, counting one that's already gone as deleted. One Discord refuses
+// to delete is given up on with a warning, so the caller still forgets it: keeping it
+// on record would only stop the next message (a new results post) from going out.
 pub async fn delete_message(bot: &Bot, channel: i64, message: i64) -> BotResult {
     match snowflake::channel(channel)
         .delete_message(&bot.http, MessageId::new(message as u64))
@@ -31,6 +33,10 @@ pub async fn delete_message(bot: &Bot, channel: i64, message: i64) -> BotResult 
     {
         Ok(()) => Ok(()),
         Err(err) if err.not_found() => Ok(()),
+        Err(err) if err.permanent() => {
+            tracing::warn!(error = %err, channel, message, "could not delete a discord message");
+            Ok(())
+        }
         Err(err) => Err(err),
     }
 }
@@ -130,6 +136,20 @@ fn base_category(settings: &Settings, kind: MatchKind, archived: bool) -> Option
     }
 }
 
+// An unconcluded match that lost what opened its channel: a bracket match a team was
+// taken out of (reopening the match it came from, or a host's edit), or a lobby every
+// team left. Its channel is deleted rather than left with a missing team; it opens
+// again, with a new card, once the match has both teams again.
+fn should_close(info: &MatchInfo) -> bool {
+    if info.concluded_at.is_some() {
+        return false;
+    }
+    match info.kind {
+        MatchKind::Bracket => info.team1_id.is_none() || info.team2_id.is_none(),
+        MatchKind::Qualifier => info.entries == 0,
+    }
+}
+
 fn should_open(info: &MatchInfo) -> bool {
     if info.concluded_at.is_some() {
         return false;
@@ -175,6 +195,19 @@ async fn sync_channel(
 ) -> BotResult<Option<i64>> {
     let match_id = info.id;
     if stored.channel_id.is_none() && !should_open(info) {
+        return Ok(None);
+    }
+    if let (Some(id), true) = (stored.channel_id, should_close(info)) {
+        match snowflake::channel(id)
+            .delete(&bot.http)
+            .await
+            .map_err(BotError::from)
+        {
+            Ok(_) => {}
+            Err(err) if err.not_found() => {}
+            Err(err) => return Err(err),
+        }
+        db::discord::clear_channel(&state.db, match_id).await?;
         return Ok(None);
     }
     // An hour after it was concluded (db::discord::ARCHIVE_AFTER_SECS); until then
