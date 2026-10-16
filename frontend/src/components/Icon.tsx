@@ -80,6 +80,7 @@ const ICONS = {
       <path d="M10 2h4M12 14l3-3" />
     </>
   ),
+  send: <path d="M22 2 11 13M22 2l-7 20-4-9-9-4z" />,
   swap: <path d="M8 3 4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4" />,
   stop: <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />,
   target: (

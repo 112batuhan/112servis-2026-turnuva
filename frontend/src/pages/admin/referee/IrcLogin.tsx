@@ -20,7 +20,7 @@ export function IrcLogin() {
     return (
       <div className="irc-login is-online">
         <span className="irc-dot" aria-hidden="true" />
-        <span>
+        <span className="irc-login-who">
           Bancho'ya <strong>{irc.nick}</strong> olarak bağlısın
         </span>
         <button
@@ -48,7 +48,8 @@ export function IrcLogin() {
   const connecting = irc.status === "connecting";
   return (
     <form className="irc-login" onSubmit={submit}>
-      <span className="irc-login-title">Bancho IRC</span>
+      <h2 className="irc-login-title">Bancho'ya bağlan</h2>
+      <p className="irc-login-why">Odayı yönetmek ve sohbete yazmak için kendi osu! IRC hesabınla.</p>
       <input
         className="input input-sm"
         aria-label="osu! kullanıcı adı"

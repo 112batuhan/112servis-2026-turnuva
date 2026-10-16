@@ -1,80 +1,177 @@
 .pool-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  min-height: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
+  overflow: hidden;
 }
 
 .pool-panel-title {
-  font-size: var(--text-base);
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--rule);
+  font-size: var(--text-xl);
 }
 
+.pool-panel-stage {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-lg);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pool-panel-note {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  color: var(--color-text-muted);
+}
+
+/* The list scrolls on its own, under the bans and picks. */
 .pool-panel-list {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
+  flex: 1;
+  min-height: 0;
   margin: 0;
-  padding: 0;
+  padding: var(--space-2) var(--space-2) var(--space-3) var(--space-3);
+  overflow-y: auto;
   list-style: none;
 }
 
-/* Red's bans and picks above blue's. */
-.pool-bans {
+.pool-panel-phase {
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-stretch: normal;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* The draft so far, in order: each ban and pick as its pool label in the colour of the team that
+   made it, bans struck through. */
+.pool-draft {
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
   margin: 0;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--rule);
   font-size: var(--text-sm);
 }
 
-.pool-bans-team {
+.pool-draft-row {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 26px;
+}
+
+.pool-draft-row dt {
+  color: var(--color-text-muted);
+}
+
+.pool-draft-count {
+  color: var(--color-text-subtle);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pool-draft-row dd {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 var(--space-2);
-  padding-left: var(--space-2);
-  border-left: 3px solid var(--color-border-strong);
-}
-
-.pool-bans-team.is-team-red {
-  border-left-color: var(--color-team-red);
-}
-
-.pool-bans-team.is-team-blue {
-  border-left-color: var(--color-team-blue);
-}
-
-.pool-bans-team dt {
-  font-weight: 600;
-}
-
-.pool-bans-team dd {
+  gap: var(--space-1);
   margin: 0;
 }
 
-.pool-bans-kind {
-  margin-right: var(--space-1);
+.pool-draft-none {
   color: var(--color-text-subtle);
-  font-size: var(--text-xs);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
-.pool-bans-kind:not(:first-child) {
-  margin-left: var(--space-3);
+.pool-draft-chip {
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--color-hover);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-md);
+  font-weight: 800;
 }
 
+.pool-draft-chip.is-team-red {
+  background: var(--color-team-red-soft);
+  box-shadow: inset 0 -2px 0 var(--color-team-red);
+  color: var(--color-team-red);
+}
+
+.pool-draft-chip.is-team-blue {
+  background: var(--color-team-blue-soft);
+  box-shadow: inset 0 -2px 0 var(--color-team-blue);
+  color: var(--color-team-blue);
+}
+
+.pool-draft-chip.is-ban {
+  text-decoration: line-through;
+}
+
+/* One map per row, the row itself the surface: pick it by clicking, mark it with the team buttons
+   at its end. A banned or picked map is edged in that team's colour. */
 .pool-entry {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  transition:
+    background-color var(--duration-fast) ease,
+    border-color var(--duration-fast) ease;
+}
+
+.pool-entry:hover {
+  border-color: var(--color-border-strong);
+}
+
+.pool-entry.is-current {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.pool-entry.is-played:not(.is-current):not(.is-marked-red):not(.is-marked-blue) {
+  opacity: 0.6;
+}
+
+.pool-entry.is-marked-red {
+  border-color: color-mix(in srgb, var(--color-team-red) 70%, transparent);
+}
+
+.pool-entry.is-marked-blue {
+  border-color: color-mix(in srgb, var(--color-team-blue) 70%, transparent);
+}
+
+.pool-entry.is-banned {
+  background: var(--color-surface);
+}
+
+.pool-entry.is-banned .pool-pick-title,
+.pool-entry.is-banned .pool-pick-meta {
+  color: var(--color-text-subtle);
+  text-decoration: line-through;
 }
 
 .pool-mark-actions {
   display: flex;
   flex-shrink: 0;
+  padding-right: var(--space-1);
 }
 
 .pool-mark-button.is-team-red {
@@ -91,71 +188,58 @@
   gap: var(--space-2);
   flex: 1;
   min-width: 0;
-  width: 100%;
-  padding: var(--space-2);
-  border: 1px solid transparent;
+  padding: 6px var(--space-2);
+  border: none;
   border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
+  background: none;
   color: var(--color-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background var(--duration-fast) ease;
 }
 
 .pool-pick:hover:not(:disabled) {
   background: var(--color-hover);
-  border-color: var(--color-border-strong);
 }
 
 .pool-pick:disabled {
   cursor: not-allowed;
 }
 
-.pool-pick.is-current {
-  border-color: var(--color-info);
+/* What happened to the map, in the colour of the team that did it. */
+.pool-mark {
+  flex-shrink: 0;
+  max-width: 7rem;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.pool-pick.is-played:not(.is-current) {
-  opacity: 0.6;
-}
-
-/* A banned or picked map is edged in the colour of the team that banned or picked it;
-   a banned one is also struck through. */
-.pool-pick.is-banned {
-  opacity: 0.75;
-}
-
-.pool-pick.is-marked-red {
-  border-color: var(--color-team-red);
-}
-
-.pool-pick.is-marked-blue {
-  border-color: var(--color-team-blue);
-}
-
-.pool-pick.is-banned .pool-pick-title {
-  text-decoration: line-through;
-}
-
-.pool-mark-badge.is-team-red {
-  background: var(--color-team-red-soft);
+.pool-mark.is-team-red {
   color: var(--color-team-red);
 }
 
-.pool-mark-badge.is-team-blue {
-  background: var(--color-team-blue-soft);
+.pool-mark.is-team-blue {
   color: var(--color-team-blue);
+}
+
+.pool-mark.is-current {
+  color: var(--color-primary);
 }
 
 .pool-pick-label {
   flex-shrink: 0;
-  min-width: 44px;
-  padding: 2px var(--space-1);
+  min-width: 42px;
+  padding: 1px var(--space-1);
   border: 1px solid;
   border-radius: var(--radius-sm);
-  font-size: var(--text-xs);
-  font-weight: 700;
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-md);
+  font-weight: 800;
   text-align: center;
 }
 
@@ -180,8 +264,10 @@
   white-space: nowrap;
   color: var(--color-text-muted);
   font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
 }
 
 .pool-pick-star {
+  margin-right: 2px;
   vertical-align: -1px;
 }

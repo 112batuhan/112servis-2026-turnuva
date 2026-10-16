@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { IconButton } from "../../../components/IconButton";
 import { conversationKey, isChannel, useIrc, type ChatLine } from "../../../irc/IrcContext";
 import { BANCHO_BOT, normalizeName, type SlotTeam } from "../../../lib/bancho";
@@ -10,6 +10,8 @@ interface Props {
   rooms: RoomChatView[];
   /** Players' team colours by normalizeName(username), to colour their names. */
   colors: Map<string, SlotTeam | null>;
+  /** Shown above the tabs: the Bancho login, or who's connected. */
+  top?: ReactNode;
 }
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
@@ -39,7 +41,7 @@ const time = (at: number) =>
  * live) and the private conversations. Other matches' rooms stay out of it, even
  * ones the connection is still in.
  */
-export function ChatPanel({ rooms, colors }: Props) {
+export function ChatPanel({ rooms, colors, top }: Props) {
   const irc = useIrc();
   const latest = rooms.length > 0 ? rooms[rooms.length - 1].channel : null;
   const [active, setActive] = useState<string | null>(latest);
@@ -136,6 +138,7 @@ export function ChatPanel({ rooms, colors }: Props) {
 
   return (
     <section className="chat-panel" aria-label="Bancho sohbeti">
+      {top}
       <div className="chat-tabs" role="tablist">
         {tabKeys.length === 0 && <span className="chat-tabs-empty muted">Henüz sohbet yok</span>}
         {roomTabs.map((r) => {

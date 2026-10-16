@@ -1,0 +1,258 @@
+/* The match's players as the room has them. Each team is a ruled block, the rule in its osu!
+   colour; players sit on hairlines, their slot number leading like a shirt number. */
+.room-players {
+  container: room-players / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.room-players-teams {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-3) var(--space-5);
+}
+
+/* Red facing blue. */
+.room-players-teams.is-versus {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@container room-players (max-width: 520px) {
+  .room-players-teams.is-versus {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.room-players-team,
+.room-players-strangers {
+  min-width: 0;
+  border-top: 3px solid var(--color-border-strong);
+}
+
+.room-players-team.is-team-red {
+  border-top-color: var(--color-team-red);
+}
+
+.room-players-team.is-team-blue {
+  border-top-color: var(--color-team-blue);
+}
+
+.room-players-strangers {
+  border-top-color: var(--color-warning);
+}
+
+.room-players-team-name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) 0 2px;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+.room-players-team-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.is-team-red > .room-players-team-name .room-players-team-title {
+  color: var(--color-team-red);
+}
+
+.is-team-blue > .room-players-team-name .room-players-team-title {
+  color: var(--color-team-blue);
+}
+
+.room-players-strangers .room-players-team-name {
+  color: var(--color-warning);
+}
+
+.room-players-team-count {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.room-players-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Slot | avatar | name and Discord | mods | ready or score | invite or move. */
+.room-player {
+  display: grid;
+  grid-template-columns: 2rem 28px minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 2px 0;
+  border-bottom: var(--rule);
+}
+
+.room-player:last-child {
+  border-bottom: none;
+}
+
+.room-player.is-stranger {
+  grid-template-columns: 2rem minmax(0, 1fr) auto auto;
+}
+
+.room-player-slot {
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: center;
+}
+
+.room-player.is-away .room-player-slot {
+  color: var(--color-text-subtle);
+  font-weight: 600;
+}
+
+.room-player-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+
+.room-player.is-away .room-player-avatar {
+  opacity: 0.5;
+}
+
+.room-player-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.room-player-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.room-player-name a {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  font-weight: 600;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-player-name a:hover {
+  text-decoration: underline;
+}
+
+.room-player.is-away .room-player-name a {
+  color: var(--color-text-muted);
+}
+
+.room-player-meta {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-player-mods {
+  color: var(--color-primary);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-md);
+  font-weight: 800;
+}
+
+.room-player-mods.is-plain {
+  color: var(--color-text-subtle);
+  font-weight: 600;
+}
+
+.room-player-status {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.room-player.is-ready .room-player-status {
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.room-player.is-no_map .room-player-status {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.room-player.is-away .room-player-status {
+  color: var(--color-text-subtle);
+}
+
+.room-player-status.is-playing {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.room-player-score {
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.room-player-score.is-failed {
+  color: var(--color-danger);
+}
+
+/* A player on the wrong colour: said under their name, and the move button is the fix, so it's lit. */
+.room-player-wrong {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.room-player .room-player-fix {
+  color: var(--color-danger);
+  background: var(--color-danger-soft);
+}
+
+/* Reads as text, like DiscordMention; clicking it pings the player in the match's channel. */
+.room-player-ping {
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.room-player-ping:hover:not(:disabled) {
+  color: var(--color-info);
+  text-decoration: underline;
+}
+
+.room-player-discord-left {
+  color: var(--color-warning);
+}

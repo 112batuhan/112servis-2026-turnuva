@@ -1,0 +1,71 @@
+/* The console row that tells the room the score: whose pick is next as one joined control, the
+   send button, then the exact line it sends. */
+.announce {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.announce-label {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
+.announce-teams {
+  display: flex;
+  min-width: 0;
+}
+
+.announce-team {
+  max-width: 160px;
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-md);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) ease,
+    color var(--duration-fast) ease,
+    box-shadow var(--duration-fast) ease;
+}
+
+.announce-team:first-child {
+  border-radius: var(--radius-md) 0 0 var(--radius-md);
+}
+
+.announce-team:last-child {
+  margin-left: -1px;
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+}
+
+.announce-team:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.announce-team:focus-visible {
+  position: relative;
+  z-index: 1;
+}
+
+.announce-team.is-team-red[aria-pressed="true"] {
+  background: var(--color-team-red-soft);
+  box-shadow: inset 0 -2px 0 var(--color-team-red);
+  color: var(--color-team-red);
+}
+
+.announce-team.is-team-blue[aria-pressed="true"] {
+  background: var(--color-team-blue-soft);
+  box-shadow: inset 0 -2px 0 var(--color-team-blue);
+  color: var(--color-team-blue);
+}

@@ -29,6 +29,9 @@ import {
   BANCHO_BOT,
   EMPTY_ROOM,
   ircName,
+  isFreemod,
+  MATCH_STARTED,
+  modAcronyms,
   modsCommand,
   parseCreated,
   playerRef,
@@ -46,7 +49,7 @@ import {
 import { matchCode } from "../../../lib/bracket";
 import { readJson, writeJson } from "../../../lib/storage";
 import { registerRoom, unregisterRoom } from "./roomAutomation";
-import { entryOf, poolEntries, type PoolEntry } from "./pool";
+import { entryOf, matchTeams, nextPicker, poolEntries, scoreMessage, type MatchTeam, type PoolEntry } from "./pool";
 import { mergeChat, toChatLine, type SavedChat } from "./roomChat";
 
 export interface RosterPlayer {
@@ -385,6 +388,26 @@ export function useRefereeRoom(matchId: string) {
     return { ...latest, results: roomStates.flatMap((r) => r.state.results) };
   }, [roomStates]);
 
+  // The pool map the room has on, and when it started if it's being played: the last
+  // "The match has started!" of the latest room, so a reload keeps the clock.
+  const currentEntry = useMemo<PoolEntry | undefined>(() => {
+    if (!room || lobby.beatmapId === null) return undefined;
+    return entryOf(
+      poolEntries(room),
+      { beatmapId: lobby.beatmapId, roomMods: modAcronyms(lobby.mods ?? ""), freemod: isFreemod(lobby.mods) },
+      new Set(room.picks.map((p) => p.map_id)),
+    );
+  }, [room, lobby.beatmapId, lobby.mods]);
+  const latestLines = roomChats.length > 0 ? roomChats[roomChats.length - 1].lines : null;
+  const mapStartedAt = useMemo(() => {
+    if (!lobby.playing || !latestLines) return null;
+    for (let i = latestLines.length - 1; i >= 0; i--) {
+      const l = latestLines[i];
+      if (l.from === BANCHO_BOT && !l.notice && l.text === MATCH_STARTED) return l.at;
+    }
+    return null;
+  }, [lobby.playing, latestLines]);
+
   // Every room's finished maps, oldest room first: from osu!'s record of the room once
   // the referee synced it (unless osu! had none), otherwise from its chat.
   const readSource: ResultSource = osuSync ? "osu" : "chat";
@@ -617,6 +640,15 @@ export function useRefereeRoom(matchId: string) {
     );
   }
 
+  // Whose pick is next: by the rules from the bans and picks, unless the referee said
+  // otherwise since the last one was marked.
+  const teams = useMemo<MatchTeam[]>(() => (room ? matchTeams(room) : []), [room]);
+  const marks = room ? `${room.bans.length}:${room.picks.length}` : "";
+  const [pickOverride, setPickOverride] = useState<{ marks: string; teamId: string } | null>(null);
+  const ruledPicker = room ? nextPicker(room, teams) : null;
+  const nextPick =
+    pickOverride?.marks === marks ? (teams.find((t) => t.id === pickOverride.teamId) ?? ruledPicker) : ruledPicker;
+
   const actions = {
     reload,
     setOptions,
@@ -685,6 +717,14 @@ export function useRefereeRoom(matchId: string) {
         await removeMapPick(room.id, mapId);
         await reload();
       }),
+
+    /** Says whose pick is next, overriding the rules until the next ban or pick. */
+    setNextPick: (teamId: string) => setPickOverride({ marks, teamId }),
+
+    /** Tells the room the running score and whose pick is next. */
+    announceScore: () => {
+      if (teams.length === 2 && tally) say(scoreMessage(teams, [tally.team1, tally.team2], nextPick));
+    },
 
     settings: () => say("!mp settings"),
     lock: (locked: boolean) => say(locked ? "!mp lock" : "!mp unlock"),
@@ -765,6 +805,10 @@ export function useRefereeRoom(matchId: string) {
     online,
     inChannel,
     lobby,
+    currentEntry,
+    mapStartedAt,
+    teams,
+    nextPick,
     roster,
     findRoster,
     options,

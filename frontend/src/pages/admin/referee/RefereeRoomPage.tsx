@@ -10,7 +10,6 @@ import { ChatPanel } from "./ChatPanel";
 import { IrcLogin } from "./IrcLogin";
 import { LobbyPanel } from "./LobbyPanel";
 import { PoolPanel } from "./PoolPanel";
-import { RosterPanel } from "./RosterPanel";
 import { roomLabel, useRefereeRoom } from "./useRefereeRoom";
 import "./RefereeRoomPage.css";
 
@@ -53,6 +52,8 @@ function RefereeRoom({ matchId }: { matchId: string }) {
     room.kind === "bracket"
       ? [room.team1_id, room.team2_id].map((id) => room.teams.find((t) => t.id === id)?.name ?? "Belirlenmedi").join(" vs ")
       : `${room.teams.length} takım`;
+  // With both teams known, the match column's score names them.
+  const strip = referee.tally !== null && referee.teams.length === 2;
 
   return (
     <div className="referee-page">
@@ -61,7 +62,8 @@ function RefereeRoom({ matchId }: { matchId: string }) {
           {room.kind === "bracket" ? "← Bracket" : "← Elemeler"}
         </Link>
         <h1 className="referee-title">
-          {roomLabel(room)} <span className="referee-title-teams">{teamNames}</span>
+          {roomLabel(room)}{" "}
+          <span className={strip ? "sr-only" : "referee-title-teams"}>{teamNames}</span>
         </h1>
         <span className="referee-meta">
           {room.starts_at && formatMatchTime(room.starts_at)}
@@ -73,22 +75,21 @@ function RefereeRoom({ matchId }: { matchId: string }) {
             Bu maçın hakemi değilsin
           </span>
         )}
+        <PageViewers viewers={presence.get(matchId)} />
       </header>
 
-      <PageViewers viewers={presence.get(matchId)} />
-      <IrcLogin />
       <ErrorAlert message={error} />
 
-      <div className="referee-grid">
-        <div className="referee-column">
-          <RosterPanel referee={referee} />
-        </div>
-        <div className="referee-column referee-main">
-          <LobbyPanel referee={referee} />
-          <ChatPanel rooms={roomChats} colors={colors} />
-        </div>
-        <div className="referee-column">
+      {/* Pool | match | chat: everything a map needs in one screen, each column scrolling on its own. */}
+      <div className="referee-cockpit">
+        <div className="referee-cockpit-pool">
           <PoolPanel referee={referee} />
+        </div>
+        <div className="referee-cockpit-room">
+          <LobbyPanel referee={referee} />
+        </div>
+        <div className="referee-cockpit-chat">
+          <ChatPanel rooms={roomChats} colors={colors} top={<IrcLogin />} />
         </div>
       </div>
     </div>
@@ -106,14 +107,16 @@ function PageViewers({ viewers }: { viewers: RefereeViewer[] | undefined }) {
   return (
     <section className="referee-viewers" aria-label="Bu sayfadakiler">
       <span className="referee-viewers-label">
-        {others === 0 ? "Bu sayfada sadece sen varsın" : `Bu sayfada ${viewers.length} kişi`}
+        {others === 0 ? "Sayfada sadece sen" : `Sayfada ${viewers.length} kişi`}
       </span>
       <ul>
         {viewers.map((v) => (
-          <li key={v.id} className={v.id === user.id ? "is-self" : undefined}>
+          <li key={v.id} className={v.id === user.id ? "is-self" : undefined} title={v.username}>
             <img src={v.avatar_url} alt="" />
-            {v.username}
-            {v.id === user.id && <span className="referee-viewers-self"> (sen)</span>}
+            <span className="referee-viewers-name">
+              {v.username}
+              {v.id === user.id && <span className="referee-viewers-self"> (sen)</span>}
+            </span>
           </li>
         ))}
       </ul>

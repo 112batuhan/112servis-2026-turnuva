@@ -1,14 +1,20 @@
 .referee-page {
+  container: referee-page / inline-size;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  margin-top: calc(-1 * var(--space-3));
 }
 
+/* One line: back, the match code, when and who referees, who else is here. The cockpit under it
+   is the page; this only names it. */
 .referee-header {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--space-2) var(--space-3);
+  gap: var(--space-1) var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: var(--rule-heavy);
 }
 
 .referee-back {
@@ -17,21 +23,27 @@
 }
 
 .referee-title {
-  font-size: var(--text-xl);
+  font-size: var(--text-2xl);
 }
 
 .referee-title-teams {
   color: var(--color-text-muted);
-  font-weight: 400;
+  font-weight: 700;
 }
 
-/* Who else has the page open: a row of avatars and names under the header, in the info colour
-   the bracket editor's badge uses for the same thing. */
+.referee-meta {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+/* Who else has the page open: avatars with names, in the info colour the bracket editor's badge
+   uses for the same thing. */
 .referee-viewers {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
+  gap: var(--space-2);
+  margin-left: auto;
   font-size: var(--text-sm);
 }
 
@@ -43,7 +55,7 @@
 .referee-viewers ul {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-2);
+  gap: var(--space-1);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -70,47 +82,80 @@
   font-weight: 400;
 }
 
-.referee-meta {
-  color: var(--color-text-muted);
-  font-size: var(--text-sm);
-}
-
-/* Teams | room + chat | pool. The middle column takes what's left. */
-.referee-grid {
+/* The cockpit: pool | match | chat, one screen tall under the sticky top bar, so picking a map,
+   starting it and reading the room never need the page to scroll. Each panel scrolls inside. */
+.referee-cockpit {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(280px, 330px) minmax(0, 1fr) minmax(300px, 380px);
+  grid-template-areas: "pool room chat";
   gap: var(--space-3);
-  align-items: start;
+  height: max(600px, calc(100svh - 150px));
+  scroll-margin-top: 64px;
 }
 
-.referee-column {
+.referee-cockpit > * {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
   min-width: 0;
+  min-height: 0;
 }
 
-.referee-main .chat-panel {
-  height: 480px;
+.referee-cockpit > * > * {
+  flex: 1;
 }
 
-@media (max-width: 1200px) {
-  .referee-grid {
-    grid-template-columns: 300px minmax(0, 1fr);
+.referee-cockpit-pool {
+  grid-area: pool;
+}
+
+.referee-cockpit-room {
+  grid-area: room;
+}
+
+.referee-cockpit-chat {
+  grid-area: chat;
+}
+
+/* Narrower: the room and chat share the screen and the pool goes under them at its full height,
+   two maps a row. */
+@container referee-page (max-width: 1180px) {
+  .referee-cockpit {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    grid-template-rows: max(560px, calc(100svh - 150px)) auto;
+    grid-template-areas:
+      "room chat"
+      "pool pool";
+    height: auto;
   }
 
-  .referee-grid > :last-child {
-    grid-column: 1 / -1;
+  .referee-cockpit-pool .pool-panel-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    overflow: visible;
   }
 }
 
-@media (max-width: 800px) {
-  .referee-grid {
+/* A phone: one column, the room first, the chat a screen tall, the pool last. Every panel takes
+   its own height. */
+@container referee-page (max-width: 760px) {
+  .referee-cockpit {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-template-areas:
+      "room"
+      "chat"
+      "pool";
   }
 
-  /* The room and chat come first on a phone. */
-  .referee-main {
-    order: -1;
+  .referee-cockpit-chat {
+    height: 75svh;
+  }
+
+  .referee-header {
+    gap: var(--space-1) var(--space-2);
+  }
+
+  .referee-viewers {
+    margin-left: 0;
   }
 }

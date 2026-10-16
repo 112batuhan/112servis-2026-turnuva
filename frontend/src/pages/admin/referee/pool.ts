@@ -84,3 +84,20 @@ export function entryOf(
   const pool = byMods.length > 0 ? byMods : candidates;
   return pool.find((e) => picked.has(e.map.id)) ?? pool[0];
 }
+
+/**
+ * The team whose turn it is to pick, by the rules: the roll's winner picks first and bans second,
+ * so the first pick goes to the team that didn't ban first, and picks alternate after that. Null
+ * before anything is marked, when the page can't know who won the roll.
+ */
+export function nextPicker(room: RefereeRoom, teams: MatchTeam[]): MatchTeam | null {
+  if (teams.length !== 2) return null;
+  const last = room.picks[room.picks.length - 1] ?? room.bans[0];
+  return last ? (teams.find((t) => t.id !== last.team_id) ?? null) : null;
+}
+
+/** The line the referee sends to the room: "Skor: Team A 2 - 1 Team B | Sıradaki pick: Team B". */
+export function scoreMessage(teams: MatchTeam[], score: [number, number], next: MatchTeam | null): string {
+  const line = `Skor: ${teams[0].name} ${score[0]} - ${score[1]} ${teams[1].name}`;
+  return next ? `${line} | Sıradaki pick: ${next.name}` : line;
+}
