@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { errorMessage } from "../../../api/client";
 import { pingPlayer } from "../../../api/discord";
 import type { AdminTeamPlayer, Team } from "../../../api/types";
 import { DiscordMention } from "../../../components/DiscordMention";
+import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
+import { LiveMark } from "../../../components/LiveMark";
 import { sameName, type SlotTeam } from "../../../lib/bancho";
 import { formatRank } from "../../../lib/format";
-import { matchTeams, poolEntries } from "./pool";
+import { matchTeams, poolEntries, type MatchTeam } from "./pool";
 import { teamTotals, type RefereeRoomState } from "./useRefereeRoom";
 import "./RosterPanel.css";
 
@@ -138,96 +140,300 @@ function DiscordPing({ matchId, player }: { matchId: string; player: AdminTeamPl
 }
 
 /**
- * Each finished map of the pool with its label, who picked it and the team totals, the
- * winner in its team's colour; for a bracket match, the map wins and saving them as the
- * score. Maps that aren't in the pool (warmups, mistakes) are left out entirely.
+ * The match's results. A bracket match gets the score as a board, saved to the site as it
+ * changes; each finished pool map with its label, who picked it and the team totals, the
+ * winner in its team's colour; the maps the referee awarded by hand; and the forfeit. Maps
+ * that aren't in the pool (warmups, mistakes) are left out entirely.
  */
 function Results({ referee }: { referee: RefereeRoomState }) {
-  const { room, lobby, roster, ignored, actions, canRun, busy } = referee;
-  if (!room || lobby.results.length === 0) return null;
-  const name = (teamId: string) => room.teams.find((t) => t.id === teamId)?.name ?? "?";
-  const bracket = room.kind === "bracket" && room.team1_id !== null && room.team2_id !== null;
-  const entries = poolEntries(room);
+  const { room, lobby, roster, ignored, actions, canRun, busy, tally } = referee;
+  if (!room) return null;
   const teams = matchTeams(room);
+  const bracket = teams.length === 2 && tally !== null;
+  if (!bracket && lobby.results.length === 0) return null;
+  const name = (teamId: string) => room.teams.find((t) => t.id === teamId)?.name ?? "?";
   const teamClass = (teamId: string) => {
     const team = teams.find((t) => t.id === teamId);
     return team ? `is-team-${team.color}` : "";
   };
+  const entries = poolEntries(room);
+  const concluded = room.concluded_at !== null;
+  const editable = bracket && canRun && !concluded;
 
-  // Each kept result with its index among all of them, which "Sayma" is keyed by.
-  const rows = lobby.results.flatMap((result, index) => {
-    const entry = entries.find((e) => e.map.beatmap_id === result.beatmapId);
-    return entry ? [{ result, index, entry }] : [];
-  });
+  // A lobby has no score: just its finished pool maps.
+  const rows =
+    tally?.rows ??
+    lobby.results.flatMap((result, index) => {
+      const entry = entries.find((e) => e.map.beatmap_id === result.beatmapId);
+      return entry ? [{ result, index, entry, totals: teamTotals(result, roster), winnerId: null }] : [];
+    });
   const outsidePool = lobby.results.length - rows.length;
-
-  const wins = new Map<string, number>();
-  for (const { result, index } of rows) {
-    const [best, second] = teamTotals(result, roster);
-    if (ignored.has(index) || !best || (second && second.score === best.score)) continue;
-    wins.set(best.teamId, (wins.get(best.teamId) ?? 0) + 1);
-  }
-  const team1Wins = room.team1_id ? (wins.get(room.team1_id) ?? 0) : 0;
-  const team2Wins = room.team2_id ? (wins.get(room.team2_id) ?? 0) : 0;
-  const saved = room.team1_score === team1Wins && room.team2_score === team2Wins;
 
   return (
     <div className="roster-results">
       <h3 className="roster-title">Sonuçlar</h3>
-      {rows.length === 0 && <p className="muted">Havuzdan henüz map oynanmadı.</p>}
-      <ol className="roster-result-list">
-        {rows.map(({ result, index, entry }) => {
-          const totals = teamTotals(result, roster);
-          const tied = totals.length > 1 && totals[0].score === totals[1].score;
-          const pick = room.picks.find((p) => p.map_id === entry.map.id);
-          return (
-            <li key={index} className={ignored.has(index) ? "is-ignored" : undefined}>
-              <span className="roster-result-map">
-                <span className="roster-result-label" style={{ borderColor: entry.color, color: entry.color }}>
-                  {entry.label}
-                </span>
-                <span className="roster-result-name">{result.beatmapName ?? `${entry.map.artist} - ${entry.map.title}`}</span>
-              </span>
-              <span className="roster-result-totals">
-                {totals.length === 0 && <span className="muted">Skor yok</span>}
-                {totals.map((t, j) => (
-                  <span
-                    key={t.teamId}
-                    className={j === 0 && totals.length > 1 && !tied ? `is-winner ${teamClass(t.teamId)}` : undefined}
-                  >
-                    {name(t.teamId)} {t.score.toLocaleString("tr-TR")}
+      {bracket && <ScoreBoard referee={referee} teams={teams} />}
+      {rows.length === 0 && room.manual_results.length === 0 && (
+        <p className="muted">Havuzdan henüz map oynanmadı.</p>
+      )}
+      {(rows.length > 0 || room.manual_results.length > 0) && (
+        <ol className="roster-result-list">
+          {rows.map(({ result, index, entry, totals }) => {
+            const tied = totals.length > 1 && totals[0].score === totals[1].score;
+            const pick = room.picks.find((p) => p.map_id === entry.map.id);
+            return (
+              <li key={index} className={ignored.has(index) ? "is-ignored" : undefined}>
+                <span className="roster-result-map">
+                  <span className="roster-result-label" style={{ borderColor: entry.color, color: entry.color }}>
+                    {entry.label}
                   </span>
-                ))}
-                {pick && <span className={`roster-result-pick ${teamClass(pick.team_id)}`}>{name(pick.team_id)} seçti</span>}
-              </span>
-              <label className="roster-result-ignore">
-                <input type="checkbox" checked={ignored.has(index)} onChange={() => actions.toggleIgnored(index)} /> Sayma
-              </label>
-            </li>
-          );
-        })}
-      </ol>
+                  <span className="roster-result-name">
+                    {result.beatmapName ?? `${entry.map.artist} - ${entry.map.title}`}
+                  </span>
+                </span>
+                <span className="roster-result-totals">
+                  {totals.length === 0 && <span className="muted">Skor yok</span>}
+                  {totals.map((t, j) => (
+                    <span
+                      key={t.teamId}
+                      className={j === 0 && totals.length > 1 && !tied ? `is-winner ${teamClass(t.teamId)}` : undefined}
+                    >
+                      {name(t.teamId)} {t.score.toLocaleString("tr-TR")}
+                    </span>
+                  ))}
+                  {pick && (
+                    <span className={`roster-result-pick ${teamClass(pick.team_id)}`}>{name(pick.team_id)} seçti</span>
+                  )}
+                </span>
+                <label className="roster-result-ignore">
+                  <input
+                    type="checkbox"
+                    checked={ignored.has(index)}
+                    disabled={concluded}
+                    onChange={() => actions.toggleIgnored(index)}
+                  />{" "}
+                  Sayma
+                </label>
+              </li>
+            );
+          })}
+          {room.manual_results.map((manual) => {
+            const entry = entries.find((e) => e.map.id === manual.map_id);
+            return (
+              <li key={manual.id} className="is-manual">
+                <span className="roster-result-map">
+                  <span
+                    className="roster-result-label"
+                    style={entry ? { borderColor: entry.color, color: entry.color } : undefined}
+                  >
+                    {entry?.label ?? "—"}
+                  </span>
+                  <span className="roster-result-name">
+                    {entry ? `${entry.map.artist} - ${entry.map.title}` : "Map dışı puan"}
+                  </span>
+                </span>
+                <span className="roster-result-totals">
+                  <span className={`is-winner ${teamClass(manual.team_id)}`}>{name(manual.team_id)} aldı</span>
+                  <span>Hakem kararı{manual.note && `: ${manual.note}`}</span>
+                </span>
+                {editable && (
+                  <IconButton
+                    icon="undo"
+                    label={`${entry?.label ?? "Puan"}: hakem kararını geri al`}
+                    className="roster-result-ignore"
+                    disabled={busy}
+                    onClick={() => actions.removeManualResult(manual.id)}
+                  />
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      )}
       {outsidePool > 0 && (
         <p className="roster-result-hidden muted">Havuzda olmayan {outsidePool} map gösterilmiyor ve sayılmıyor.</p>
       )}
-      {bracket && (
-        <div className="roster-score">
-          <span>
-            <span className="is-team-red">{name(room.team1_id!)}</span> <strong>{team1Wins}</strong> –{" "}
-            <strong>{team2Wins}</strong> <span className="is-team-blue">{name(room.team2_id!)}</span>
-          </span>
-          {canRun && room.concluded_at === null && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              disabled={busy || saved}
-              onClick={() => actions.saveScore(team1Wins, team2Wins)}
-            >
-              {saved ? "Skor kayıtlı" : "Skoru kaydet"}
-            </button>
-          )}
-        </div>
-      )}
+      {editable && <ManualResultForm referee={referee} teams={teams} />}
+      {editable && <ForfeitControl referee={referee} teams={teams} />}
     </div>
+  );
+}
+
+/**
+ * The score as the match's head-to-head: the red team's figure and the blue team's, read from
+ * the room plus the hand-awarded maps, and whether the site shows it yet.
+ */
+function ScoreBoard({ referee, teams }: { referee: RefereeRoomState; teams: MatchTeam[] }) {
+  const { room, tally, liveScore, scoreSaving, canRun, busy, actions } = referee;
+  if (!room || !tally) return null;
+  const concluded = room.concluded_at !== null;
+  const forfeit = room.forfeit_slot;
+  // Once it's concluded the saved result stands; before that, the running tally.
+  const figures: [string, string] = forfeit
+    ? forfeit === 1
+      ? ["FF", "W"]
+      : ["W", "FF"]
+    : concluded
+      ? [String(room.team1_score ?? "–"), String(room.team2_score ?? "–")]
+      : [String(tally.team1), String(tally.team2)];
+  const saved = room.team1_score === tally.team1 && room.team2_score === tally.team2;
+  const lead = figures[0] === figures[1] ? null : Number(figures[0]) > Number(figures[1]) || figures[0] === "W" ? 0 : 1;
+
+  let status: ReactNode = null;
+  if (forfeit) {
+    status = <span className="roster-score-status">Hükmen: {teams[forfeit - 1].name} çekildi</span>;
+  } else if (concluded) {
+    status = <span className="roster-score-status">Maç bitti</span>;
+  } else if (scoreSaving) {
+    status = <span className="roster-score-status">Kaydediliyor…</span>;
+  } else if (liveScore && saved) {
+    status = (
+      <span className="roster-score-status is-live" title="Map bittikçe skor sitede güncellenir">
+        <LiveMark compact /> sitede
+      </span>
+    );
+  } else if (canRun && !saved) {
+    status = (
+      <span className="roster-score-status">
+        Sitede {room.team1_score ?? "–"} – {room.team2_score ?? "–"}
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={busy}
+          onClick={() => actions.saveScore(tally.team1, tally.team2)}
+        >
+          Skoru kaydet
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <div className="roster-score">
+      <div className="roster-score-board" aria-label="Skor">
+        {teams.map((team, i) => (
+          <div key={team.id} className={`roster-score-side is-team-${team.color}${lead === i ? " is-ahead" : ""}`}>
+            <span className="roster-score-name">{team.name}</span>
+            <span className="roster-score-figure">{figures[i]}</span>
+          </div>
+        ))}
+      </div>
+      {status}
+    </div>
+  );
+}
+
+/**
+ * Awards a map to a team by hand, for one the room didn't settle (a disconnect, a result
+ * Bancho never reported), or a point without a map. It counts with the room's results.
+ */
+function ManualResultForm({ referee, teams }: { referee: RefereeRoomState; teams: MatchTeam[] }) {
+  const { room, busy, actions } = referee;
+  const [open, setOpen] = useState(false);
+  const [mapId, setMapId] = useState("");
+  const [note, setNote] = useState("");
+  if (!room) return null;
+  const banned = new Set(room.bans.map((b) => b.map_id));
+  const entries = poolEntries(room).filter((e) => !banned.has(e.map.id));
+
+  if (!open) {
+    return (
+      <button type="button" className="btn btn-secondary btn-sm roster-manual-open" onClick={() => setOpen(true)}>
+        <Icon name="plus" size={14} />
+        Hakem kararıyla map ver
+      </button>
+    );
+  }
+
+  const award = (teamId: string) => {
+    actions.addManualResult(teamId, mapId || null, note.trim());
+    setMapId("");
+    setNote("");
+    setOpen(false);
+  };
+
+  return (
+    <div className="roster-manual" role="group" aria-label="Hakem kararıyla map ver">
+      <div className="roster-manual-head">
+        <span className="roster-manual-title">Hakem kararıyla map ver</span>
+        <IconButton icon="close" label="Vazgeç" onClick={() => setOpen(false)} />
+      </div>
+      <p className="roster-manual-hint">
+        Oda sonucu vermediyse (kopma, Bancho'nun bildirmediği bir skor) ya da ceza puanı için. Skora bir map olarak
+        eklenir.
+      </p>
+      <label className="roster-manual-field">
+        <span>Map</span>
+        <select className="select select-sm" value={mapId} onChange={(e) => setMapId(e.target.value)}>
+          <option value="">Map yok (sadece puan)</option>
+          {entries.map((e) => (
+            <option key={e.map.id} value={e.map.id}>
+              {e.label} · {e.map.artist} - {e.map.title}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="roster-manual-field">
+        <span>Not</span>
+        <input
+          className="input input-sm"
+          value={note}
+          maxLength={200}
+          placeholder="Neden? (isteğe bağlı)"
+          onChange={(e) => setNote(e.target.value)}
+        />
+      </label>
+      <div className="roster-manual-teams">
+        {teams.map((team) => (
+          <button
+            key={team.id}
+            type="button"
+            className={`btn btn-secondary btn-sm roster-manual-team is-team-${team.color}`}
+            disabled={busy}
+            onClick={() => award(team.id)}
+          >
+            {team.name} alsın
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Concludes the match by forfeit when a team didn't show up or the match couldn't be finished:
+ * the other team wins and moves on. Behind a disclosure and a confirmation, since it can't be
+ * undone without a host.
+ */
+function ForfeitControl({ referee, teams }: { referee: RefereeRoomState; teams: MatchTeam[] }) {
+  const { busy, actions } = referee;
+  return (
+    <details className="roster-forfeit">
+      <summary>Hükmen bitir…</summary>
+      <p className="roster-manual-hint">
+        Bir takım maça gelmediyse ya da maç bir sebeple tamamlanamadıysa çekilen takımı seç. Diğer takım kazanır ve
+        bir sonraki maça geçer; skor yerine W / FF yazar. Geri almak için bir host maçı yeniden açmalı.
+      </p>
+      <div className="roster-manual-teams">
+        {teams.map((team, i) => {
+          const other = teams[1 - i];
+          return (
+            <button
+              key={team.id}
+              type="button"
+              className="btn btn-danger btn-sm"
+              disabled={busy}
+              onClick={() => {
+                if (window.confirm(`${team.name} çekilmiş sayılsın mı? Maç hükmen biter ve ${other.name} kazanır.`)) {
+                  actions.forfeit((i + 1) as 1 | 2);
+                }
+              }}
+            >
+              {team.name} çekildi
+            </button>
+          );
+        })}
+      </div>
+    </details>
   );
 }

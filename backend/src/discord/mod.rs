@@ -10,6 +10,7 @@
 //! retried on its own without repeating the others. Alongside it run the gateway
 //! connection (events.rs: members joining and leaving, slash commands and buttons) and
 //! the scheduler (scheduler.rs: reminders and announcements before matches start).
+mod announcement;
 mod channels;
 mod commands;
 mod events;
@@ -185,4 +186,10 @@ pub fn spawn(state: &AppState) {
             tokio::time::sleep(Duration::from_secs(30)).await;
         }
     });
+}
+
+// A match's title as its Discord messages show it ("W3: Team A vs Team B"), for jobs
+// that outlive the match.
+pub fn announcement_title(info: &crate::db::discord::MatchInfo) -> String {
+    messages::title(info)
 }

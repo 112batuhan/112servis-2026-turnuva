@@ -20,6 +20,7 @@ import {
 import { RefereeRoomLink } from "../../../components/bracket/RefereeRoomLink";
 import { ErrorAlert } from "../../../components/ErrorAlert";
 import { firstFreeSpot, incomingSources, SIDE_LABELS } from "../../../lib/bracket";
+import { useLive } from "../../../live/LiveContext";
 import { MatchPanel } from "./MatchPanel";
 import { RefereeControl, StreamerControl } from "./StaffControls";
 import { useBracketEditor, type EditorMatch, type EditorTeam } from "./useBracketEditor";
@@ -30,6 +31,8 @@ export function BracketAdminPage() {
   const isHost = hasRole(user, "host");
   const isReferee = hasRole(user, "referee");
   const editor = useBracketEditor(isReferee);
+  // Who has each match's referee page open, live.
+  const { presence } = useLive();
   const { data, error, setError, busy } = editor;
   const [view, setView] = useBracketView("admin");
   const [countdown, toggleCountdown] = useCountdownMode("admin");
@@ -163,6 +166,7 @@ export function BracketAdminPage() {
                 onShowInCalendar={showInCalendar}
                 countdown={countdown}
                 showRefereeRoom={isReferee}
+                presence={presence}
               />
             )}
             {view === "list" && (
@@ -176,6 +180,7 @@ export function BracketAdminPage() {
                 renderActions={isReferee ? (m) => <RefereeRoomLink matchId={m.id} variant="row" /> : undefined}
                 onShowInCalendar={showInCalendar}
                 countdown={countdown}
+                presence={presence}
               />
             )}
             {view === "calendar" && (
@@ -199,6 +204,7 @@ export function BracketAdminPage() {
               referees={referees}
               streamers={streamers}
               stages={stages}
+              watchers={presence.get(selected.id)}
               onClose={() => setSelectedId(null)}
             />
           )}

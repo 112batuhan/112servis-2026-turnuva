@@ -8,7 +8,7 @@ use serenity::all::{
 };
 use uuid::Uuid;
 
-use super::{jobs::Job, messages, snowflake, Bot, BotError, BotResult};
+use super::{announcement, jobs::Job, messages, snowflake, Bot, BotError, BotResult};
 use crate::{
     db::{
         self,
@@ -136,6 +136,8 @@ pub async fn sync_match(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResul
     };
     let stored = db::discord::match_discord(&state.db, match_id).await?;
     let players = db::discord::match_players(&state.db, match_id).await?;
+    // The public announcement doesn't depend on the channel.
+    announcement::sync(state, bot, &info, &players, &stored).await?;
     let Some(channel) = sync_channel(state, bot, &info, &players, &stored).await? else {
         return Ok(());
     };

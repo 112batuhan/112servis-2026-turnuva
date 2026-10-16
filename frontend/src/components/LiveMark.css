@@ -1,0 +1,46 @@
+.live-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-primary);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-md);
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* The one lit thing besides the current stage: the dot carries the crystal's glow, and breathes. */
+.live-mark::before {
+  content: "";
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: var(--glow);
+  animation: live-mark-pulse 1.8s ease-in-out infinite;
+}
+
+.live-mark.is-compact {
+  gap: 4px;
+  font-size: var(--text-xs);
+}
+
+.live-mark.is-compact::before {
+  width: 6px;
+  height: 6px;
+}
+
+@keyframes live-mark-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-mark::before {
+    animation: none;
+  }
+}

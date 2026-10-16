@@ -55,24 +55,9 @@
   white-space: nowrap;
 }
 
-.fixture-live {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-primary);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+/* "Canlı" at the size of the times it stands in for. */
+.fixture-when .live-mark {
   font-size: var(--text-lg);
-  font-weight: 800;
-}
-
-.fixture-live::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: var(--glow);
 }
 
 /* Team 1 hugs the score from the left, team 2 from the right. */
@@ -163,6 +148,28 @@
 .fixture-score > .is-winner {
   color: var(--color-text);
   font-weight: 800;
+}
+
+/* A running score: ringed in frost, the live colour, and each half that changes flashes once. */
+.fixture-score.is-live {
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.fixture-score.is-live > span {
+  animation: fixture-score-tick 900ms var(--ease-out);
+}
+
+@keyframes fixture-score-tick {
+  from {
+    background: color-mix(in srgb, var(--color-primary) 40%, transparent);
+    color: var(--color-text);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fixture-score.is-live > span {
+    animation: none;
+  }
 }
 
 .fixture-score > .fixture-vs {

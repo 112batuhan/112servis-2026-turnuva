@@ -77,7 +77,7 @@ pub async fn delete(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResult {
 pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embed> {
     let team1 = info.team1_name.as_deref().unwrap_or("?");
     let team2 = info.team2_name.as_deref().unwrap_or("?");
-    let (s1, s2) = (info.team1_score.unwrap_or(0), info.team2_score.unwrap_or(0));
+
     let code = match (info.side, info.number) {
         (Some(side), Some(n)) => side_code(side, n),
         _ => messages::code(info),
@@ -106,6 +106,7 @@ pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embe
     };
     let bans = db::bracket::list_bans(&state.db, info.id).await?;
     let picks = db::bracket::list_picks(&state.db, info.id).await?;
+    let manual = db::bracket::list_manual_results(&state.db, info.id).await?;
 
     let mut lines = Vec::new();
     let token = osu_api::token::app_token(&state.osu_client, &state.osu_app_token).await?;
@@ -147,8 +148,32 @@ pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embe
         }
     }
 
+    // Map wins the referee gave by hand, after the ones the rooms settled.
+    for result in &manual {
+        let map = result
+            .map_id
+            .and_then(|id| maps.iter().find(|m| m.map_id == id));
+        let what = match map {
+            Some(map) => format!(
+                "`{}` [{} [{}]](https://osu.ppy.sh/b/{})",
+                map.label, map.title, map.version, map.beatmap_id
+            ),
+            None => "Map dışı puan".to_string(),
+        };
+        let note = if result.note.is_empty() {
+            String::new()
+        } else {
+            format!(" · {}", result.note)
+        };
+        lines.push(format!(
+            "{what}\n└ **{}** · hakem kararı{note}",
+            name_of(result.team_id)
+        ));
+    }
+
+    let score = messages::result_line(info).unwrap_or_else(|| format!("{team1} – {team2}"));
     let mut embed = Embed {
-        title: Some(format!("{code}: {team1} {s1} – {s2} {team2}")),
+        title: Some(format!("{code}: {score}")),
         url: Some(site_url(state, &format!("/bracket?match={}", info.id))),
         color: Some(messages::COLOR),
         ..Embed::default()
@@ -168,15 +193,20 @@ pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embe
     if !description.is_empty() {
         embed.description = Some(description);
     }
-    let winner = match s1.cmp(&s2) {
-        std::cmp::Ordering::Greater => Some(team1),
-        std::cmp::Ordering::Less => Some(team2),
-        std::cmp::Ordering::Equal => None,
+    let winner = match messages::winning_slot(info) {
+        Some(1) => Some(team1),
+        Some(_) => Some(team2),
+        None => None,
     };
     if let Some(w) = winner {
+        let how = if info.forfeit_slot.is_some() {
+            " (hükmen)"
+        } else {
+            ""
+        };
         embed
             .fields
-            .push(("Kazanan".into(), format!("🏆 **{w}**"), true));
+            .push(("Kazanan".into(), format!("🏆 **{w}**{how}"), true));
     }
     if let Some(stage) = &info.stage_name {
         embed.fields.push(("Aşama".into(), stage.clone(), true));

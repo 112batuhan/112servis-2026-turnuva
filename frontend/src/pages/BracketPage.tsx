@@ -16,6 +16,9 @@ import {
   useLinkedMatch,
 } from "../components/bracket/BracketViewTabs";
 import { ErrorAlert } from "../components/ErrorAlert";
+import { withScore } from "../lib/bracket";
+import { useLiveRefresh } from "../lib/useLiveRefresh";
+import { useLiveBracket } from "../live/LiveContext";
 
 export function BracketPage() {
   const { user } = useAuth();
@@ -53,6 +56,12 @@ export function BracketPage() {
 
   const teams = useMemo(() => new Map<string, Team>(data?.teams.map((t) => [t.id, t])), [data]);
   const matches = useMemo(() => data?.matches ?? [], [data]);
+  // A failed refresh keeps what's shown; the next one tries again.
+  useLiveRefresh(matches, () => reload().catch(() => {}));
+  useLiveBracket(
+    (e) => setData((d) => d && { ...d, matches: withScore(d.matches, e.match_id, e.team1_score, e.team2_score) }),
+    () => reload().catch(() => {}),
+  );
   const search = useBracketSearch(matches, teams);
   // Signed-in users can ask to be pinged on Discord when a match is about to start.
   const subs = useSubscriptions(user != null);

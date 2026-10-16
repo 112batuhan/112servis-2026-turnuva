@@ -12,7 +12,7 @@ use crate::{
     auth::AuthUser,
     db::{
         self,
-        bracket::{BanRow, PickRow, Side},
+        bracket::{BanRow, ManualResultRow, PickRow, Side},
         chat::ChatMessage,
         mappool::{Category, PublicPoolMap, PublicSlot},
         matches::MatchKind,
@@ -63,6 +63,8 @@ pub struct RefereeRoom {
     team2_id: Option<Uuid>,
     team1_score: Option<i32>,
     team2_score: Option<i32>,
+    // Bracket matches only: the slot of the team that forfeited, once decided that way.
+    forfeit_slot: Option<i16>,
     // A bracket match's teams, or a lobby's in signup order.
     teams: Vec<Team<AdminTeamPlayer>>,
     // The map pool it's played in, published or not; no editor notes.
@@ -74,6 +76,8 @@ pub struct RefereeRoom {
     // they were made.
     bans: Vec<BanRow>,
     picks: Vec<PickRow>,
+    // Bracket matches only: map wins the referee awarded by hand, oldest first.
+    manual_results: Vec<ManualResultRow>,
     // The match has a Discord channel, so clicking a player's Discord name pings them
     // there (handlers/discord.rs).
     discord_channel: bool,
@@ -119,12 +123,13 @@ pub async fn get_room(
         ),
         _ => (None, Vec::new(), Vec::new(), Vec::new()),
     };
-    let (bans, picks) = match row.kind {
+    let (bans, picks, manual_results) = match row.kind {
         MatchKind::Bracket => (
             db::bracket::list_bans(&state.db, id).await?,
             db::bracket::list_picks(&state.db, id).await?,
+            db::bracket::list_manual_results(&state.db, id).await?,
         ),
-        MatchKind::Qualifier => (Vec::new(), Vec::new()),
+        MatchKind::Qualifier => (Vec::new(), Vec::new(), Vec::new()),
     };
 
     Ok(Json(RefereeRoom {
@@ -142,6 +147,7 @@ pub async fn get_room(
         team2_id: row.team2_id,
         team1_score: row.team1_score,
         team2_score: row.team2_score,
+        forfeit_slot: row.forfeit_slot,
         teams,
         stage,
         categories,
@@ -149,6 +155,7 @@ pub async fn get_room(
         maps,
         bans,
         picks,
+        manual_results,
         discord_channel: state.discord.enabled()
             && db::discord::channel_of(&state.db, id).await?.is_some(),
     }))

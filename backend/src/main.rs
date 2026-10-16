@@ -45,6 +45,8 @@ pub struct AppState {
     pub chat_loggers: handlers::irc::ChatLoggers,
     // Each user's Bancho IRC connection, shared by their tabs, and failed logins.
     pub irc_users: handlers::irc::IrcUsers,
+    // Every open page's live socket: score pushes and referee-page presence.
+    pub live: handlers::live::Live,
     // The tournament server's bot, when it's configured.
     pub discord: discord::Discord,
 }
@@ -91,6 +93,7 @@ async fn main() {
         rank_refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
         chat_loggers: handlers::irc::ChatLoggers::default(),
         irc_users: handlers::irc::IrcUsers::default(),
+        live: handlers::live::Live::default(),
         discord: discord::Discord::new(&config.discord_bot),
     };
     rank_refresh::spawn_daily_refresh(state.clone());
@@ -124,6 +127,7 @@ async fn main() {
         .merge(handlers::rules::routes())
         .merge(handlers::notifications::routes())
         .merge(handlers::irc::routes())
+        .merge(handlers::live::routes())
         .merge(handlers::discord::routes())
         .merge(handlers::team::routes());
     if config.dev_login {

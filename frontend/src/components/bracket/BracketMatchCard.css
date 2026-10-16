@@ -104,6 +104,11 @@
   display: none;
 }
 
+/* A running score reads in full ink, since nobody has won yet. */
+.bm-card.is-live .bm-card-score {
+  color: var(--color-text);
+}
+
 .bm-card-team.is-winner .bm-card-score {
   color: var(--color-text);
   font-weight: 800;

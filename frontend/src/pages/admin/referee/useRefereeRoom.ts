@@ -1,5 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { removeMapBan, removeMapPick, setBracketScore, setMapBan, setMapPick } from "../../../api/bracket";
+import {
+  addManualResult,
+  forfeitMatch,
+  removeManualResult,
+  removeMapBan,
+  removeMapPick,
+  setBracketScore,
+  setMapBan,
+  setMapPick,
+} from "../../../api/bracket";
 import { errorMessage } from "../../../api/client";
 import { addMatchRoom, removeMatchRoom } from "../../../api/matches";
 import { fetchRefereeRoom, fetchRoomChat } from "../../../api/referee";
@@ -25,7 +34,9 @@ import {
   type SlotTeam,
 } from "../../../lib/bancho";
 import { matchCode } from "../../../lib/bracket";
+import { readJson, writeJson } from "../../../lib/storage";
 import { registerAutoTeams, unregisterAutoTeams } from "./autoTeams";
+import { poolEntries, type PoolEntry } from "./pool";
 import { mergeChat, toChatLine, type SavedChat } from "./roomChat";
 
 export interface RosterPlayer {
@@ -61,6 +72,27 @@ export interface TeamTotal {
   score: number;
 }
 
+/** A finished map of the pool, read from the room, with its place among all finished maps. */
+export interface ResultRow {
+  result: MapResult;
+  /** Index among every finished map, which "Sayma" is keyed by. */
+  index: number;
+  entry: PoolEntry;
+  /** Each team's summed score on it, best first. */
+  totals: TeamTotal[];
+  /** The team that won it, or null for a tie or a map without scores. */
+  winnerId: string | null;
+}
+
+/** A bracket match's map wins, from the room and the referee's hand-awarded results. */
+export interface Tally {
+  rows: ResultRow[];
+  /** Finished maps that aren't in the pool (warmups, mistakes): not shown, not counted. */
+  outsidePool: number;
+  team1: number;
+  team2: number;
+}
+
 // How long BanchoBot gets to answer !mp make.
 const CREATE_TIMEOUT_MS = 20_000;
 
@@ -68,9 +100,13 @@ const PLAY_MODES: Record<string, number> = { osu: 0, taiko: 1, fruits: 2, mania:
 
 const DEFAULT_OPTIONS: RoomOptions = { scoreMode: 3, noFail: true, autoTeams: true };
 
-// Each match's options and uncounted maps, so switching to another match and back
-// keeps them. For this tab only, until it's reloaded.
-const matchSettings = new Map<string, { options: RoomOptions; ignored: Set<number> }>();
+// Each match's options, so switching to another match and back keeps them. For this
+// tab only, until it's reloaded.
+const matchOptions = new Map<string, RoomOptions>();
+
+// The finished maps the referee doesn't count, per match, kept in the browser: the
+// running score is saved from them, so a reload mustn't start counting them again.
+const ignoredKey = (matchId: string) => `referee-ignored:${matchId}`;
 
 // The tabs share one Bancho connection, and each takes BanchoBot's next "Created the
 // tournament match" reply as its own, so only one !mp make is out at a time. A Web
@@ -118,14 +154,19 @@ export function useRefereeRoom(matchId: string) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [options, setOptions] = useState<RoomOptions>(() => matchSettings.get(matchId)?.options ?? DEFAULT_OPTIONS);
-  // Finished maps the referee doesn't count (warmups, replays), by index.
-  const [ignored, setIgnored] = useState<Set<number>>(() => matchSettings.get(matchId)?.ignored ?? new Set());
+  const [options, setOptions] = useState<RoomOptions>(() => matchOptions.get(matchId) ?? DEFAULT_OPTIONS);
   useEffect(() => {
-    matchSettings.set(matchId, { options, ignored });
-  }, [matchId, options, ignored]);
+    matchOptions.set(matchId, options);
+  }, [matchId, options]);
+  // Finished maps the referee doesn't count (warmups, replays), by index.
+  const [ignored, setIgnored] = useState<Set<number>>(() => new Set(readJson<number[]>(ignoredKey(matchId), [])));
+  useEffect(() => {
+    writeJson(ignoredKey(matchId), [...ignored]);
+  }, [matchId, ignored]);
   // Each room's saved chat, by room id.
   const [saved, setSaved] = useState<Map<number, SavedChat>>(new Map());
+  // The rooms the saved chat was last loaded for, so the score isn't read from a half-loaded chat.
+  const [savedFor, setSavedFor] = useState<string | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -156,7 +197,11 @@ export function useRefereeRoom(matchId: string) {
   const roomsKey = rooms.map((r) => r.mp_id).join(",");
   useEffect(() => {
     setSaved(new Map());
-    if (!roomsKey) return;
+    setSavedFor(null);
+    if (!roomsKey) {
+      setSavedFor("");
+      return;
+    }
     const markers = new Map(
       roomsKey.split(",").map((id) => {
         const lines = conversations.current[conversationKey(`#mp_${id}`)]?.lines ?? [];
@@ -176,6 +221,7 @@ export function useRefereeRoom(matchId: string) {
             ]),
           ),
         );
+        setSavedFor(roomsKey);
       })
       .catch((e) => live && setError(errorMessage(e)));
     return () => {
@@ -220,6 +266,63 @@ export function useRefereeRoom(matchId: string) {
       roster.find((r) => r.player.osu_id === slot.userId || sameName(r.player.username, slot.username)),
     [roster],
   );
+
+  // The match's map wins: each finished pool map goes to the team with the higher total,
+  // unless the referee left it out, plus the maps they awarded by hand.
+  const tally = useMemo<Tally | null>(() => {
+    if (!room || room.kind !== "bracket") return null;
+    const entries = poolEntries(room);
+    const rows: ResultRow[] = lobby.results.flatMap((result, index) => {
+      const entry = entries.find((e) => e.map.beatmap_id === result.beatmapId);
+      if (!entry) return [];
+      const totals = teamTotals(result, roster);
+      const [best, second] = totals;
+      const winnerId = best && !(second && second.score === best.score) ? best.teamId : null;
+      return [{ result, index, entry, totals, winnerId }];
+    });
+    const wins = (teamId: string | null) =>
+      teamId === null
+        ? 0
+        : rows.filter((r) => !ignored.has(r.index) && r.winnerId === teamId).length +
+          room.manual_results.filter((m) => m.team_id === teamId).length;
+    return {
+      rows,
+      outsidePool: lobby.results.length - rows.length,
+      team1: wins(room.team1_id),
+      team2: wins(room.team2_id),
+    };
+  }, [room, lobby.results, roster, ignored]);
+
+  // The running score is saved as it changes, so the site shows it live: when a map
+  // finishes, a result is awarded by hand or a map is left out. Not on the first
+  // reading after the page loads, which would overwrite a score entered elsewhere
+  // (the referee can still save that one by hand).
+  const liveScore =
+    tally !== null &&
+    canRun &&
+    !concluded &&
+    room?.team1_id != null &&
+    room?.team2_id != null &&
+    savedFor === roomsKey;
+  const lastTally = useRef<string | null>(null);
+  const [scoreSaving, setScoreSaving] = useState(false);
+  useEffect(() => {
+    if (!liveScore || !room || !tally) {
+      lastTally.current = null;
+      return;
+    }
+    const key = `${tally.team1}:${tally.team2}`;
+    const previous = lastTally.current;
+    lastTally.current = key;
+    if (previous === null || previous === key) return;
+    if (room.team1_score === tally.team1 && room.team2_score === tally.team2) return;
+    const { team1, team2 } = tally;
+    setScoreSaving(true);
+    setBracketScore(room.id, team1, team2)
+      .then(() => setRoom((r) => r && { ...r, team1_score: team1, team2_score: team2 }))
+      .catch((e) => setError(errorMessage(e)))
+      .finally(() => setScoreSaving(false));
+  }, [liveScore, room, tally]);
 
   const say = useCallback(
     (text: string, target: string | null = channel) => {
@@ -416,6 +519,29 @@ export function useRefereeRoom(matchId: string) {
         await setBracketScore(room.id, team1, team2);
         await reload();
       }),
+
+    /** Awards a map (or, without one, a point) to a team by hand; it counts towards the score. */
+    addManualResult: (teamId: string, mapId: string | null, note: string) =>
+      run(async () => {
+        if (!room) return;
+        await addManualResult(room.id, teamId, mapId, note);
+        await reload();
+      }),
+
+    removeManualResult: (resultId: string) =>
+      run(async () => {
+        if (!room) return;
+        await removeManualResult(room.id, resultId);
+        await reload();
+      }),
+
+    /** Concludes the match by forfeit: `slot` is the team that forfeited; the other one moves on. */
+    forfeit: (slot: 1 | 2) =>
+      run(async () => {
+        if (!room) return;
+        await forfeitMatch(room.id, slot);
+        await reload();
+      }),
   };
 
   return {
@@ -433,6 +559,9 @@ export function useRefereeRoom(matchId: string) {
     findRoster,
     options,
     ignored,
+    tally,
+    liveScore,
+    scoreSaving,
     actions,
   };
 }

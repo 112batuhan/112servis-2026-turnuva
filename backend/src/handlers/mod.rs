@@ -8,6 +8,7 @@ pub mod bracket;
 pub mod dev;
 pub mod discord;
 pub mod irc;
+pub mod live;
 pub mod mappool;
 pub mod matches;
 pub mod notifications;

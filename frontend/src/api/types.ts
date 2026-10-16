@@ -341,6 +341,8 @@ export interface BracketMatch {
   team2_id: string | null;
   team1_score: number | null;
   team2_score: number | null;
+  /** The team that forfeited (1 or 2) when the match was decided that way; the other one won. */
+  forfeit_slot: 1 | 2 | null;
   winner_to: NextMatch | null;
   loser_to: NextMatch | null;
   /** The stage the match is played in, which sets its map pool. */
@@ -471,6 +473,8 @@ export interface RefereeRoom {
   team2_id: string | null;
   team1_score: number | null;
   team2_score: number | null;
+  /** Bracket matches only: the team that forfeited (1 or 2), once decided that way. */
+  forfeit_slot: 1 | 2 | null;
   /** A bracket match's teams, or a lobby's in signup order. */
   teams: Team<AdminTeamPlayer>[];
   /** The map pool it's played in, published or not. */
@@ -481,8 +485,26 @@ export interface RefereeRoom {
   /** Bracket matches only: the pool maps each team banned and picked, in the order they were made. */
   bans: MapBan[];
   picks: MapPick[];
+  /** Bracket matches only: map wins the referee awarded by hand, oldest first. */
+  manual_results: ManualResult[];
   /** The match has a Discord channel: clicking a player's Discord name pings them there. */
   discord_channel: boolean;
+}
+
+/** Someone who has a match's referee page open (sent live to staff). */
+export interface RefereeViewer {
+  id: string;
+  username: string;
+  avatar_url: string;
+}
+
+/** A map win the referee awarded by hand: counts as one map won by the team. */
+export interface ManualResult {
+  id: string;
+  /** A pool map (PublicPoolMap.id), or null for a point given without one. */
+  map_id: string | null;
+  team_id: string;
+  note: string;
 }
 
 /** A pool map (PublicPoolMap.id) banned in a match by one of its teams. */

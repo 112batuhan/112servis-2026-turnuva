@@ -3,7 +3,8 @@ import { useLocation } from "react-router-dom";
 import { fetchPublicBracket } from "../api/bracket";
 import { errorMessage } from "../api/client";
 import type { BracketMatch, PublicBracket } from "../api/types";
-import { bracketMatchPath, compareByTime, incomingSources } from "../lib/bracket";
+import { bracketMatchPath, compareByTime, incomingSources, withScore } from "../lib/bracket";
+import { useLiveBracket } from "../live/LiveContext";
 import { isAdminPath } from "../pages/admin/tabs";
 import { FixtureRow } from "./FixtureRow";
 import "./TeamMatches.css";
@@ -23,6 +24,13 @@ export function TeamMatches({ teamId }: { teamId: string }) {
       .then(setData)
       .catch((e) => setError(errorMessage(e)));
   }, []);
+  useLiveBracket(
+    (e) => setData((d) => d && { ...d, matches: withScore(d.matches, e.match_id, e.team1_score, e.team2_score) }),
+    () =>
+      fetchPublicBracket()
+        .then(setData)
+        .catch(() => {}),
+  );
 
   const teams = useMemo(() => new Map(data?.teams.map((t) => [t.id, t])), [data]);
   const sources = useMemo(() => incomingSources(data?.matches ?? []), [data]);

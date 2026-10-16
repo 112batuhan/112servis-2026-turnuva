@@ -1,0 +1,86 @@
+/* Someone is on the match's referee page: a quiet status pill in the info colour, not the live
+   frost, since it's about the staff, not the match being played. */
+.referee-watchers {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-info-soft);
+  color: var(--color-info);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: default;
+}
+
+.referee-watchers:hover,
+.referee-watchers[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--color-info) 28%, transparent);
+}
+
+/* A bigger hit target on touch, without growing the pill in the card's header. */
+@media (pointer: coarse) {
+  .referee-watchers {
+    position: relative;
+  }
+
+  .referee-watchers::after {
+    content: "";
+    position: absolute;
+    inset: -12px -6px;
+  }
+}
+
+.referee-watchers-list {
+  position: fixed;
+  z-index: 230;
+  min-width: 180px;
+  max-width: min(280px, calc(100vw - 24px));
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-popover);
+  pointer-events: none;
+}
+
+.referee-watchers-title {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.referee-watchers-list ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.referee-watchers-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.referee-watchers-list img {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}

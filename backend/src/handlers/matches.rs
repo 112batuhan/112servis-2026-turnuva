@@ -523,6 +523,7 @@ pub async fn set_referee(
             )
             .await?;
     }
+    state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -593,6 +594,7 @@ pub async fn add_room(
                 });
             }
             state.discord.enqueue(&state.db, &jobs).await?;
+            state.live.bracket_changed();
             Ok(StatusCode::NO_CONTENT)
         }
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("match_rooms_pkey") => {
@@ -625,6 +627,7 @@ pub async fn remove_room(
         .discord
         .enqueue(&state.db, &[Job::SyncMatch { match_id: id }])
         .await?;
+    state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -667,7 +670,8 @@ pub async fn conclude(
         return Err(AppError::BadRequest("add the match's room first"));
     }
     if m.kind == MatchKind::Bracket {
-        bracket::conclude(&state, id).await?;
+        bracket::conclude(&state, id, None).await?;
+        state.live.bracket_changed();
         return Ok(StatusCode::NO_CONTENT);
     }
     let mut tx = state.db.begin().await?;
@@ -687,6 +691,7 @@ pub async fn conclude(
         )
         .await?;
     tx.commit().await?;
+    state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -701,6 +706,7 @@ pub async fn reopen(
     let m = load_match(&state, id).await?;
     if m.kind == MatchKind::Bracket {
         bracket::reopen(&state, id).await?;
+        state.live.bracket_changed();
         return Ok(StatusCode::NO_CONTENT);
     }
     let mut tx = state.db.begin().await?;
@@ -718,5 +724,6 @@ pub async fn reopen(
             .await?;
     }
     tx.commit().await?;
+    state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }

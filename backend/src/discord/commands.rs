@@ -403,6 +403,7 @@ async fn history(state: &AppState, team: TeamName) -> super::BotResult<Reply> {
             continue;
         };
         let first = info.team1_id == Some(team.id);
+        let my_slot = if first { 1 } else { 2 };
         let (mine, theirs, opponent) = if first {
             (
                 info.team1_score,
@@ -416,8 +417,20 @@ async fn history(state: &AppState, team: TeamName) -> super::BotResult<Reply> {
                 info.team1_name.as_deref(),
             )
         };
-        let (mine, theirs) = (mine.unwrap_or(0), theirs.unwrap_or(0));
-        let mark = if mine > theirs { "✅" } else { "❌" };
+        let mark = if messages::winning_slot(&info) == Some(my_slot) {
+            "✅"
+        } else {
+            "❌"
+        };
+        // A forfeit reads as W or FF instead of a score.
+        let (mine, theirs) = match info.forfeit_slot {
+            Some(slot) if slot == my_slot => ("FF".to_string(), "W".to_string()),
+            Some(_) => ("W".to_string(), "FF".to_string()),
+            None => (
+                mine.unwrap_or(0).to_string(),
+                theirs.unwrap_or(0).to_string(),
+            ),
+        };
         let at = info
             .concluded_at
             .map(|at| format!(" · <t:{}:d>", at.unix_timestamp()))

@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, put},
+    routing::{delete, get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -41,6 +41,12 @@ pub fn routes() -> Router<AppState> {
         .route("/bracket/:id", put(update_match).delete(delete_match))
         .route("/bracket/:id/position", put(move_match))
         .route("/bracket/:id/score", put(set_score))
+        .route("/bracket/:id/forfeit", post(forfeit))
+        .route("/bracket/:id/results", post(add_manual_result))
+        .route(
+            "/bracket/:id/results/:result_id",
+            delete(remove_manual_result),
+        )
         .route("/bracket/:id/bans/:map_id", put(set_ban).delete(remove_ban))
         .route(
             "/bracket/:id/picks/:map_id",
@@ -51,6 +57,7 @@ pub fn routes() -> Router<AppState> {
 }
 
 const SCORE_MAX: i32 = 99;
+const RESULT_NOTE_MAX: usize = 200;
 
 #[derive(Debug, Serialize)]
 pub struct Streamer {
@@ -93,6 +100,9 @@ pub struct BracketMatch {
     team2_id: Option<Uuid>,
     team1_score: Option<i32>,
     team2_score: Option<i32>,
+    // 1 or 2: the team that forfeited, when the match was decided that way. The other
+    // one won, whatever the score says.
+    forfeit_slot: Option<i16>,
     winner_to: Option<NextMatch>,
     loser_to: Option<NextMatch>,
     stage: Option<MatchStage>,
@@ -153,6 +163,7 @@ fn to_match(row: BracketRow, links: &[LinkRow]) -> (BracketMatch, String) {
         team2_id: row.team2_id,
         team1_score: row.team1_score,
         team2_score: row.team2_score,
+        forfeit_slot: row.forfeit_slot,
         winner_to: next(Outcome::Winner),
         loser_to: next(Outcome::Loser),
         stage,
@@ -277,6 +288,7 @@ pub async fn create_match(
     let id = db::bracket::create_match(&state.db, body.side, body.pos_x, body.pos_y)
         .await
         .map_err(edit_error)?;
+    state.live.bracket_changed();
     Ok(Json(Created { id }))
 }
 
@@ -427,6 +439,7 @@ pub async fn update_match(
     }
     state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await.map_err(edit_error)?;
+    state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -459,21 +472,30 @@ pub async fn delete_match(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     let channel = db::discord::channel_of(&state.db, id).await?;
+    // Its public announcement, if it had one, stays and says it was cancelled.
+    let stored = db::discord::match_discord(&state.db, id).await?;
+    let info = db::discord::match_info(&state.db, id).await?;
     if !db::bracket::delete_match(&state.db, id).await? {
         return Err(AppError::NotFound);
     }
+    let mut jobs = Vec::new();
     if let Some(channel_id) = channel {
-        state
-            .discord
-            .enqueue(
-                &state.db,
-                &[Job::ArchiveChannel {
-                    channel_id,
-                    kind: MatchKind::Bracket,
-                }],
-            )
-            .await?;
+        jobs.push(Job::ArchiveChannel {
+            channel_id,
+            kind: MatchKind::Bracket,
+        });
     }
+    if let (Some(channel_id), Some(message_id), Some(info)) =
+        (stored.announce_channel_id, stored.announce_message_id, info)
+    {
+        jobs.push(Job::AnnouncementCancelled {
+            channel_id,
+            message_id,
+            title: crate::discord::announcement_title(&info),
+        });
+    }
+    state.discord.enqueue(&state.db, &jobs).await?;
+    state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -500,11 +522,20 @@ pub async fn set_score(
     if !valid(body.team1_score) || !valid(body.team2_score) {
         return Err(AppError::BadRequest("scores must be between 0 and 99"));
     }
-    if !db::bracket::set_score(&state.db, id, body.team1_score, body.team2_score).await? {
+    // The match card in its Discord channel shows the running score, so it's synced
+    // with every change; the open pages hear it right away.
+    let mut tx = state.db.begin().await?;
+    if !db::bracket::set_score(&mut *tx, id, body.team1_score, body.team2_score).await? {
         return Err(AppError::Conflict(
             "this match is concluded, reopen it to change the score",
         ));
     }
+    state
+        .discord
+        .enqueue(&mut *tx, &[Job::SyncMatch { match_id: id }])
+        .await?;
+    tx.commit().await?;
+    state.live.score(id, body.team1_score, body.team2_score);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -603,9 +634,15 @@ pub async fn remove_pick(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// The winner and loser of a match with both teams and a score that isn't a tie.
+// The winner and loser of a match with both teams: the team that didn't forfeit, or
+// else the one ahead on a score that isn't a tie.
 fn outcome(m: &BracketLock) -> Option<(Uuid, Uuid)> {
     let (t1, t2) = (m.team1_id?, m.team2_id?);
+    match m.forfeit_slot {
+        Some(1) => return Some((t2, t1)),
+        Some(_) => return Some((t1, t2)),
+        None => {}
+    }
     match m.team1_score?.cmp(&m.team2_score?) {
         std::cmp::Ordering::Greater => Some((t1, t2)),
         std::cmp::Ordering::Less => Some((t2, t1)),
@@ -614,23 +651,28 @@ fn outcome(m: &BracketLock) -> Option<(Uuid, Uuid)> {
 }
 
 // Concludes a bracket match and puts its winner and loser into the slots they're
-// linked to. Called by matches::conclude once it has checked who's asking.
-pub async fn conclude(state: &AppState, id: Uuid) -> Result<(), AppError> {
+// linked to. Called by matches::conclude once it has checked who's asking, and by
+// `forfeit` with the slot that forfeited, which needs neither a room nor a score.
+pub async fn conclude(state: &AppState, id: Uuid, forfeit: Option<i16>) -> Result<(), AppError> {
     let mut tx = state.db.begin().await?;
-    let m = db::bracket::lock_match(&mut tx, id)
+    let mut m = db::bracket::lock_match(&mut tx, id)
         .await?
         .ok_or(AppError::NotFound)?;
     if m.concluded() {
         return Err(AppError::Conflict("this match is already concluded"));
     }
-    if !m.has_room {
+    if forfeit.is_none() && !m.has_room {
         return Err(AppError::BadRequest("add the match's room first"));
     }
     if m.team1_id.is_none() || m.team2_id.is_none() {
         return Err(AppError::BadRequest("this match needs both teams first"));
     }
+    m.forfeit_slot = forfeit;
     let (winner, loser) =
         outcome(&m).ok_or(AppError::BadRequest("enter a score with a winner first"))?;
+    if forfeit.is_some() {
+        db::bracket::set_forfeit(&mut tx, id, forfeit).await?;
+    }
     // The channel is archived, the results posted, and the matches the teams move on to
     // may now have both teams and so their channel.
     let mut jobs = vec![
@@ -654,7 +696,16 @@ pub async fn conclude(state: &AppState, id: Uuid) -> Result<(), AppError> {
         });
     }
     db::reschedule::delete_for_match(&mut tx, id).await?;
-    db::matches::conclude(&mut *tx, id).await?;
+    let concluded = match forfeit {
+        Some(_) => db::matches::conclude_forfeit(&mut *tx, id).await?,
+        None => db::matches::conclude(&mut *tx, id).await?,
+    };
+    // The row is locked, so this only fails if the room was removed in between.
+    if !concluded {
+        return Err(AppError::Conflict(
+            "this match changed, reload and try again",
+        ));
+    }
     state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await?;
     Ok(())
@@ -701,10 +752,109 @@ pub async fn reopen(state: &AppState, id: Uuid) -> Result<(), AppError> {
             });
         }
     }
+    db::bracket::set_forfeit(&mut tx, id, None).await?;
     db::matches::reopen(&mut *tx, id).await?;
     state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await?;
     Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ForfeitBody {
+    // The slot (1 or 2) of the team that forfeits.
+    slot: i16,
+}
+
+// POST /api/bracket/:id/forfeit — the match's referee or a host concludes it by
+// forfeit: a team didn't show up or the match couldn't be finished. The other team
+// moves on as the winner. Needs both teams, but no room or score.
+pub async fn forfeit(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ForfeitBody>,
+) -> Result<impl IntoResponse, AppError> {
+    let m = load_match(&state, id).await?;
+    if m.kind != MatchKind::Bracket {
+        return Err(AppError::NotFound);
+    }
+    require_runs(&user, &m)?;
+    if !(1..=2).contains(&body.slot) {
+        return Err(AppError::BadRequest("slot must be 1 or 2"));
+    }
+    conclude(&state, id, Some(body.slot)).await?;
+    state.live.bracket_changed();
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ManualResultBody {
+    team_id: Uuid,
+    // A map of the match's pool, or none for a point given without one.
+    map_id: Option<Uuid>,
+    #[serde(default)]
+    note: String,
+}
+
+// Hand-awarded map wins change the score, so like the score they're for the match's
+// referee or a host, and fixed once it's concluded.
+async fn check_results(state: &AppState, user: &AuthUser, id: Uuid) -> Result<(), AppError> {
+    let m = load_match(state, id).await?;
+    if m.kind != MatchKind::Bracket {
+        return Err(AppError::NotFound);
+    }
+    require_runs(user, &m)?;
+    if m.concluded() {
+        return Err(AppError::Conflict(
+            "this match is concluded, reopen it to change its results",
+        ));
+    }
+    Ok(())
+}
+
+// POST /api/bracket/:id/results — awards a map (or a point without one) to one of the
+// match's teams by hand, for a map the room didn't settle. The referee page counts it
+// with the maps read from the room.
+pub async fn add_manual_result(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ManualResultBody>,
+) -> Result<impl IntoResponse, AppError> {
+    check_results(&state, &user, id).await?;
+    let teams = db::bracket::find_match(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    if Some(body.team_id) != teams.team1_id && Some(body.team_id) != teams.team2_id {
+        return Err(AppError::BadRequest("that team doesn't play in this match"));
+    }
+    if let Some(map_id) = body.map_id {
+        if !db::bracket::map_in_pool(&state.db, id, map_id).await? {
+            return Err(AppError::BadRequest("that map isn't in this match's pool"));
+        }
+    }
+    let note = body.note.trim();
+    if note.chars().count() > RESULT_NOTE_MAX {
+        return Err(AppError::BadRequest(
+            "the note can be at most 200 characters",
+        ));
+    }
+    let result_id =
+        db::bracket::add_manual_result(&state.db, id, body.map_id, body.team_id, note).await?;
+    Ok((StatusCode::CREATED, Json(Created { id: result_id })))
+}
+
+// DELETE /api/bracket/:id/results/:result_id — takes a hand-awarded map win back.
+pub async fn remove_manual_result(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path((id, result_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    check_results(&state, &user, id).await?;
+    if !db::bracket::delete_manual_result(&state.db, id, result_id).await? {
+        return Err(AppError::NotFound);
+    }
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Debug, Deserialize)]
@@ -734,6 +884,7 @@ pub async fn set_streamer(
         }
         db::bracket::set_streamer(&state.db, id, body.streamer_id).await?;
         streamer_changed(&state, &user, id, m.streamer_id, body.streamer_id).await?;
+        state.live.bracket_changed();
         return Ok(StatusCode::NO_CONTENT);
     }
 
@@ -743,6 +894,7 @@ pub async fn set_streamer(
     match body.streamer_id {
         Some(streamer_id) if streamer_id == user.id => {
             if m.streamer_id == Some(user.id) {
+                state.live.bracket_changed();
                 return Ok(StatusCode::NO_CONTENT);
             }
             if !user.roles.has(Role::Streamer) {
@@ -765,6 +917,7 @@ pub async fn set_streamer(
         Some(_) => return Err(AppError::Forbidden),
     }
     streamer_changed(&state, &user, id, m.streamer_id, body.streamer_id).await?;
+    state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }
 

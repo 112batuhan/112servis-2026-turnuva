@@ -10,7 +10,7 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from "react";
-import type { BracketMatch, Team } from "../../api/types";
+import type { BracketMatch, RefereeViewer, Team } from "../../api/types";
 import { BOARD, compareByTime, snapPosition, incomingSources, matchCode, overlapsAny, type Point } from "../../lib/bracket";
 import { IconButton } from "../IconButton";
 import { BracketMatchCard } from "./BracketMatchCard";
@@ -80,6 +80,8 @@ interface Props {
   showRefereeRoom?: boolean;
   /** The ids of the matches the search finds, or null when not searching; the rest are dimmed. */
   hits?: Set<string> | null;
+  /** Who has each match's referee page open, by match id (admin only). */
+  presence?: ReadonlyMap<string, RefereeViewer[]>;
 }
 
 const clampScale = (s: number) => Math.min(MAX_SCALE, Math.max(MIN_SCALE, s));
@@ -111,6 +113,7 @@ export function BracketGrid({
   countdown,
   showRefereeRoom,
   hits,
+  presence,
 }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const boardRef = useRef<HTMLDivElement>(null);
@@ -548,6 +551,7 @@ export function BracketGrid({
                 onShowInCalendar={onShowInCalendar}
                 countdown={countdown}
                 showRefereeRoom={showRefereeRoom}
+                watchers={presence?.get(m.id)}
               />
             </div>
           );

@@ -1,8 +1,9 @@
 import { Link } from "react-router-dom";
 import type { BracketMatch, Team } from "../api/types";
-import { matchCode, sourceLabel, winningSlot, type Source } from "../lib/bracket";
+import { isLive, matchCode, scoreHalves, sourceLabel, winningSlot, type Source } from "../lib/bracket";
 import { formatShortMatchTime } from "../lib/format";
 import { Countdown } from "./Countdown";
+import { LiveMark } from "./LiveMark";
 import { TeamBanner } from "./bracket/TeamBanner";
 import "./FixtureRow.css";
 
@@ -25,7 +26,17 @@ interface Props {
 export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Props) {
   const winner = winningSlot(match);
   const started = match.starts_at !== null && new Date(match.starts_at).getTime() <= Date.now();
-  const live = !match.concluded_at && started && match.rooms.length > 0;
+  const live = isLive(match);
+  // A concluded match's result, or the running score of a live one as its referee saves it.
+  const halves = match.concluded_at || live ? scoreHalves(match) : null;
+  // While it's live, whoever is ahead reads like a winner; level, neither does.
+  const leading =
+    live && match.team1_score !== null && match.team2_score !== null && match.team1_score !== match.team2_score
+      ? match.team1_score > match.team2_score
+        ? 1
+        : 2
+      : null;
+  const ahead = winner ?? leading;
 
   const side = (slot: 1 | 2) => {
     const team = slot === 1 ? team1 : team2;
@@ -52,7 +63,7 @@ export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Prop
     <Link to={to} className={live ? "fixture-row is-live" : "fixture-row"}>
       <span className="fixture-when">
         {live ? (
-          <span className="fixture-live">Canlı</span>
+          <LiveMark />
         ) : match.starts_at ? (
           <>
             <span className="fixture-time">{formatShortMatchTime(match.starts_at)}</span>
@@ -65,11 +76,24 @@ export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Prop
         )}
       </span>
       {side(1)}
-      <span className="fixture-score" aria-label={match.concluded_at ? "Skor" : undefined}>
-        {match.concluded_at ? (
+      <span
+        className={live ? "fixture-score is-live" : "fixture-score"}
+        aria-label={halves ? (match.forfeit_slot && match.concluded_at ? "Hükmen sonuç" : live ? "Canlı skor" : "Skor") : undefined}
+      >
+        {halves ? (
           <>
-            <span className={winner === 1 ? "is-winner" : undefined}>{match.team1_score ?? "–"}</span>
-            <span className={winner === 2 ? "is-winner" : undefined}>{match.team2_score ?? "–"}</span>
+            {/* Keyed by the figure, so a half that changes while live is new and flashes once. */}
+            <span key={`1:${halves[0]}`} className={ahead === 1 ? "is-winner" : undefined}>
+              {halves[0]}
+            </span>
+            <span key={`2:${halves[1]}`} className={ahead === 2 ? "is-winner" : undefined}>
+              {halves[1]}
+            </span>
+          </>
+        ) : match.concluded_at ? (
+          <>
+            <span>–</span>
+            <span>–</span>
           </>
         ) : (
           <span className="fixture-vs">vs</span>

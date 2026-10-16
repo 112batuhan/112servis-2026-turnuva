@@ -35,6 +35,8 @@ pub struct BracketRow {
     pub team2_id: Option<Uuid>,
     pub team1_score: Option<i32>,
     pub team2_score: Option<i32>,
+    // The slot of the team that forfeited, when the match was decided that way.
+    pub forfeit_slot: Option<i16>,
     // Its rooms, oldest first.
     pub mp_ids: Vec<i64>,
     pub referee_notes: String,
@@ -68,6 +70,7 @@ pub struct BracketLock {
     pub team2_id: Option<Uuid>,
     pub team1_score: Option<i32>,
     pub team2_score: Option<i32>,
+    pub forfeit_slot: Option<i16>,
     pub streamer_id: Option<Uuid>,
     pub has_room: bool,
     pub concluded_at: Option<OffsetDateTime>,
@@ -96,7 +99,7 @@ pub async fn list_matches(pool: &PgPool) -> sqlx::Result<Vec<BracketRow>> {
     sqlx::query_as::<_, BracketRow>(
         r#"
         SELECT m.id, b.side, b.number, b.pos_x, b.pos_y, m.starts_at,
-               b.team1_id, b.team2_id, b.team1_score, b.team2_score,
+               b.team1_id, b.team2_id, b.team1_score, b.team2_score, b.forfeit_slot,
                ARRAY(SELECT r.mp_id FROM match_rooms r WHERE r.match_id = m.id
                      ORDER BY r.added_at, r.mp_id) AS mp_ids,
                m.referee_notes, m.concluded_at,
@@ -157,7 +160,8 @@ pub async fn delete_match(pool: &PgPool, id: Uuid) -> sqlx::Result<bool> {
 pub async fn find_match(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<BracketLock>> {
     sqlx::query_as::<_, BracketLock>(
         r#"
-        SELECT m.starts_at, m.referee_id, b.team1_id, b.team2_id, b.team1_score, b.team2_score, b.streamer_id,
+        SELECT m.starts_at, m.referee_id, b.team1_id, b.team2_id, b.team1_score, b.team2_score,
+               b.forfeit_slot, b.streamer_id,
                EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id) AS has_room,
                m.concluded_at
         FROM bracket_matches b
@@ -174,7 +178,8 @@ pub async fn find_match(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<BracketL
 pub async fn lock_match(conn: &mut PgConnection, id: Uuid) -> sqlx::Result<Option<BracketLock>> {
     sqlx::query_as::<_, BracketLock>(
         r#"
-        SELECT m.starts_at, m.referee_id, b.team1_id, b.team2_id, b.team1_score, b.team2_score, b.streamer_id,
+        SELECT m.starts_at, m.referee_id, b.team1_id, b.team2_id, b.team1_score, b.team2_score,
+               b.forfeit_slot, b.streamer_id,
                EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id) AS has_room,
                m.concluded_at
         FROM bracket_matches b
@@ -280,7 +285,7 @@ pub async fn move_match(pool: &PgPool, id: Uuid, pos_x: i32, pos_y: i32) -> sqlx
 
 // Sets the score of a match that isn't concluded. False when it is.
 pub async fn set_score(
-    pool: &PgPool,
+    ex: impl PgExecutor<'_>,
     id: Uuid,
     team1_score: Option<i32>,
     team2_score: Option<i32>,
@@ -295,9 +300,23 @@ pub async fn set_score(
     .bind(id)
     .bind(team1_score)
     .bind(team2_score)
-    .execute(pool)
+    .execute(ex)
     .await?;
     Ok(result.rows_affected() > 0)
+}
+
+// Records which slot forfeited (or clears it), inside a conclusion or a reopening.
+pub async fn set_forfeit(
+    conn: &mut PgConnection,
+    id: Uuid,
+    forfeit_slot: Option<i16>,
+) -> sqlx::Result<()> {
+    sqlx::query("UPDATE bracket_matches SET forfeit_slot = $2 WHERE match_id = $1")
+        .bind(id)
+        .bind(forfeit_slot)
+        .execute(conn)
+        .await?;
+    Ok(())
 }
 
 // Puts a team into slot 1 or 2 of a match.
@@ -506,6 +525,65 @@ pub async fn delete_pick(pool: &PgPool, match_id: Uuid, map_id: Uuid) -> sqlx::R
     let result = sqlx::query("DELETE FROM match_picks WHERE match_id = $1 AND pool_map_id = $2")
         .bind(match_id)
         .bind(map_id)
+        .execute(pool)
+        .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+// A map win the referee awarded by hand.
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct ManualResultRow {
+    pub id: Uuid,
+    // Null for a point given without a map, or once the map left the pool.
+    pub map_id: Option<Uuid>,
+    pub team_id: Uuid,
+    pub note: String,
+}
+
+// A match's hand-awarded map wins, in the order they were given.
+pub async fn list_manual_results(
+    pool: &PgPool,
+    match_id: Uuid,
+) -> sqlx::Result<Vec<ManualResultRow>> {
+    sqlx::query_as::<_, ManualResultRow>(
+        r#"
+        SELECT id, pool_map_id AS map_id, team_id, note
+        FROM match_manual_results
+        WHERE match_id = $1
+        ORDER BY created_at, id
+        "#,
+    )
+    .bind(match_id)
+    .fetch_all(pool)
+    .await
+}
+
+pub async fn add_manual_result(
+    pool: &PgPool,
+    match_id: Uuid,
+    map_id: Option<Uuid>,
+    team_id: Uuid,
+    note: &str,
+) -> sqlx::Result<Uuid> {
+    sqlx::query_scalar(
+        r#"
+        INSERT INTO match_manual_results (match_id, pool_map_id, team_id, note)
+        VALUES ($1, $2, $3, $4)
+        RETURNING id
+        "#,
+    )
+    .bind(match_id)
+    .bind(map_id)
+    .bind(team_id)
+    .bind(note)
+    .fetch_one(pool)
+    .await
+}
+
+pub async fn delete_manual_result(pool: &PgPool, match_id: Uuid, id: Uuid) -> sqlx::Result<bool> {
+    let result = sqlx::query("DELETE FROM match_manual_results WHERE match_id = $1 AND id = $2")
+        .bind(match_id)
+        .bind(id)
         .execute(pool)
         .await?;
     Ok(result.rows_affected() > 0)

@@ -25,6 +25,51 @@
   font-weight: 400;
 }
 
+/* Who else has the page open: a row of avatars and names under the header, in the info colour
+   the bracket editor's badge uses for the same thing. */
+.referee-viewers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.referee-viewers-label {
+  color: var(--color-info);
+  font-weight: 600;
+}
+
+.referee-viewers ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.referee-viewers li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 2px var(--space-3) 2px 2px;
+  border-radius: var(--radius-full);
+  background: var(--color-info-soft);
+  font-weight: 600;
+}
+
+.referee-viewers img {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+
+.referee-viewers-self {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
 .referee-meta {
   color: var(--color-text-muted);
   font-size: var(--text-sm);

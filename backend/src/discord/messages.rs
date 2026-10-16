@@ -31,7 +31,7 @@ const COLOR_GOOD: u32 = 0x3ba55d;
 const COLOR_WARN: u32 = 0xfaa61a;
 const COLOR_BAD: u32 = 0xed4245;
 // A finished match.
-const COLOR_DONE: u32 = 0x747f8d;
+pub const COLOR_DONE: u32 = 0x747f8d;
 
 // "W1", "L3" or "Lobi 2".
 pub fn code(info: &MatchInfo) -> String {
@@ -62,6 +62,34 @@ pub fn title(info: &MatchInfo) -> String {
 }
 
 // Shown in each reader's own time zone.
+// A bracket match's result as "Team A 3 – 1 Team B", or "Team A FF – W Team B" when
+// team 1 forfeited. None until it has a score or a forfeit.
+pub fn result_line(info: &MatchInfo) -> Option<String> {
+    let team1 = info.team1_name.as_deref().unwrap_or("?");
+    let team2 = info.team2_name.as_deref().unwrap_or("?");
+    let (s1, s2) = match info.forfeit_slot {
+        Some(1) => ("FF".to_string(), "W".to_string()),
+        Some(_) => ("W".to_string(), "FF".to_string()),
+        None => (info.team1_score?.to_string(), info.team2_score?.to_string()),
+    };
+    Some(format!("{team1} {s1} – {s2} {team2}"))
+}
+
+// Which slot won a concluded bracket match: the team that didn't forfeit, or the one
+// ahead on the score. None for a tie or a match without a result.
+pub fn winning_slot(info: &MatchInfo) -> Option<i16> {
+    match info.forfeit_slot {
+        Some(1) => return Some(2),
+        Some(_) => return Some(1),
+        None => {}
+    }
+    match info.team1_score?.cmp(&info.team2_score?) {
+        std::cmp::Ordering::Greater => Some(1),
+        std::cmp::Ordering::Less => Some(2),
+        std::cmp::Ordering::Equal => None,
+    }
+}
+
 pub fn when(at: OffsetDateTime) -> String {
     let t = at.unix_timestamp();
     format!("<t:{t}:F> (<t:{t}:R>)")
@@ -364,13 +392,19 @@ pub fn match_card(state: &AppState, info: &MatchInfo, players: &[MatchPlayer]) -
         }
         embed = embed.field("🎮 Maç linki", rooms, false);
     }
+    // While it's being played, the running score as the referee page saves it: every
+    // change queues a sync, and the card is edited when it renders differently.
+    if info.kind == MatchKind::Bracket && !concluded && !info.mp_ids.is_empty() {
+        if let Some(line) = result_line(info) {
+            embed = embed.field("🔴 Canlı skor", format!("**{line}**"), false);
+        }
+    }
     if concluded {
-        let result = match (info.kind, info.team1_score, info.team2_score) {
-            (MatchKind::Bracket, Some(s1), Some(s2)) => format!(
-                "**{} {s1} – {s2} {}**",
-                info.team1_name.as_deref().unwrap_or("?"),
-                info.team2_name.as_deref().unwrap_or("?"),
-            ),
+        let result = match (info.kind, result_line(info)) {
+            (MatchKind::Bracket, Some(line)) if info.forfeit_slot.is_some() => {
+                format!("**{line}** (hükmen)")
+            }
+            (MatchKind::Bracket, Some(line)) => format!("**{line}**"),
             _ => "Maç tamamlandı.".to_string(),
         };
         embed = embed.field("🏁 Sonuç", result, false);
@@ -531,7 +565,6 @@ fn match_id_of(job: &Job) -> Option<Uuid> {
         | Job::Concluded { match_id }
         | Job::Reopened { match_id }
         | Job::Reminder { match_id }
-        | Job::Announce { match_id }
         | Job::Ping { match_id, .. } => Some(*match_id),
         _ => None,
     }
@@ -722,12 +755,13 @@ async fn match_event(
             );
         }
         Job::Concluded { .. } => {
-            let text = match (info.kind, info.team1_score, info.team2_score) {
-                (MatchKind::Bracket, Some(s1), Some(s2)) => format!(
-                    "🏁 Maç bitti: **{} {s1} – {s2} {}**. İyi oyundu! Kanal arşive taşındı.",
-                    info.team1_name.as_deref().unwrap_or("?"),
-                    info.team2_name.as_deref().unwrap_or("?"),
-                ),
+            let text = match (info.kind, result_line(info)) {
+                (MatchKind::Bracket, Some(line)) if info.forfeit_slot.is_some() => {
+                    format!("🏁 Maç hükmen sonuçlandı: **{line}**. Kanal arşive taşındı.")
+                }
+                (MatchKind::Bracket, Some(line)) => {
+                    format!("🏁 Maç bitti: **{line}**. İyi oyundu! Kanal arşive taşındı.")
+                }
                 _ => "🏁 Maç tamamlandı. Kanal arşive taşındı.".to_string(),
             };
             let mut p = Pings::default();
@@ -768,7 +802,6 @@ async fn match_event(
             }
             cx.post_match(id, text, p);
         }
-        Job::Announce { .. } => announce(cx, info, players).await?,
         Job::Ping { user_id, by, .. } => {
             let Some(player) = players.iter().find(|pl| pl.user_id == *user_id) else {
                 return Ok(());
@@ -835,21 +868,87 @@ async fn ask_staff(
     Ok(())
 }
 
-// The public post before a bracket match starts, pinging those who asked for it.
-async fn announce(cx: &mut Ctx<'_>, info: &MatchInfo, players: &[MatchPlayer]) -> BotResult {
-    let Some(channel) = cx.settings.match_announce_channel_id else {
-        return Ok(());
+// The public announcement of a bracket match as it stands, for the announcement
+// channel (discord/announcement.rs posts it 15 minutes before, edits it on every change
+// and deletes it once the match is concluded): coming up, being played with the running
+// score, moved to a new time, or cancelled. `announced_for` is the start time it went
+// out for.
+// No pings: those go out once, with the first post.
+#[derive(Debug, PartialEq, Eq)]
+enum Announced {
+    Upcoming,
+    Live,
+    Moved,
+    Cancelled,
+}
+
+// Which of those an announced match is in now. A cancelled match lost a team; a moved
+// one starts at another time than the one it was announced for (until it's announced
+// again); a live one has a room and isn't concluded.
+fn announced_state(info: &MatchInfo, announced_for: Option<OffsetDateTime>) -> Announced {
+    if info.team1_id.is_none() || info.team2_id.is_none() {
+        Announced::Cancelled
+    } else if info.starts_at != announced_for {
+        Announced::Moved
+    } else if info.concluded_at.is_none() && !info.mp_ids.is_empty() {
+        Announced::Live
+    } else {
+        Announced::Upcoming
+    }
+}
+
+pub fn announcement(
+    state: &AppState,
+    info: &MatchInfo,
+    players: &[MatchPlayer],
+    announced_for: Option<OffsetDateTime>,
+) -> OutMessage {
+    let title = title(info);
+    let state_now = announced_state(info, announced_for);
+    let live = state_now == Announced::Live;
+    let (status, description, color) = if state_now == Announced::Cancelled {
+        (
+            format!("❌ **{title}** iptal edildi."),
+            "Bu maç iptal edildi.".to_string(),
+            COLOR_DONE,
+        )
+    } else if state_now == Announced::Moved {
+        let new_time = info
+            .starts_at
+            .map_or("Yeni saati henüz belli değil.".to_string(), |at| {
+                format!("Yeni saat: {}", when(at))
+            });
+        (
+            format!("📅 **{title}** ertelendi."),
+            format!("{new_time}\nYeni saatinden önce yeniden duyurulur."),
+            COLOR_WARN,
+        )
+    } else if live {
+        let description = match result_line(info) {
+            Some(line) => format!("Canlı skor: **{line}**"),
+            None => "Maç başladı.".to_string(),
+        };
+        (
+            format!("🔴 **{title}** şu an oynanıyor!"),
+            description,
+            COLOR_BAD,
+        )
+    } else {
+        (
+            format!("📣 **{title}** birazdan başlıyor!"),
+            info.starts_at
+                .map_or(String::new(), |at| format!("Maç {} başlıyor!", when(at))),
+            COLOR,
+        )
     };
-    let Some(at) = info.starts_at else {
-        return Ok(());
-    };
+
     // Names only: the players and staff hear about it in their own channel.
     let mut silent = Pings::default();
     let mut embed = Embed {
-        title: Some(title(info)),
-        url: Some(match_url(cx.state, info)),
-        description: Some(format!("Maç {} başlıyor!", when(at))),
-        color: Some(COLOR),
+        title: Some(title.clone()),
+        url: Some(match_url(state, info)),
+        description: Some(description),
+        color: Some(color),
         ..Embed::default()
     };
     for team_id in [info.team1_id, info.team2_id].into_iter().flatten() {
@@ -873,39 +972,33 @@ async fn announce(cx: &mut Ctx<'_>, info: &MatchInfo, players: &[MatchPlayer]) -
     if let Some(s) = silent.streamer(info) {
         embed.fields.push(("Yayıncı".into(), s, true));
     }
+    if let Some(latest) = info.mp_ids.last().filter(|_| live) {
+        embed
+            .fields
+            .push(("Maç linki".into(), room_url(*latest), false));
+    }
+    let (embed, gallery) = with_banners(state, info, embed);
+    OutMessage {
+        content: status,
+        mentions: Vec::new(),
+        embed: Some(embed),
+        gallery,
+        buttons: Vec::new(),
+    }
+}
 
-    let (embed, gallery) = with_banners(cx.state, info, embed);
+// The rest of a long subscriber list, after the first ones in the announcement itself.
+pub fn mention_chunks(ids: &[String]) -> (Vec<String>, Vec<Vec<String>>) {
+    let mut chunks = ids.chunks(MENTIONS_PER_MESSAGE).map(<[String]>::to_vec);
+    let first = chunks.next().unwrap_or_default();
+    (first, chunks.collect())
+}
 
-    let subscribers = db::discord::subscriber_discord_ids(&cx.state.db, info.id).await?;
-    let mut chunks = subscribers.chunks(MENTIONS_PER_MESSAGE);
-    let first: Vec<String> = chunks.next().map(<[String]>::to_vec).unwrap_or_default();
-    let mentions = first
-        .iter()
+pub fn mentions(ids: &[String]) -> String {
+    ids.iter()
         .map(|id| format!("<@{id}>"))
         .collect::<Vec<_>>()
-        .join(" ");
-    cx.out.push((
-        super::jobs::Target::Channel(channel),
-        OutMessage {
-            content: format!("📣 **{}** birazdan başlıyor! {mentions}", title(info)),
-            mentions: first,
-            embed: Some(embed),
-            gallery,
-            buttons: Vec::new(),
-        },
-    ));
-    for chunk in chunks {
-        let mentions = chunk
-            .iter()
-            .map(|id| format!("<@{id}>"))
-            .collect::<Vec<_>>()
-            .join(" ");
-        cx.out.push((
-            super::jobs::Target::Channel(channel),
-            OutMessage::text(mentions, chunk.to_vec()),
-        ));
-    }
-    Ok(())
+        .join(" ")
 }
 
 // A new team, in the announcement channel unless both players were announced within the
@@ -978,4 +1071,75 @@ async fn team_formed(cx: &mut Ctx<'_>, team_id: Uuid) -> BotResult {
         },
     ));
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use time::macros::datetime;
+
+    fn info() -> MatchInfo {
+        MatchInfo {
+            id: Uuid::nil(),
+            kind: MatchKind::Bracket,
+            starts_at: Some(datetime!(2026-10-20 18:00 UTC)),
+            concluded_at: None,
+            side: Some(Side::Winners),
+            number: Some(3),
+            lobby_number: None,
+            team1_id: Some(Uuid::from_u128(1)),
+            team2_id: Some(Uuid::from_u128(2)),
+            team1_name: Some("Kırmızı".into()),
+            team2_name: Some("Mavi".into()),
+            team1_score: None,
+            team2_score: None,
+            forfeit_slot: None,
+            team1_banner_at: None,
+            team2_banner_at: None,
+            referee_id: None,
+            referee_username: None,
+            referee_discord_id: None,
+            referee_in_guild: None,
+            streamer_id: None,
+            streamer_username: None,
+            streamer_discord_id: None,
+            streamer_in_guild: None,
+            stage_id: None,
+            stage_name: None,
+            mp_ids: Vec::new(),
+            entries: 0,
+        }
+    }
+
+    #[test]
+    fn announcement_follows_the_match() {
+        let announced = Some(datetime!(2026-10-20 18:00 UTC));
+        let mut m = info();
+        assert_eq!(announced_state(&m, announced), Announced::Upcoming);
+
+        m.mp_ids = vec![123];
+        m.team1_score = Some(2);
+        m.team2_score = Some(1);
+        assert_eq!(announced_state(&m, announced), Announced::Live);
+        assert_eq!(result_line(&m).as_deref(), Some("Kırmızı 2 – 1 Mavi"));
+
+        let mut moved = info();
+        moved.starts_at = Some(datetime!(2026-10-21 18:00 UTC));
+        assert_eq!(announced_state(&moved, announced), Announced::Moved);
+        moved.starts_at = None;
+        assert_eq!(announced_state(&moved, announced), Announced::Moved);
+
+        let mut forfeit = info();
+        forfeit.concluded_at = Some(datetime!(2026-10-20 18:20 UTC));
+        forfeit.forfeit_slot = Some(2);
+        assert_eq!(
+            result_line(&forfeit).as_deref(),
+            Some("Kırmızı W – FF Mavi")
+        );
+        assert_eq!(winning_slot(&forfeit), Some(1));
+
+        let mut cancelled = info();
+        cancelled.team2_id = None;
+        assert_eq!(announced_state(&cancelled, announced), Announced::Cancelled);
+    }
 }

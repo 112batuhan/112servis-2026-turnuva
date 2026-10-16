@@ -4,6 +4,7 @@ import {
   deleteBracketMatch,
   fetchBracket,
   fetchPublicBracket,
+  forfeitMatch,
   moveBracketMatch,
   setBracketScore,
   setStreamer,
@@ -20,7 +21,8 @@ import {
   setReferee,
 } from "../../../api/matches";
 import type { AdminTeamPlayer, BracketMatch, BracketSide, Player, Team } from "../../../api/types";
-import { overlapsAny } from "../../../lib/bracket";
+import { overlapsAny, withScore } from "../../../lib/bracket";
+import { useLiveBracket } from "../../../live/LiveContext";
 
 /** Referees and up get the staff view with notes; streamers get the public one. */
 export type EditorMatch = BracketMatch & { referee_notes?: string };
@@ -93,6 +95,15 @@ export function useBracketEditor(staffView: boolean) {
   const patchMatches = (change: (m: EditorMatch) => EditorMatch) =>
     setData((d) => d && { ...d, matches: d.matches.map(change) });
 
+  // Scores saved anywhere (mostly the referee pages) show at once; other changes reload
+  // the bracket, unless moves are still waiting to be saved, which a reload would undo.
+  useLiveBracket(
+    (e) => setData((d) => d && { ...d, matches: withScore(d.matches, e.match_id, e.team1_score, e.team2_score) }),
+    () => {
+      if (pendingMoves.current.size === 0) reload().catch(() => {});
+    },
+  );
+
   const background = (request: Promise<unknown>) =>
     request.then(
       () => {},
@@ -150,6 +161,8 @@ export function useBracketEditor(staffView: boolean) {
     setReferee: (id: string, userId: string | null) => run(() => setReferee(id, userId)),
     setStreamer: (id: string, userId: string | null) => run(() => setStreamer(id, userId)),
     conclude: (id: string) => run(() => concludeMatch(id)),
+    /** `slot` is the team that forfeited; the other one moves on. */
+    forfeit: (id: string, slot: 1 | 2) => run(() => forfeitMatch(id, slot)),
     reopen: (id: string) => run(() => reopenMatch(id)),
   };
 }

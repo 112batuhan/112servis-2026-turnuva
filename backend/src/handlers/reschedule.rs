@@ -302,5 +302,6 @@ pub async fn accept(
         )
         .await?;
     tx.commit().await?;
+    state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }

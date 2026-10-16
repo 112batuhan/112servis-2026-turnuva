@@ -93,6 +93,7 @@ pub struct RoomRow {
     pub team2_id: Option<Uuid>,
     pub team1_score: Option<i32>,
     pub team2_score: Option<i32>,
+    pub forfeit_slot: Option<i16>,
     pub lobby_number: Option<i64>,
     pub stage_id: Option<Uuid>,
     pub stage_name: Option<String>,
@@ -257,6 +258,7 @@ pub async fn find_room(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<RoomRow>>
                u.username AS referee_username, u.avatar_url AS referee_avatar_url,
                d.discord_id AS referee_discord_id, d.username AS referee_discord_username,
                b.side, b.number, b.team1_id, b.team2_id, b.team1_score, b.team2_score,
+               b.forfeit_slot,
                CASE WHEN m.kind = 'qualifier' THEN
                    (SELECT count(*) FROM matches q
                     WHERE q.kind = 'qualifier'
@@ -349,6 +351,17 @@ pub async fn conclude(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<bool> {
         WHERE id = $1 AND concluded_at IS NULL
           AND EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = $1)
         "#,
+    )
+    .bind(id)
+    .execute(ex)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+// Concludes a bracket match decided by forfeit, which may never have had a room.
+pub async fn conclude_forfeit(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<bool> {
+    let result = sqlx::query(
+        "UPDATE matches SET concluded_at = now() WHERE id = $1 AND concluded_at IS NULL",
     )
     .bind(id)
     .execute(ex)

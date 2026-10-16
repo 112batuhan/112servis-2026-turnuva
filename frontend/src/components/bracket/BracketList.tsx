@@ -1,22 +1,26 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import type { BracketMatch, BracketSide, Team } from "../../api/types";
+import type { BracketMatch, BracketSide, RefereeViewer, Team } from "../../api/types";
 import {
   groupByStage,
   incomingSources,
   matchCode,
   SIDE_LABELS,
   sourceLabel,
+  isLive,
+  scoreHalves,
   winningSlot,
   type Source,
 } from "../../lib/bracket";
 import { readString, writeString } from "../../lib/storage";
 import { useStoredSet } from "../../lib/useExpandedSet";
 import { Icon } from "../Icon";
+import { LiveMark } from "../LiveMark";
 import { RoomLinks } from "../RoomLinks";
 import { TeamPopover } from "../TeamPopover";
 import { MatchTime } from "./MatchTime";
 import { MatchTimeLink } from "./MatchTimeLink";
+import { RefereeWatchers } from "./RefereeWatchers";
 import { TeamBanner } from "./TeamBanner";
 import { DiscordMention } from "../DiscordMention";
 import "./BracketList.css";
@@ -55,6 +59,8 @@ interface Props<M extends BracketMatch> {
   countdown?: boolean;
   /** The ids of the matches the search finds, or null when not searching. */
   hits?: Set<string> | null;
+  /** Who has each match's referee page open, by match id (admin only). */
+  presence?: ReadonlyMap<string, RefereeViewer[]>;
 }
 
 /**
@@ -74,6 +80,7 @@ export function BracketList<M extends BracketMatch>({
   onShowInCalendar,
   countdown,
   hits,
+  presence,
 }: Props<M>) {
   const [side, setSide] = useState<SideFilter>(() => {
     const saved = readString(SIDE_FILTER_KEY);
@@ -157,6 +164,7 @@ export function BracketList<M extends BracketMatch>({
                     group.matches.map((m) => {
                       const [s1, s2] = sources.get(m.id) ?? [null, null];
                       const winner = winningSlot(m);
+                      const halves = scoreHalves(m);
                       const mine =
                         viewerId !== undefined && (m.referee?.id === viewerId || m.streamer?.id === viewerId);
                       const playing = myTeamId != null && (m.team1_id === myTeamId || m.team2_id === myTeamId);
@@ -212,9 +220,9 @@ export function BracketList<M extends BracketMatch>({
                           <td className="bracket-list-pairing-cell">
                             <div className="bracket-list-pairing">
                               <TeamName id={m.team1_id} source={s1} teams={teams} won={winner === 1} own={m.team1_id != null && m.team1_id === myTeamId} bannerEnd />
-                              <span className="bracket-list-score">
-                                <span className={winner === 1 ? "is-winner" : undefined}>{m.team1_score ?? "–"}</span>
-                                <span className={winner === 2 ? "is-winner" : undefined}>{m.team2_score ?? "–"}</span>
+                              <span className={isLive(m) ? "bracket-list-score is-live" : "bracket-list-score"}>
+                                <span className={winner === 1 ? "is-winner" : undefined}>{halves?.[0] ?? "–"}</span>
+                                <span className={winner === 2 ? "is-winner" : undefined}>{halves?.[1] ?? "–"}</span>
                               </span>
                               <TeamName id={m.team2_id} source={s2} teams={teams} won={winner === 2} own={m.team2_id != null && m.team2_id === myTeamId} />
                             </div>
@@ -244,6 +252,7 @@ export function BracketList<M extends BracketMatch>({
                             <span className="bracket-list-status">
                               <MatchStatus match={m} now={now} />
                               <RoomLinks rooms={m.rooms} />
+                              <RefereeWatchers viewers={presence?.get(m.id)} />
                             </span>
                           </td>
                           {renderActions && (
@@ -298,7 +307,15 @@ function TeamName({ id, source, teams, won, own, bannerEnd }: TeamNameProps) {
 }
 
 export function MatchStatus({ match, now }: { match: BracketMatch; now: string }) {
+  if (match.concluded_at && match.forfeit_slot !== null) {
+    return (
+      <span className="badge badge-success" title="Bir takım çekildi ya da maç tamamlanamadı">
+        Hükmen
+      </span>
+    );
+  }
   if (match.concluded_at) return <span className="badge badge-success">Tamamlandı</span>;
+  if (isLive(match, new Date(now).getTime())) return <LiveMark />;
   if (!match.starts_at) return <span className="badge">Zaman yok</span>;
   if (match.starts_at <= now) return <span className="badge badge-warning">Başladı</span>;
   return <span className="badge">Planlandı</span>;

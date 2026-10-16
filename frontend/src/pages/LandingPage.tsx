@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { loginWithOsu } from "../api/auth";
 import { fetchPublicBracket } from "../api/bracket";
@@ -10,8 +10,10 @@ import { useAuth } from "../auth/AuthContext";
 import { canPlay } from "../auth/roles";
 import { Countdown } from "../components/Countdown";
 import { FixtureRow } from "../components/FixtureRow";
-import { bracketMatchPath, compareByTime, incomingSources } from "../lib/bracket";
+import { bracketMatchPath, compareByTime, incomingSources, withScore } from "../lib/bracket";
 import { formatMatchTime } from "../lib/format";
+import { useLiveRefresh } from "../lib/useLiveRefresh";
+import { useLiveBracket } from "../live/LiveContext";
 import bannerLarge from "../assets/banner-1316.webp";
 import bannerSmall from "../assets/banner-760.webp";
 import crest from "../assets/crest.webp";
@@ -55,6 +57,29 @@ export function LandingPage() {
   }, []);
 
   const matches = useMemo(() => data?.bracket?.matches ?? [], [data]);
+  // While a match is on, the bracket is fetched again so live scores and results come in on their
+  // own. A failed refresh keeps what's shown.
+  const refreshBracket = useCallback(
+    () =>
+      fetchPublicBracket()
+        .then((bracket) => setData((d) => (d ? { ...d, bracket } : d)))
+        .catch(() => {}),
+    [],
+  );
+  useLiveRefresh(matches, refreshBracket);
+  // Saved scores arrive the moment the referee saves them; other changes reload the bracket.
+  useLiveBracket(
+    (e) =>
+      setData((d) =>
+        d?.bracket
+          ? {
+              ...d,
+              bracket: { ...d.bracket, matches: withScore(d.bracket.matches, e.match_id, e.team1_score, e.team2_score) },
+            }
+          : d,
+      ),
+    refreshBracket,
+  );
   const teamsById = useMemo(() => new Map(data?.bracket?.teams.map((t) => [t.id, t])), [data]);
   const sources = useMemo(() => incomingSources(matches), [matches]);
   const track = useMemo(() => (data ? stageTrack(data) : []), [data]);

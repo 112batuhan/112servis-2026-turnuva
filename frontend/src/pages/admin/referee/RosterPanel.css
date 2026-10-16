@@ -179,13 +179,178 @@
   font-size: var(--text-xs);
 }
 
+/* The score as a head-to-head, in the fixture rows' treatment: each side tinted in its team's
+   colour over a bar of it, the side ahead in full ink. */
 .roster-score {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.roster-score-board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+
+.roster-score-side {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3) var(--space-2);
+  border-bottom: 3px solid;
+}
+
+.roster-score-side.is-team-red {
+  border-bottom-color: var(--color-team-red);
+  background: color-mix(in srgb, var(--color-team-red) 22%, transparent);
+}
+
+/* The blue side reads from the right edge, facing the red one. */
+.roster-score-side.is-team-blue {
+  align-items: flex-end;
+  border-bottom-color: var(--color-team-blue);
+  background: color-mix(in srgb, var(--color-team-blue) 22%, transparent);
+  text-align: right;
+}
+
+.roster-panel .roster-score-side .roster-score-name {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-score-figure {
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-3xl);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.roster-score-side.is-ahead .roster-score-figure {
+  color: var(--color-text);
+  font-weight: 800;
+}
+
+.roster-score-status {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.roster-score-status .btn {
+  margin-left: auto;
+}
+
+/* A hand-awarded map: the same row, set apart by a dashed rule. */
+.roster-result-list li.is-manual {
+  padding-top: var(--space-2);
+  border-top: 1px dashed var(--color-border-strong);
+}
+
+.roster-manual-open {
+  align-self: flex-start;
+}
+
+.roster-manual {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+.roster-manual-head {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  font-size: var(--text-md);
+}
+
+.roster-manual-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.roster-manual-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+.roster-manual-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.roster-manual-field .select,
+.roster-manual-field .input {
+  width: 100%;
+}
+
+/* One per line: the column is narrow and the team names have to read in full. */
+.roster-manual-teams {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.roster-manual-teams .btn {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-panel .roster-manual-team.is-team-red {
+  border-color: color-mix(in srgb, var(--color-team-red) 60%, transparent);
+}
+
+.roster-panel .roster-manual-team.is-team-blue {
+  border-color: color-mix(in srgb, var(--color-team-blue) 60%, transparent);
+}
+
+.roster-forfeit {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.roster-forfeit summary {
+  width: fit-content;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.roster-forfeit[open] summary {
+  margin-bottom: var(--space-2);
+}
+
+.roster-forfeit .roster-manual-hint {
+  margin-bottom: var(--space-2);
 }
 
 /* Reads as text, like DiscordMention; clicking it pings the player in the match's channel. */

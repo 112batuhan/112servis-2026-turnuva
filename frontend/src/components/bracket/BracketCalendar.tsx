@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { BracketMatch, Team } from "../../api/types";
-import { compareByCode, compareByTime, groupByStage, matchCode, winningSlot } from "../../lib/bracket";
+import {
+  compareByCode,
+  compareByTime,
+  groupByStage,
+  isLive,
+  matchCode,
+  scoreHalves,
+  winningSlot,
+} from "../../lib/bracket";
+import { LiveMark } from "../LiveMark";
 import { formatClock } from "../../lib/format";
 import { IconButton } from "../IconButton";
 import { TeamPopover } from "../TeamPopover";
@@ -165,11 +174,12 @@ export function BracketCalendar({
 
   function chip(m: BracketMatch, style?: CSSProperties) {
     const winner = winningSlot(m);
-    // The score column only takes space once a score is entered.
-    const scored = m.team1_score !== null || m.team2_score !== null;
+    const halves = scoreHalves(m);
+    // The score column only takes space once a score is entered (or the match was forfeited).
+    const scored = halves !== null || m.team1_score !== null || m.team2_score !== null;
     const slots = [
-      { id: m.team1_id, score: m.team1_score },
-      { id: m.team2_id, score: m.team2_score },
+      { id: m.team1_id, score: halves?.[0] ?? m.team1_score },
+      { id: m.team2_id, score: halves?.[1] ?? m.team2_score },
     ];
     const classes = [
       "cal-match",
@@ -185,6 +195,7 @@ export function BracketCalendar({
         <span className="cal-match-head">
           {m.starts_at && <span className="cal-match-time">{formatClock(m.starts_at)}</span>}
           <strong>{matchCode(m)}</strong>
+          {isLive(m) && <LiveMark compact />}
           {m.stage && <span className="cal-match-stage">{m.stage.name}</span>}
           {showRefereeRoom && <RefereeRoomLink matchId={m.id} variant="card" />}
         </span>
@@ -325,7 +336,9 @@ function MonthGrid({ month, today, byDay, isMine, onOpenDay }: MonthGridProps) {
             .filter(Boolean)
             .join(" ");
           const date = d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" });
-          const summary = count > 0 ? [`${count} maç`, ...stages].join(", ") : "maç yok";
+          const live = dayMatches.some((m) => isLive(m));
+          const summary =
+            count > 0 ? [`${count} maç`, ...(live ? ["şu an oynanan maç var"] : []), ...stages].join(", ") : "maç yok";
           return (
             <button
               key={key}
@@ -346,6 +359,7 @@ function MonthGrid({ month, today, byDay, isMine, onOpenDay }: MonthGridProps) {
                 <span className={dayMatches.some(isMine) ? "cal-day-count is-mine" : "cal-day-count"}>
                   {count}
                   <span className="cal-day-count-label"> maç</span>
+                  {live && <LiveMark compact />}
                 </span>
               )}
             </button>

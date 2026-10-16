@@ -34,6 +34,14 @@ export const fetchStreamers = () => get<Player[]>("/api/streamers");
 export const setBracketScore = (id: string, team1Score: number | null, team2Score: number | null) =>
   put<void>(`/api/bracket/${id}/score`, { team1_score: team1Score, team2_score: team2Score });
 
+/** Concludes a match by forfeit: `slot` (1 or 2) is the team that forfeited, the other one moves on. */
+export const forfeitMatch = (id: string, slot: 1 | 2) => post<void>(`/api/bracket/${id}/forfeit`, { slot });
+
+/** Awards a map (or, with no map, a point) to one of the match's teams by hand. */
+export const addManualResult = (id: string, teamId: string, mapId: string | null, note: string) =>
+  post<{ id: string }>(`/api/bracket/${id}/results`, { team_id: teamId, map_id: mapId, note });
+export const removeManualResult = (id: string, resultId: string) => del(`/api/bracket/${id}/results/${resultId}`);
+
 /** Marks a pool map as banned by one of the match's two teams, or moves the ban to the other one. */
 export const setMapBan = (id: string, mapId: string, teamId: string) =>
   put<void>(`/api/bracket/${id}/bans/${mapId}`, { team_id: teamId });

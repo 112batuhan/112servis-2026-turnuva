@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import type { BracketMatchUpdate } from "../../../api/bracket";
-import type { BracketSide, MatchStage, NextMatch, Player, Stage } from "../../../api/types";
+import type { BracketSide, MatchStage, NextMatch, Player, RefereeViewer, Stage } from "../../../api/types";
 import { useSignedInUser } from "../../../auth/AuthContext";
 import { hasRole } from "../../../auth/roles";
 import { MatchStatus } from "../../../components/bracket/BracketList";
+import { RefereeWatchers } from "../../../components/bracket/RefereeWatchers";
 import { DiscordMention } from "../../../components/DiscordMention";
 import { EditableNote } from "../../../components/EditableNote";
 import { IconButton } from "../../../components/IconButton";
@@ -36,6 +37,8 @@ interface Props {
   streamers: Player[];
   /** Every stage, for the host's stage picker. */
   stages: Stage[];
+  /** Who has the match's referee page open right now. */
+  watchers: RefereeViewer[] | undefined;
   onClose: () => void;
 }
 
@@ -49,6 +52,7 @@ export function MatchPanel({
   referees,
   streamers,
   stages,
+  watchers,
   onClose,
 }: Props) {
   const user = useSignedInUser();
@@ -111,6 +115,7 @@ export function MatchPanel({
         <header className="match-panel-header">
           <h2 className={`match-panel-code is-${match.side}`}>{code}</h2>
           <MatchStatus match={match} now={new Date().toISOString()} />
+          <RefereeWatchers viewers={watchers} />
           <IconButton icon="close" label="Paneli kapat" onClick={onClose} className="match-panel-close" />
         </header>
 
@@ -173,6 +178,13 @@ export function MatchPanel({
                   disabled={busy}
                   onSave={(a, b) => editor.setScore(match.id, a, b)}
                 />
+              ) : match.forfeit_slot !== null ? (
+                <span className="match-panel-score">
+                  {match.forfeit_slot === 1 ? "FF : W" : "W : FF"}{" "}
+                  <span className="muted">
+                    (hükmen, {team(match.forfeit_slot === 1 ? match.team1_id : match.team2_id)?.name ?? "?"} çekildi)
+                  </span>
+                </span>
               ) : (
                 <span className="match-panel-score">
                   {match.team1_score ?? "–"} : {match.team2_score ?? "–"}
@@ -229,6 +241,13 @@ export function MatchPanel({
               >
                 Maçı bitir
               </button>
+            )}
+            {!concluded && match.team1_id && match.team2_id && (
+              <ForfeitButtons
+                names={[team(match.team1_id)?.name ?? "1. takım", team(match.team2_id)?.name ?? "2. takım"]}
+                disabled={busy}
+                onForfeit={(slot) => editor.forfeit(match.id, slot)}
+              />
             )}
             {isHost && concluded && (
               <button
@@ -593,5 +612,57 @@ function PositionForm({ match, disabled, onMove }: PositionFormProps) {
         (Shift ile 5 birim).
       </p>
     </form>
+  );
+}
+
+/**
+ * Concludes the match by forfeit when a team didn't show up or it couldn't be finished: pick the
+ * team that forfeited and the other one moves on. Opens on a click, then asks once more.
+ */
+function ForfeitButtons({
+  names,
+  disabled,
+  onForfeit,
+}: {
+  names: [string, string];
+  disabled: boolean;
+  onForfeit: (slot: 1 | 2) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className="btn btn-danger btn-sm"
+        disabled={disabled}
+        title="Bir takım gelmediyse ya da maç tamamlanamadıysa"
+        onClick={() => setOpen(true)}
+      >
+        Hükmen…
+      </button>
+    );
+  }
+  return (
+    <span className="match-panel-forfeit" role="group" aria-label="Hükmen bitir: çekilen takım">
+      <span className="match-panel-forfeit-label">Çekilen takım:</span>
+      {names.map((name, i) => (
+        <button
+          key={i}
+          type="button"
+          className="btn btn-danger btn-sm"
+          disabled={disabled}
+          onClick={() => {
+            if (window.confirm(`${name} çekilmiş sayılsın mı? Maç hükmen biter ve ${names[1 - i]} kazanır.`)) {
+              onForfeit((i + 1) as 1 | 2);
+            }
+          }}
+        >
+          {name}
+        </button>
+      ))}
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen(false)}>
+        Vazgeç
+      </button>
+    </span>
   );
 }

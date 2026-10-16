@@ -46,9 +46,36 @@ export function incomingSources<M extends BracketMatch>(matches: M[]): Map<strin
 
 /** 1 for team 1, 2 for team 2, null while undecided. */
 export function winningSlot(m: BracketMatch): 1 | 2 | null {
-  if (!m.concluded_at || m.team1_score === null || m.team2_score === null) return null;
+  if (!m.concluded_at) return null;
+  if (m.forfeit_slot !== null) return m.forfeit_slot === 1 ? 2 : 1;
+  if (m.team1_score === null || m.team2_score === null) return null;
   if (m.team1_score === m.team2_score) return null;
   return m.team1_score > m.team2_score ? 1 : 2;
+}
+
+/**
+ * Whether a match is being played right now: its time has come, a referee has opened its room
+ * and it isn't concluded yet. Its score, while it's live, is the running one.
+ */
+export function isLive(m: BracketMatch, now = Date.now()): boolean {
+  return !m.concluded_at && m.starts_at !== null && new Date(m.starts_at).getTime() <= now && m.rooms.length > 0;
+}
+
+/** The two halves of a match's score as shown: the figures, or W and FF for a forfeit, or null without one. */
+export function scoreHalves(m: BracketMatch): [string, string] | null {
+  if (m.concluded_at && m.forfeit_slot !== null) return m.forfeit_slot === 1 ? ["FF", "W"] : ["W", "FF"];
+  if (m.team1_score === null || m.team2_score === null) return null;
+  return [String(m.team1_score), String(m.team2_score)];
+}
+
+/** The matches with one match's score replaced, as a live score event brings it. */
+export function withScore<M extends BracketMatch>(
+  matches: M[],
+  matchId: string,
+  team1Score: number | null,
+  team2Score: number | null,
+): M[] {
+  return matches.map((m) => (m.id === matchId ? { ...m, team1_score: team1Score, team2_score: team2Score } : m));
 }
 
 /** The number a new match on `side` gets: one after the highest. */

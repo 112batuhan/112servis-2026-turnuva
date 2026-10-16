@@ -11,7 +11,7 @@ use sqlx::postgres::PgListener;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-use super::{channels, members, messages, results, snowflake, Bot, BotResult};
+use super::{announcement, channels, members, messages, results, snowflake, Bot, BotResult};
 use crate::{
     db::{self, matches::MatchKind, notifications::StaffRole},
     AppState,
@@ -44,6 +44,13 @@ pub enum Job {
     ArchiveChannel {
         channel_id: i64,
         kind: MatchKind,
+    },
+    // Marks a deleted match's public announcement as cancelled. The match is gone, so
+    // this carries what the message needs.
+    AnnouncementCancelled {
+        channel_id: i64,
+        message_id: i64,
+        title: String,
     },
 
     // ---- things to announce: each renders its messages and queues a Post for each ----
@@ -415,6 +422,12 @@ async fn run(state: &AppState, bot: &Bot, job: &Job) -> BotResult {
         Job::ArchiveChannel { channel_id, kind } => {
             channels::archive_orphan(state, bot, *channel_id, *kind).await
         }
+        Job::AnnouncementCancelled {
+            channel_id,
+            message_id,
+            title,
+        } => announcement::cancelled(bot, *channel_id, *message_id, title).await,
+        Job::Announce { match_id } => announcement::post(state, bot, *match_id).await,
         Job::PostResults { match_id } => results::post(state, bot, *match_id).await,
         Job::DeleteResults { match_id } => results::delete(state, bot, *match_id).await,
         Job::Post { to, message } => post(state, bot, to, message).await,

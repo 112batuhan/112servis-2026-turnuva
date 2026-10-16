@@ -1,0 +1,180 @@
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { liveSocketUrl } from "../api/live";
+import type { RefereeViewer } from "../api/types";
+import { useAuth } from "../auth/AuthContext";
+
+// One WebSocket per tab to the server's live hub (handlers/live.rs): score changes as
+// they're saved, a signal to reload the bracket when anything else about it changes,
+// and, for staff, who has each match's referee page open. Pages subscribe to the
+// events; the referee page says which match it shows. It reconnects on its own and
+// again whenever the signed-in user changes, since the server reads who it is once.
+
+export type LiveEvent =
+  | { type: "score"; match_id: string; team1_score: number | null; team2_score: number | null }
+  | { type: "bracket" };
+
+type ServerMsg =
+  | LiveEvent
+  | { type: "presence"; match_id: string; viewers: RefereeViewer[] }
+  | { type: "presence_all"; matches: Record<string, RefereeViewer[]> };
+
+interface LiveState {
+  /** The socket is open, so pages don't need to poll. */
+  connected: boolean;
+  /** Who has each match's referee page open, by match id. Staff only; empty for everyone else. */
+  presence: ReadonlyMap<string, RefereeViewer[]>;
+  /** Calls `handler` with every score and bracket event; returns the unsubscribe. */
+  subscribe: (handler: (event: LiveEvent) => void) => () => void;
+  /** Tells the server this tab shows the match's referee page (or none). */
+  setViewing: (matchId: string | null) => void;
+}
+
+const LiveContext = createContext<LiveState | null>(null);
+
+const RETRY_MIN_MS = 1_000;
+const RETRY_MAX_MS = 30_000;
+
+export function LiveProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
+  const [connected, setConnected] = useState(false);
+  const [presence, setPresence] = useState<ReadonlyMap<string, RefereeViewer[]>>(new Map());
+  const handlers = useRef(new Set<(event: LiveEvent) => void>());
+  const socket = useRef<WebSocket | null>(null);
+  const viewing = useRef<string | null>(null);
+
+  const sendViewing = useCallback(() => {
+    const ws = socket.current;
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "viewing", match_id: viewing.current }));
+  }, []);
+
+  // A page kept in the browser's back/forward cache would keep its socket, and with it
+  // its place on a referee page, so the socket closes as the page is left and a new one
+  // opens if the page comes back from that cache.
+  const [generation, setGeneration] = useState(0);
+  useEffect(() => {
+    const onHide = () => socket.current?.close();
+    const onShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setGeneration((g) => g + 1);
+    };
+    window.addEventListener("pagehide", onHide);
+    window.addEventListener("pageshow", onShow);
+    return () => {
+      window.removeEventListener("pagehide", onHide);
+      window.removeEventListener("pageshow", onShow);
+    };
+  }, []);
+
+  // Waits for the session check, so a signed-in user doesn't connect twice.
+  const userKey = user === undefined ? null : (user?.id ?? "guest");
+  useEffect(() => {
+    if (userKey === null) return;
+    let closed = false;
+    let retry = RETRY_MIN_MS;
+    // After a dropped connection, pages reload whatever they missed meanwhile.
+    let reconnecting = false;
+    let timer: number | undefined;
+
+    const connect = () => {
+      const ws = new WebSocket(liveSocketUrl());
+      socket.current = ws;
+      ws.onopen = () => {
+        retry = RETRY_MIN_MS;
+        setConnected(true);
+        if (viewing.current) sendViewing();
+        if (reconnecting) for (const handler of handlers.current) handler({ type: "bracket" });
+      };
+      ws.onmessage = (e) => {
+        let msg: ServerMsg;
+        try {
+          msg = JSON.parse(e.data as string) as ServerMsg;
+        } catch {
+          return;
+        }
+        if (msg.type === "presence_all") {
+          setPresence(new Map(Object.entries(msg.matches)));
+        } else if (msg.type === "presence") {
+          setPresence((prev) => {
+            const next = new Map(prev);
+            if (msg.viewers.length > 0) next.set(msg.match_id, msg.viewers);
+            else next.delete(msg.match_id);
+            return next;
+          });
+        } else {
+          for (const handler of handlers.current) handler(msg);
+        }
+      };
+      ws.onclose = () => {
+        if (socket.current === ws) socket.current = null;
+        setConnected(false);
+        setPresence(new Map());
+        if (closed) return;
+        reconnecting = true;
+        timer = window.setTimeout(connect, retry);
+        retry = Math.min(retry * 2, RETRY_MAX_MS);
+      };
+    };
+    connect();
+    return () => {
+      closed = true;
+      window.clearTimeout(timer);
+      socket.current?.close();
+      socket.current = null;
+    };
+  }, [userKey, generation, sendViewing]);
+
+  const subscribe = useCallback((handler: (event: LiveEvent) => void) => {
+    handlers.current.add(handler);
+    return () => {
+      handlers.current.delete(handler);
+    };
+  }, []);
+
+  const setViewing = useCallback(
+    (matchId: string | null) => {
+      viewing.current = matchId;
+      sendViewing();
+    },
+    [sendViewing],
+  );
+
+  const value = useMemo(
+    () => ({ connected, presence, subscribe, setViewing }),
+    [connected, presence, subscribe, setViewing],
+  );
+  return <LiveContext.Provider value={value}>{children}</LiveContext.Provider>;
+}
+
+export function useLive(): LiveState {
+  const ctx = useContext(LiveContext);
+  if (!ctx) throw new Error("useLive must be used inside LiveProvider");
+  return ctx;
+}
+
+// How long a burst of bracket changes (a conclusion moves teams into two matches) is
+// gathered into one reload.
+const RELOAD_DELAY_MS = 250;
+
+/**
+ * Keeps a page's bracket in step: `onScore` applies a saved score at once, `onChanged` reloads
+ * the bracket after anything else changed (gathered over a short moment).
+ */
+export function useLiveBracket(onScore: (event: Extract<LiveEvent, { type: "score" }>) => void, onChanged: () => void) {
+  const { subscribe } = useLive();
+  const callbacks = useRef({ onScore, onChanged });
+  callbacks.current = { onScore, onChanged };
+  useEffect(() => {
+    let timer: number | undefined;
+    const off = subscribe((event) => {
+      if (event.type === "score") {
+        callbacks.current.onScore(event);
+        return;
+      }
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => callbacks.current.onChanged(), RELOAD_DELAY_MS);
+    });
+    return () => {
+      off();
+      window.clearTimeout(timer);
+    };
+  }, [subscribe]);
+}

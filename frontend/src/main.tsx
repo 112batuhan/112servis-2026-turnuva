@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { AuthProvider } from "./auth/AuthContext";
+import { LiveProvider } from "./live/LiveContext";
 import { PlayerProvider } from "./player/PlayerContext";
 import "./styles/tokens.css";
 import "./styles/base.css";
@@ -13,9 +14,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <PlayerProvider>
-          <App />
-        </PlayerProvider>
+        <LiveProvider>
+          <PlayerProvider>
+            <App />
+          </PlayerProvider>
+        </LiveProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,

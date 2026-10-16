@@ -220,6 +220,11 @@ button.bracket-list-code:hover {
   text-align: center;
 }
 
+/* A running score, ringed in the live colour. */
+.bracket-list-score.is-live {
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
 .bracket-list-score > .is-winner {
   color: var(--color-text);
   font-weight: 800;

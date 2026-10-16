@@ -1,6 +1,9 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
+import type { RefereeViewer } from "../../../api/types";
+import { useSignedInUser } from "../../../auth/AuthContext";
 import { ErrorAlert } from "../../../components/ErrorAlert";
+import { useLive } from "../../../live/LiveContext";
 import { normalizeName, type SlotTeam } from "../../../lib/bancho";
 import { formatMatchTime } from "../../../lib/format";
 import { ChatPanel } from "./ChatPanel";
@@ -22,6 +25,12 @@ export function RefereeRoomPage() {
 function RefereeRoom({ matchId }: { matchId: string }) {
   const referee = useRefereeRoom(matchId);
   const { room, roomChats, loadError, error, roster } = referee;
+  // Tells the other staff this match's referee page is open here, for as long as it is.
+  const { setViewing, presence } = useLive();
+  useEffect(() => {
+    setViewing(matchId);
+    return () => setViewing(null);
+  }, [matchId, setViewing]);
 
   const colors = useMemo(() => {
     const map = new Map<string, SlotTeam | null>();
@@ -66,6 +75,7 @@ function RefereeRoom({ matchId }: { matchId: string }) {
         )}
       </header>
 
+      <PageViewers viewers={presence.get(matchId)} />
       <IrcLogin />
       <ErrorAlert message={error} />
 
@@ -82,5 +92,31 @@ function RefereeRoom({ matchId }: { matchId: string }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Everyone with this referee page open right now, the viewer included, so two referees (or a host
+ * looking in) know they aren't alone on the match.
+ */
+function PageViewers({ viewers }: { viewers: RefereeViewer[] | undefined }) {
+  const user = useSignedInUser();
+  if (!viewers || viewers.length === 0) return null;
+  const others = viewers.filter((v) => v.id !== user.id).length;
+  return (
+    <section className="referee-viewers" aria-label="Bu sayfadakiler">
+      <span className="referee-viewers-label">
+        {others === 0 ? "Bu sayfada sadece sen varsın" : `Bu sayfada ${viewers.length} kişi`}
+      </span>
+      <ul>
+        {viewers.map((v) => (
+          <li key={v.id} className={v.id === user.id ? "is-self" : undefined}>
+            <img src={v.avatar_url} alt="" />
+            {v.username}
+            {v.id === user.id && <span className="referee-viewers-self"> (sen)</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

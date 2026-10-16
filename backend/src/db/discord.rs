@@ -321,6 +321,8 @@ pub struct MatchInfo {
     pub team2_name: Option<String>,
     pub team1_score: Option<i32>,
     pub team2_score: Option<i32>,
+    // The slot of the team that forfeited, when the match was decided that way.
+    pub forfeit_slot: Option<i16>,
     // When each team's banner was last changed (for its versioned URL); null without one.
     pub team1_banner_at: Option<OffsetDateTime>,
     pub team2_banner_at: Option<OffsetDateTime>,
@@ -349,7 +351,7 @@ pub async fn match_info(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Optio
                       AND (q.starts_at, q.created_at) <= (m.starts_at, m.created_at))
                END AS lobby_number,
                b.team1_id, b.team2_id, t1.name AS team1_name, t2.name AS team2_name,
-               b.team1_score, b.team2_score,
+               b.team1_score, b.team2_score, b.forfeit_slot,
                tb1.updated_at AS team1_banner_at, tb2.updated_at AS team2_banner_at,
                m.referee_id, r.username AS referee_username,
                rd.discord_id AS referee_discord_id, rd.in_guild AS referee_in_guild,
@@ -430,13 +432,19 @@ pub struct MatchDiscord {
     pub results_message_id: Option<i64>,
     pub card_message_id: Option<i64>,
     pub card_synced: Option<String>,
+    // The start time the public announcement went out for.
+    pub announced_for: Option<OffsetDateTime>,
+    pub announce_channel_id: Option<i64>,
+    pub announce_message_id: Option<i64>,
+    pub announce_synced: Option<String>,
 }
 
 pub async fn match_discord(ex: impl PgExecutor<'_>, match_id: Uuid) -> sqlx::Result<MatchDiscord> {
     let row = sqlx::query_as::<_, MatchDiscord>(
         r#"
         SELECT channel_id, synced, results_channel_id, results_message_id,
-               card_message_id, card_synced
+               card_message_id, card_synced,
+               announced_for, announce_channel_id, announce_message_id, announce_synced
         FROM match_discord WHERE match_id = $1
         "#,
     )
@@ -863,6 +871,30 @@ pub async fn set_card(
     )
     .bind(match_id)
     .bind(message_id)
+    .bind(synced)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+// Records the match's public announcement message and what it shows, or forgets it
+// (None) once it's deleted.
+pub async fn set_announcement(
+    pool: &PgPool,
+    match_id: Uuid,
+    message: Option<(i64, i64)>,
+    synced: Option<&str>,
+) -> sqlx::Result<()> {
+    sqlx::query(
+        r#"
+        UPDATE match_discord
+        SET announce_channel_id = $2, announce_message_id = $3, announce_synced = $4
+        WHERE match_id = $1
+        "#,
+    )
+    .bind(match_id)
+    .bind(message.map(|m| m.0))
+    .bind(message.map(|m| m.1))
     .bind(synced)
     .execute(pool)
     .await?;

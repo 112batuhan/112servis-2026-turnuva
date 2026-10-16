@@ -122,6 +122,12 @@
   white-space: nowrap;
 }
 
+/* A day with a match being played: its count carries the live mark. */
+.cal-day-count .live-mark {
+  float: right;
+  margin-top: 2px;
+}
+
 .cal-day-count.is-mine {
   background: var(--color-primary-soft);
 }
@@ -134,6 +140,12 @@
   .cal-day-count-label,
   .cal-day-stages {
     display: none;
+  }
+
+  /* Just the dot in a phone's narrow day. */
+  .cal-day-count .live-mark {
+    gap: 0;
+    font-size: 0;
   }
 }
 
