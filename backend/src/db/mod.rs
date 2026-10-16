@@ -22,8 +22,9 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 
 // Connects to postgres and runs pending migrations.
 pub async fn connect(database_url: &str) -> PgPool {
+    // The Discord job worker's listener keeps one of these for good.
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(10)
         .connect(database_url)
         .await
         .expect("failed to connect to postgres");

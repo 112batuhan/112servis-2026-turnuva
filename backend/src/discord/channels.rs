@@ -22,6 +22,10 @@ use crate::{
 // Discord's limit on channels in a category.
 const CATEGORY_LIMIT: usize = 50;
 
+// How long a channel rename may wait on Discord's rate limit before it's left for the
+// next sync.
+const RENAME_WAIT: std::time::Duration = std::time::Duration::from_secs(5);
+
 // Deletes a message, counting one that's already gone as deleted. One Discord refuses
 // to delete is given up on with a warning, so the caller still forgets it: keeping it
 // on record would only stop the next message (a new results post) from going out.
@@ -233,14 +237,13 @@ async fn sync_channel(
     members.dedup();
 
     let name = channel_name(info);
-    let key = format!(
-        "{name}|{archived}|{base:?}|{}",
-        members
-            .iter()
-            .map(|u| u.to_string())
-            .collect::<Vec<_>>()
-            .join(",")
-    );
+    let member_ids = members
+        .iter()
+        .map(|u| u.to_string())
+        .collect::<Vec<_>>()
+        .join(",");
+    let key_for = |name: &str| format!("{name}|{archived}|{base:?}|{member_ids}");
+    let key = key_for(&name);
     if stored.synced.as_deref() == Some(key.as_str()) {
         return Ok(stored.channel_id);
     }
@@ -252,9 +255,6 @@ async fn sync_channel(
             Ok(current) => {
                 let current = current.guild();
                 let mut edit = EditChannel::new().permissions(perms);
-                if current.as_ref().is_none_or(|c| c.name != name) {
-                    edit = edit.name(&name);
-                }
                 if let Some(base) = base {
                     let parent = current.as_ref().and_then(|c| c.parent_id);
                     if !in_base(state, base, parent).await? {
@@ -262,7 +262,24 @@ async fn sync_channel(
                     }
                 }
                 channel.edit(&bot.http, edit).await?;
-                db::discord::set_channel(&state.db, match_id, id, &key).await?;
+                // Renamed on its own and only waited on briefly: Discord allows two
+                // renames per channel per 10 minutes, and serenity would sleep out the
+                // rest while every job waits. A rename that doesn't go through is
+                // recorded as not done, so the next sync of the match tries again.
+                let mut applied = current.as_ref().map_or(name.as_str(), |c| c.name.as_str());
+                if applied != name {
+                    let rename = channel.edit(&bot.http, EditChannel::new().name(&name));
+                    match tokio::time::timeout(RENAME_WAIT, rename).await {
+                        Ok(Ok(_)) => applied = &name,
+                        Ok(Err(err)) => return Err(err.into()),
+                        Err(_) => tracing::warn!(
+                            match_id = %match_id,
+                            channel = id,
+                            "match channel rename is rate limited, retrying on the next sync"
+                        ),
+                    }
+                }
+                db::discord::set_channel(&state.db, match_id, id, &key_for(applied)).await?;
                 return Ok(Some(id));
             }
             Err(err) => {
