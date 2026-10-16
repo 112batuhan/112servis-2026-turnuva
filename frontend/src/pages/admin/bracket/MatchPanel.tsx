@@ -73,17 +73,22 @@ export function MatchPanel({
     if (window.matchMedia(DRAWER_QUERY).matches) panelRef.current?.focus({ preventScroll: true });
   }, []);
 
+  // A score typed into the panel but not saved yet: "Maçı bitir" saves it and concludes with it,
+  // rather than with the last saved one.
+  const [draft, setDraft] = useState<[number | null, number | null] | null>(null);
+  const [score1, score2] = draft ?? [match.team1_score, match.team2_score];
+
   const concludeBlocker = match.rooms.length === 0
     ? "Önce maç linkini ekle"
     : !match.team1_id || !match.team2_id
       ? "İki takım da belli olmalı"
-      : match.team1_score === null || match.team2_score === null || match.team1_score === match.team2_score
+      : score1 === null || score2 === null || score1 === score2
         ? "Önce kazananı belli eden bir skor gir"
         : null;
 
   function confirmConclude() {
     const [t1, t2] = [team(match.team1_id), team(match.team2_id)];
-    const team1Won = (match.team1_score ?? 0) > (match.team2_score ?? 0);
+    const team1Won = (score1 ?? 0) > (score2 ?? 0);
     const [winner, loser] = team1Won ? [t1, t2] : [t2, t1];
     const target = (next: NextMatch | null) => {
       const m = next && matches.find((x) => x.id === next.match_id);
@@ -94,7 +99,10 @@ export function MatchPanel({
       loser && target(match.loser_to) && `${loser.name} → ${target(match.loser_to)}`,
     ].filter(Boolean);
     const detail = moves.length > 0 ? `\n\n${moves.join("\n")}` : "";
-    if (window.confirm(`${code} bitti olarak işaretlensin mi?${detail}`)) editor.conclude(match.id);
+    const score = `Skor: ${score1} – ${score2}${draft ? " (kaydedilip bitirilir)" : ""}`;
+    if (!window.confirm(`${code} bitti olarak işaretlensin mi?\n${score}${detail}`)) return;
+    if (draft) editor.concludeWithScore(match.id, score1, score2);
+    else editor.conclude(match.id);
   }
 
   return (
@@ -172,11 +180,14 @@ export function MatchPanel({
             <dd>
               {canRun && !concluded ? (
                 <ScoreEditor
-                  key={`${match.team1_score}:${match.team2_score}`}
+                  // A fresh editor for another match or a newly saved score (a referee's live
+                  // save included), so it never shows a stale draft.
+                  key={`${match.id}:${match.team1_score}:${match.team2_score}`}
                   match={match}
                   names={[team(match.team1_id)?.name ?? "1. takım", team(match.team2_id)?.name ?? "2. takım"]}
                   disabled={busy}
                   onSave={(a, b) => editor.setScore(match.id, a, b)}
+                  onDraft={setDraft}
                 />
               ) : match.forfeit_slot !== null ? (
                 <span className="match-panel-score">
@@ -341,13 +352,21 @@ interface ScoreEditorProps {
   names: [string, string];
   disabled: boolean;
   onSave: (team1: number | null, team2: number | null) => void;
+  /** The typed score while it differs from the saved one, null otherwise. */
+  onDraft: (draft: [number | null, number | null] | null) => void;
 }
 
-function ScoreEditor({ match, names, disabled, onSave }: ScoreEditorProps) {
+function ScoreEditor({ match, names, disabled, onSave, onDraft }: ScoreEditorProps) {
   const [a, setA] = useState(match.team1_score?.toString() ?? "");
   const [b, setB] = useState(match.team2_score?.toString() ?? "");
   const parse = (v: string) => (v.trim() === "" ? null : Number(v));
   const changed = parse(a) !== match.team1_score || parse(b) !== match.team2_score;
+  // Reported whenever the inputs change.
+  useEffect(() => {
+    onDraft(changed ? [parse(a), parse(b)] : null);
+  }, [a, b, changed, onDraft]);
+  // The panel forgets the draft when this editor goes away (another match, a saved score).
+  useEffect(() => () => onDraft(null), [onDraft]);
 
   return (
     <form

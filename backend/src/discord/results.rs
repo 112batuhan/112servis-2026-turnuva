@@ -13,6 +13,7 @@ use super::{
 };
 use crate::{
     db::{self, discord::MatchInfo, matches::MatchKind},
+    error::AppError,
     osu_api, AppState,
 };
 
@@ -110,8 +111,21 @@ pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embe
 
     let mut lines = Vec::new();
     let token = osu_api::token::app_token(&state.osu_client, &state.osu_app_token).await?;
+    // Rooms osu! has no record of, left out of the maps but named in the post.
+    let mut unreadable = Vec::new();
     for &mp_id in &info.mp_ids {
-        for game in osu_api::matches::fetch_games(&state.http_client, &token, mp_id).await? {
+        let games = match osu_api::matches::fetch_games(&state.http_client, &token, mp_id).await {
+            Ok(games) => games,
+            // The room doesn't exist on osu! (a mistyped or test link) or can't be read.
+            // Retrying won't change that, and it mustn't hold back the whole post.
+            Err(AppError::OsuApiRequest(err)) if refused(&err) => {
+                tracing::warn!(error = %err, mp_id, match_id = %info.id, "osu! room left out of the results");
+                unreadable.push(mp_id);
+                continue;
+            }
+            Err(err) => return Err(err.into()),
+        };
+        for game in games {
             let Some(map) = game
                 .beatmap_id
                 .and_then(|b| maps.iter().find(|m| m.beatmap_id == b))
@@ -243,5 +257,19 @@ pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embe
             .collect();
         embed.fields.push(("Odalar".into(), rooms.join(" "), false));
     }
+    if !unreadable.is_empty() {
+        let ids: Vec<String> = unreadable.iter().map(|id| format!("#{id}")).collect();
+        embed.footer = Some(format!(
+            "osu!'dan okunamayan odaların mapleri listede yok: {}",
+            ids.join(", ")
+        ));
+    }
     Ok(embed)
+}
+
+// osu! answered the request and refused it (no such room, no access), as opposed to
+// failing to answer or asking us to slow down, which are worth retrying.
+fn refused(err: &reqwest::Error) -> bool {
+    err.status()
+        .is_some_and(|s| s.is_client_error() && s != reqwest::StatusCode::TOO_MANY_REQUESTS)
 }

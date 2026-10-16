@@ -161,6 +161,12 @@ export function useBracketEditor(staffView: boolean) {
     setReferee: (id: string, userId: string | null) => run(() => setReferee(id, userId)),
     setStreamer: (id: string, userId: string | null) => run(() => setStreamer(id, userId)),
     conclude: (id: string) => run(() => concludeMatch(id)),
+    /** Saves a score that was typed but not saved yet, then concludes the match with it. */
+    concludeWithScore: (id: string, team1: number | null, team2: number | null) =>
+      run(async () => {
+        await setBracketScore(id, team1, team2);
+        await concludeMatch(id);
+      }),
     /** `slot` is the team that forfeited; the other one moves on. */
     forfeit: (id: string, slot: 1 | 2) => run(() => forfeitMatch(id, slot)),
     reopen: (id: string) => run(() => reopenMatch(id)),

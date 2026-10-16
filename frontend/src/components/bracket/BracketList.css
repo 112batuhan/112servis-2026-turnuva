@@ -185,11 +185,14 @@ button.bracket-list-code:hover {
   font-style: italic;
 }
 
-/* The score halves in the sides' colours, as in the fixture rows. */
+/* The score halves in the sides' colours, as in the fixture rows. A fixed width, wide enough for
+   two digits or W / FF: the table doesn't re-measure its columns when a score changes in place
+   (a forfeit turning "–" into "FF"), so a box sized by its content stayed too narrow until a
+   reload. Fixed, the score column also lines up down the list. */
 .bracket-list-score {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  min-width: 56px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 76px;
   overflow: hidden;
   border-radius: var(--radius-sm);
   background-image:
