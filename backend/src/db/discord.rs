@@ -575,12 +575,43 @@ pub async fn take_due_announcements(
           AND md.announced_for IS DISTINCT FROM m.starts_at
           AND b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL
         ON CONFLICT (match_id) DO UPDATE SET announced_for = EXCLUDED.announced_for
+        WHERE match_discord.announced_for IS DISTINCT FROM EXCLUDED.announced_for
         RETURNING match_id
         "#,
     )
     .bind(window_secs as f64)
     .fetch_all(conn)
     .await
+}
+
+// A match whose score is coming in but which was never announced for its time (its
+// start time passed before the scheduler's window, or it got its teams late): marks it
+// announced, like take_due_announcements, and says whether to post it now. A match
+// whose announcement was deleted (by hand, or concluded and reopened) isn't posted again.
+pub async fn claim_late_announcement(
+    conn: &mut PgConnection,
+    match_id: Uuid,
+) -> sqlx::Result<bool> {
+    let claimed: Option<Uuid> = sqlx::query_scalar(
+        r#"
+        INSERT INTO match_discord (match_id, announced_for)
+        SELECT m.id, m.starts_at FROM matches m
+        JOIN bracket_matches b ON b.match_id = m.id
+        LEFT JOIN match_discord md ON md.match_id = m.id
+        WHERE m.id = $1 AND m.concluded_at IS NULL AND m.starts_at IS NOT NULL
+          AND b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL
+          AND md.announce_message_id IS NULL
+          AND md.announced_for IS DISTINCT FROM m.starts_at
+        ON CONFLICT (match_id) DO UPDATE SET announced_for = EXCLUDED.announced_for
+        WHERE match_discord.announced_for IS DISTINCT FROM EXCLUDED.announced_for
+          AND match_discord.announce_message_id IS NULL
+        RETURNING match_id
+        "#,
+    )
+    .bind(match_id)
+    .fetch_optional(conn)
+    .await?;
+    Ok(claimed.is_some())
 }
 
 // ---------- subscriptions ----------

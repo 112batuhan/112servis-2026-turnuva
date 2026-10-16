@@ -530,10 +530,13 @@ pub async fn set_score(
             "this match is concluded, reopen it to change the score",
         ));
     }
-    state
-        .discord
-        .enqueue(&mut *tx, &[Job::SyncMatch { match_id: id }])
-        .await?;
+    let mut jobs = vec![Job::SyncMatch { match_id: id }];
+    // A match being played that never got its public announcement (its time passed
+    // before the scheduler's window) gets it now, with the score in it.
+    if state.discord.enabled() && db::discord::claim_late_announcement(&mut tx, id).await? {
+        jobs.push(Job::Announce { match_id: id });
+    }
+    state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await?;
     state.live.score(id, body.team1_score, body.team2_score);
     Ok(StatusCode::NO_CONTENT)
