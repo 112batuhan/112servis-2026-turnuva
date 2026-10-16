@@ -68,6 +68,17 @@
   padding: var(--space-5);
 }
 
+/* On phones an admin page's panel would only be a frame inside the page's own gutter: it opens up and
+   gives its width to the content, which keeps its header rule. */
+@media (max-width: 560px) {
+  .admin-page > .panel {
+    padding: 0;
+    background: none;
+    border: 0;
+    border-radius: 0;
+  }
+}
+
 /* Centred single-card pages (profile, Discord linking). */
 .card-page {
   display: flex;

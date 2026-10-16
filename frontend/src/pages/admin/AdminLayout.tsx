@@ -33,7 +33,7 @@ export function AdminLayout() {
 
   // The tabs are in the top bar (`NavBar`).
   return (
-    <div className="page">
+    <div className="page admin-page">
       {/* Here rather than on the referee page, so the Bancho connection outlives tab switches. */}
       <IrcProvider>
         <AutoTeams />

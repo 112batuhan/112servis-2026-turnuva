@@ -39,10 +39,13 @@
   .team-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+}
 
-  /* Too narrow for the players to sit side by side next to the value. Stacked,
-     the column is as wide as the longer chip and centred as one block, with the
-     chips aligned to its left edge so the avatars and names line up. */
+/* A card too narrow for the players to sit side by side next to the value (a phone, or two cards
+   to a row on a phone held sideways) stacks them. Stacked, the column is as wide as the longer chip
+   and centred as one block, with the chips aligned to its left edge so the avatars and names line
+   up. Measured on the card, so it holds wherever a card is shown. */
+@container team-card (max-width: 560px) {
   .team-card .team-card-players {
     grid-template-columns: minmax(0, max-content);
     justify-content: center;
@@ -56,6 +59,7 @@
 
 .team-card {
   --player-chip-avatar: 56px;
+  container: team-card / inline-size;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -228,11 +232,13 @@
   border-top: 1px solid var(--color-border);
 }
 
-/* On the banner's top right corner, readable on any image. */
+/* On the banner's top right corner, readable on any image. Stacked over the name's block, which on
+   a short (narrow) banner reaches up behind it and would otherwise take its taps. */
 .team-card-matches-toggle {
   position: absolute;
   top: var(--space-3);
   right: var(--space-3);
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);

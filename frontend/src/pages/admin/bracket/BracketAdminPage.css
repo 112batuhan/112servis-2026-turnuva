@@ -41,10 +41,77 @@
   background: var(--color-surface-raised);
 }
 
+.match-panel:focus {
+  outline: none;
+}
+
+.match-panel-scrim {
+  display: none;
+}
+
+/* No room beside the bracket: the panel slides in over it from the right as a drawer, full height,
+   with its header (and the close button) pinned while the rest scrolls. Wide enough that the board
+   stays usable beside it, a tap on another match just swaps the drawer's match. */
 @media (max-width: 1100px) {
   .match-panel {
-    position: static;
+    position: fixed;
+    inset: 0 0 0 auto;
+    z-index: 30;
+    width: min(420px, 100%);
     max-height: none;
+    padding: 0 var(--space-4) max(var(--space-4), env(safe-area-inset-bottom));
+    padding-right: max(var(--space-4), env(safe-area-inset-right));
+    border-width: 0 0 0 1px;
+    border-radius: 0;
+    box-shadow: var(--shadow-popover);
+    overscroll-behavior: contain;
+    animation: match-panel-in var(--duration-normal) var(--ease-out);
+  }
+
+  .match-panel-header {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin: 0 calc(-1 * var(--space-4));
+    margin-right: calc(-1 * max(var(--space-4), env(safe-area-inset-right)));
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface-raised);
+    border-bottom: 1px solid var(--color-border);
+  }
+}
+
+/* On phones the drawer covers nearly everything: the strip left of it is a scrim that closes it. */
+@media (max-width: 720px) {
+  .match-panel {
+    width: calc(100% - var(--space-7));
+  }
+
+  .match-panel-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 29;
+    display: block;
+    background: var(--color-scrim);
+    animation: match-panel-scrim-in var(--duration-normal) var(--ease-out);
+  }
+}
+
+@keyframes match-panel-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes match-panel-scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-panel,
+  .match-panel-scrim {
+    animation: none;
   }
 }
 

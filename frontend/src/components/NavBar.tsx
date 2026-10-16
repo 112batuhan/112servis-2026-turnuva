@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { loginWithOsu } from "../api/auth";
 import { useAuth } from "../auth/AuthContext";
@@ -27,7 +27,8 @@ export function NavBar() {
     if (!inAdmin) lastPublic.current = pathname + search + hash;
   }, [inAdmin, pathname, search, hash]);
 
-  // On phones the links scroll sideways in one row; keep the current page's link in view.
+  // The links never wrap: when they don't fit they scroll sideways in one row, so the bar stays
+  // one line tall. Keep the current page's link in view.
   const linksRef = useRef<HTMLElement>(null);
   useEffect(() => {
     const links = linksRef.current;
@@ -35,6 +36,28 @@ export function NavBar() {
     if (!links || !active || links.scrollWidth <= links.clientWidth) return;
     links.scrollLeft = active.offsetLeft - (links.clientWidth - active.offsetWidth) / 2;
   }, [pathname, inAdmin]);
+
+  // Which ends of the row have links scrolled out of view, so those edges fade out.
+  const [overflow, setOverflow] = useState({ start: false, end: false });
+  useEffect(() => {
+    const links = linksRef.current;
+    if (!links) return;
+    const update = () => {
+      const max = links.scrollWidth - links.clientWidth;
+      const start = links.scrollLeft > 1;
+      const end = links.scrollLeft < max - 1;
+      setOverflow((o) => (o.start === start && o.end === end ? o : { start, end }));
+    };
+    update();
+    links.addEventListener("scroll", update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(links);
+    return () => {
+      links.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, [inAdmin, user]);
+  const fade = [overflow.start && "start", overflow.end && "end"].filter(Boolean).join(" ") || undefined;
 
   async function handleSignOut() {
     await signOut();
@@ -46,13 +69,13 @@ export function NavBar() {
       <div className="nav-main">
         <NavLink to="/" className="nav-brand">
           <span className="brand-mark" aria-hidden="true" />
-          <span>
+          <span className="nav-brand-text">
             112servis <span className="nav-brand-year">2026</span>
           </span>
         </NavLink>
 
         {inAdmin ? (
-          <nav ref={linksRef} className="nav-links" aria-label="Yönetim bölümleri">
+          <nav ref={linksRef} className="nav-links" data-fade={fade} aria-label="Yönetim bölümleri">
             {ADMIN_TABS.filter((tab) => canAccess(user, tab.access)).map((tab) => (
               <NavLink key={tab.path} to={tab.path} className={linkClass}>
                 {tab.label}
@@ -60,7 +83,7 @@ export function NavBar() {
             ))}
           </nav>
         ) : (
-          <nav ref={linksRef} className="nav-links" aria-label="Ana menü">
+          <nav ref={linksRef} className="nav-links" data-fade={fade} aria-label="Ana menü">
             <NavLink to="/" end className={linkClass}>
               Ana sayfa
             </NavLink>
@@ -126,8 +149,14 @@ export function NavBar() {
               {user.avatar_url && <img className="nav-avatar" src={user.avatar_url} alt="" />}
               <span className="nav-username">{user.username}</span>
             </NavLink>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={handleSignOut}>
-              Çıkış yap
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm nav-signout"
+              title="Çıkış yap"
+              onClick={handleSignOut}
+            >
+              <Icon name="logOut" size={14} />
+              <span className="nav-signout-text">Çıkış yap</span>
             </button>
           </>
         ) : (

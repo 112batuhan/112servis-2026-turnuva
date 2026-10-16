@@ -18,6 +18,7 @@ const ICONS = {
   chevronDown: <path d="M6 9l6 6 6-6" />,
   close: <path d="M18 6 6 18M6 6l12 12" />,
   download: <path d="M12 3v12M7 11l5 5 5-5M5 21h14" />,
+  logOut: <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" />,
   ban: (
     <>
       <circle cx="12" cy="12" r="9" />

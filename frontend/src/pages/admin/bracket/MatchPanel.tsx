@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import type { BracketMatchUpdate } from "../../../api/bracket";
 import type { BracketSide, MatchStage, NextMatch, Player, Stage } from "../../../api/types";
@@ -21,6 +21,9 @@ import { fromDateTimeLocal, toDateTimeLocal } from "../../../lib/format";
 import { RoomsEditor } from "../MatchControls";
 import { RefereeControl, StreamerControl } from "./StaffControls";
 import type { BracketEditor, EditorMatch, EditorTeam } from "./useBracketEditor";
+
+/** Where the panel stops sitting beside the bracket and slides over it as a drawer (see the CSS). */
+const DRAWER_QUERY = "(max-width: 1100px)";
 
 interface Props {
   match: EditorMatch;
@@ -60,6 +63,12 @@ export function MatchPanel({
   const team = (id: string | null) => (id ? teams.get(id) : undefined);
   const slotSources = sources.get(match.id) ?? [null, null];
 
+  // As a drawer the panel covers the bracket, so focus moves into it when it opens.
+  const panelRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (window.matchMedia(DRAWER_QUERY).matches) panelRef.current?.focus({ preventScroll: true });
+  }, []);
+
   const concludeBlocker = match.rooms.length === 0
     ? "Önce maç linkini ekle"
     : !match.team1_id || !match.team2_id
@@ -85,178 +94,192 @@ export function MatchPanel({
   }
 
   return (
-    <aside className="match-panel" aria-label={`${code} maçı`}>
-      <header className="match-panel-header">
-        <h2 className={`match-panel-code is-${match.side}`}>{code}</h2>
-        <MatchStatus match={match} now={new Date().toISOString()} />
-        <IconButton icon="close" label="Paneli kapat" onClick={onClose} className="match-panel-close" />
-      </header>
+    <>
+      {/* Behind the drawer on phones: a tap beside it closes it. */}
+      <div className="match-panel-scrim" aria-hidden="true" onClick={onClose} />
+      <aside
+        ref={panelRef}
+        className="match-panel"
+        aria-label={`${code} maçı`}
+        tabIndex={-1}
+        onKeyDown={(e) => {
+          // Escape in a field belongs to the field (cancelling an edit), not to the panel.
+          if (e.key !== "Escape" || (e.target as Element).closest("input, textarea, select")) return;
+          onClose();
+        }}
+      >
+        <header className="match-panel-header">
+          <h2 className={`match-panel-code is-${match.side}`}>{code}</h2>
+          <MatchStatus match={match} now={new Date().toISOString()} />
+          <IconButton icon="close" label="Paneli kapat" onClick={onClose} className="match-panel-close" />
+        </header>
 
-      <div className="match-panel-teams">
-        {[match.team1_id, match.team2_id].map((id, i) => {
-          const t = team(id);
-          const source = slotSources[i];
-          return (
-            <div key={i} className="match-panel-team">
-              <span className="match-panel-team-name">
-                {t ? t.name : <span className="muted">{source ? sourceLabel(source) : "Belirlenmedi"}</span>}
-              </span>
-              {t && (
-                <span className="match-panel-players">
-                  {t.players.map((p) => (
-                    <span key={p.id}>
-                      {p.username}
-                      {"discord_username" in p && (
-                        <>
-                          {" "}
-                          <DiscordMention player={p} fallback="" />
-                        </>
-                      )}
-                    </span>
-                  ))}
+        <div className="match-panel-teams">
+          {[match.team1_id, match.team2_id].map((id, i) => {
+            const t = team(id);
+            const source = slotSources[i];
+            return (
+              <div key={i} className="match-panel-team">
+                <span className="match-panel-team-name">
+                  {t ? t.name : <span className="muted">{source ? sourceLabel(source) : "Belirlenmedi"}</span>}
                 </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                {t && (
+                  <span className="match-panel-players">
+                    {t.players.map((p) => (
+                      <span key={p.id}>
+                        {p.username}
+                        {"discord_username" in p && (
+                          <>
+                            {" "}
+                            <DiscordMention player={p} fallback="" />
+                          </>
+                        )}
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
 
-      <dl className="match-panel-rows">
-        <div>
-          <dt>Stage</dt>
-          <dd>
-            <StageName stage={match.stage} />
-          </dd>
-        </div>
-        <div>
-          <dt>Hakem</dt>
-          <dd>
-            <RefereeControl match={match} editor={editor} options={referees} />
-          </dd>
-        </div>
-        <div>
-          <dt>Yayıncı</dt>
-          <dd>
-            <StreamerControl match={match} editor={editor} options={streamers} myTeamId={myTeamId} />
-          </dd>
-        </div>
-        <div>
-          <dt>Skor</dt>
-          <dd>
-            {canRun && !concluded ? (
-              <ScoreEditor
-                key={`${match.team1_score}:${match.team2_score}`}
-                match={match}
-                names={[team(match.team1_id)?.name ?? "1. takım", team(match.team2_id)?.name ?? "2. takım"]}
-                disabled={busy}
-                onSave={(a, b) => editor.setScore(match.id, a, b)}
-              />
-            ) : (
-              <span className="match-panel-score">
-                {match.team1_score ?? "–"} : {match.team2_score ?? "–"}
-              </span>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>{match.rooms.length > 1 ? "Odalar" : "Maç linki"}</dt>
-          <dd>
-            <RoomsEditor
-              rooms={match.rooms}
-              editable={canEdit}
-              disabled={busy}
-              onAdd={(link) => editor.addRoom(match.id, link)}
-              onRemove={(mpId) => editor.removeRoom(match.id, mpId)}
-            />
-          </dd>
-        </div>
-        {match.referee_notes !== undefined && (
+        <dl className="match-panel-rows">
           <div>
-            <dt>Notlar</dt>
+            <dt>Stage</dt>
             <dd>
-              {canRun ? (
-                <EditableNote
-                  value={match.referee_notes}
-                  label={`${code} hakem notları`}
-                  placeholder="Ters giden bir şey olursa not al (sadece yetkililer görür)"
-                  isPrivate
-                  onSave={(notes) => editor.saveNotes(match.id, notes)}
+              <StageName stage={match.stage} />
+            </dd>
+          </div>
+          <div>
+            <dt>Hakem</dt>
+            <dd>
+              <RefereeControl match={match} editor={editor} options={referees} />
+            </dd>
+          </div>
+          <div>
+            <dt>Yayıncı</dt>
+            <dd>
+              <StreamerControl match={match} editor={editor} options={streamers} myTeamId={myTeamId} />
+            </dd>
+          </div>
+          <div>
+            <dt>Skor</dt>
+            <dd>
+              {canRun && !concluded ? (
+                <ScoreEditor
+                  key={`${match.team1_score}:${match.team2_score}`}
+                  match={match}
+                  names={[team(match.team1_id)?.name ?? "1. takım", team(match.team2_id)?.name ?? "2. takım"]}
+                  disabled={busy}
+                  onSave={(a, b) => editor.setScore(match.id, a, b)}
                 />
               ) : (
-                <span className={match.referee_notes ? "match-panel-notes" : "muted"}>
-                  {match.referee_notes || "—"}
+                <span className="match-panel-score">
+                  {match.team1_score ?? "–"} : {match.team2_score ?? "–"}
                 </span>
               )}
             </dd>
           </div>
-        )}
-      </dl>
-
-      {canRun && (
-        <div className="match-panel-actions">
-          <Link to={`/admin/referee/${match.id}`} className="btn btn-secondary btn-sm">
-            Hakem odası
-          </Link>
-          {!concluded && (
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              disabled={busy || concludeBlocker !== null}
-              title={concludeBlocker ?? undefined}
-              onClick={confirmConclude}
-            >
-              Maçı bitir
-            </button>
-          )}
-          {isHost && concluded && (
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              disabled={busy}
-              onClick={() => editor.reopen(match.id)}
-            >
-              Yeniden aç
-            </button>
-          )}
-        </div>
-      )}
-
-      {isHost && (
-        <>
-          <StructureForm
-            key={structureKey(match)}
-            match={match}
-            matches={matches}
-            teams={teams}
-            sources={sources}
-            stages={stages}
-            disabled={busy}
-            onSave={(update) => editor.update(match.id, update)}
-          />
-          <PositionForm
-            key={`${match.pos_x}:${match.pos_y}`}
-            match={match}
-            disabled={busy}
-            onMove={(x, y) => editor.move(match.id, x, y)}
-          />
-          <div className="match-panel-actions">
-            <button
-              type="button"
-              className="btn btn-danger btn-sm"
-              disabled={busy}
-              onClick={() => {
-                if (window.confirm(`${code} silinsin mi? Bu maçın ileri taşıdığı takımlar yerinde kalır.`)) {
-                  editor.remove(match.id);
-                  onClose();
-                }
-              }}
-            >
-              Maçı sil
-            </button>
+          <div>
+            <dt>{match.rooms.length > 1 ? "Odalar" : "Maç linki"}</dt>
+            <dd>
+              <RoomsEditor
+                rooms={match.rooms}
+                editable={canEdit}
+                disabled={busy}
+                onAdd={(link) => editor.addRoom(match.id, link)}
+                onRemove={(mpId) => editor.removeRoom(match.id, mpId)}
+              />
+            </dd>
           </div>
-        </>
-      )}
-    </aside>
+          {match.referee_notes !== undefined && (
+            <div>
+              <dt>Notlar</dt>
+              <dd>
+                {canRun ? (
+                  <EditableNote
+                    value={match.referee_notes}
+                    label={`${code} hakem notları`}
+                    placeholder="Ters giden bir şey olursa not al (sadece yetkililer görür)"
+                    isPrivate
+                    onSave={(notes) => editor.saveNotes(match.id, notes)}
+                  />
+                ) : (
+                  <span className={match.referee_notes ? "match-panel-notes" : "muted"}>
+                    {match.referee_notes || "—"}
+                  </span>
+                )}
+              </dd>
+            </div>
+          )}
+        </dl>
+
+        {canRun && (
+          <div className="match-panel-actions">
+            <Link to={`/admin/referee/${match.id}`} className="btn btn-secondary btn-sm">
+              Hakem odası
+            </Link>
+            {!concluded && (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={busy || concludeBlocker !== null}
+                title={concludeBlocker ?? undefined}
+                onClick={confirmConclude}
+              >
+                Maçı bitir
+              </button>
+            )}
+            {isHost && concluded && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy}
+                onClick={() => editor.reopen(match.id)}
+              >
+                Yeniden aç
+              </button>
+            )}
+          </div>
+        )}
+
+        {isHost && (
+          <>
+            <StructureForm
+              key={structureKey(match)}
+              match={match}
+              matches={matches}
+              teams={teams}
+              sources={sources}
+              stages={stages}
+              disabled={busy}
+              onSave={(update) => editor.update(match.id, update)}
+            />
+            <PositionForm
+              key={`${match.pos_x}:${match.pos_y}`}
+              match={match}
+              disabled={busy}
+              onMove={(x, y) => editor.move(match.id, x, y)}
+            />
+            <div className="match-panel-actions">
+              <button
+                type="button"
+                className="btn btn-danger btn-sm"
+                disabled={busy}
+                onClick={() => {
+                  if (window.confirm(`${code} silinsin mi? Bu maçın ileri taşıdığı takımlar yerinde kalır.`)) {
+                    editor.remove(match.id);
+                    onClose();
+                  }
+                }}
+              >
+                Maçı sil
+              </button>
+            </div>
+          </>
+        )}
+      </aside>
+    </>
   );
 }
 

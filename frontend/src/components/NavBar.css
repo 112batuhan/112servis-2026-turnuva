@@ -1,12 +1,15 @@
+/* One row at every width but phone portrait: the brand, the links (scrolling sideways in their own
+   lane when they don't fit, never wrapping) and the account controls. */
 .navbar {
   position: sticky;
   top: 0;
   z-index: 10;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-4);
   padding: var(--space-2) var(--space-4);
+  padding-left: max(var(--space-4), env(safe-area-inset-left));
+  padding-right: max(var(--space-4), env(safe-area-inset-right));
   background: color-mix(in srgb, var(--color-surface) 92%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--color-border);
@@ -22,12 +25,15 @@
   border-bottom-color: var(--color-admin-border);
 }
 
-/* Its own row above the rest until the admin grid has room for it in the middle. */
+/* Narrower than the admin grid, the tinted bar and "Siteye dön" carry the mode; the label stays for
+   screen readers. */
 .nav-mode {
-  display: flex;
-  justify-content: center;
-  order: -1;
-  flex-basis: 100%;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
 }
 
 .nav-mode-label {
@@ -43,8 +49,8 @@
   white-space: nowrap;
 }
 
-/* Wide enough for a host's six tabs: the label sits in the middle of the bar, or as close to it
-   as the tabs on its left allow. */
+/* Wide enough for a host's tabs: the label sits in the middle of the bar, or as close to it as the
+   tabs on its left allow. */
 @media (min-width: 1300px) {
   .navbar.is-admin {
     display: grid;
@@ -58,15 +64,23 @@
   }
 
   .nav-mode {
-    order: 0;
+    position: static;
+    display: flex;
+    justify-content: center;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
   }
 }
 
 /* The crystal and the wordmark in the banner's expanded lettering. */
 .nav-brand {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   gap: var(--space-2);
+  min-height: var(--icon-button-size);
   font-family: var(--font-display);
   font-stretch: var(--font-wordmark-stretch);
   font-size: var(--text-base);
@@ -83,16 +97,43 @@
   color: var(--color-primary);
 }
 
+/* The lane the links scroll in. Its edges fade where links are scrolled out of view, so a cut-off
+   row reads as "more this way" rather than as clipped. */
 .nav-links {
   position: relative;
   display: flex;
-  flex-wrap: wrap;
+  flex: 1 1 auto;
   gap: var(--space-1);
-  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  --fade-start: 0px;
+  --fade-end: 0px;
+  mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 var(--fade-start),
+    #000 calc(100% - var(--fade-end)),
+    transparent
+  );
+}
+
+.nav-links::-webkit-scrollbar {
+  display: none;
+}
+
+.nav-links[data-fade~="start"] {
+  --fade-start: 32px;
+}
+
+.nav-links[data-fade~="end"] {
+  --fade-end: 32px;
 }
 
 .nav-link {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   height: var(--control-height-sm);
   padding: 0 var(--space-3);
@@ -100,6 +141,7 @@
   font-size: var(--text-md);
   color: var(--color-text-muted);
   text-decoration: none;
+  white-space: nowrap;
   transition:
     background-color var(--duration-fast) ease,
     color var(--duration-fast) ease;
@@ -118,6 +160,7 @@
 
 .nav-account {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: var(--space-2);
   margin-left: auto;
@@ -127,6 +170,7 @@
    bell's icon button line up as a set. */
 .nav-account .btn {
   height: var(--icon-button-size);
+  white-space: nowrap;
 }
 
 .nav-account .icon-btn-outlined {
@@ -154,24 +198,43 @@
   border-radius: 50%;
 }
 
-@media (max-width: 560px) {
-  .nav-username {
-    display: none;
+/* Below a desktop width the links get the room: the avatar stands for the profile and the sign-out
+   button folds to its icon. */
+@media (max-width: 1100px) {
+  .nav-username,
+  .nav-signout-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
   }
 
+  .nav-signout {
+    width: var(--icon-button-size);
+    padding: 0;
+  }
+
+  .nav-user {
+    padding: 0 var(--space-1);
+  }
+}
+
+/* Phones held upright: two rows. The brand and the account controls on the first, the links lane
+   edge to edge on the second. */
+@media (max-width: 560px) {
   .navbar {
+    flex-wrap: wrap;
     column-gap: var(--space-2);
+    padding-bottom: var(--space-1);
   }
 
   .nav-account {
     gap: var(--space-1);
   }
 
-  .nav-user {
-    padding: 0 var(--space-1);
-  }
-
-  /* Just the gear on phones, so the account row fits on one line; the text stays for screen readers. */
+  /* Just the gear, so the account row fits on one line; the text stays for screen readers. */
   .nav-admin-link {
     width: var(--icon-button-size);
     padding: 0;
@@ -186,21 +249,34 @@
     white-space: nowrap;
   }
 
+  /* "Siteye dön" needs its words, so in the admin bar the crystal alone stands for the brand. */
+  .navbar.is-admin .nav-brand-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  /* A staff member's account row has a button more; on the narrowest phones the crystal alone
+     stands for the brand there too. */
+  @media (max-width: 420px) {
+    .navbar:has(.nav-admin-link) .nav-brand-text {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+    }
+  }
+
   .nav-links {
     order: 3;
     flex-basis: 100%;
-    flex-wrap: nowrap;
     margin: 0 calc(-1 * var(--space-4));
     padding: 0 var(--space-4);
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .nav-links::-webkit-scrollbar {
-    display: none;
-  }
-
-  .nav-link {
-    flex-shrink: 0;
+    scroll-padding-inline: var(--space-4);
   }
 }

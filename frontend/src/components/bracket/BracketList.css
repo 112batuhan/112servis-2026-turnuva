@@ -243,13 +243,15 @@ button.bracket-list-code:hover {
   display: none;
 }
 
-/* Narrow: each match becomes a stacked block instead of a table row, so both teams stay in view
-   without scrolling sideways: code and time, then the pairing, then the staff and status. */
+/* Narrower than the table needs: each match becomes a block of two balanced columns, the left one
+   reading from the left edge and the right one from the right, like the two sides of the pairing
+   between them: code and time, then the pairing, then referee and streamer, then status and the
+   row's actions. With room for two, the blocks sit side by side. */
 .bracket-list-wrap {
   container-type: inline-size;
 }
 
-@container (max-width: 720px) {
+@container (max-width: 960px) {
   .bracket-list-scroll {
     max-height: none;
     overflow: visible;
@@ -279,17 +281,25 @@ button.bracket-list-code:hover {
 
   .bracket-list tbody tr:not(.bracket-list-group) {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas:
       "code time"
       "pair pair"
-      "ref ref"
-      "stream stream"
-      "status status"
-      "actions actions";
+      "ref stream"
+      "status actions";
     align-items: center;
-    gap: var(--space-1) var(--space-3);
-    padding: var(--space-3) 0;
+    gap: var(--space-3) var(--space-4);
+    padding: var(--space-3) var(--space-2);
+    transition: background-color var(--duration-fast) ease;
+  }
+
+  /* Without row actions (the public list) the status line has the whole width. */
+  .bracket-list tbody tr:not(.bracket-list-group):not(:has(.bracket-list-actions-cell)) {
+    grid-template-areas:
+      "code time"
+      "pair pair"
+      "ref stream"
+      "status status";
   }
 
   .bracket-list tbody tr:not(.bracket-list-group) > * {
@@ -298,32 +308,52 @@ button.bracket-list-code:hover {
     white-space: normal;
   }
 
-  .bracket-list tbody tr:not(.bracket-list-group) .select {
-    max-width: 100%;
+  /* The block is the hover target here, not its cells, which have gaps between them. */
+  .bracket-list tbody tr.is-selectable:hover > *,
+  .bracket-list tbody tr.is-mine.is-selectable:hover > * {
+    background: none;
   }
 
-  .bracket-list-actions {
-    justify-content: flex-start;
+  .bracket-list tbody tr.is-selectable:hover {
+    background: var(--color-hover);
+  }
+
+  .bracket-list tbody tr.is-mine.is-selectable:hover {
+    background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  }
+
+  .bracket-list tbody tr.is-selected > :first-child {
+    box-shadow: none;
+  }
+
+  .bracket-list tbody tr.is-selected {
+    box-shadow: inset 3px 0 0 var(--color-primary);
   }
 
   .bracket-list tbody tr > th[scope="row"] {
     grid-area: code;
   }
 
-  .bracket-list-time {
+  .bracket-list .bracket-list-time {
     grid-area: time;
+    justify-self: end;
+    text-align: right;
   }
 
   .bracket-list-pairing-cell {
     grid-area: pair;
   }
 
-  .bracket-list-referee {
+  /* Top-aligned, so both labels sit on one line however tall either value is. */
+  .bracket-list .bracket-list-referee {
     grid-area: ref;
+    align-self: start;
   }
 
-  .bracket-list-streamer {
+  .bracket-list .bracket-list-streamer {
     grid-area: stream;
+    align-self: start;
+    text-align: right;
   }
 
   .bracket-list-status-cell {
@@ -334,10 +364,41 @@ button.bracket-list-code:hover {
     grid-area: actions;
   }
 
+  /* The column name over each staff value, small, as on a fixture sheet's footer. */
   .bracket-list-referee::before,
   .bracket-list-streamer::before {
-    content: attr(data-label) " ";
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 2px;
     color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 600;
+  }
+
+  .bracket-list-person,
+  .bracket-list-status {
+    flex-wrap: wrap;
+    row-gap: var(--space-1);
+  }
+
+  /* Host selects fill their column; the referee's Discord wraps under its select. */
+  .bracket-list-referee .staff-control,
+  .bracket-list-streamer .staff-control {
+    display: flex;
+    max-width: 100%;
+  }
+
+  .bracket-list-streamer .staff-control {
+    justify-content: flex-end;
+  }
+
+  .bracket-list tbody tr:not(.bracket-list-group) .select {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .bracket-list-actions {
+    justify-content: flex-end;
   }
 
   .bracket-list-pairing {
@@ -351,5 +412,18 @@ button.bracket-list-code:hover {
 
   .bracket-list-team .team-banner {
     display: none;
+  }
+}
+
+/* Two blocks a row once each can still be about 300px wide. */
+@container (min-width: 640px) and (max-width: 960px) {
+  .bracket-list tbody {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: var(--space-5);
+  }
+
+  .bracket-list tbody tr.bracket-list-group {
+    grid-column: 1 / -1;
   }
 }

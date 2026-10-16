@@ -138,7 +138,7 @@ export function TeamsAdminPage() {
       {!teams && !error && <p className="status">Yükleniyor…</p>}
       {teams?.length === 0 && <p className="status">Henüz takım yok.</p>}
       {teams && teams.length > 0 && (
-        <div className="team-grid">
+        <div className="team-grid is-ruled">
           {teams.map((team, i) => (
             <TeamCard
               key={team.id}
