@@ -930,12 +930,8 @@ pub fn announcement(
         ),
         // The running score is a field, as on the match card.
         Announced::Live => (format!("🔴 **{title}** şu an oynanıyor!"), None, COLOR_BAD),
-        Announced::Upcoming => (
-            format!("📣 **{title}** birazdan başlıyor!"),
-            info.starts_at
-                .map(|at| format!("Maç {} başlıyor!", when(at))),
-            COLOR,
-        ),
+        // The time is in the "Maç saati" field, as on the match card.
+        Announced::Upcoming => (format!("📣 **{title}** birazdan başlıyor!"), None, COLOR),
     };
 
     // Laid out like the match card, but naming people without pinging them: the
