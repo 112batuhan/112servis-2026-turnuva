@@ -12,8 +12,9 @@ use crate::{auth::AuthUser, db, error::AppError, osu_api, role::Role, AppState};
 
 // Routes under the `/api` nest. The authed endpoints require map_pooler+, except that
 // only hosts create, rename, reorder and delete stages: stages are the tournament's
-// rounds, which bracket matches also point at. The two `/public/*` ones take no
-// AuthUser and only expose published stages.
+// rounds, which bracket matches also point at, and that pool testers and custom
+// mappers can also read the stages (`view_guard`) but change nothing. The two
+// `/public/*` ones take no AuthUser and only expose published stages.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/stages", get(list_stages).post(create_stage))
@@ -38,9 +39,20 @@ pub fn routes() -> Router<AppState> {
         .route("/public/stages/:id", get(get_public_stage))
 }
 
-// Every authed map pool endpoint requires the map_pooler role (host qualifies too).
+// Every authed map pool endpoint that changes something requires the map_pooler role
+// (host qualifies too).
 fn guard(user: &AuthUser) -> Result<(), AppError> {
     user.require_role(Role::MapPooler)
+}
+
+// Reading the editor's view (unpublished stages, editor notes) is also open to pool
+// testers and custom mappers.
+fn view_guard(user: &AuthUser) -> Result<(), AppError> {
+    if user.roles.can_view_pool() {
+        Ok(())
+    } else {
+        Err(AppError::Forbidden)
+    }
 }
 
 // ---------- stages ----------
@@ -49,7 +61,7 @@ pub async fn list_stages(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
-    guard(&user)?;
+    view_guard(&user)?;
     Ok(Json(db::mappool::list_stages(&state.db).await?))
 }
 
@@ -79,7 +91,7 @@ pub async fn get_stage(
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
-    guard(&user)?;
+    view_guard(&user)?;
     let stage = db::mappool::get_stage(&state.db, id)
         .await?
         .ok_or(AppError::NotFound)?;

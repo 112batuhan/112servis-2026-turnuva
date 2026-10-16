@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 // Roles don't imply each other, with one exception: Host is allowed everything the
 // others are (`Roles::allows`). Acting in a role — being offered for, taking or being
 // pinged about a referee or streamer slot — needs the role itself (`Roles::has`), so a
-// host who referees ticks Referee too.
+// host who referees ticks Referee too. Graphics designers and commentators have no
+// authority at all (they're only listed on the staff page); pool testers and custom mappers can only
+// look at the map pool editor (`Roles::can_view_pool`).
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize, sqlx::Type,
 )]
@@ -18,6 +20,10 @@ pub enum Role {
     MapPooler,
     Referee,
     Streamer,
+    GraphicsDesigner,
+    PoolTester,
+    CustomMapper,
+    Commentator,
 }
 
 // So a `staff_role[]` column reads into a Vec<Role>; sqlx 0.7 doesn't derive it.
@@ -52,9 +58,17 @@ impl Roles {
         self.has(role) || self.has(Role::Host)
     }
 
-    // Whether the user can be in a team. Streamers are the only staff who also play.
+    // Whether the user can be in a team. Streamers, graphics designers and commentators
+    // are the only staff who also play.
     pub fn can_play(self) -> bool {
-        self.0 & !Role::Streamer.bit() == 0
+        let playing = Role::Streamer.bit() | Role::GraphicsDesigner.bit() | Role::Commentator.bit();
+        self.0 & !playing == 0
+    }
+
+    // May open the map pool editor: map poolers (and hosts) to edit it, pool testers and
+    // custom mappers only to look.
+    pub fn can_view_pool(self) -> bool {
+        self.allows(Role::MapPooler) || self.has(Role::PoolTester) || self.has(Role::CustomMapper)
     }
 }
 
@@ -85,9 +99,26 @@ mod tests {
     }
 
     #[test]
-    fn only_streamers_and_players_play() {
+    fn only_streamers_designers_commentators_and_players_play() {
         assert!(Roles::default().can_play());
         assert!(Roles::of(&[Role::Streamer]).can_play());
+        assert!(Roles::of(&[Role::Streamer, Role::GraphicsDesigner]).can_play());
+        assert!(Roles::of(&[Role::Commentator]).can_play());
         assert!(!Roles::of(&[Role::Streamer, Role::Referee]).can_play());
+        assert!(!Roles::of(&[Role::PoolTester]).can_play());
+        assert!(!Roles::of(&[Role::CustomMapper]).can_play());
+    }
+
+    #[test]
+    fn pool_viewers_cant_edit() {
+        for role in [Role::PoolTester, Role::CustomMapper] {
+            let viewer = Roles::of(&[role]);
+            assert!(viewer.can_view_pool());
+            assert!(!viewer.allows(Role::MapPooler));
+        }
+        assert!(Roles::of(&[Role::Host]).can_view_pool());
+        assert!(Roles::of(&[Role::MapPooler]).can_view_pool());
+        assert!(!Roles::of(&[Role::GraphicsDesigner, Role::Streamer]).can_view_pool());
+        assert!(!Roles::of(&[Role::Commentator]).can_view_pool());
     }
 }

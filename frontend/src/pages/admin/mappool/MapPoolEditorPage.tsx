@@ -20,6 +20,8 @@ export function MapPoolEditorPage() {
   const [showSettings, setShowSettings] = useState(false);
   const { isExpanded, toggle } = useExpandedSet("mappool-expanded");
   const moveTargets = useMemo(() => buildMoveTargets(detail), [detail]);
+  // Pool testers and custom mappers only look.
+  const canEdit = hasRole(user, "map_pooler");
 
   const editorFor = (map: PoolMap): MapCardEditor => ({
     moveTargets,
@@ -41,7 +43,7 @@ export function MapPoolEditorPage() {
             Stage'leri düzenle
           </Link>
         )}
-        {detail && (
+        {detail && canEdit && (
           <button
             type="button"
             className="btn btn-secondary"
@@ -52,6 +54,7 @@ export function MapPoolEditorPage() {
             Stage ayarları
           </button>
         )}
+        {!canEdit && <span className="badge">Sadece görüntüleme</span>}
       </StageTabs>
 
       {!selectedId && (
@@ -68,7 +71,7 @@ export function MapPoolEditorPage() {
 
       {detail && (
         <>
-          {showSettings && <StageSettings detail={detail} busy={busy} actions={actions} />}
+          {showSettings && canEdit && <StageSettings detail={detail} busy={busy} actions={actions} />}
 
           <div className="pool-board">
             <GenericPool
@@ -78,10 +81,12 @@ export function MapPoolEditorPage() {
               busy={busy}
               onAddMap={actions.addMap}
               onDropMap={(mapId) => actions.moveMap(mapId, null)}
-              editorFor={editorFor}
+              editorFor={canEdit ? editorFor : undefined}
             />
             {detail.categories.length === 0 && (
-              <p className="status">Henüz kategori yok. Stage ayarlarından ekleyebilirsin.</p>
+              <p className="status">
+                {canEdit ? "Henüz kategori yok. Stage ayarlarından ekleyebilirsin." : "Henüz kategori yok."}
+              </p>
             )}
             {detail.categories.map((category) => (
               <CategoryEditor
@@ -93,7 +98,7 @@ export function MapPoolEditorPage() {
                 onToggle={() => toggle(category.id)}
                 busy={busy}
                 actions={actions}
-                editorFor={editorFor}
+                editorFor={canEdit ? editorFor : undefined}
               />
             ))}
           </div>

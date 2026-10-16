@@ -91,7 +91,7 @@ pub async fn search_players(
                EXISTS(SELECT 1 FROM team_invites i
                       WHERE i.inviter_id = u.id AND i.invitee_id = $1) AS invite_received
         FROM osu_users u
-        WHERE u.id <> $1 AND u.roles <@ '{streamer}'::staff_role[] AND u.username ILIKE '%' || $2 || '%'
+        WHERE u.id <> $1 AND u.roles <@ '{streamer,graphics_designer,commentator}'::staff_role[] AND u.username ILIKE '%' || $2 || '%'
         ORDER BY lower(u.username) = lower($3) DESC, u.global_rank ASC NULLS LAST
         LIMIT 25
         "#,

@@ -14,6 +14,10 @@ const SECTIONS: { role: Role; title: string }[] = [
   { role: "map_pooler", title: "Map Poolerlar" },
   { role: "referee", title: "Hakemler" },
   { role: "streamer", title: "Yayıncılar" },
+  { role: "pool_tester", title: "Pool Testerlar" },
+  { role: "custom_mapper", title: "Custom Mapperlar" },
+  { role: "commentator", title: "Yorumcular" },
+  { role: "graphics_designer", title: "Grafik Tasarımcılar" },
 ];
 
 export function StaffPage() {

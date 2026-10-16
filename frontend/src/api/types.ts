@@ -1,7 +1,15 @@
 // Response shapes returned by the Rust backend (see backend/src/db).
 
 /** A staff role; a user holds any set of them, and none means a regular player. */
-export type Role = "host" | "map_pooler" | "referee" | "streamer";
+export type Role =
+  | "host"
+  | "map_pooler"
+  | "referee"
+  | "streamer"
+  | "graphics_designer"
+  | "pool_tester"
+  | "custom_mapper"
+  | "commentator";
 
 export interface DiscordAccount {
   id: string;

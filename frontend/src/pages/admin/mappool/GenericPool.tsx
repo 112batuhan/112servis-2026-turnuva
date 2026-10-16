@@ -16,7 +16,8 @@ interface Props {
   busy: boolean;
   onAddMap: (beatmapId: number, mods: string) => Promise<boolean>;
   onDropMap: (mapId: string) => void;
-  editorFor: (map: PoolMap) => MapCardEditor;
+  /** Absent for those who may only look: no adding, dropping or editing. */
+  editorFor?: (map: PoolMap) => MapCardEditor;
 }
 
 /** Maps not placed in any slot. Shared by every stage. */
@@ -30,12 +31,16 @@ export function GenericPool({ maps, expanded, onToggle, busy, onAddMap, onDropMa
       expanded={expanded}
       onToggle={onToggle}
       isDropTarget={isOver}
-      {...dropProps}
+      {...(editorFor ? dropProps : {})}
     >
-      <AddMapForm busy={busy} onAddMap={onAddMap} />
-      {maps.length === 0 && <p className="pool-empty">Yerleştirilmemiş map yok. Yukarıdan beatmap id'siyle map ekleyebilirsin.</p>}
+      {editorFor && <AddMapForm busy={busy} onAddMap={onAddMap} />}
+      {maps.length === 0 && (
+        <p className="pool-empty">
+          {editorFor ? "Yerleştirilmemiş map yok. Yukarıdan beatmap id'siyle map ekleyebilirsin." : "Yerleştirilmemiş map yok."}
+        </p>
+      )}
       {maps.map((map) => (
-        <MapCard key={map.id} map={map} editor={editorFor(map)} />
+        <MapCard key={map.id} map={map} editor={editorFor?.(map)} viewOnly={!editorFor} />
       ))}
     </PoolSection>
   );

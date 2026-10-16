@@ -11,11 +11,13 @@ interface Props {
   onSave: (next: string) => void;
   /** Lets a draggable parent disable dragging while the textarea is open. */
   onEditingChange?: (editing: boolean) => void;
+  /** Only shows the note (nothing when empty), for those who may look but not edit. */
+  readOnly?: boolean;
 }
 
 // Idle: one truncated line (full text in a tooltip on hover/focus). Click to edit in a
 // textarea that grows with its content. Blur or Escape saves.
-export function EditableNote({ value, label, placeholder, isPrivate, onSave, onEditingChange }: Props) {
+export function EditableNote({ value, label, placeholder, isPrivate, onSave, onEditingChange, readOnly }: Props) {
   const [editing, setEditing] = useState(false);
   const [clipped, setClipped] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -46,6 +48,22 @@ export function EditableNote({ value, label, placeholder, isPrivate, onSave, onE
   }, [value, editing]);
 
   const classes = `note ${isPrivate ? "note-private" : ""}`;
+
+  if (readOnly) {
+    if (!value) return null;
+    return (
+      <div className={`${classes} note-view is-readonly`} title={label} tabIndex={clipped ? 0 : undefined}>
+        <span ref={textRef} className="note-view-text">
+          {value}
+        </span>
+        {clipped && (
+          <span className="note-tooltip" aria-hidden="true">
+            {value}
+          </span>
+        )}
+      </div>
+    );
+  }
 
   if (editing) {
     return (

@@ -17,7 +17,8 @@ interface Props {
   onToggle: () => void;
   busy: boolean;
   actions: StageEditorActions;
-  editorFor: (map: PoolMap) => MapCardEditor;
+  /** Absent for those who may only look: no slots added or removed, nothing edited. */
+  editorFor?: (map: PoolMap) => MapCardEditor;
 }
 
 export function CategoryEditor({ category, slots, maps, expanded, onToggle, busy, actions, editorFor }: Props) {
@@ -29,19 +30,23 @@ export function CategoryEditor({ category, slots, maps, expanded, onToggle, busy
       expanded={expanded}
       onToggle={onToggle}
       actions={
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
-          aria-label={`${category.name} kategorisine slot ekle`}
-          disabled={busy}
-          onClick={() => actions.addSlot(category.id)}
-        >
-          <Icon name="plus" size={14} />
-          Slot
-        </button>
+        editorFor && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            aria-label={`${category.name} kategorisine slot ekle`}
+            disabled={busy}
+            onClick={() => actions.addSlot(category.id)}
+          >
+            <Icon name="plus" size={14} />
+            Slot
+          </button>
+        )
       }
     >
-      {slots.length === 0 && <p className="pool-empty">Map eklemek için slot ekle.</p>}
+      {slots.length === 0 && (
+        <p className="pool-empty">{editorFor ? "Map eklemek için slot ekle." : "Henüz slot yok."}</p>
+      )}
       {slots.map((slot, i) => (
         <EditorSlot
           key={slot.id}
@@ -63,7 +68,7 @@ interface EditorSlotProps {
   number: number;
   map: PoolMap | undefined;
   actions: StageEditorActions;
-  editorFor: (map: PoolMap) => MapCardEditor;
+  editorFor?: (map: PoolMap) => MapCardEditor;
 }
 
 function EditorSlot({ slot, categoryName, number, map, actions, editorFor }: EditorSlotProps) {
@@ -77,21 +82,26 @@ function EditorSlot({ slot, categoryName, number, map, actions, editorFor }: Edi
   }
 
   return (
-    <Slot number={number} isDropTarget={isOver} {...dropProps}>
-      <div className="slot-toolbar">
-        <EditableNote
-          label={`${name} gizli notu`}
-          placeholder="Gizli slot notu (sadece editörler)…"
-          value={slot.editor_notes}
-          isPrivate
-          onSave={(v) => actions.saveSlotNotes(slot.id, v)}
-        />
-        <IconButton icon="close" label={`${name} slot'unu kaldır`} tone="danger" onClick={remove} />
-      </div>
+    <Slot number={number} isDropTarget={isOver} {...(editorFor ? dropProps : {})}>
+      {(editorFor || slot.editor_notes) && (
+        <div className="slot-toolbar">
+          <EditableNote
+            label={`${name} gizli notu`}
+            placeholder="Gizli slot notu (sadece editörler)…"
+            value={slot.editor_notes}
+            isPrivate
+            readOnly={!editorFor}
+            onSave={(v) => actions.saveSlotNotes(slot.id, v)}
+          />
+          {editorFor && <IconButton icon="close" label={`${name} slot'unu kaldır`} tone="danger" onClick={remove} />}
+        </div>
+      )}
       {map ? (
-        <MapCard map={map} editor={editorFor(map)} />
+        <MapCard map={map} editor={editorFor?.(map)} viewOnly={!editorFor} />
       ) : (
-        <EmptySlot>Buraya bir map sürükle ya da map üzerindeki "Taşı…" menüsünü kullan</EmptySlot>
+        <EmptySlot>
+          {editorFor ? `Buraya bir map sürükle ya da map üzerindeki "Taşı…" menüsünü kullan` : "Boş slot"}
+        </EmptySlot>
       )}
     </Slot>
   );

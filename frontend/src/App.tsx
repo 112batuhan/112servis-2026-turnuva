@@ -80,13 +80,16 @@ export function App() {
             />
             <Route
               path="mappool"
-              element={<RequireAuth access="map_pooler" redirect="/admin"><MapPoolEditorPage /></RequireAuth>}
+              element={<RequireAuth access="pool" redirect="/admin"><MapPoolEditorPage /></RequireAuth>}
             />
             <Route
               path="qualifiers"
               element={<RequireAuth access="referee" redirect="/admin"><QualifiersAdminPage /></RequireAuth>}
             />
-            <Route path="bracket" element={<BracketAdminPage />} />
+            <Route
+              path="bracket"
+              element={<RequireAuth access="matches" redirect="/admin"><BracketAdminPage /></RequireAuth>}
+            />
             <Route
               path="referee/:matchId"
               element={<RequireAuth access="referee" redirect="/admin"><RefereeRoomPage /></RequireAuth>}

@@ -27,36 +27,42 @@ interface Props {
   map: PublicPoolMap | PoolMap;
   /** Present only in the editor: enables dragging, notes and move/delete controls. */
   editor?: MapCardEditor;
+  /** In the editor for those who may only look: shows both notes, without any controls. */
+  viewOnly?: boolean;
 }
 
-export function MapCard({ map, editor }: Props) {
+export function MapCard({ map, editor, viewOnly }: Props) {
   const [noteOpen, setNoteOpen] = useState(false);
   const dragProps = editor && !noteOpen ? mapDragProps(map.id) : {};
+  const editorNotes = "editor_notes" in map ? map.editor_notes : "";
+  const showNotes = editor || (viewOnly && (map.public_notes || editorNotes));
 
   return (
     <article className={`map-card ${editor ? "is-editable" : ""}`} {...dragProps}>
       <div className="map-card-main">
         <PreviewButton map={map} />
         {map.cover_url && <Cover url={map.cover_url} />}
-        <MapInfo map={map} note={editor ? undefined : map.public_notes} />
+        <MapInfo map={map} note={editor || viewOnly ? undefined : map.public_notes} />
       </div>
 
-      {editor && (
+      {showNotes && (
         <div className="map-card-notes">
           <EditableNote
             label="Herkese açık not"
             placeholder="Herkese açık not…"
             value={map.public_notes}
+            readOnly={!editor}
             onEditingChange={setNoteOpen}
-            onSave={(v) => editor.onSaveNote("public_notes", v)}
+            onSave={(v) => editor?.onSaveNote("public_notes", v)}
           />
           <EditableNote
             label="Gizli editör notu"
             placeholder="Gizli not (sadece editörler)…"
-            value={"editor_notes" in map ? map.editor_notes : ""}
+            value={editorNotes}
             isPrivate
+            readOnly={!editor}
             onEditingChange={setNoteOpen}
-            onSave={(v) => editor.onSaveNote("editor_notes", v)}
+            onSave={(v) => editor?.onSaveNote("editor_notes", v)}
           />
         </div>
       )}

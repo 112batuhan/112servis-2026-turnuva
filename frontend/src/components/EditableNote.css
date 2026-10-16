@@ -25,6 +25,14 @@
   border-color: var(--color-border-strong);
 }
 
+.note-view.is-readonly {
+  cursor: default;
+}
+
+.note-view.is-readonly:hover {
+  border-color: var(--color-border);
+}
+
 .note-view-text {
   display: block;
   white-space: nowrap;
