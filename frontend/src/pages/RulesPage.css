@@ -7,12 +7,25 @@
   font-size: var(--text-base);
 }
 
-/* The contents run down the left beside the text; the text keeps its reading measure. */
+/* The text keeps its reading measure and sits in the middle of whatever room it has. */
+.rules-layout > .bbcode {
+  margin-inline: auto;
+}
+
+/* The contents run down the left beside the text. */
 .rules-layout.has-toc {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   gap: var(--space-7);
   align-items: start;
+}
+
+/* Wide enough for an empty column the contents' width on the right too: the text then sits in the
+   middle of the page, under the centre of the header's rule. */
+@media (min-width: 1280px) {
+  .rules-layout.has-toc {
+    grid-template-columns: 240px minmax(0, 1fr) 240px;
+  }
 }
 
 .rules-toc {
@@ -55,8 +68,12 @@
     gap: var(--space-6);
   }
 
+  /* Lined up with the text's measure, so the row starts where the text does. */
   .rules-toc {
     position: static;
+    width: 100%;
+    max-width: 72ch;
+    margin-inline: auto;
   }
 
   .rules-toc ol {

@@ -1,6 +1,8 @@
 /* A fixed frame the board pans and zooms inside; there are no scrollbars. The frame
    takes every touch gesture (one finger pans, two pinch), so the page only scrolls
-   from outside it. */
+   from outside it. Nothing on it is selectable text: a click or drag on a card
+   selects the match or moves the view, and the selected card's border is the only
+   highlight (no tap flash either). */
 .bracket-viewport {
   position: relative;
   height: clamp(520px, 75vh, 1000px);
@@ -10,11 +12,12 @@
   background: var(--color-surface-sunken);
   cursor: grab;
   touch-action: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .bracket-viewport.is-panning {
   cursor: grabbing;
-  user-select: none;
 }
 
 /* The editor shows the grid cards snap to: a dot on every unit, following the view. */
@@ -88,7 +91,6 @@
 .bracket-viewport.is-editable .bracket-slot {
   cursor: move;
   touch-action: none;
-  user-select: none;
 }
 
 .bracket-slot:hover .bm-card {

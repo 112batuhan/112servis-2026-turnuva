@@ -264,6 +264,8 @@
 
 .cal-match[role="button"] {
   cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .cal-match[role="button"]:hover {
