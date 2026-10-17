@@ -12,6 +12,10 @@ interface Props {
   colors: Map<string, SlotTeam | null>;
   /** Shown above the tabs: the Bancho login, or who's connected. */
   top?: ReactNode;
+  /** False while the panel is behind another tab on a phone: lines stay unread until it's back. */
+  visible?: boolean;
+  /** Told the unread lines across every conversation, for the phone's tab bar. */
+  onUnread?: (count: number) => void;
 }
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
@@ -41,7 +45,7 @@ const time = (at: number) =>
  * live) and the private conversations. Other matches' rooms stay out of it, even
  * ones the connection is still in.
  */
-export function ChatPanel({ rooms, colors, top }: Props) {
+export function ChatPanel({ rooms, colors, top, visible = true, onUnread }: Props) {
   const irc = useIrc();
   const latest = rooms.length > 0 ? rooms[rooms.length - 1].channel : null;
   const [active, setActive] = useState<string | null>(latest);
@@ -72,19 +76,24 @@ export function ChatPanel({ rooms, colors, top }: Props) {
 
   // Viewing a conversation marks it read.
   useEffect(() => {
-    if (activeKey) setSeen((s) => (s[activeKey] === lastLiveId ? s : { ...s, [activeKey]: lastLiveId }));
-  }, [activeKey, lastLiveId]);
+    if (visible && activeKey) setSeen((s) => (s[activeKey] === lastLiveId ? s : { ...s, [activeKey]: lastLiveId }));
+  }, [visible, activeKey, lastLiveId]);
 
-  // Follows new lines unless the referee has scrolled up to read.
+  // Follows new lines unless the referee has scrolled up to read. A hidden log can't scroll, so
+  // coming back into view catches up.
   useLayoutEffect(() => {
     const el = log.current;
-    if (el && stuckToBottom.current) el.scrollTop = el.scrollHeight;
-  }, [lines.length, activeKey]);
+    if (visible && el && stuckToBottom.current) el.scrollTop = el.scrollHeight;
+  }, [visible, lines.length, activeKey]);
 
   const online = irc.status === "online";
   // A room we're not in only shows what was saved.
   const target = activeRoom ? (activeRoom.joined ? activeRoom.channel : null) : (activeDm?.name ?? null);
   const unread = (key: string, tabLines: ChatLine[]) => tabLines.filter((l) => l.id > (seen[key] ?? 0)).length;
+  const totalUnread =
+    roomTabs.reduce((n, r) => n + unread(conversationKey(r.channel), r.lines), 0) +
+    dmKeys.reduce((n, key) => n + unread(key, irc.conversations[key].lines), 0);
+  useEffect(() => onUnread?.(totalUnread), [onUnread, totalUnread]);
 
   function submit(e: FormEvent) {
     e.preventDefault();

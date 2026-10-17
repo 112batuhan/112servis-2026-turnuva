@@ -135,27 +135,175 @@
   }
 }
 
-/* A phone: one column, the room first, the chat a screen tall, the pool last. Every panel takes
-   its own height. */
+/* The tabs and anything wrong: wider than a phone it's only the error over the cockpit. */
+.referee-bar:not(:has(> .alert)) {
+  display: none;
+}
+
+.referee-tabs {
+  display: none;
+}
+
+/* A phone: one panel at a time under a tab bar that sticks below the top bar, the panel filling
+   the rest of the screen and scrolling inside, so the referee switches instead of scrolling past
+   the other two. */
 @container referee-page (max-width: 760px) {
-  .referee-cockpit {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: none;
-    grid-template-areas:
-      "room"
-      "chat"
-      "pool";
-  }
-
-  .referee-cockpit-chat {
-    height: 75svh;
-  }
-
   .referee-header {
     gap: var(--space-1) var(--space-2);
   }
 
   .referee-viewers {
     margin-left: 0;
+  }
+
+  .referee-bar,
+  .referee-bar:not(:has(> .alert)) {
+    position: sticky;
+    top: var(--nav-height, 0px);
+    z-index: 5;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding-top: var(--space-1);
+    background: var(--color-bg);
+  }
+
+  .referee-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    border-bottom: var(--rule);
+  }
+
+  .referee-tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    min-height: 52px;
+    margin-bottom: -1px;
+    padding: var(--space-1) var(--space-2);
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    background: none;
+    color: var(--color-text-muted);
+    font: inherit;
+    cursor: pointer;
+    transition:
+      background-color var(--duration-fast) var(--ease-out),
+      color var(--duration-fast) var(--ease-out);
+  }
+
+  .referee-tab:hover {
+    background: var(--color-hover);
+    color: var(--color-text);
+  }
+
+  .referee-tab[aria-selected="true"] {
+    border-bottom-color: var(--color-primary);
+    background: var(--color-primary-soft);
+    color: var(--color-text);
+  }
+
+  .referee-tab-label {
+    font-size: var(--text-md);
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  /* Where the panel stands, in one short line. */
+  .referee-tab-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    min-height: 16px;
+    color: var(--color-text-muted);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .referee-tab-status .num {
+    font-size: var(--text-md);
+    font-weight: 800;
+  }
+
+  .referee-tab-team {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .referee-tab-score {
+    display: inline-flex;
+    gap: 4px;
+    color: var(--color-text-subtle);
+  }
+
+  .referee-tab-status .is-team-red {
+    color: var(--color-team-red);
+  }
+
+  .referee-tab-status .is-team-blue {
+    color: var(--color-team-blue);
+  }
+
+  /* A map being played: the live dot, as on the bracket. */
+  .referee-tab-live {
+    flex-shrink: 0;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    box-shadow: var(--glow);
+    animation: referee-tab-pulse 1.8s ease-in-out infinite;
+  }
+
+  .referee-tab-unread {
+    padding: 0 6px;
+    border-radius: var(--radius-full);
+    background: var(--color-primary);
+    color: var(--color-on-primary);
+  }
+
+  .referee-tab-status .referee-tab-unread {
+    font-size: var(--text-xs);
+  }
+
+  .referee-tab-online {
+    color: var(--color-success);
+  }
+
+  .referee-cockpit {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: none;
+    height: max(420px, calc(100svh - var(--nav-height, 0px) - var(--referee-bar-height, 60px) - var(--space-3)));
+  }
+
+  .referee-cockpit > * {
+    grid-area: 1 / 1;
+  }
+
+  .referee-cockpit[data-tab="pool"] > :not(.referee-cockpit-pool),
+  .referee-cockpit[data-tab="room"] > :not(.referee-cockpit-room),
+  .referee-cockpit[data-tab="chat"] > :not(.referee-cockpit-chat) {
+    display: none;
+  }
+
+  /* Back to one scrolling list: the panel has the screen's height again. */
+  .referee-cockpit-pool .pool-panel-list {
+    display: flex;
+    overflow-y: auto;
+  }
+}
+
+@keyframes referee-tab-pulse {
+  50% {
+    opacity: 0.45;
   }
 }

@@ -27,6 +27,21 @@ export function NavBar() {
     if (!inAdmin) lastPublic.current = pathname + search + hash;
   }, [inAdmin, pathname, search, hash]);
 
+  // The bar's height as --nav-height on the root, for anything that sticks under it (it wraps to
+  // two rows on a phone).
+  const barRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const root = document.documentElement;
+    const observer = new ResizeObserver(() => root.style.setProperty("--nav-height", `${bar.offsetHeight}px`));
+    observer.observe(bar);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("--nav-height");
+    };
+  }, []);
+
   // The links never wrap: when they don't fit they scroll sideways in one row, so the bar stays
   // one line tall. Keep the current page's link in view.
   const linksRef = useRef<HTMLElement>(null);
@@ -65,7 +80,7 @@ export function NavBar() {
   }
 
   return (
-    <header className={inAdmin ? "navbar is-admin" : "navbar"}>
+    <header ref={barRef} className={inAdmin ? "navbar is-admin" : "navbar"}>
       <div className="nav-main">
         <NavLink to="/" className="nav-brand">
           <span className="brand-mark" aria-hidden="true" />

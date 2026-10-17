@@ -97,8 +97,9 @@ WHERE osu_id IN (-1, -2, -3, -4, -5, -101, -103, -104, -106, -107, -109, -110, -
    OR osu_id <= -201;
 
 -- Rank Uçtu and Kayıp Rank no longer fit, as if ranks changed after they formed:
--- Kaymak climbed (21,203 against the 19,000 limit) and Ayva went inactive. The
--- teams after them only fill the 32-team bracket and aren't in qualifier lobbies.
+-- Kaymak climbed (21,203 against the 19,000 limit) and Ayva went inactive. Of the
+-- teams after them, the next five play in the concluded qualifier lobby; the rest only
+-- fill the 32-team bracket.
 DO $$
 DECLARE
     team text[];
@@ -161,9 +162,10 @@ FROM (VALUES
 JOIN osu_users a ON a.osu_id < 0 AND a.username = v.inviter
 JOIN osu_users b ON b.osu_id < 0 AND b.username = v.invitee;
 
--- Qualifier lobbies around now: one concluded, one being played, and upcoming ones
--- with and without a referee. Every lobby has a dummy referee or dummy teams, so
--- clear.sql removes it. 'Kayıp Rank' is left without a lobby.
+-- Qualifier lobbies around now: one concluded (full, seven teams, its chat further
+-- down), one being played, and upcoming ones with and without a referee. Every lobby
+-- has a dummy referee or dummy teams, so clear.sql removes it. 'Kayıp Rank' is left
+-- without a lobby. Teams sign up a minute apart in the order listed.
 DO $$
 DECLARE
     lobby record;
@@ -173,7 +175,8 @@ BEGIN
         SELECT * FROM (VALUES
             (interval '-2 days',  'DevReferee', 112233441::bigint, true,
              'Simitçiler 10 dakika geç geldi, ilk map yeniden oynandı.',
-             ARRAY['Sokak Kedileri', 'Simitçiler']),
+             ARRAY['Sokak Kedileri', 'Simitçiler', 'Kahvaltı Sofrası', 'Karadeniz Fırtınası',
+                   'Meze Masası', 'Kayseri Ekspres', 'Sarma Dolma']),
             (interval '-1 hour',  'DevReferee', 112233442, false, '', ARRAY['Tatlı Krizi']),
             (interval '1 day',    'DevHakem',   NULL, false, '', ARRAY['Fırın Ekibi', 'Çay Ocağı']),
             (interval '2 days',   NULL,         NULL, false, '', ARRAY['Rank Uçtu']),
@@ -191,8 +194,10 @@ BEGIN
         RETURNING id INTO new_match;
         INSERT INTO match_rooms (mp_id, match_id)
         SELECT lobby.mp_id, new_match WHERE lobby.mp_id IS NOT NULL;
-        INSERT INTO qualifier_entries (team_id, match_id)
-        SELECT t.id, new_match FROM teams t WHERE t.name = ANY (lobby.teams);
+        INSERT INTO qualifier_entries (team_id, match_id, joined_at)
+        SELECT t.id, new_match, now() - interval '3 days' + v.n * interval '1 minute'
+        FROM unnest(lobby.teams) WITH ORDINALITY AS v (name, n)
+        JOIN teams t ON t.name = v.name;
     END LOOP;
 END $$;
 
@@ -979,3 +984,96 @@ CROSS JOIN LATERAL (
     SELECT id FROM osu_users WHERE 'host' = ANY(roles)
 ) AS r
 WHERE t.name = 'Rank Uçtu';
+
+-- The concluded qualifier lobby's chat: its seven teams in one Head to Head room, every
+-- map of the qualifier pool played in order, scores spread so the teams rank differently
+-- from map to map, a few fails. Simitçiler came in late (see its referee notes), so the
+-- first map was played without them and then again with everyone.
+WITH lobby AS (
+    SELECT m.starts_at AS t0, r.mp_id, COALESCE(ref.username, 'BanchoBot') AS referee
+    FROM match_rooms r
+    JOIN matches m ON m.id = r.match_id
+    LEFT JOIN osu_users ref ON ref.id = m.referee_id
+    WHERE r.mp_id = 112233441 AND m.kind = 'qualifier'
+),
+players AS (
+    SELECT u.username, u.osu_id, t.name = 'Simitçiler' AS late,
+           row_number() OVER (ORDER BY e.joined_at, u.username) AS slot
+    FROM lobby
+    JOIN match_rooms r ON r.mp_id = lobby.mp_id
+    JOIN qualifier_entries e ON e.match_id = r.match_id
+    JOIN teams t ON t.id = e.team_id
+    JOIN team_members tm ON tm.team_id = t.id
+    JOIN osu_users u ON u.id = tm.user_id
+),
+pool AS (
+    SELECT row_number() OVER (ORDER BY c.position, s.position) AS n, c.name AS category,
+           pm.beatmap_id, pm.artist || ' - ' || pm.title || ' [' || pm.version || ']' AS name
+    FROM stages st
+    JOIN stage_categories c ON c.stage_id = st.id
+    JOIN category_slots s ON s.category_id = c.id
+    JOIN pool_maps pm ON pm.slot_id = s.id
+    WHERE st.is_qualifier
+),
+-- Play k = 0 is the first map without Simitçiler; then every map in pool order.
+plays AS (
+    SELECT 0 AS k, p.* FROM pool p WHERE p.n = 1
+    UNION ALL
+    SELECT p.n AS k, p.* FROM pool p
+),
+timed AS (
+    SELECT pl.*, interval '3 minutes' + pl.k * interval '7 minutes' AS at FROM plays pl
+),
+scores AS (
+    SELECT t.k, p.username, p.slot,
+           -- Slightly better players up front, then a per-map swing that reshuffles them.
+           (CASE WHEN f.failed THEN 180000 ELSE 420000 END
+               + (15 - p.slot) * 5000
+               + abs(hashtext(p.username || ':' || t.k)) % 300000)::int AS score,
+           f.failed
+    FROM timed t
+    JOIN players p ON NOT (t.k = 0 AND p.late)
+    CROSS JOIN LATERAL (SELECT (p.slot * 3 + t.k * 5) % 23 = 0 AS failed) f
+),
+lines (at, sender, text) AS (
+    SELECT p.slot * interval '8 seconds' + CASE WHEN p.late THEN interval '9 minutes' ELSE interval '0' END,
+           'BanchoBot', p.username || ' joined in slot ' || p.slot || '.'
+    FROM players p
+    UNION ALL
+    SELECT interval '2 minutes 30 seconds', lobby.referee,
+           'Simitçiler henüz gelmedi, ilk map onlarsız oynanıyor; gelince tekrarlanacak.'
+    FROM lobby
+    UNION ALL
+    SELECT t.at - interval '10 seconds', lobby.referee, '!mp map ' || t.beatmap_id || ' 0'
+    FROM timed t, lobby
+    UNION ALL
+    SELECT t.at, 'BanchoBot', 'Changed beatmap to https://osu.ppy.sh/b/' || t.beatmap_id || ' ' || t.name
+    FROM timed t
+    UNION ALL
+    SELECT t.at + interval '6 seconds', 'BanchoBot',
+           CASE t.category
+               WHEN 'HD' THEN 'Enabled Hidden, NoFail, disabled FreeMod'
+               WHEN 'HR' THEN 'Enabled HardRock, NoFail, disabled FreeMod'
+               WHEN 'DT' THEN 'Enabled DoubleTime, NoFail, disabled FreeMod'
+               ELSE 'Enabled NoFail, disabled FreeMod'
+           END
+    FROM timed t
+    UNION ALL
+    SELECT t.at + interval '30 seconds', 'BanchoBot', 'The match has started!'
+    FROM timed t
+    UNION ALL
+    SELECT t.at + interval '4 minutes' + sc.slot * interval '1 second', 'BanchoBot',
+           sc.username || ' finished playing (Score: ' || sc.score || ', '
+               || CASE WHEN sc.failed THEN 'FAILED' ELSE 'PASSED' END || ').'
+    FROM timed t JOIN scores sc ON sc.k = t.k
+    UNION ALL
+    SELECT t.at + interval '4 minutes 20 seconds', 'BanchoBot', 'The match has finished!'
+    FROM timed t
+    UNION ALL
+    SELECT interval '81 minutes' + p.slot * interval '2 seconds', p.username, 'gg'
+    FROM players p
+)
+INSERT INTO room_chat_messages (mp_id, sent_at, sender, text)
+SELECT lobby.mp_id, lobby.t0 + l.at, l.sender, l.text
+FROM lobby, lines l
+ORDER BY l.at;

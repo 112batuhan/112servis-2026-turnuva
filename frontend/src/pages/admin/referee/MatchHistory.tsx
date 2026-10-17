@@ -57,7 +57,7 @@ const formatScore = (score: number) => score.toLocaleString("tr-TR");
  * The match's score sheet. In a bracket match the two teams are columns that run from the score
  * at the top down through every map: each map's totals sit in them, the winner's cell lit, so the
  * figure at the top is the count of lit cells under it. Maps are newest first, the one that just
- * ended open to its players, each player's score in their team's column; the others open on
+ * ended open to its players, ranked by score, each score in their team's column; the others open on
  * demand. "Sayma" leaves a map out (its cells go unlit). Maps the referee awarded by hand follow,
  * then where the results are read from and the tools for awarding a map or a forfeit. A lobby has
  * no score: its sheet lists each map's leading team. Maps outside the pool are left out.
@@ -346,39 +346,41 @@ function TotalCells({ teams, totals, counted }: { teams: MatchTeam[]; totals: Te
 }
 
 /**
- * An opened bracket map: one line per player, red's then blue's, the name and mods under the
- * map's name and the score in the player's team column, so it adds up to the total above it.
+ * An opened bracket map: one line per player, best score first whatever their team, each with
+ * their place on the map, their name and mods under the map's name and their score in their
+ * team's column, so the ranking steps across the two columns and adds up to the totals above.
  */
 function PlayerRows({ teams, players }: { teams: MatchTeam[]; players: PlayerLine[] }) {
+  // playerLines already ranks them by score.
+  const ranked = players.flatMap((p) => {
+    const team = teams.find((t) => t.id === p.teamId);
+    return team ? [{ p, team }] : [];
+  });
   const others = players.filter((p) => !teams.some((t) => t.id === p.teamId));
   return (
-    <ul className="sheet-players" aria-label="Oyuncu skorları">
-      {teams.flatMap((team) =>
-        players
-          .filter((p) => p.teamId === team.id)
-          .map((p) => (
-            <li key={p.key} className="sheet-row is-player">
-              <span />
-              <span className="sheet-player">
-                <span className={`sheet-player-dot is-team-${team.color}`} aria-hidden="true" />
-                <span className="sheet-player-name">{p.name}</span>
-                <span className={`sheet-mods${p.mods === "?" || p.mods === "NM" ? " is-plain" : ""}`}>{p.mods}</span>
-              </span>
-              {teams.map((column) => (
-                <span key={column.id} className={`sheet-cell is-team-${column.color} is-player-score`}>
-                  {column.id === team.id && (
-                    <span className={p.passed ? undefined : "is-failed"}>
-                      {formatScore(p.score)}
-                      {!p.passed && <span className="sr-only"> (geçemedi)</span>}
-                    </span>
-                  )}
+    <ol className="sheet-players" aria-label="Oyuncu skorları">
+      {ranked.map(({ p, team }, i) => (
+        <li key={p.key} className="sheet-row is-player">
+          <span className="sheet-place">{i + 1}</span>
+          <span className="sheet-player">
+            <span className={`sheet-player-dot is-team-${team.color}`} aria-hidden="true" />
+            <span className="sheet-player-name">{p.name}</span>
+            <span className={`sheet-mods${p.mods === "?" || p.mods === "NM" ? " is-plain" : ""}`}>{p.mods}</span>
+          </span>
+          {teams.map((column) => (
+            <span key={column.id} className={`sheet-cell is-team-${column.color} is-player-score`}>
+              {column.id === team.id && (
+                <span className={p.passed ? undefined : "is-failed"}>
+                  {formatScore(p.score)}
+                  {!p.passed && <span className="sr-only"> (geçemedi)</span>}
                 </span>
-              ))}
-              <span />
-              <span />
-            </li>
-          )),
-      )}
+              )}
+            </span>
+          ))}
+          <span />
+          <span />
+        </li>
+      ))}
       {others.length > 0 && (
         <li className="sheet-row is-player is-others">
           <span />
@@ -387,7 +389,7 @@ function PlayerRows({ teams, players }: { teams: MatchTeam[]; players: PlayerLin
           </span>
         </li>
       )}
-    </ul>
+    </ol>
   );
 }
 

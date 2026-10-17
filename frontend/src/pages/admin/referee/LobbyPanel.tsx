@@ -151,7 +151,7 @@ function Commands({ referee }: { referee: RefereeRoomState }) {
     <div className="lobby-commands" role="group" aria-label="Komutlar">
       {!ready && (
         <p className="lobby-commands-hint">
-          {online ? "Komutlar, odanın kanalına katılınca açılır." : "Komutlar için önce Bancho'ya bağlan (sağda)."}
+          {online ? "Komutlar, odanın kanalına katılınca açılır." : "Komutlar için önce Bancho'ya bağlan (sohbet panelinde)."}
         </p>
       )}
       <div className="lobby-command-row" role="group" aria-label="Maç komutları">
