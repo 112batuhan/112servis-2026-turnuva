@@ -1,4 +1,4 @@
-import { API_URL, get, put } from "./client";
+import { API_URL, get, post, put } from "./client";
 import type { OsuRoomGames, RefereeRoom, RoomChat } from "./types";
 
 // Referees and up.
@@ -13,9 +13,8 @@ export const setRoomOptions = (
   matchId: string,
   options: { score_mode: number; no_fail: boolean; auto_place: boolean; auto_kick: boolean },
 ) => put<void>(`/api/matches/${matchId}/room-options`, options);
-/** Counts the results from osu!'s record of the rooms (again) or from their chat; returns when it was synced. */
-export const setResultsSource = (matchId: string, osu: boolean) =>
-  put<{ osu_synced_at: string | null }>(`/api/matches/${matchId}/results-source`, { osu });
+/** The results were synced from osu!'s record of the rooms just now; returns when. */
+export const markOsuSynced = (matchId: string) => post<{ osu_synced_at: string }>(`/api/matches/${matchId}/osu-sync`);
 /** Whose pick is next, until the next ban or pick; null goes back to the rules. */
 export const setNextPick = (matchId: string, teamId: string | null) =>
   put<void>(`/api/matches/${matchId}/next-pick`, { team_id: teamId });

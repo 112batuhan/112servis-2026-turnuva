@@ -5,6 +5,7 @@ import { splitMods, type MapResult } from "../../../lib/bancho";
 import type { ManualResult } from "../../../api/types";
 import { entryOf, poolEntries, type MatchData, type MatchTeam, type PoolEntry } from "./pool";
 import {
+  roomLabel,
   scorer,
   teamTotals,
   type FinishedMap,
@@ -102,6 +103,7 @@ export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
               <ForfeitControl referee={referee} teams={teams} />
             </div>
           )}
+          {canRun && !concluded && room.rooms.length > 0 && <ConcludeControl referee={referee} />}
         </>
       }
     />
@@ -473,10 +475,11 @@ function LobbyTotals({
 }
 
 /**
- * Where the results are read from. The rooms' chat by default; when it missed something (the
- * connection dropped, nobody had the page open), the referee syncs them from osu!'s record of
- * the match's rooms, which they're then counted from, and saved, until the referee goes back.
- * A concluded match shows what was saved with its score, with nothing to change.
+ * Where the results are read from: the rooms' chat, as the maps finish. When it missed something
+ * (the connection dropped, nobody had the page open), the referee syncs them from osu!'s record of
+ * the match's rooms (the mp link), which then takes the place of the chat's maps up to that point,
+ * on every page open on the match; maps played after it are read from the chat again. It's only
+ * read when the referee asks. A concluded match shows what was saved with its score.
  */
 function ResultSource({ referee }: { referee: RefereeRoomState }) {
   const { room, source, osuSyncedAt, syncing, busy, canRun, actions } = referee;
@@ -488,23 +491,58 @@ function ResultSource({ referee }: { referee: RefereeRoomState }) {
     : null;
   return (
     <span className="sheet-source">
-      {source === "osu" ? `Maç linkinden okundu (${at})` : "Oda sohbetinden okunuyor"}
+      {at ? `Oda sohbetinden okunuyor, ${at}'e kadarki map'ler maç linkinden` : "Oda sohbetinden okunuyor"}
       <button
         type="button"
         className="btn btn-secondary btn-sm"
         disabled={syncing || busy || locked}
-        title="Sonuçları osu!'nun maç kaydından (mp linki) al. Sohbet bir map'i kaçırdıysa düzeltir."
+        title="Sonuçları osu!'nun maç kaydından (mp linki) alıp sohbetten okunanların yerine koyar. Sohbet bir map'i kaçırdıysa ya da yanlış okuduysa düzeltir."
         onClick={actions.syncFromOsu}
       >
         <Icon name="refresh" size={14} />
-        {syncing ? "Okunuyor…" : source === "osu" ? "Yeniden oku" : "Maç linkinden eşitle"}
+        {syncing ? "Okunuyor…" : "Maç linkinden eşitle"}
       </button>
-      {source === "osu" && (
-        <button type="button" className="btn btn-secondary btn-sm" disabled={syncing || busy || locked} onClick={actions.readFromChat}>
-          Sohbete dön
-        </button>
-      )}
     </span>
+  );
+}
+
+/**
+ * Concludes the match. A bracket match needs a winner: it's concluded with the score as it stands
+ * here (saved first if the site doesn't have it yet), and the teams move on to their next matches.
+ * Behind a confirmation, since reopening it takes a host.
+ */
+function ConcludeControl({ referee }: { referee: RefereeRoomState }) {
+  const { room, teams, tally, busy, actions } = referee;
+  if (!room) return null;
+  const label = roomLabel(room);
+  let blocker: string | null = null;
+  let detail = "";
+  if (room.kind === "bracket") {
+    if (teams.length !== 2 || !tally) blocker = "İki takım da belli olmalı";
+    else if (tally.team1 === tally.team2) blocker = "Skor berabere: önce kazanan belli olmalı";
+    else {
+      const winner = tally.team1 > tally.team2 ? teams[0] : teams[1];
+      detail = `\nSkor: ${tally.team1} – ${tally.team2} (${winner.name} kazanır)`;
+    }
+  }
+  return (
+    <div className="sheet-conclude">
+      <button
+        type="button"
+        className="btn btn-primary btn-sm"
+        disabled={busy || blocker !== null}
+        title={blocker ?? undefined}
+        onClick={() => {
+          if (window.confirm(`${label} bitti olarak işaretlensin mi?${detail}\n\nGeri almak için bir host maçı yeniden açmalı.`)) {
+            actions.conclude();
+          }
+        }}
+      >
+        <Icon name="check" size={14} />
+        Maçı bitir
+      </button>
+      {blocker && <span className="sheet-hint">{blocker}</span>}
+    </div>
   );
 }
 

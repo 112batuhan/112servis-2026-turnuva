@@ -16,7 +16,7 @@ export type LiveEvent =
   | { type: "bracket" }
   /** Something about one match the bracket doesn't show changed (bans, picks, a lobby's teams). */
   | { type: "match"; match_id: string }
-  /** Staff: something only the referee page shows changed (room options, "Sayma", the results source). */
+  /** Staff: something only the referee page shows changed (room options, "Sayma", an osu! sync). */
   | { type: "referee"; match_id: string }
   /** A line said in a room of the watched match, as it was saved. */
   | { type: "chat"; mp_id: number; message: RoomChatMessage };

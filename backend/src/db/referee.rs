@@ -72,23 +72,18 @@ pub async fn set_options(
     Ok(())
 }
 
-// Counts the results from osu!'s record from now on (stamped now), or from the chat
-// again. Returns the new stamp.
-pub async fn set_osu_synced(
-    pool: &PgPool,
-    match_id: Uuid,
-    synced: bool,
-) -> sqlx::Result<Option<OffsetDateTime>> {
+// Records that the referee synced the results from osu!'s record just now, which every
+// referee page then reads in place of the chat's maps. Returns the new stamp.
+pub async fn mark_osu_synced(pool: &PgPool, match_id: Uuid) -> sqlx::Result<OffsetDateTime> {
     sqlx::query_scalar(
         r#"
         INSERT INTO match_room_settings (match_id, osu_synced_at)
-        VALUES ($1, CASE WHEN $2 THEN now() END)
+        VALUES ($1, now())
         ON CONFLICT (match_id) DO UPDATE SET osu_synced_at = EXCLUDED.osu_synced_at
         RETURNING osu_synced_at
         "#,
     )
     .bind(match_id)
-    .bind(synced)
     .fetch_one(pool)
     .await
 }

@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{get, put},
+    routing::{get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -43,7 +43,7 @@ pub fn routes() -> Router<AppState> {
         .route("/matches/:id/chat", get(get_chat))
         .route("/matches/:id/osu-games", get(get_osu_games))
         .route("/matches/:id/room-options", put(set_room_options))
-        .route("/matches/:id/results-source", put(set_results_source))
+        .route("/matches/:id/osu-sync", post(mark_osu_synced))
         .route("/matches/:id/next-pick", put(set_next_pick))
         .route("/matches/:id/ignored-maps", put(set_ignored_map))
         .route("/public/matches/:id", get(get_public_match))
@@ -493,30 +493,24 @@ pub async fn set_room_options(
     Ok(StatusCode::NO_CONTENT)
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ResultsSourceBody {
-    osu: bool,
-}
-
 #[derive(Debug, Serialize)]
-pub struct ResultsSource {
-    #[serde(with = "time::serde::rfc3339::option")]
-    osu_synced_at: Option<OffsetDateTime>,
+pub struct OsuSynced {
+    #[serde(with = "time::serde::rfc3339")]
+    osu_synced_at: OffsetDateTime,
 }
 
-// PUT /api/matches/:id/results-source — counts the finished maps from osu!'s record
-// of the rooms (again: each page reads it anew) or from their chat. Returns when it
-// was synced.
-pub async fn set_results_source(
+// POST /api/matches/:id/osu-sync — the referee synced the results from osu!'s record of
+// the rooms: every page on the match reads it anew and puts it in place of the chat's
+// maps. Returns when it was synced.
+pub async fn mark_osu_synced(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
-    Json(body): Json<ResultsSourceBody>,
 ) -> Result<impl IntoResponse, AppError> {
     check_runs(&state, &user, id).await?;
-    let osu_synced_at = db::referee::set_osu_synced(&state.db, id, body.osu).await?;
+    let osu_synced_at = db::referee::mark_osu_synced(&state.db, id).await?;
     state.live.referee_changed(id);
-    Ok(Json(ResultsSource { osu_synced_at }))
+    Ok(Json(OsuSynced { osu_synced_at }))
 }
 
 #[derive(Debug, Deserialize)]

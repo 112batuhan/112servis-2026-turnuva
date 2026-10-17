@@ -497,14 +497,14 @@ export interface RefereeRoom {
   ignored_maps: string[];
 }
 
-/** The referee page's room options, results source and pick override for a match. */
+/** The referee page's room options, last osu! sync and pick override for a match. */
 export interface RoomSettings {
   /** !mp set's score mode (0 score, 1 accuracy, 2 combo, 3 Score V2). */
   score_mode: number;
   no_fail: boolean;
   auto_place: boolean;
   auto_kick: boolean;
-  /** When the results were last synced from osu!'s record of the rooms; null reads them from the chat. */
+  /** When the results were last synced from osu!'s record of the rooms, which replaces the chat's maps; null if never. */
   osu_synced_at: string | null;
   /** The team the referee said picks next, overriding the rules until the next ban or pick. */
   next_pick_team_id: string | null;
