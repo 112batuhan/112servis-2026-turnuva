@@ -497,13 +497,15 @@ export interface RefereeRoom {
   map_results: MapResultRow[];
   /** The match has a Discord channel: clicking a player's Discord name pings them there. */
   discord_channel: boolean;
-  /** What the referee page keeps about the match, the same for every referee and host on it. */
+  /** What the room keeps about the match, the same for every referee and host on it. */
   settings: RoomSettings;
-  /** The finished maps left out of the score ("Sayma"), by the referee page's key for them. */
+  /** The finished maps left out of the score ("Sayma"), by LiveFinished.key. */
   ignored_maps: string[];
+  /** The room as its bot reads it, the same on every page; null for a match without a room. */
+  live: LiveRoom | null;
 }
 
-/** The referee page's room options, last osu! sync and pick override for a match. */
+/** The room options, last osu! sync and pick override for a match. */
 export interface RoomSettings {
   /** !mp set's score mode (0 score, 1 accuracy, 2 combo, 3 Score V2). */
   score_mode: number;
@@ -560,6 +562,178 @@ export interface PublicMatch {
   map_results: MapResultRow[];
   /** The team the referee said picks next, overriding the rules until the next ban or pick. */
   next_pick_team_id: string | null;
+  live: LiveRoom | null;
+}
+
+/** Where a room's bot stands with it. */
+export type RoomAccess =
+  /** In its channel: it logs and runs the room. */
+  | "in"
+  /** Connected, on its way in. */
+  | "joining"
+  /** Bancho won't let it in: a room made elsewhere whose maker hasn't added it as a referee. */
+  | "refused"
+  /** Not connected to Bancho. */
+  | "offline"
+  /** No bot runs the room. */
+  | "no_bot"
+  | "closed";
+
+export interface LiveRoomBadge {
+  mp_id: number;
+  /** The bot that runs it, by osu! username. */
+  bot: string | null;
+  access: RoomAccess;
+}
+
+export interface LiveSlot {
+  /** 1-16. */
+  slot: number;
+  username: string;
+  /** Known from !mp settings; joins only give the name. */
+  user_id: number | null;
+  team: "red" | "blue" | null;
+  status: "ready" | "not_ready" | "no_map";
+  host: boolean;
+  /** Mods the player picked under freemod, as acronyms ("HDHR"), from !mp settings. */
+  mods: string;
+  mods_known: boolean;
+}
+
+export interface LiveScore {
+  username: string;
+  /** Known when it's from osu!'s record or the player was read from !mp settings. */
+  user_id: number | null;
+  score: number;
+  passed: boolean;
+  /** The mods the player played with, the room's included; null when unknown. */
+  mods: string | null;
+}
+
+/** A room as BanchoBot has described it. */
+export interface LiveRoomState {
+  name: string | null;
+  beatmap_id: number | null;
+  beatmap_name: string | null;
+  team_mode: string | null;
+  win_condition: string | null;
+  /** As BanchoBot last described them: "HardRock, NoFail", "Freemod" or "". */
+  mods: string | null;
+  size: number | null;
+  locked: boolean | null;
+  playing: boolean;
+  closed: boolean;
+  slots: LiveSlot[];
+  /** Scores of the map being played. */
+  current: LiveScore[];
+  /** The room's referees (!mp addref), lowercase with spaces. */
+  refs: string[];
+  /** When the map being played started. */
+  map_started_at: string | null;
+}
+
+/** A finished map of one of the match's rooms. */
+export interface LiveFinished {
+  /** "<source>:<room>:<n>"; "Sayma" is keyed by it. */
+  key: string;
+  mp_id: number;
+  beatmap_id: number | null;
+  beatmap_name: string | null;
+  /** The room's mods as acronyms, without freemod. */
+  room_mods: string;
+  freemod: boolean;
+  scores: LiveScore[];
+  /** The pool map it was (PublicPoolMap.id); null outside the pool (a warmup, a mistake). */
+  map_id: string | null;
+  /** Each team's summed score on it, best first. */
+  totals: { team_id: string; score: number }[];
+  /** Bracket matches: the team that won it; null for a tie. */
+  winner_id: string | null;
+  /** It counts towards the score: not left out with "Sayma". */
+  counted: boolean;
+}
+
+/**
+ * The match's room as its bot reads it (GET .../room, GET /api/public/matches/:id and the live
+ * socket's `room`): the one reading every page shows.
+ */
+export interface LiveRoom {
+  /** Every room of the match, oldest first, with its bot. */
+  rooms: LiveRoomBadge[];
+  /** The latest room, where the match is played. */
+  state: LiveRoomState;
+  /** The pool map the room has on. */
+  current_map_id: string | null;
+  /** Every room's finished maps, oldest room first. */
+  finished: LiveFinished[];
+  /** Bracket matches with both teams: the map wins counted from the rooms. */
+  tally: { team1: number; team2: number } | null;
+  /** The site has that score and the maps behind it. */
+  score_saved: boolean;
+  /** Whose pick is next, while there's a pick to make. */
+  next_pick_team_id: string | null;
+  /** The results come from osu!'s record of the rooms, up to its last map. */
+  osu_synced: boolean;
+}
+
+/** A command for the room's bot (POST /api/matches/:id/room/command). */
+export type RoomCommand =
+  | { type: "set_up" }
+  | { type: "settings" }
+  | { type: "invite"; osu_id: number }
+  | { type: "invite_all" }
+  | { type: "move"; slot: number; to: number | null; team: "red" | "blue" | null }
+  | { type: "place_all" }
+  | { type: "kick"; slot: number }
+  | { type: "kick_outsiders" }
+  | { type: "lock"; locked: boolean }
+  | { type: "timer"; seconds: number }
+  | { type: "abort_timer" }
+  | { type: "start"; seconds: number }
+  | { type: "abort" }
+  | { type: "close" }
+  | { type: "map"; map_id: string }
+  | { type: "announce_score" }
+  | { type: "add_ref"; username: string }
+  | { type: "remove_ref"; username: string }
+  | { type: "rejoin" }
+  /** Hosts only: says something in the room through its bot. */
+  | { type: "say"; text: string };
+
+/** How a bot account is doing. */
+export type BotState = "online" | "connecting" | "off" | "login_failed" | "full";
+
+export interface BotRoomView {
+  mp_id: number;
+  match_id: string;
+  /** "W3", "Lobi 2"; null for a match that's over. */
+  label: string | null;
+  /** The bot made it, rather than being added to it. */
+  made: boolean;
+  access: RoomAccess;
+}
+
+/** GET /api/bancho/bots: a bot account (never its password) and how it's doing. */
+export interface BanchoBot {
+  id: string;
+  username: string;
+  active: boolean;
+  created_at: string;
+  status: {
+    state: BotState;
+    /** Why it's offline, when not by choice. */
+    error: string | null;
+    online_since: string | null;
+    /** The rooms that count against its limit. */
+    rooms: BotRoomView[];
+    queued: number;
+    recent: number;
+  } | null;
+}
+
+export interface BotsView {
+  bots: BanchoBot[];
+  limits: { rooms: number; lines: number; window_secs: number };
 }
 
 /** Someone who has a match's referee page open (sent live to staff). */
@@ -569,7 +743,6 @@ export interface RefereeViewer {
   avatar_url: string;
 }
 
-/** A map win the referee awarded by hand: counts as one map won by the team. */
 /** A finished pool map that counts towards a bracket match's score, with each team's summed score. */
 export interface MapResultRow {
   /** PublicPoolMap.id; null once the map was deleted from the site. */
@@ -589,21 +762,7 @@ export interface MapPlayerScore {
   passed: boolean;
 }
 
-/** A finished map of one of the match's rooms, as osu! recorded it. */
-export interface OsuGame {
-  beatmap_id: number | null;
-  /** The room's mods as acronyms ("HR", "NF"). */
-  mods: string[];
-  /** Each player's mods as acronyms, the room's included. */
-  scores: { osu_id: number; score: number; passed: boolean; mods: string[] }[];
-}
-
-/** One of the match's rooms as osu! recorded it; `games` is null when osu! has no record of it. */
-export interface OsuRoomGames {
-  mp_id: number;
-  games: OsuGame[] | null;
-}
-
+/** A map win the referee awarded by hand: counts as one map won by the team. */
 export interface ManualResult {
   id: string;
   /** A pool map (PublicPoolMap.id), or null for a point given without one. */

@@ -40,6 +40,8 @@ pub async fn login_as(
 
 pub async fn seed(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     db::dev::seed(&state.db).await?;
+    // The bots read the seeded rooms; the open pages reload.
+    state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -50,7 +52,10 @@ pub async fn seed_live(
     user: auth::AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
     match db::dev::seed_live(&state.db, user.id).await? {
-        db::dev::LiveSeed::Done => Ok(StatusCode::NO_CONTENT),
+        db::dev::LiveSeed::Done => {
+            state.live.bracket_changed();
+            Ok(StatusCode::NO_CONTENT)
+        }
         db::dev::LiveSeed::Dummy => Err(AppError::BadRequest(
             "Sign in with a real osu! account to seed a live test for it.",
         )),
@@ -62,5 +67,6 @@ pub async fn seed_live(
 
 pub async fn clear(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     db::dev::clear(&state.db).await?;
+    state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }

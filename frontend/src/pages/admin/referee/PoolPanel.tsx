@@ -3,29 +3,28 @@ import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { stageLabel, type Race } from "../../../lib/bestOf";
 import { formatLength } from "../../../lib/format";
-import { BAN_LIMIT, entryOf, matchTeams, poolEntries, type MatchData, type MatchTeam, type PoolEntry } from "./pool";
-import type { RefereeRoomState } from "./useRefereeRoom";
+import { BAN_LIMIT, matchTeams, poolEntries, type MatchData, type MatchTeam, type PoolEntry } from "./pool";
+import { botBlocker, type RefereeRoomState } from "./useRefereeRoom";
 import "./PoolPanel.css";
 
 /**
- * The match's map pool. Clicking a map sets it and its mods in the room. In a bracket
- * match the referee also marks bans (until there are BAN_LIMIT of them) and then
- * which team picked which map; a pick sets the map too. Banned maps can't be picked.
+ * The match's map pool. Clicking a map has the room's bot set it and its mods in the room. In a
+ * bracket match the referee also marks bans (until there are BAN_LIMIT of them) and then which team
+ * picked which map; a pick sets the map too. Banned maps can't be picked.
  */
 export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
-  const { room, currentEntry, finished, inChannel, canRun, busy, actions, race } = referee;
+  const { room, currentEntry, finished, botReady, canRun, busy, actions, race } = referee;
   if (!room) return null;
-  const entries = poolEntries(room);
-  const picks = new Set(room.picks.map((p) => p.map_id));
-  // By entry, so a beatmap that's in the pool twice is told apart by its mods.
-  const played = new Set(finished.map((f) => entryOf(entries, f.result, picks)?.map.id));
+  // The server tells apart a beatmap that's in the pool twice by the mods it was played with.
+  const played = new Set<string | undefined>(finished.map((f) => f.mapId ?? undefined));
+  const blocker = botBlocker(referee);
   const teams = matchTeams(room);
   const canMark = teams.length === 2 && canRun && room.concluded_at === null;
   const banning = room.bans.length < BAN_LIMIT;
 
   // A ban or pick to take back, or the buttons for whichever phase the match is in.
   function markActions(entry: PoolEntry, banned: MatchTeam | undefined, picked: MatchTeam | undefined) {
-    const { label, map, freemod, tiebreaker } = entry;
+    const { label, map, tiebreaker } = entry;
     if (banned) {
       return <IconButton icon="undo" label={`${label} yasağını kaldır`} disabled={busy} onClick={() => actions.unban(map.id)} />;
     }
@@ -53,7 +52,7 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
         className={`pool-mark-button is-team-${team.color}`}
         label={`${label}: ${team.name} seçti`}
         disabled={busy}
-        onClick={() => actions.pick(map, team.id, freemod)}
+        onClick={() => actions.pick(map, team.id)}
       />
     ));
   }
@@ -65,14 +64,14 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
       played={played}
       phase={canMark ? draftPhase(banning, race) : null}
       pick={{
-        disabled: (_entry, banned) => !inChannel || banned !== undefined,
+        disabled: (_entry, banned) => !botReady || banned !== undefined,
         title: (entry, banned) =>
           banned
             ? `${entry.label}: ${banned.name} yasakladı`
-            : inChannel
+            : botReady
               ? `${entry.label} seç: !mp map ${entry.map.beatmap_id}, ${entry.freemod ? "Freemod" : entry.map.mods || "NM"}`
-              : "Önce odanın kanalına katıl",
-        onPick: (entry) => actions.pickMap(entry.map, entry.freemod),
+              : (blocker ?? ""),
+        onPick: (entry) => actions.pickMap(entry.map),
       }}
       renderActions={canMark ? markActions : undefined}
     />

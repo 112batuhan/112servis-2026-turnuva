@@ -1,13 +1,17 @@
-//! A relay between the referee pages and Bancho's IRC server. Browsers can't open raw
-//! TCP connections, so the page talks JSON over a WebSocket and this module holds the
-//! IRC connection for it. Each user has at most one Bancho connection (a Session),
-//! shared by all of their tabs: a referee running two matches side by side is still one
-//! account to Bancho, sending at one account's pace. It logs in with the referee's own
-//! IRC credentials, which live only in memory until they're sent. It answers PINGs,
-//! paces outgoing lines and saves what's said in multiplayer rooms (see RoomLog);
-//! everything Bancho says goes to every tab, and the pages do all the match logic.
-//! What a page does in a room by itself (roomAutomation.ts) runs in one tab only,
-//! which this module picks among every tab that asks (see RoomRunners).
+//! A relay between the referee pages and Bancho's IRC server, for the referee's own
+//! account: browsers can't open raw TCP connections, so the page talks JSON over a
+//! WebSocket and this module holds the IRC connection for it. Each user has at most one
+//! Bancho connection (a Session), shared by all of their tabs: a referee running two
+//! matches side by side is still one account to Bancho, sending at one account's pace.
+//! It logs in with the referee's own IRC credentials, which live only in memory until
+//! they're sent. It answers PINGs and paces outgoing lines.
+//!
+//! It's for talking: the rooms are made, run and logged by the site's bots
+//! (crate::bancho), and every page reads a room's chat from what its bot saved. A tab
+//! that has a match open says so (`attend`); the room's bot then makes the referee one
+//! of its referees and this session joins the room's channel, so what the referee
+//! types goes to the room from their own account. Room lines aren't passed on to the
+//! tabs (they have the bot's log); private messages are.
 
 use std::{
     collections::{BTreeSet, HashMap, VecDeque},
@@ -28,7 +32,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
-    net::{tcp::OwnedWriteHalf, TcpStream},
+    net::tcp::OwnedWriteHalf,
     sync::{
         broadcast::{self, error::RecvError},
         mpsc,
@@ -36,10 +40,21 @@ use tokio::{
     time::{sleep_until, timeout, Instant},
 };
 
-use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::{auth::AuthUser, db, error::AppError, handlers::live::Live, role::Role, AppState};
+use crate::{
+    auth::AuthUser,
+    bancho::{
+        irc::{
+            clean_text, parse, privmsg_text, same_name, valid_name, Line, LINE_MAX, LOGIN_TIMEOUT,
+        },
+        SessionLink, SessionRequest,
+    },
+    db,
+    error::AppError,
+    role::Role,
+    AppState,
+};
 
 pub fn routes() -> Router<AppState> {
     Router::new().route("/irc", get(connect))
@@ -49,12 +64,6 @@ pub fn routes() -> Router<AppState> {
 // SEND_WINDOW. The rest wait their turn in order.
 const SEND_LIMIT: usize = 8;
 const SEND_WINDOW: Duration = Duration::from_secs(5);
-// How long the page has to send its login, and Bancho to accept it.
-const LOGIN_TIMEOUT: Duration = Duration::from_secs(20);
-// Leaves room for the prefix Bancho adds within IRC's 512-byte line limit.
-const TEXT_MAX: usize = 400;
-// A line longer than this is not IRC; drop the connection rather than buffer it.
-const LINE_MAX: usize = 8192;
 // Every referee's connection comes from this server's address, so one person mistyping
 // their IRC password over and over could get it throttled by Bancho for everyone. After
 // FAILED_LOGIN_LIMIT failed logins a user waits LOGIN_COOLDOWN from the last one.
@@ -75,15 +84,14 @@ enum ClientMsg {
     // Joins the user's Bancho connection if another tab has one.
     Resume,
     Send { target: String, text: String },
-    Join { channel: String },
-    Part { channel: String },
     // Closes a private conversation in every tab and forgets its history.
     Close { name: String },
     // Ends the Bancho connection, for every tab.
     Quit,
-    // Asks to run the room's automation (on), or stops asking (off). The tab is told
-    // whether it runs it, and again whenever that changes.
-    Automate { channel: String, on: bool },
+    // The match this tab has open (null: none). Its room's bot makes the referee one of
+    // its referees and the connection joins the room's channel; sent again whenever the
+    // match's rooms change.
+    Attend { match_id: Option<Uuid> },
 }
 
 // What the page receives.
@@ -103,13 +111,16 @@ enum ServerMsg {
     },
     // `Resume` found no connection to join.
     NoSession,
-    // A chat line, including the ones we send (IRC doesn't echo those back).
+    // The account is one of the site's bots: logging in with it would take the bot off
+    // Bancho.
+    BotAccount,
+    // A private message, including the ones we send (IRC doesn't echo those back).
     Message {
         from: String,
         target: String,
         text: String,
         action: bool,
-        // Private messages only: their number in the session, counting from 1.
+        // Its number in the session, counting from 1.
         #[serde(skip_serializing_if = "Option::is_none")]
         seq: Option<u64>,
     },
@@ -141,24 +152,6 @@ enum ServerMsg {
     Closed {
         reason: String,
     },
-    // Whether this tab runs the room's automation. Only sent to the tab it's about.
-    Automation {
-        channel: String,
-        state: AutomationState,
-    },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-enum AutomationState {
-    // This tab runs it.
-    Running,
-    // Another tab runs it, or none can yet (nobody asking is in the channel); this
-    // tab is next in line.
-    Waiting,
-    // This tab can't run it (the match is concluded or gone) and isn't in line; it
-    // stops asking.
-    Refused,
 }
 
 // GET /api/irc — referees and up. Upgrades to the relay WebSocket.
@@ -209,30 +202,6 @@ async fn next_client_msg(socket: &mut WebSocket) -> Option<Result<ClientMsg, ()>
     }
 }
 
-// IRC names and channels: no spaces, control characters or a leading colon, which
-// would let them smuggle extra parameters or commands into a line.
-fn valid_name(s: &str) -> bool {
-    !s.is_empty()
-        && s.len() <= 64
-        && !s.starts_with(':')
-        && !s.chars().any(|c| c.is_whitespace() || c.is_control())
-}
-
-// Strips line breaks and cuts the text to TEXT_MAX bytes on a character boundary.
-fn clean_text(text: &str) -> String {
-    let mut out = String::new();
-    for c in text
-        .chars()
-        .map(|c| if c == '\r' || c == '\n' { ' ' } else { c })
-    {
-        if out.len() + c.len_utf8() > TEXT_MAX {
-            break;
-        }
-        out.push(c);
-    }
-    out
-}
-
 // One tab's WebSocket: joins or starts the user's session, then passes messages both
 // ways until the tab or the session goes away.
 async fn tab(mut socket: WebSocket, state: AppState, user_id: Uuid) {
@@ -252,6 +221,18 @@ async fn tab(mut socket: WebSocket, state: AppState, user_id: Uuid) {
                 send(&mut socket, &ServerMsg::LoginFailed).await;
                 return close(socket, "invalid login").await;
             }
+            // Bancho keeps one IRC connection per account, so this one would replace the bot's.
+            match db::bancho::list_bots(&state.db).await {
+                Ok(bots) if bots.iter().any(|b| same_name(&b.username, &nick)) => {
+                    send(&mut socket, &ServerMsg::BotAccount).await;
+                    return close(socket, "that account is one of the site's bots").await;
+                }
+                Ok(_) => {}
+                Err(err) => {
+                    tracing::error!(error = ?err, "could not read the bot accounts");
+                    return close(socket, "could not check the account").await;
+                }
+            }
             match state.irc_users.login(&state, user_id, nick, password) {
                 Ok(attached) => attached,
                 Err(wait) => {
@@ -264,58 +245,18 @@ async fn tab(mut socket: WebSocket, state: AppState, user_id: Uuid) {
         _ => return close(socket, "login expected").await,
     };
     let id = rand::random();
-    pump(socket, attached, &state, user_id, id).await;
-    state.room_runners.drop_tab(id);
+    pump(socket, attached, &state, id).await;
+    state.bancho.tab_closed(id);
 }
 
-// A tab asks to run a room's automation: any referee or host can (only they reach the
-// relay), until the match is concluded. The tab is told where it stands.
-async fn claim_room(
-    state: &AppState,
-    user_id: Uuid,
-    tab: &Attached,
-    id: u64,
-    notify: &mpsc::UnboundedSender<ServerMsg>,
-    mp_id: i64,
-) -> Result<(), AppError> {
-    let m = db::matches::find_match_of_room(&state.db, mp_id).await?;
-    let Some(m) = m.filter(|m| !m.concluded()) else {
-        state.room_runners.unclaim(mp_id, id);
-        let _ = notify.send(ServerMsg::Automation {
-            channel: room_channel(mp_id),
-            state: AutomationState::Refused,
-        });
-        return Ok(());
-    };
-    state.room_runners.claim(
-        mp_id,
-        m.referee_id,
-        Claim {
-            tab: id,
-            user_id,
-            session: tab.session.clone(),
-            notify: notify.clone(),
-            state: None,
-        },
-    );
-    Ok(())
-}
-
-async fn pump(mut socket: WebSocket, mut tab: Attached, state: &AppState, user_id: Uuid, id: u64) {
+async fn pump(mut socket: WebSocket, mut tab: Attached, state: &AppState, id: u64) {
     for msg in &tab.backlog {
         if !send(&mut socket, msg).await {
             return;
         }
     }
-    // What RoomRunners tells this tab alone.
-    let (notify, mut notices) = mpsc::unbounded_channel();
     loop {
         tokio::select! {
-            Some(msg) = notices.recv() => {
-                if !send(&mut socket, &msg).await {
-                    return;
-                }
-            }
             event = tab.events.recv() => match event {
                 Ok(json) => {
                     if socket.send(Message::Text(json.as_ref().clone())).await.is_err() {
@@ -334,26 +275,12 @@ async fn pump(mut socket: WebSocket, mut tab: Attached, state: &AppState, user_i
                         (valid_name(&target) && !text.trim().is_empty())
                             .then_some(Command::Send(Outgoing::Privmsg { target, text }))
                     }
-                    Ok(ClientMsg::Join { channel }) if valid_name(&channel) => {
-                        Some(Command::Send(Outgoing::Raw(format!("JOIN {channel}"))))
-                    }
-                    Ok(ClientMsg::Part { channel }) if valid_name(&channel) => {
-                        Some(Command::Send(Outgoing::Raw(format!("PART {channel}"))))
-                    }
                     Ok(ClientMsg::Close { name }) if valid_name(&name) && !name.starts_with('#') => {
                         Some(Command::Close(name))
                     }
                     Ok(ClientMsg::Quit) => Some(Command::Quit),
-                    Ok(ClientMsg::Automate { channel, on }) => {
-                        match room_id(&channel) {
-                            Some(mp_id) if on => {
-                                if let Err(err) = claim_room(state, user_id, &tab, id, &notify, mp_id).await {
-                                    tracing::error!(error = ?err, mp_id, "could not check who runs a room");
-                                }
-                            }
-                            Some(mp_id) => state.room_runners.unclaim(mp_id, id),
-                            None => {}
-                        }
+                    Ok(ClientMsg::Attend { match_id }) => {
+                        state.bancho.attend(id, tab.session.link(), match_id);
                         None
                     }
                     _ => None,
@@ -385,6 +312,8 @@ struct Session {
     nick: String,
     // Only tabs hold strong senders, so the session ends when the last tab goes away.
     commands: mpsc::WeakUnboundedSender<Command>,
+    // What the room manager asks of it (joining a room's channel).
+    requests: mpsc::UnboundedSender<SessionRequest>,
     state: Mutex<SessionState>,
 }
 
@@ -423,6 +352,14 @@ struct Attached {
 }
 
 impl Session {
+    fn link(&self) -> SessionLink {
+        SessionLink {
+            id: self.id,
+            nick: self.nick.clone(),
+            tx: self.requests.clone(),
+        }
+    }
+
     fn attach(self: &Arc<Self>) -> Option<Attached> {
         let commands = self.commands.upgrade()?;
         let state = self.state.lock().unwrap();
@@ -450,12 +387,6 @@ impl Session {
             events: state.events.subscribe(),
             backlog,
         })
-    }
-
-    // Whether the connection is up and in the room's channel, so it can act there.
-    fn in_room(&self, mp_id: i64) -> bool {
-        let state = self.state.lock().unwrap();
-        state.registered && state.channels.iter().any(|c| room_id(c) == Some(mp_id))
     }
 
     // Forgets a private conversation (by the other person's nick) and tells every tab.
@@ -586,11 +517,13 @@ impl IrcUsers {
         inner.begin_login(user_id)?;
 
         let (commands, rx) = mpsc::unbounded_channel();
+        let (requests, requests_rx) = mpsc::unbounded_channel();
         let (events, _) = broadcast::channel(TAB_BUFFER);
         let session = Arc::new(Session {
             id: rand::random(),
             nick,
             commands: commands.downgrade(),
+            requests,
             state: Mutex::new(SessionState {
                 events,
                 registered: false,
@@ -603,23 +536,16 @@ impl IrcUsers {
         drop(commands);
         inner.sessions.insert(user_id, session.clone());
 
-        let log = RoomLog {
-            db: state.db.clone(),
-            live: state.live.clone(),
-            loggers: state.chat_loggers.clone(),
-            runners: state.room_runners.clone(),
-            conn: rand::random(),
-            user_id,
-        };
         let addr = state.config.bancho_irc_addr.clone();
         tokio::spawn(run_session(
             self.clone(),
+            state.bancho.clone(),
             user_id,
             session,
             password,
             addr,
             rx,
-            log,
+            requests_rx,
         ));
         Ok(attached)
     }
@@ -648,14 +574,16 @@ impl IrcUsers {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn run_session(
     users: IrcUsers,
+    rooms: crate::bancho::Bancho,
     user_id: Uuid,
     session: Arc<Session>,
     password: String,
     addr: String,
     mut commands: mpsc::UnboundedReceiver<Command>,
-    log: RoomLog,
+    mut requests: mpsc::UnboundedReceiver<SessionRequest>,
 ) {
     let reason = bancho(
         &users,
@@ -664,13 +592,12 @@ async fn run_session(
         password,
         &addr,
         &mut commands,
-        &log,
+        &mut requests,
     )
     .await;
     // No tab can join from here on; the ones still here get the reason and are closed.
     users.end(user_id, &session);
-    log.release_all();
-    log.runners.session_ended(session.id);
+    rooms.session_ended(session.id);
     session.emit(&ServerMsg::Closed {
         reason: reason.to_string(),
     });
@@ -683,30 +610,14 @@ async fn bancho(
     password: String,
     addr: &str,
     commands: &mut mpsc::UnboundedReceiver<Command>,
-    log: &RoomLog,
+    requests: &mut mpsc::UnboundedReceiver<SessionRequest>,
 ) -> &'static str {
-    let stream = match timeout(LOGIN_TIMEOUT, TcpStream::connect(addr)).await {
-        Ok(Ok(stream)) => stream,
-        Ok(Err(err)) => {
-            tracing::warn!(error = %err, "could not reach Bancho");
-            users.refund_login(user_id);
-            return "could not reach Bancho";
-        }
-        Err(_) => {
-            users.refund_login(user_id);
-            return "could not reach Bancho";
-        }
-    };
-    let (read_half, mut writer) = stream.into_split();
-    let mut reader = BufReader::new(read_half);
-
-    let nick = &session.nick;
-    let login = format!("PASS {password}\r\nNICK {nick}\r\nUSER {nick} 0 * :{nick}\r\n");
+    let connected = crate::bancho::irc::connect(addr, &session.nick, &password).await;
     drop(password);
-    if writer.write_all(login.as_bytes()).await.is_err() {
+    let Ok((mut reader, mut writer)) = connected else {
+        users.refund_login(user_id);
         return "could not reach Bancho";
-    }
-    drop(login);
+    };
 
     let reason = run(
         users,
@@ -715,7 +626,7 @@ async fn bancho(
         &mut reader,
         &mut writer,
         commands,
-        log,
+        requests,
     )
     .await;
     let _ = writer.write_all(b"QUIT\r\n").await;
@@ -730,7 +641,7 @@ async fn run(
     reader: &mut BufReader<tokio::net::tcp::OwnedReadHalf>,
     writer: &mut OwnedWriteHalf,
     commands: &mut mpsc::UnboundedReceiver<Command>,
-    log: &RoomLog,
+    requests: &mut mpsc::UnboundedReceiver<SessionRequest>,
 ) -> &'static str {
     let nick = session.nick.as_str();
     let login_deadline = Instant::now() + LOGIN_TIMEOUT;
@@ -794,14 +705,7 @@ async fn run(
                     "ERROR" => return "Bancho closed the connection",
                     _ => {
                         if let Some(msg) = to_server_msg(&line, nick) {
-                            log.record(&msg).await;
                             session.emit(&msg);
-                            // Only a connection in a room's channel can run it.
-                            if let ServerMsg::Joined { channel } | ServerMsg::Parted { channel } = &msg {
-                                if let Some(mp_id) = room_id(channel) {
-                                    log.runners.refresh(mp_id);
-                                }
-                            }
                         }
                     }
                 }
@@ -814,6 +718,15 @@ async fn run(
                 Some(Command::Send(out)) if registered => queue.push_back(out),
                 Some(Command::Send(_)) => {}
             },
+            Some(request) = requests.recv() => {
+                let (verb, channel) = match request {
+                    SessionRequest::Join(channel) => ("JOIN", channel),
+                    SessionRequest::Part(channel) => ("PART", channel),
+                };
+                if registered && valid_name(&channel) {
+                    queue.push_back(Outgoing::Raw(format!("{verb} {channel}")));
+                }
+            }
             _ = sleep_until(next_send), if !queue.is_empty() => {
                 let Some(out) = queue.pop_front() else { continue };
                 sent.push_back(Instant::now());
@@ -824,10 +737,11 @@ async fn run(
                 if writer.write_all(line.as_bytes()).await.is_err() {
                     return "Bancho closed the connection";
                 }
+                // The room's bot logs what's said in rooms; private messages are echoed here.
                 if let Outgoing::Privmsg { target, text } = out {
-                    let echo = ServerMsg::Message { from: nick.to_string(), target, text, action: false, seq: None };
-                    log.record(&echo).await;
-                    session.emit(&echo);
+                    if !target.starts_with('#') {
+                        session.emit(&ServerMsg::Message { from: nick.to_string(), target, text, action: false, seq: None });
+                    }
                 }
             }
             _ = sleep_until(login_deadline), if !registered => return "Bancho didn't answer the login",
@@ -835,283 +749,15 @@ async fn run(
     }
 }
 
-// Which relay connection saves each room's chat, by room id. Every referee in a
-// room's channel sees the same lines, so only one connection saves them: the first
-// to see a line there. When it leaves the channel, the next one to see a line takes over.
-#[derive(Clone, Default)]
-pub struct ChatLoggers(Arc<Mutex<HashMap<i64, u64>>>);
-
-// Saves the lines said in multiplayer rooms (#mp_<id>) to room_chat_messages, for
-// moderation, and sends each one to the pages watching its match. Private messages
-// aren't saved.
-struct RoomLog {
-    db: PgPool,
-    live: Live,
-    loggers: ChatLoggers,
-    // Told when the connection joins or leaves a room's channel, and when it ends.
-    runners: RoomRunners,
-    // Tells this connection apart in `loggers`.
-    conn: u64,
-    user_id: Uuid,
-}
-
-fn room_id(channel: &str) -> Option<i64> {
-    channel.strip_prefix("#mp_")?.parse().ok()
-}
-
-fn room_channel(mp_id: i64) -> String {
-    format!("#mp_{mp_id}")
-}
-
-// Which tab runs each room's automation (roomAutomation.ts: placing players, kicking
-// whoever doesn't belong, !mp settings as maps start), by room id. Every referee page
-// running the match asks for it, and one of them gets it, so it runs once however many
-// referee pages are open in however many browsers. Only a tab whose Bancho connection
-// is in the room's channel can run it. The match's own referee comes before everyone
-// else; otherwise whoever has it keeps it until they leave the channel or close the tab, and
-// then it goes to the next in line by the order they asked.
-#[derive(Clone, Default)]
-pub struct RoomRunners(Arc<Mutex<HashMap<i64, RunnerRoom>>>);
-
-struct RunnerRoom {
-    // The match's referee, as of the last ask or referee change.
-    referee: Option<Uuid>,
-    // In the order they asked.
-    claims: Vec<Claim>,
-}
-
-struct Claim {
-    tab: u64,
-    user_id: Uuid,
-    session: Arc<Session>,
-    notify: mpsc::UnboundedSender<ServerMsg>,
-    // What the tab was last told; None until it's told anything.
-    state: Option<AutomationState>,
-}
-
-// Who runs a room, given each claim in the order they asked: (runs it now, can run it,
-// is the match's referee). The match's referee first, then whoever runs it already,
-// then the first who can.
-fn pick_runner(claims: &[(bool, bool, bool)]) -> Option<usize> {
-    let can = |i: &usize| claims[*i].1;
-    let all = || (0..claims.len()).filter(can);
-    let current = all().find(|&i| claims[i].0);
-    if current.is_some_and(|i| claims[i].2) {
-        return current;
-    }
-    all()
-        .find(|&i| claims[i].2)
-        .or(current)
-        .or_else(|| all().next())
-}
-
-impl RunnerRoom {
-    // Picks the runner again and tells every tab whose standing changed.
-    fn settle(&mut self, mp_id: i64) {
-        let facts: Vec<_> = self
-            .claims
-            .iter()
-            .map(|c| {
-                (
-                    c.state == Some(AutomationState::Running),
-                    c.session.in_room(mp_id),
-                    Some(c.user_id) == self.referee,
-                )
-            })
-            .collect();
-        let runner = pick_runner(&facts);
-        for (i, claim) in self.claims.iter_mut().enumerate() {
-            let state = if Some(i) == runner {
-                AutomationState::Running
-            } else {
-                AutomationState::Waiting
-            };
-            if claim.state != Some(state) {
-                claim.state = Some(state);
-                let _ = claim.notify.send(ServerMsg::Automation {
-                    channel: room_channel(mp_id),
-                    state,
-                });
-            }
-        }
-    }
-}
-
-impl RoomRunners {
-    // Runs `change` on the room's claims, settles who runs it and forgets a room
-    // nobody asks for any more.
-    fn with_room(&self, mp_id: i64, change: impl FnOnce(&mut RunnerRoom)) {
-        let mut rooms = self.0.lock().unwrap();
-        let Some(room) = rooms.get_mut(&mp_id) else {
-            return;
-        };
-        change(room);
-        room.settle(mp_id);
-        if room.claims.is_empty() {
-            rooms.remove(&mp_id);
-        }
-    }
-
-    fn claim(&self, mp_id: i64, referee: Option<Uuid>, claim: Claim) {
-        self.0
-            .lock()
-            .unwrap()
-            .entry(mp_id)
-            .or_insert_with(|| RunnerRoom {
-                referee,
-                claims: Vec::new(),
-            });
-        self.with_room(mp_id, |room| {
-            room.referee = referee;
-            // Asking again keeps the tab's place in line.
-            match room.claims.iter_mut().find(|c| c.tab == claim.tab) {
-                Some(existing) => existing.notify = claim.notify,
-                None => room.claims.push(claim),
-            }
-        });
-    }
-
-    fn unclaim(&self, mp_id: i64, tab: u64) {
-        self.with_room(mp_id, |room| room.claims.retain(|c| c.tab != tab));
-    }
-
-    fn drop_tab(&self, tab: u64) {
-        let rooms: Vec<i64> = self.0.lock().unwrap().keys().copied().collect();
-        for mp_id in rooms {
-            self.unclaim(mp_id, tab);
-        }
-    }
-
-    // A connection joined or left the room's channel.
-    fn refresh(&self, mp_id: i64) {
-        self.with_room(mp_id, |_| {});
-    }
-
-    // A Bancho connection ended: its tabs can't run anything any more.
-    fn session_ended(&self, session: u32) {
-        let rooms: Vec<i64> = self.0.lock().unwrap().keys().copied().collect();
-        for mp_id in rooms {
-            self.with_room(mp_id, |room| {
-                room.claims.retain(|c| c.session.id != session)
-            });
-        }
-    }
-
-    // The match these rooms belong to has a new referee (or none): they come first now.
-    pub fn set_referee(&self, mp_ids: &[i64], referee: Option<Uuid>) {
-        for &mp_id in mp_ids {
-            self.with_room(mp_id, |room| room.referee = referee);
-        }
-    }
-
-    // The match these rooms belong to was concluded or deleted: nobody runs them.
-    pub fn close(&self, mp_ids: &[i64]) {
-        for &mp_id in mp_ids {
-            self.with_room(mp_id, |room| {
-                for c in room.claims.drain(..) {
-                    refuse(&c, mp_id);
-                }
-            });
-        }
-    }
-}
-
-fn refuse(claim: &Claim, mp_id: i64) {
-    let _ = claim.notify.send(ServerMsg::Automation {
-        channel: room_channel(mp_id),
-        state: AutomationState::Refused,
-    });
-}
-
-impl RoomLog {
-    async fn record(&self, msg: &ServerMsg) {
-        match msg {
-            ServerMsg::Message {
-                from,
-                target,
-                text,
-                action,
-                ..
-            } => {
-                let Some(mp_id) = room_id(target) else { return };
-                let claimed = {
-                    let mut loggers = self.loggers.0.lock().unwrap();
-                    *loggers.entry(mp_id).or_insert(self.conn) == self.conn
-                };
-                if !claimed {
-                    return;
-                }
-                match db::chat::insert_message(&self.db, mp_id, from, text, *action, self.user_id)
-                    .await
-                {
-                    Ok(message) => self.live.chat(mp_id, &message),
-                    Err(err) => tracing::error!(error = ?err, mp_id, "could not save a chat line"),
-                }
-            }
-            ServerMsg::Parted { channel } => {
-                if let Some(mp_id) = room_id(channel) {
-                    let mut loggers = self.loggers.0.lock().unwrap();
-                    if loggers.get(&mp_id) == Some(&self.conn) {
-                        loggers.remove(&mp_id);
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn release_all(&self) {
-        self.loggers
-            .0
-            .lock()
-            .unwrap()
-            .retain(|_, c| *c != self.conn);
-    }
-}
-
-struct Line<'a> {
-    nick: Option<&'a str>,
-    command: &'a str,
-    params: Vec<&'a str>,
-}
-
-// Splits `:nick!user@host COMMAND a b :trailing text` into its parts.
-fn parse(line: &str) -> Option<Line<'_>> {
-    let mut rest = line;
-    let mut prefix = None;
-    if let Some(r) = rest.strip_prefix(':') {
-        let (p, r) = r.split_once(' ')?;
-        prefix = Some(p);
-        rest = r;
-    }
-    let (head, trailing) = match rest.split_once(" :") {
-        Some((head, trailing)) => (head, Some(trailing)),
-        None => (rest, None),
-    };
-    let mut parts = head.split(' ').filter(|s| !s.is_empty());
-    let command = parts.next()?;
-    let mut params: Vec<&str> = parts.collect();
-    params.extend(trailing);
-    Some(Line {
-        nick: prefix.map(|p| p.split('!').next().unwrap_or(p)),
-        command,
-        params,
-    })
-}
-
-// The lines the page cares about. Bancho also sends a lot of JOIN/PART/QUIT noise
-// about other users, which is dropped.
+// The lines the page cares about: private messages, our own joins and parts, and
+// refusals. Room lines are the bots' to log, and Bancho also sends a lot of
+// JOIN/PART/QUIT noise about other users; both are dropped.
 fn to_server_msg(line: &Line, nick: &str) -> Option<ServerMsg> {
     let from_me = line.nick.is_some_and(|n| n.eq_ignore_ascii_case(nick));
     match (line.command, line.params.as_slice()) {
+        ("PRIVMSG", [target, _]) if target.starts_with('#') => None,
         ("PRIVMSG", [target, text]) => {
-            let (text, action) = match text
-                .strip_prefix("\u{1}ACTION ")
-                .map(|t| t.trim_end_matches('\u{1}'))
-            {
-                Some(t) => (t, true),
-                None => (*text, false),
-            };
+            let (text, action) = privmsg_text(text);
             Some(ServerMsg::Message {
                 from: line.nick?.to_string(),
                 target: target.to_string(),
@@ -1139,72 +785,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn referee_runs_the_room_before_others() {
-        // (runs it now, can run it, is the referee)
-        // A host or another referee runs it; the match's referee joins the channel and
-        // takes over.
-        assert_eq!(
-            pick_runner(&[(true, true, false), (false, true, true)]),
-            Some(1)
-        );
-        // The referee isn't in the channel yet: the host keeps it.
-        assert_eq!(
-            pick_runner(&[(true, true, false), (false, false, true)]),
-            Some(0)
-        );
-        // A referee who runs it keeps it.
-        assert_eq!(
-            pick_runner(&[(false, true, false), (true, true, true)]),
-            Some(1)
-        );
-    }
-
-    #[test]
-    fn runner_keeps_the_room_until_it_cant() {
-        // A host who runs it isn't displaced by one who asked first.
-        assert_eq!(
-            pick_runner(&[(false, true, false), (true, true, false)]),
-            Some(1)
-        );
-        // Once it left the channel, the first in line who can takes over.
-        assert_eq!(
-            pick_runner(&[
-                (false, false, false),
-                (true, false, false),
-                (false, true, false)
-            ]),
-            Some(2)
-        );
-        assert_eq!(
-            pick_runner(&[(false, false, true), (false, false, false)]),
-            None
-        );
-        assert_eq!(pick_runner(&[]), None);
-    }
-
-    #[test]
-    fn parses_privmsg() {
-        let line = parse(":BanchoBot!cho@ppy.sh PRIVMSG #mp_1 :Slot 1  Ready").unwrap();
-        assert_eq!(line.nick, Some("BanchoBot"));
-        assert_eq!(line.command, "PRIVMSG");
-        assert_eq!(line.params, ["#mp_1", "Slot 1  Ready"]);
-    }
-
-    #[test]
-    fn parses_ping() {
-        let line = parse("PING :cho.ppy.sh").unwrap();
-        assert_eq!(line.nick, None);
-        assert_eq!(line.params, ["cho.ppy.sh"]);
-    }
-
-    #[test]
-    fn rejects_injection() {
-        assert!(!valid_name("#mp_1 :x"));
-        assert!(!valid_name("a\r\nQUIT"));
-        assert_eq!(clean_text("hi\r\nQUIT"), "hi  QUIT");
-    }
-
-    #[test]
     fn limits_failed_logins() {
         let users = IrcUsers::default();
         let user = Uuid::from_u128(rand::random());
@@ -1229,6 +809,7 @@ mod tests {
             id: 1,
             nick: "Ref".into(),
             commands: commands.downgrade(),
+            requests: mpsc::unbounded_channel().0,
             state: Mutex::new(SessionState {
                 events: broadcast::channel(TAB_BUFFER).0,
                 registered: false,
@@ -1257,9 +838,8 @@ mod tests {
             action: false,
             seq: None,
         };
-        // Private messages are kept for later tabs, room lines aren't.
+        // Private messages are kept for later tabs.
         session.emit(&message("Ref"));
-        session.emit(&message("#mp_2"));
         assert!(first.events.try_recv().unwrap().contains("connected"));
 
         let later = session.attach().unwrap();

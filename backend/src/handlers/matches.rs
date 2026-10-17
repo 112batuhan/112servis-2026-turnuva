@@ -390,14 +390,10 @@ pub async fn delete_lobby(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     let channel = db::discord::channel_of(&state.db, id).await?;
-    let rooms = db::matches::find_match(&state.db, id)
-        .await?
-        .map(|m| m.mp_ids)
-        .unwrap_or_default();
+    // Its rooms go with it; the bot closes the ones it made (crate::bancho).
     if !db::matches::delete_lobby(&state.db, id).await? {
         return Err(AppError::NotFound);
     }
-    state.room_runners.close(&rooms);
     let archive = channel.map(|channel_id| Job::ArchiveChannel {
         channel_id,
         kind: MatchKind::Qualifier,
@@ -516,7 +512,6 @@ pub async fn set_referee(
         }
     }
     if m.referee_id != body.referee_id {
-        state.room_runners.set_referee(&m.mp_ids, body.referee_id);
         state
             .discord
             .enqueue(
@@ -580,8 +575,10 @@ pub struct RoomBody {
     link: String,
 }
 
-// POST /api/matches/:id/rooms — the match's referee adds a room (its link or id)
-// until the match is concluded; hosts can any time. A room belongs to one match.
+// POST /api/matches/:id/rooms — a referee or a host adds a room made elsewhere (its
+// link or id) until the match is concluded; hosts can any time. It's handed to the
+// least busy bot with room for it, which joins it once the room's maker adds it as a
+// referee. A room belongs to one match.
 pub async fn add_room(
     State(state): State<AppState>,
     user: AuthUser,
@@ -593,19 +590,35 @@ pub async fn add_room(
     require_unconcluded(&user, &m)?;
     let mp_id = parse_mp_id(&body.link)
         .ok_or(AppError::BadRequest("that isn't an osu! multiplayer link"))?;
-    match db::matches::add_room(&state.db, id, mp_id).await {
+    let bot = if m.concluded() {
+        None
+    } else {
+        state.bancho.assign_bot().await
+    };
+    link_room(&state, id, mp_id, bot, false, m.concluded()).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// Puts a room on its match, from a link or as a bot made it, and tells Discord and the
+// pages. `bot` runs it; `bot_made` when that bot made it.
+pub async fn link_room(
+    state: &AppState,
+    match_id: Uuid,
+    mp_id: i64,
+    bot: Option<Uuid>,
+    bot_made: bool,
+    concluded: bool,
+) -> Result<(), AppError> {
+    match db::bancho::add_room(&state.db, match_id, mp_id, bot, bot_made).await {
         Ok(()) => {
             // The channel's card lists the rooms; only an unconcluded match announces one.
-            let mut jobs = vec![Job::SyncMatch { match_id: id }];
-            if !m.concluded() {
-                jobs.push(Job::RoomAdded {
-                    match_id: id,
-                    mp_id,
-                });
+            let mut jobs = vec![Job::SyncMatch { match_id }];
+            if !concluded {
+                jobs.push(Job::RoomAdded { match_id, mp_id });
             }
             state.discord.enqueue(&state.db, &jobs).await?;
             state.live.bracket_changed();
-            Ok(StatusCode::NO_CONTENT)
+            Ok(())
         }
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("match_rooms_pkey") => {
             Err(AppError::Conflict("that room is already linked to a match"))
@@ -682,7 +695,6 @@ pub async fn conclude(
     }
     if m.kind == MatchKind::Bracket {
         bracket::conclude(&state, id, None).await?;
-        state.room_runners.close(&m.mp_ids);
         state.live.bracket_changed();
         return Ok(StatusCode::NO_CONTENT);
     }
@@ -703,7 +715,6 @@ pub async fn conclude(
         )
         .await?;
     tx.commit().await?;
-    state.room_runners.close(&m.mp_ids);
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }

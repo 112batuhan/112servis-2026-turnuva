@@ -50,8 +50,8 @@
 }
 
 /* Wide enough for a host's tabs: the label sits in the middle of the bar, or as close to it as the
-   tabs on its left allow. */
-@media (min-width: 1300px) {
+   tabs on its left allow. Narrower, the bar is one row and the label is only for screen readers. */
+@media (min-width: 1520px) {
   .navbar.is-admin {
     display: grid;
     grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr);

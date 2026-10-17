@@ -43,7 +43,7 @@ pub struct Config {
     #[command(flatten)]
     pub discord_bot: DiscordBotConfig,
 
-    /// Bancho's IRC server, which the referee page's chat relay connects to.
+    /// Bancho's IRC server, which the bots and the referee page's chat relay connect to.
     /// cho.ppy.sh:6667 is an alternative if irc.ppy.sh doesn't work.
     #[arg(long, env = "BANCHO_IRC_ADDR", default_value = "irc.ppy.sh:6667")]
     pub bancho_irc_addr: String,

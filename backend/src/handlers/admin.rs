@@ -56,5 +56,7 @@ pub async fn set_roles(
     }
 
     let updated = db::admin::set_roles(&state.db, user_id, &roles).await?;
+    // Who the bots let stay in a room, and make its referees, goes by the roles.
+    state.bancho.resync();
     Ok(Json(updated))
 }

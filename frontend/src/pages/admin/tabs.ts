@@ -10,6 +10,7 @@ export const ADMIN_TABS: { path: string; label: string; access: Access }[] = [
   { path: "/admin/teams", label: "Takımlar", access: "host" },
   { path: "/admin/rules", label: "Kurallar", access: "host" },
   { path: "/admin/discord", label: "Discord", access: "host" },
+  { path: "/admin/bancho", label: "Bancho", access: "host" },
 ];
 
 export const isAdminPath = (pathname: string) => pathname === "/admin" || pathname.startsWith("/admin/");

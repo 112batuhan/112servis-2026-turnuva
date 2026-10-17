@@ -1,14 +1,15 @@
 import { Icon } from "../../../components/Icon";
 import { scoreMessage } from "./pool";
-import type { RefereeRoomState } from "./useRefereeRoom";
+import { botBlocker, type RefereeRoomState } from "./useRefereeRoom";
 import "./MatchScore.css";
 
 /**
  * Tells the room the running score and whose pick is next, in the match column's console. The
- * pick follows the rules (see nextPicker) until the referee chooses the other team.
+ * pick follows the rules (the bots read it from the bans and picks) until the referee chooses the
+ * other team.
  */
 export function AnnounceScore({ referee }: { referee: RefereeRoomState }) {
-  const { room, teams, tally, nextPick, inChannel, canRun, actions, race } = referee;
+  const { room, teams, tally, nextPick, botReady, canRun, actions, race } = referee;
   if (!room || !tally || teams.length !== 2) return null;
   const message = scoreMessage(teams, [tally.team1, tally.team2], nextPick);
   // Nobody picks the tiebreaker, nor after a team has won.
@@ -39,8 +40,8 @@ export function AnnounceScore({ referee }: { referee: RefereeRoomState }) {
       <button
         type="button"
         className="btn btn-secondary announce-send"
-        disabled={!inChannel}
-        title={inChannel ? `Odaya yazılacak: ${message}` : "Önce odanın kanalına katıl"}
+        disabled={!botReady}
+        title={botReady ? `Bot odaya yazacak: ${message}` : (botBlocker(referee) ?? undefined)}
         aria-description={message}
         onClick={actions.announceScore}
       >

@@ -6,16 +6,21 @@ import type { RoomChatView } from "./useRefereeRoom";
 import "./ChatPanel.css";
 
 interface Props {
-  /** The match's rooms, oldest first. */
+  /** The match's rooms, oldest first, each with what its bot saved. */
   rooms: RoomChatView[];
   /** Players' team colours by normalizeName(username), to colour their names. */
   colors: Map<string, SlotTeam | null>;
-  /** Shown above the tabs: the Bancho login, or who's connected. */
+  /** Shown above the tabs: the referee's Bancho login, or who's connected. */
   top?: ReactNode;
   /** False while the panel is behind another tab on a phone: lines stay unread until it's back. */
   visible?: boolean;
   /** Told the unread lines across every conversation, for the phone's tab bar. */
   onUnread?: (count: number) => void;
+  /**
+   * Hosts write in the match's current room through its bot (their accounts are the bots, which
+   * can't join each other's rooms): its name, why it can't take a line right now, and the send.
+   */
+  viaBot?: { bot: string | null; blocker: string | null; send: (text: string) => Promise<boolean> };
 }
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
@@ -41,43 +46,42 @@ const time = (at: number) =>
   new Date(at).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 /**
- * Bancho chat, IRC style: a tab per room of the match (what was saved, then what's
- * live) and the private conversations. Other matches' rooms stay out of it, even
- * ones the connection is still in.
+ * The match's chat, IRC style: a tab per room of the match, each what its bot saved and saves as it
+ * comes (the same for everyone on the match, whether or not they're on Bancho), and the referee's
+ * private conversations. What the referee types in a room goes out from their own account, once
+ * the room's bot has let them into its channel.
  */
-export function ChatPanel({ rooms, colors, top, visible = true, onUnread }: Props) {
+export function ChatPanel({ rooms, colors, top, visible = true, onUnread, viaBot }: Props) {
   const irc = useIrc();
   const latest = rooms.length > 0 ? rooms[rooms.length - 1].channel : null;
   const [active, setActive] = useState<string | null>(latest);
   const [draft, setDraft] = useState("");
   // The last line seen in each conversation, for the unread counts.
   const [seen, setSeen] = useState<Record<string, number>>({});
-  // Room tabs the referee closed. One comes back if we're in its channel again.
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
   const log = useRef<HTMLDivElement>(null);
   const stuckToBottom = useRef(true);
 
   useEffect(() => setActive(latest), [latest]);
 
-  const roomTabs = rooms.filter((r) => r.joined || !hidden.has(conversationKey(r.channel)));
-  const dmKeys = Object.keys(irc.conversations)
-    .filter((k) => !isChannel(k))
-    .sort((a, b) => (a === "banchobot" ? -1 : b === "banchobot" ? 1 : a.localeCompare(b)));
+  const dmKeys = Object.keys(irc.conversations).sort((a, b) =>
+    a === "banchobot" ? -1 : b === "banchobot" ? 1 : a.localeCompare(b),
+  );
 
   // A closed tab falls back to the latest room.
   const keyOf = (name: string | null) => (name ? conversationKey(name) : null);
-  const tabKeys = [...roomTabs.map((r) => conversationKey(r.channel)), ...dmKeys];
+  const tabKeys = [...rooms.map((r) => conversationKey(r.channel)), ...dmKeys];
   const activeKey = tabKeys.includes(keyOf(active) ?? "") ? keyOf(active) : (tabKeys[0] ?? null);
-  const activeRoom = roomTabs.find((r) => conversationKey(r.channel) === activeKey);
+  const activeRoom = rooms.find((r) => conversationKey(r.channel) === activeKey);
   const activeDm = activeRoom ? undefined : activeKey ? irc.conversations[activeKey] : undefined;
   const lines = activeRoom?.lines ?? activeDm?.lines ?? [];
-  // Only live lines count as unread; saved ones have negative ids (see roomChat.ts).
-  const lastLiveId = lines.reduce((max, l) => Math.max(max, l.id), 0);
+  // Only lines that arrived while the page was open count as unread; what was loaded with it has
+  // negative ids (see roomChat.ts).
+  const lastId = lines.reduce((max, l) => Math.max(max, l.id), 0);
 
   // Viewing a conversation marks it read.
   useEffect(() => {
-    if (visible && activeKey) setSeen((s) => (s[activeKey] === lastLiveId ? s : { ...s, [activeKey]: lastLiveId }));
-  }, [visible, activeKey, lastLiveId]);
+    if (visible && activeKey) setSeen((s) => (s[activeKey] === lastId ? s : { ...s, [activeKey]: lastId }));
+  }, [visible, activeKey, lastId]);
 
   // Follows new lines unless the referee has scrolled up to read. A hidden log can't scroll, so
   // coming back into view catches up.
@@ -87,18 +91,45 @@ export function ChatPanel({ rooms, colors, top, visible = true, onUnread }: Prop
   }, [visible, lines.length, activeKey]);
 
   const online = irc.status === "online";
-  // A room we're not in only shows what was saved.
-  const target = activeRoom ? (activeRoom.joined ? activeRoom.channel : null) : (activeDm?.name ?? null);
+  // A host's line goes to the current room through its bot.
+  const throughBot = viaBot !== undefined && activeRoom?.current === true;
+  // A room takes what's typed once the referee is in its channel (or, through the bot, once the
+  // bot is in it); a private conversation while online.
+  const target = activeRoom
+    ? throughBot
+      ? viaBot.blocker === null
+        ? activeRoom.channel
+        : null
+      : online && activeRoom.joined
+        ? activeRoom.channel
+        : null
+    : online
+      ? (activeDm?.name ?? null)
+      : null;
+  const [sending, setSending] = useState(false);
   const unread = (key: string, tabLines: ChatLine[]) => tabLines.filter((l) => l.id > (seen[key] ?? 0)).length;
   const totalUnread =
-    roomTabs.reduce((n, r) => n + unread(conversationKey(r.channel), r.lines), 0) +
+    rooms.reduce((n, r) => n + unread(conversationKey(r.channel), r.lines), 0) +
     dmKeys.reduce((n, key) => n + unread(key, irc.conversations[key].lines), 0);
   useEffect(() => onUnread?.(totalUnread), [onUnread, totalUnread]);
 
   function submit(e: FormEvent) {
     e.preventDefault();
     const text = draft.trim();
-    if (!text || !online) return;
+    if (!text) return;
+    if (throughBot) {
+      if (!target || sending) return;
+      setSending(true);
+      viaBot
+        .send(text)
+        .then((sent) => {
+          if (sent) setDraft("");
+        })
+        .finally(() => setSending(false));
+      stuckToBottom.current = true;
+      return;
+    }
+    if (!online) return;
     const [command, ...rest] = text.split(" ");
     if (command.toLowerCase() === "/msg" || command.toLowerCase() === "/query") {
       if (!rest[0] || isChannel(rest[0])) return;
@@ -111,11 +142,6 @@ export function ChatPanel({ rooms, colors, top, visible = true, onUnread }: Prop
     }
     setDraft("");
     stuckToBottom.current = true;
-  }
-
-  function closeRoom(channel: string) {
-    setHidden((h) => new Set(h).add(conversationKey(channel)));
-    irc.close(channel);
   }
 
   const tab = (key: string, label: string, title: string, badge: number, onClose: (() => void) | null, name: string) => (
@@ -137,24 +163,30 @@ export function ChatPanel({ rooms, colors, top, visible = true, onUnread }: Prop
     </span>
   );
 
-  const placeholder = activeRoom && !activeRoom.joined
-    ? "Bu odada değilsin: kayıtlı sohbet salt okunur"
-    : !online
-      ? "Bağlı değilsin"
-      : target
-        ? `${target} — mesaj veya !mp komutu`
-        : "/msg kişi mesaj";
+  let placeholder: string;
+  if (throughBot) {
+    placeholder = viaBot.blocker ?? `${viaBot.bot ?? "Bot"} üzerinden yaz`;
+  } else if (activeRoom) {
+    placeholder = !activeRoom.current
+      ? "Eski oda: kayıtlı sohbet, salt okunur"
+      : !online
+        ? "Yazmak için Bancho'ya bağlan"
+        : !activeRoom.joined
+          ? "Bot seni odanın hakemi yapıyor…"
+          : `${activeRoom.channel}: mesaj veya !mp komutu`;
+  } else {
+    placeholder = !online ? "Bağlı değilsin" : target ? `${target}: mesaj` : "/msg kişi mesaj";
+  }
 
   return (
     <section className="chat-panel" aria-label="Bancho sohbeti">
       {top}
       <div className="chat-tabs" role="tablist">
         {tabKeys.length === 0 && <span className="chat-tabs-empty muted">Henüz sohbet yok</span>}
-        {roomTabs.map((r) => {
+        {rooms.map((r) => {
           const key = conversationKey(r.channel);
           const label = rooms.length > 1 ? `${rooms.indexOf(r) + 1}. oda` : r.channel;
-          // A room's tab closes once we've left its channel.
-          return tab(key, label, r.channel, unread(key, r.lines), r.joined ? null : () => closeRoom(r.channel), r.channel);
+          return tab(key, label, r.channel, unread(key, r.lines), null, r.channel);
         })}
         {dmKeys.map((key) => {
           const c = irc.conversations[key];
@@ -162,7 +194,7 @@ export function ChatPanel({ rooms, colors, top, visible = true, onUnread }: Prop
         })}
       </div>
 
-      {activeRoom && !activeRoom.joined && (
+      {activeRoom && !activeRoom.current && (
         <p className="chat-archive-note">
           {activeRoom.channel} · kayıtlı sohbet · {lines.length} mesaj
         </p>
@@ -178,7 +210,7 @@ export function ChatPanel({ rooms, colors, top, visible = true, onUnread }: Prop
       >
         {lines.length === 0 && (
           <p className="chat-empty muted">
-            {activeRoom ? "Bu odada henüz mesaj yok." : online ? "Mesaj yok." : "Sohbet için Bancho'ya bağlan."}
+            {activeRoom ? "Bu odada henüz mesaj yok." : online ? "Mesaj yok." : "Özel mesajlar için Bancho'ya bağlan."}
           </p>
         )}
         {lines.map((line) => (
@@ -191,11 +223,17 @@ export function ChatPanel({ rooms, colors, top, visible = true, onUnread }: Prop
           className="input"
           aria-label={target ? `${target} sohbetine yaz` : "Mesaj"}
           placeholder={placeholder}
-          disabled={!online}
+          disabled={throughBot ? !target : !online || (activeRoom !== undefined && !target)}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
         />
-        <button type="submit" className="btn btn-primary" disabled={!online || !draft.trim()}>
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={
+            !draft.trim() || sending || (throughBot ? !target : !online || (activeRoom !== undefined && !target))
+          }
+        >
           Gönder
         </button>
       </form>

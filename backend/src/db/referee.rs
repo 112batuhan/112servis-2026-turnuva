@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 // What the referee page keeps about a match (match_room_settings), with the defaults
 // for a match that has no row yet.
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct RoomSettings {
     pub score_mode: i16,
     pub no_fail: bool,

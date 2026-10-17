@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useSignedInUser } from "../../../auth/AuthContext";
+import { Icon } from "../../../components/Icon";
 import { useIrc } from "../../../irc/IrcContext";
 import { ircName } from "../../../lib/bancho";
 import { readString, removeString, writeString } from "../../../lib/storage";
@@ -8,10 +9,16 @@ import "./IrcLogin.css";
 const USERNAME_KEY = "irc-username";
 const PASSWORD_KEY = "irc-password";
 
-/** Logs into Bancho with the referee's own IRC credentials, or shows who's logged in. */
-export function IrcLogin() {
+/**
+ * Logs into Bancho with the referee's own IRC credentials, or shows who's logged in. The room's bot
+ * runs the room without it; this is for writing in the room as yourself (the bot makes you one of
+ * its referees) and for private messages. A host writes in the room through its bot (`viaBot`, the
+ * bot's name), so for them the form is folded away behind one line, for private messages only.
+ */
+export function IrcLogin({ viaBot = null }: { viaBot?: string | null }) {
   const user = useSignedInUser();
   const irc = useIrc();
+  const [unfolded, setUnfolded] = useState(false);
   const [username, setUsername] = useState(() => readString(USERNAME_KEY) ?? ircName(user.username));
   const [password, setPassword] = useState(() => readString(PASSWORD_KEY) ?? "");
   const [remember, setRemember] = useState(() => readString(PASSWORD_KEY) !== null);
@@ -35,6 +42,25 @@ export function IrcLogin() {
     );
   }
 
+  if (viaBot !== null && !unfolded && irc.status !== "connecting") {
+    return (
+      <div className="irc-login is-online is-via-bot">
+        <Icon name="bot" size={15} />
+        <span className="irc-login-who">
+          <strong>{viaBot || "Odanın botu"}</strong> üzerinden yazıyorsun
+        </span>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          title="Kendi hesabınla, özel mesajlar için. Hesabın bir botsa bağlanamazsın."
+          onClick={() => setUnfolded(true)}
+        >
+          Bancho'ya bağlan
+        </button>
+      </div>
+    );
+  }
+
   function submit(e: FormEvent) {
     e.preventDefault();
     const name = username.trim();
@@ -49,7 +75,10 @@ export function IrcLogin() {
   return (
     <form className="irc-login" onSubmit={submit}>
       <h2 className="irc-login-title">Bancho'ya bağlan</h2>
-      <p className="irc-login-why">Odayı yönetmek ve sohbete yazabilmek için kendi Bancho IRC şifrenle giriş yap.</p>
+      <p className="irc-login-why">
+        Odayı bot yönetir. Odaya kendi hesabınla yazmak ve özel mesajlar için kendi IRC şifrenle bağlan; bot seni
+        odanın hakemi yapar.
+      </p>
       <input
         className="input input-sm"
         aria-label="osu! kullanıcı adı"

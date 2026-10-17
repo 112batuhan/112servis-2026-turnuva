@@ -3,7 +3,7 @@ use sqlx::PgPool;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct ChatMessage {
     pub id: i64,
     #[serde(with = "time::serde::rfc3339")]
@@ -13,19 +13,21 @@ pub struct ChatMessage {
     pub action: bool,
 }
 
-// Saves a line and returns it as stored, so it can be sent on to the match page.
+// Saves a line the room's bot saw (or sent) at `sent_at` and returns it as stored, so
+// it can be sent on to the match pages.
 pub async fn insert_message(
     pool: &PgPool,
     mp_id: i64,
     sender: &str,
     text: &str,
     action: bool,
-    logged_by: Uuid,
+    bot_id: Uuid,
+    sent_at: OffsetDateTime,
 ) -> sqlx::Result<ChatMessage> {
     sqlx::query_as::<_, ChatMessage>(
         r#"
-        INSERT INTO room_chat_messages (mp_id, sender, text, action, logged_by)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO room_chat_messages (mp_id, sender, text, action, bot_id, sent_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, sent_at, sender, text, action
         "#,
     )
@@ -33,7 +35,8 @@ pub async fn insert_message(
     .bind(sender)
     .bind(text)
     .bind(action)
-    .bind(logged_by)
+    .bind(bot_id)
+    .bind(sent_at)
     .fetch_one(pool)
     .await
 }

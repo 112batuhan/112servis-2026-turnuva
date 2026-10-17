@@ -9,16 +9,22 @@ import { sameName, type RoomSlot } from "../../../lib/bancho";
 /** The roles that may be in a room without playing: the first one held names them there. */
 const ROOM_ROLES: Role[] = ["referee", "streamer", "host"];
 
+/** The roles a room's bot can make one of its referees (their tournament client then shows its chat). */
+export const REF_ROLES: Role[] = ["referee", "streamer", "commentator"];
+
 /**
- * Everyone holding one of ROOM_ROLES, loaded once per page; null until it arrives (or if it fails),
- * so nobody is taken for a stranger before the staff are known.
+ * Everyone holding one of ROOM_ROLES or REF_ROLES, loaded once per page; null until it arrives (or
+ * if it fails), so nobody is taken for a stranger before the staff are known.
  */
 export function useRoomStaff(): StaffMember[] | null {
   const [staff, setStaff] = useState<StaffMember[] | null>(null);
   useEffect(() => {
     let live = true;
     fetchStaff()
-      .then((all) => live && setStaff(all.filter((s) => s.roles.some((r) => ROOM_ROLES.includes(r)))))
+      .then(
+        (all) =>
+          live && setStaff(all.filter((s) => s.roles.some((r) => ROOM_ROLES.includes(r) || REF_ROLES.includes(r)))),
+      )
       .catch(() => {});
     return () => {
       live = false;

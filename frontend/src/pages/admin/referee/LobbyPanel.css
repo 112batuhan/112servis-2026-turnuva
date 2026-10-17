@@ -58,6 +58,156 @@
   margin-left: auto;
 }
 
+/* The bot that runs the room, in the room bar: a dot for where it stands (in the room, on its way,
+   kept out), its icon and name, and the state in words unless it's simply in. */
+.lobby-bot {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  height: 24px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.lobby-bot-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-success);
+}
+
+.lobby-bot.is-joining .lobby-bot-dot {
+  background: var(--color-warning);
+}
+
+.lobby-bot.is-out {
+  border-color: color-mix(in srgb, var(--color-danger) 45%, transparent);
+}
+
+.lobby-bot.is-out .lobby-bot-dot {
+  background: var(--color-danger);
+}
+
+.lobby-bot-name {
+  overflow: hidden;
+  color: var(--color-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lobby-bot-state {
+  white-space: nowrap;
+}
+
+.lobby-bot.is-out .lobby-bot-state {
+  color: var(--color-danger);
+}
+
+/* Why the bot can't run the room and the way out, at the top of the column: the one thing to
+   settle before anything below works. */
+.lobby-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  flex-shrink: 0;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 45%, transparent);
+  border-radius: var(--radius-md);
+  background: var(--color-danger-soft);
+  font-size: var(--text-sm);
+}
+
+.lobby-notice-text {
+  display: flex;
+  flex: 1 1 32ch;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.lobby-notice-title {
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.lobby-notice code,
+.lobby-link code {
+  color: var(--color-text);
+}
+
+/* The room's referees in the settings drawer: who Bancho has as one, each with a way off, then
+   a select to add another. */
+.lobby-refs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-self: stretch;
+  padding-top: var(--space-3);
+  border-top: var(--rule);
+}
+
+.lobby-refs-title {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  font-size: var(--text-md);
+}
+
+.lobby-refs-count {
+  color: var(--color-text-muted);
+}
+
+.lobby-refs-hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.lobby-refs-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lobby-refs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--icon-button-size);
+  border-bottom: var(--rule);
+}
+
+.lobby-refs-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lobby-refs-self {
+  color: var(--color-text-muted);
+}
+
+.lobby-refs-add {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.lobby-refs-add .select {
+  flex: 1;
+  min-width: 0;
+}
+
 .lobby-settings {
   display: flex;
   flex-direction: column;

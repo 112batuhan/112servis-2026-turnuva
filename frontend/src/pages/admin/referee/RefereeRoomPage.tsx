@@ -22,10 +22,14 @@ import { IrcLogin } from "./IrcLogin";
 import { LobbyPanel } from "./LobbyPanel";
 import { BAN_LIMIT, poolEntries } from "./pool";
 import { PoolPanel } from "./PoolPanel";
-import { roomLabel, useRefereeRoom, type RefereeRoomState } from "./useRefereeRoom";
+import { roomLabel } from "./liveRoom";
+import { botBlocker, useRefereeRoom, type RefereeRoomState } from "./useRefereeRoom";
 import "./RefereeRoomPage.css";
 
-/** /admin/referee/:matchId — runs a match's osu! room over Bancho IRC. */
+/**
+ * /admin/referee/:matchId — runs a match's osu! room. The site's bot makes and runs the room; the
+ * referee drives it from here and talks in it with their own Bancho account.
+ */
 export function RefereeRoomPage() {
   const { matchId = "" } = useParams();
   // A fresh page per match, so nothing from the last one (like a room still being
@@ -85,7 +89,8 @@ function RefereeRoom({ matchId }: { matchId: string }) {
           {room.referee ? ` · Hakem: ${room.referee.username}` : " · Hakem yok"}
           {room.streamer && ` · Yayıncı: ${room.streamer.username}`}
         </span>
-        {room.concluded_at && <span className="badge badge-success">Bitti</span>}        {!referee.canRun && (
+        {room.concluded_at && <span className="badge badge-success">Bitti</span>}
+        {!referee.canRun && (
           <span className="badge badge-warning" title="Odayı sadece maçın hakemi ya da bir host kurabilir">
             Bu maçın hakemi değilsin
           </span>
@@ -103,7 +108,7 @@ function RefereeRoom({ matchId }: { matchId: string }) {
           status={{
             pool: <PoolStatus referee={referee} />,
             room: <RoomStatus referee={referee} />,
-            chat: <ChatStatus unread={chatUnread} />,
+            chat: <ChatStatus unread={chatUnread} viaBot={referee.viaBot && referee.botReady} />,
           }}
         />
         <ErrorAlert message={error} />
@@ -119,7 +124,12 @@ function RefereeRoom({ matchId }: { matchId: string }) {
               <ChatPanel
                 rooms={roomChats}
                 colors={colors}
-                top={<IrcLogin />}
+                top={<IrcLogin viaBot={referee.viaBot ? (referee.botName ?? "") : null} />}
+                viaBot={
+                  referee.viaBot
+                    ? { bot: referee.botName, blocker: botBlocker(referee), send: referee.actions.sayViaBot }
+                    : undefined
+                }
                 visible={!compact || tab === "chat"}
                 onUnread={setChatUnread}
               />
@@ -291,12 +301,13 @@ function RoomStatus({ referee }: { referee: RefereeRoomState }) {
   );
 }
 
-/** New lines waiting, or else whether Bancho is connected. */
-function ChatStatus({ unread }: { unread: number }) {
+/** New lines waiting, or else whether the referee can write in the room (a host through its bot). */
+function ChatStatus({ unread, viaBot }: { unread: number; viaBot: boolean }) {
   const { status } = useIrc();
   if (unread > 0) return <span className="referee-tab-unread num">{unread} yeni</span>;
+  if (viaBot) return <span className="referee-tab-online">Bot ile</span>;
   if (status === "online") return <span className="referee-tab-online">Bağlı</span>;
-  return <span>{status === "connecting" ? "Bağlanıyor…" : "Bağlı değil"}</span>;
+  return <span>{status === "connecting" ? "Bağlanıyor…" : "Okunuyor"}</span>;
 }
 
 /**

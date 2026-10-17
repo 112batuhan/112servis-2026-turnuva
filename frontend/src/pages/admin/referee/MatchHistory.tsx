@@ -4,18 +4,18 @@ import { IconButton } from "../../../components/IconButton";
 import { splitMods, type MapResult } from "../../../lib/bancho";
 import { bestOfLabel, firstTo, raceOf, type Race } from "../../../lib/bestOf";
 import type { ManualResult } from "../../../api/types";
-import { entryOf, poolEntries, type MatchData, type MatchTeam, type PoolEntry } from "./pool";
 import {
+  poolRows,
   roomLabel,
   scorer,
-  teamTotals,
   type FinishedMap,
-  type RefereeRoomState,
   type ResultRow,
   type RosterPlayer,
   type Tally,
   type TeamTotal,
-} from "./useRefereeRoom";
+} from "./liveRoom";
+import { poolEntries, type MatchData, type MatchTeam, type PoolEntry } from "./pool";
+import type { RefereeRoomState } from "./useRefereeRoom";
 import "./MatchHistory.css";
 
 interface PlayerLine {
@@ -45,7 +45,7 @@ function playerLines(result: MapResult, freemod: boolean, roster: RosterPlayer[]
               .join("") || "NM";
       return {
         key: `${i}`,
-        name: r?.player.username ?? (score.username || `#${score.userId}`),
+        name: r?.player.username ?? (score.username || `#${score.userId ?? "?"}`),
         mods,
         score: score.score,
         passed: score.passed,
@@ -163,12 +163,7 @@ export function ScoreSheet({
   const race = bestOf !== null && score && !room.forfeit_slot ? raceOf(bestOf, score[0], score[1]) : null;
 
   // A lobby has no score: just its finished pool maps.
-  const rows: ResultRow[] =
-    tally?.rows ??
-    finished.flatMap(({ result, key }) => {
-      const entry = entryOf(entries, result, new Set());
-      return entry ? [{ result, key, entry, totals: teamTotals(result, roster), winnerId: null }] : [];
-    });
+  const rows: ResultRow[] = tally?.rows ?? poolRows(finished, entries);
   const outsidePool = tally?.outsidePool ?? finished.length - rows.length;
   const latest = rows.length > 0 ? rows[rows.length - 1].key : null;
   const isOpen = (key: string) => open[key] ?? key === latest;
@@ -459,23 +454,18 @@ function RaceAction({ referee, race }: { referee: RefereeRoomState; race: Race }
   return <ConcludeControl referee={referee} />;
 }
 
-/** Whether the site shows the score as it is here, and the way to save it when it doesn't. */
+/**
+ * Whether the site has the score as the bots count it. They save it as each map finishes, but not
+ * over a score a host entered by hand, which stays until a map changes it or the referee saves.
+ */
 function ScoreStatus({ referee }: { referee: RefereeRoomState }) {
-  const { room, teams, liveScore, keepsScore, scoreBehind, scoreSaving, scoreSaved, canRun, busy, actions } = referee;
+  const { room, teams, live, scoreSaved, canRun, busy, actions } = referee;
   if (!room) return null;
   if (room.forfeit_slot) return <>Hükmen: {teams[room.forfeit_slot - 1]?.name} çekildi</>;
   if (room.concluded_at !== null) return <>Maç bitti</>;
-  if (scoreSaving) return <>Kaydediliyor…</>;
-  if (liveScore && scoreSaved) {
-    return (
-      <span title={keepsScore ? "Map bittikçe skor sitede güncellenir" : "Skoru odadaki hakem kaydediyor; burası sitedeki sohbetten okur"}>
-        Sitede güncel
-      </span>
-    );
-  }
-  // The page in the room saves it in a moment.
-  if (liveScore && !keepsScore && !scoreBehind) return <>Güncelleniyor…</>;
-  if (canRun && !scoreSaved) {
+  if (!live?.tally) return null;
+  if (scoreSaved) return <span title="Odanın botu map bittikçe skoru sitede günceller">Sitede güncel</span>;
+  if (canRun) {
     return (
       <>
         {room.team1_score === null && room.team2_score === null
@@ -616,11 +606,11 @@ function LobbyTotals({
 }
 
 /**
- * Where the results are read from: the rooms' chat, as the maps finish. When it missed something
- * (the connection dropped, nobody had the page open), the referee syncs them from osu!'s record of
- * the match's rooms (the mp link), which then takes the place of the chat's maps up to that point,
- * on every page open on the match; maps played after it are read from the chat again. It's only
- * read when the referee asks. A concluded match shows what was saved with its score.
+ * Where the results are read from: the rooms' chat, as the bot reads the maps finish. When it
+ * missed something (the bot dropped, a line was misread), the referee syncs them from osu!'s record
+ * of the match's rooms (the mp link), which then takes the place of the chat's maps up to that
+ * point for everyone; maps played after it are read from the chat again. It's only read when the
+ * referee asks. A concluded match shows what was saved with its score.
  */
 function ResultSource({ referee }: { referee: RefereeRoomState }) {
   const { room, source, osuSyncedAt, syncing, busy, canRun, actions } = referee;
@@ -637,7 +627,7 @@ function ResultSource({ referee }: { referee: RefereeRoomState }) {
         type="button"
         className="btn btn-secondary btn-sm"
         disabled={syncing || busy || locked}
-        title="Sonuçları osu!'nun maç kaydından (mp linki) alıp sohbetten okunanların yerine koyar. Sohbet bir map'i kaçırdıysa ya da yanlış okuduysa düzeltir."
+        title="Sonuçları osu!'nun maç kaydından (mp linki) alıp sohbetten okunanların yerine koyar ve skoru kaydeder. Bot bir map'i kaçırdıysa ya da yanlış okuduysa düzeltir."
         onClick={actions.syncFromOsu}
       >
         <Icon name="refresh" size={14} />
@@ -648,9 +638,9 @@ function ResultSource({ referee }: { referee: RefereeRoomState }) {
 }
 
 /**
- * Concludes the match. A bracket match needs a winner: it's concluded with the score as it stands
- * here (saved first if the site doesn't have it yet), and the teams move on to their next matches.
- * Behind a confirmation, since reopening it takes a host.
+ * Concludes the match. A bracket match needs a winner: it's concluded with the score as the bots
+ * count it (saved first if the site doesn't have it yet), and the teams move on to their next
+ * matches. Behind a confirmation, since reopening it takes a host.
  */
 function ConcludeControl({ referee }: { referee: RefereeRoomState }) {
   const { room, teams, tally, busy, actions, race, bestOf } = referee;

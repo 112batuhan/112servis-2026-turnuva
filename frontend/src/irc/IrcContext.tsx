@@ -3,11 +3,13 @@ import { ircSocketUrl } from "../api/referee";
 import { useSignedInUser } from "../auth/AuthContext";
 import { hasRole } from "../auth/roles";
 
-// The Bancho IRC connection for the whole admin area, so it survives moving between
-// matches and tabs. The backend relays it over a WebSocket (handlers/irc.rs) and keeps
-// one connection per user, shared by all of their browser tabs: a tab opened later
-// joins it without logging in. This keeps the tab's chat history and hands every
-// incoming line to listeners.
+// The referee's own Bancho IRC connection for the whole admin area, so it survives moving between
+// matches and tabs. The backend relays it over a WebSocket (handlers/irc.rs) and keeps one
+// connection per user, shared by all of their browser tabs: a tab opened later joins it without
+// logging in. It's for talking: the site's bots run and log the rooms, and every page reads a
+// room's chat from them. A tab says which match it has open (`attend`), and the room's bot then
+// makes the referee one of the room's referees and this connection joins the room's channel, so
+// what they type there comes from their own account. Private messages are kept here.
 
 export type IrcStatus = "offline" | "connecting" | "online";
 
@@ -22,68 +24,48 @@ export interface ChatLine {
   notice: boolean;
 }
 
+/** A private conversation, under the other person's nick. */
 export interface Conversation {
-  /** "#mp_123" or the other person's nick. */
   name: string;
   lines: ChatLine[];
-  /** Channels only: whether we're in it right now. */
-  joined: boolean;
 }
-
-export interface IncomingMessage {
-  from: string;
-  target: string;
-  text: string;
-  /** The conversation it went into. */
-  conversation: string;
-}
-
-/**
- * Whether this tab runs a room's automation (roomAutomation.ts): the server picks one tab
- * among all that ask, in every browser. "refused": this tab can't run it, and isn't in line.
- */
-export type AutomationState = "running" | "waiting" | "refused";
 
 type ServerMsg =
   | { type: "connected"; nick: string; session: number }
   | { type: "login_failed" }
   | { type: "login_blocked"; retry_after: number }
   | { type: "no_session" }
+  | { type: "bot_account" }
   | { type: "message"; from: string; target: string; text: string; action: boolean; seq?: number }
   | { type: "past_message"; from: string; target: string; text: string; action: boolean; at: number; seq: number }
   | { type: "joined"; channel: string }
   | { type: "parted"; channel: string }
   | { type: "conversation_closed"; name: string }
   | { type: "error"; message: string }
-  | { type: "closed"; reason: string }
-  | { type: "automation"; channel: string; state: AutomationState };
+  | { type: "closed"; reason: string };
 
 interface IrcApi {
   status: IrcStatus;
   /** Our nick once logged in. */
   nick: string | null;
-  /** Why the last connection failed or ended, if it wasn't us. */
+  /** Why the last connection failed or ended, or what Bancho last refused. */
   error: string | null;
-  /** Keyed by conversationKey(). */
+  /** Private conversations, keyed by conversationKey(). */
   conversations: Record<string, Conversation>;
+  /** The room channels the connection is in, by conversationKey(). */
+  channels: ReadonlySet<string>;
   /** Logs in, or joins the connection another tab already has. */
   connect: (username: string, password: string) => void;
   /** Ends the connection for every tab. */
   disconnect: () => void;
   send: (target: string, text: string) => void;
-  join: (channel: string) => void;
-  part: (channel: string) => void;
-  /**
-   * Drops a conversation and its history; a new message starts it again. A private
-   * one closes in every tab, a room only in this one.
-   */
+  /** Closes a private conversation in every tab; a new message starts it again. */
   close: (name: string) => void;
-  /** Called for every incoming chat line; returns the unsubscribe. */
-  onMessage: (listener: (msg: IncomingMessage) => void) => () => void;
-  /** Asks to run a room's automation (or stops asking); the answers go to `onAutomation`. Again after reconnecting. */
-  automate: (channel: string, on: boolean) => void;
-  /** Called whenever the server says whether this tab runs a room's automation; returns the unsubscribe. */
-  onAutomation: (listener: (channel: string, state: AutomationState) => void) => () => void;
+  /**
+   * The match this tab has open, or none: its room's bot makes the referee one of the room's
+   * referees and the connection joins the room's channel. Again whenever the match's rooms change.
+   */
+  attend: (matchId: string | null) => void;
 }
 
 const MAX_LINES = 2000;
@@ -102,18 +84,24 @@ export function IrcProvider({ children }: { children: ReactNode }) {
   const [nick, setNick] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Record<string, Conversation>>({});
+  const [channels, setChannels] = useState<ReadonlySet<string>>(new Set());
   const socket = useRef<WebSocket | null>(null);
   const nickRef = useRef<string | null>(null);
-  const listeners = useRef(new Set<(msg: IncomingMessage) => void>());
-  const automationListeners = useRef(new Set<(channel: string, state: AutomationState) => void>());
   const nextId = useRef(1);
-  // Private messages from before this tab joined (the backend keeps them for the
-  // connection) get negative ids, like saved room lines, so they aren't unread.
+  // Private messages from before this tab joined (the backend keeps them for the connection) get
+  // negative ids, like saved room lines, so they aren't unread.
   const nextPastId = useRef(-1);
-  // The connection this tab last joined and the last private message it has from it,
-  // so joining it again doesn't repeat what the tab already shows.
+  // The connection this tab last joined and the last private message it has from it, so joining
+  // it again doesn't repeat what the tab already shows.
   const seen = useRef({ session: 0, seq: 0 });
   const tabs = useRef<BroadcastChannel | null>(null);
+  // The match this tab has open, said again whenever the connection is (re)made.
+  const attending = useRef<string | null>(null);
+
+  const sendJson = useCallback((msg: object) => {
+    const ws = socket.current;
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+  }, []);
 
   const drop = useCallback((name: string) => {
     setConversations((all) => {
@@ -123,28 +111,32 @@ export function IrcProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const update = useCallback((name: string, change: (c: Conversation) => Conversation) => {
+  const addLine = useCallback((name: string, line: Omit<ChatLine, "id" | "at">, past?: { at: number }) => {
+    const full = past
+      ? { ...line, id: nextPastId.current--, at: past.at }
+      : { ...line, id: nextId.current++, at: Date.now() };
     setConversations((all) => {
       const key = conversationKey(name);
-      const current = all[key] ?? { name, lines: [], joined: false };
-      return { ...all, [key]: change(current) };
+      const current = all[key] ?? { name, lines: [] };
+      return { ...all, [key]: { ...current, lines: [...current.lines, full].slice(-MAX_LINES) } };
     });
   }, []);
 
-  const addLine = useCallback(
-    (name: string, line: Omit<ChatLine, "id" | "at">, past?: { at: number }) => {
-      const full = past
-        ? { ...line, id: nextPastId.current--, at: past.at }
-        : { ...line, id: nextId.current++, at: Date.now() };
-      update(name, (c) => ({ ...c, lines: [...c.lines, full].slice(-MAX_LINES) }));
-    },
-    [update],
-  );
+  const setJoined = useCallback((channel: string, joined: boolean) => {
+    setChannels((all) => {
+      const key = conversationKey(channel);
+      if (all.has(key) === joined) return all;
+      const next = new Set(all);
+      if (joined) next.add(key);
+      else next.delete(key);
+      return next;
+    });
+  }, []);
 
   // A private message lives under the other person's name, whoever sent it.
   const conversationOf = useCallback(({ from, target }: { from: string; target: string }) => {
     const fromMe = from.toLowerCase() === nickRef.current?.toLowerCase();
-    return isChannel(target) || fromMe ? target : from;
+    return fromMe ? target : from;
   }, []);
 
   const handle = useCallback(
@@ -157,54 +149,50 @@ export function IrcProvider({ children }: { children: ReactNode }) {
           setStatus("online");
           setError(null);
           tabs.current?.postMessage("online");
+          if (attending.current) sendJson({ type: "attend", match_id: attending.current });
           break;
         case "login_failed":
           setError("Bancho girişi reddetti: kullanıcı adını ve IRC şifresini kontrol et.");
           break;
-        case "login_blocked":
+        case "bot_account":
           setError(
-            `Çok fazla hatalı giriş denemesi. ${Math.ceil(msg.retry_after / 60)} dakika sonra tekrar dene.`,
+            "Bu hesap sitenin botlarından biri: onunla bağlanırsan bot Bancho'dan düşer. Hostlar odaya bot üzerinden yazar.",
           );
           break;
-        case "message": {
-          if (msg.seq) seen.current.seq = msg.seq;
-          const conversation = conversationOf(msg);
-          addLine(conversation, { from: msg.from, text: msg.text, action: msg.action, notice: false });
-          for (const listener of listeners.current) {
-            listener({ from: msg.from, target: msg.target, text: msg.text, conversation });
-          }
+        case "login_blocked":
+          setError(`Çok fazla hatalı giriş denemesi. ${Math.ceil(msg.retry_after / 60)} dakika sonra tekrar dene.`);
           break;
-        }
-        // Only shown: listeners are for what happens from now on.
+        case "message":
+          if (msg.seq) seen.current.seq = msg.seq;
+          addLine(conversationOf(msg), { from: msg.from, text: msg.text, action: msg.action, notice: false });
+          break;
         case "past_message":
           if (msg.seq <= seen.current.seq) break;
           seen.current.seq = msg.seq;
           addLine(conversationOf(msg), { from: msg.from, text: msg.text, action: msg.action, notice: false }, msg);
           break;
         case "joined":
-          update(msg.channel, (c) => ({ ...c, joined: true }));
+          setJoined(msg.channel, true);
+          break;
+        case "parted":
+          setJoined(msg.channel, false);
           break;
         case "conversation_closed":
           drop(msg.name);
           break;
-        case "parted":
-          update(msg.channel, (c) => ({ ...c, joined: false }));
-          break;
         case "error": {
-          // "#mp_1: No such channel #mp_1" goes into the conversation it's about.
+          // "Someone: No such nick" goes into that conversation; a room's refusal is shown above the chat.
           const subject = msg.message.split(":")[0];
-          addLine(subject, { from: "Bancho", text: msg.message, action: false, notice: true });
+          if (isChannel(subject)) setError(`Bancho: ${msg.message}`);
+          else addLine(subject, { from: "Bancho", text: msg.message, action: false, notice: true });
           break;
         }
         case "closed":
           setError((e) => e ?? `Bağlantı kapandı: ${msg.reason}`);
           break;
-        case "automation":
-          for (const listener of automationListeners.current) listener(msg.channel, msg.state);
-          break;
       }
     },
-    [addLine, conversationOf, drop, update],
+    [addLine, conversationOf, drop, sendJson, setJoined],
   );
 
   // Closes this tab's socket; the connection lives on while other tabs use it.
@@ -215,9 +203,7 @@ export function IrcProvider({ children }: { children: ReactNode }) {
     nickRef.current = null;
     setNick(null);
     setStatus("offline");
-    setConversations((all) =>
-      Object.fromEntries(Object.entries(all).map(([k, c]) => [k, { ...c, joined: false }])),
-    );
+    setChannels(new Set());
   }, []);
 
   const open = useCallback(
@@ -256,10 +242,9 @@ export function IrcProvider({ children }: { children: ReactNode }) {
   const resume = useCallback(() => open({ type: "resume" }), [open]);
 
   const disconnect = useCallback(() => {
-    const ws = socket.current;
-    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "quit" }));
+    sendJson({ type: "quit" });
     leave();
-  }, [leave]);
+  }, [leave, sendJson]);
 
   // Joins the connection another tab already has, now and whenever one comes online.
   useEffect(() => {
@@ -281,56 +266,25 @@ export function IrcProvider({ children }: { children: ReactNode }) {
     };
   }, [canReferee, resume]);
 
-  const sendJson = useCallback((msg: object) => {
-    const ws = socket.current;
-    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
-  }, []);
-
   const send = useCallback((target: string, text: string) => sendJson({ type: "send", target, text }), [sendJson]);
-  const join = useCallback((channel: string) => sendJson({ type: "join", channel }), [sendJson]);
-  const part = useCallback((channel: string) => sendJson({ type: "part", channel }), [sendJson]);
   const close = useCallback(
     (name: string) => {
       drop(name);
-      if (!isChannel(name)) sendJson({ type: "close", name });
+      sendJson({ type: "close", name });
     },
     [drop, sendJson],
   );
-  const onMessage = useCallback((listener: (msg: IncomingMessage) => void) => {
-    listeners.current.add(listener);
-    return () => {
-      listeners.current.delete(listener);
-    };
-  }, []);
-
-  const automate = useCallback(
-    (channel: string, on: boolean) => sendJson({ type: "automate", channel, on }),
+  const attend = useCallback(
+    (matchId: string | null) => {
+      attending.current = matchId;
+      sendJson({ type: "attend", match_id: matchId });
+    },
     [sendJson],
   );
-  const onAutomation = useCallback((listener: (channel: string, state: AutomationState) => void) => {
-    automationListeners.current.add(listener);
-    return () => {
-      automationListeners.current.delete(listener);
-    };
-  }, []);
 
   const api = useMemo<IrcApi>(
-    () => ({
-      status,
-      nick,
-      error,
-      conversations,
-      connect,
-      disconnect,
-      send,
-      join,
-      part,
-      close,
-      onMessage,
-      automate,
-      onAutomation,
-    }),
-    [status, nick, error, conversations, connect, disconnect, send, join, part, close, onMessage, automate, onAutomation],
+    () => ({ status, nick, error, conversations, channels, connect, disconnect, send, close, attend }),
+    [status, nick, error, conversations, channels, connect, disconnect, send, close, attend],
   );
 
   return <IrcContext.Provider value={api}>{children}</IrcContext.Provider>;

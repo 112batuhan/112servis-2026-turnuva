@@ -399,7 +399,7 @@ pub async fn can_stream(pool: &PgPool, user_id: Uuid) -> sqlx::Result<bool> {
     .await
 }
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct BanRow {
     pub map_id: Uuid,
     pub team_id: Uuid,
@@ -475,7 +475,7 @@ pub async fn delete_ban(pool: &PgPool, match_id: Uuid, map_id: Uuid) -> sqlx::Re
     Ok(result.rows_affected() > 0)
 }
 
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct PickRow {
     pub map_id: Uuid,
     pub team_id: Uuid,
@@ -532,7 +532,7 @@ pub async fn delete_pick(pool: &PgPool, match_id: Uuid, map_id: Uuid) -> sqlx::R
 }
 
 // A map win the referee awarded by hand.
-#[derive(Debug, Serialize, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
 pub struct ManualResultRow {
     pub id: Uuid,
     // Null for a point given without a map, or once the map left the pool.

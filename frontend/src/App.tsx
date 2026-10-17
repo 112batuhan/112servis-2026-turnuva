@@ -6,6 +6,7 @@ import { MiniPlayer } from "./components/MiniPlayer";
 import { NavBar } from "./components/NavBar";
 import { AdminIndexRedirect, AdminLayout } from "./pages/admin/AdminLayout";
 import { BracketAdminPage } from "./pages/admin/bracket/BracketAdminPage";
+import { BanchoAdminPage } from "./pages/admin/BanchoAdminPage";
 import { DiscordAdminPage } from "./pages/admin/DiscordAdminPage";
 import { MapPoolEditorPage } from "./pages/admin/mappool/MapPoolEditorPage";
 import { QualifiersAdminPage } from "./pages/admin/QualifiersAdminPage";
@@ -111,6 +112,10 @@ export function App() {
             <Route
               path="discord"
               element={<RequireAuth access="host" redirect="/admin"><DiscordAdminPage /></RequireAuth>}
+            />
+            <Route
+              path="bancho"
+              element={<RequireAuth access="host" redirect="/admin"><BanchoAdminPage /></RequireAuth>}
             />
           </Route>
 

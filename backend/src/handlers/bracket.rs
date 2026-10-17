@@ -494,14 +494,10 @@ pub async fn delete_match(
     // Its public announcement, if it had one, stays and says it was cancelled.
     let stored = db::discord::match_discord(&state.db, id).await?;
     let info = db::discord::match_info(&state.db, id).await?;
-    let rooms = db::matches::find_match(&state.db, id)
-        .await?
-        .map(|m| m.mp_ids)
-        .unwrap_or_default();
+    // Its rooms go with it; the bot closes the ones it made (crate::bancho).
     if !db::bracket::delete_match(&state.db, id).await? {
         return Err(AppError::NotFound);
     }
-    state.room_runners.close(&rooms);
     let mut jobs = Vec::new();
     if let Some(channel_id) = channel {
         jobs.push(Job::ArchiveChannel {
@@ -527,15 +523,15 @@ pub async fn delete_match(
 pub struct ScoreBody {
     team1_score: Option<i32>,
     team2_score: Option<i32>,
-    // The referee page sends the pool maps the score was counted from, which replace
-    // the saved ones (the results post lists them). Left out, they stay as they are.
+    // The pool maps the score was counted from, which replace the saved ones (the
+    // results post lists them). Left out, they stay as they are.
     #[serde(default)]
     maps: Option<Vec<MapResultRow>>,
 }
 
-// PUT /api/bracket/:id/score — a referee or a host enters the score, and
-// from the referee page the map results behind it. The score decides who moves on,
-// so a concluded match has to be reopened first.
+// PUT /api/bracket/:id/score — a referee or a host enters the score by hand (the bots
+// save the one they count from the rooms themselves, see crate::bancho). The score
+// decides who moves on, so a concluded match has to be reopened first.
 pub async fn set_score(
     State(state): State<AppState>,
     user: AuthUser,
@@ -547,11 +543,32 @@ pub async fn set_score(
         return Err(AppError::NotFound);
     }
     require_runs(&user)?;
+    save_score(
+        &state,
+        id,
+        body.team1_score,
+        body.team2_score,
+        body.maps.as_deref(),
+    )
+    .await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// Saves a bracket match's score and, when given, the map results behind it, which
+// replace the saved ones (the results post lists them). Checks them the same way
+// whoever sends them.
+pub async fn save_score(
+    state: &AppState,
+    id: Uuid,
+    team1_score: Option<i32>,
+    team2_score: Option<i32>,
+    maps: Option<&[MapResultRow]>,
+) -> Result<(), AppError> {
     let valid = |score: Option<i32>| score.is_none_or(|s| (0..=SCORE_MAX).contains(&s));
-    if !valid(body.team1_score) || !valid(body.team2_score) {
+    if !valid(team1_score) || !valid(team2_score) {
         return Err(AppError::BadRequest("scores must be between 0 and 99"));
     }
-    if let Some(maps) = &body.maps {
+    if let Some(maps) = maps {
         if maps.len() > MAP_RESULTS_MAX {
             return Err(AppError::BadRequest("too many map results"));
         }
@@ -589,12 +606,12 @@ pub async fn set_score(
     // The match card in its Discord channel shows the running score, so it's synced
     // with every change; the open pages hear it right away.
     let mut tx = state.db.begin().await?;
-    if !db::bracket::set_score(&mut *tx, id, body.team1_score, body.team2_score).await? {
+    if !db::bracket::set_score(&mut *tx, id, team1_score, team2_score).await? {
         return Err(AppError::Conflict(
             "this match is concluded, reopen it to change the score",
         ));
     }
-    if let Some(maps) = &body.maps {
+    if let Some(maps) = maps {
         db::bracket::replace_map_results(&mut tx, id, maps).await?;
     }
     let mut jobs = vec![Job::SyncMatch { match_id: id }];
@@ -605,8 +622,8 @@ pub async fn set_score(
     }
     state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await?;
-    state.live.score(id, body.team1_score, body.team2_score);
-    Ok(StatusCode::NO_CONTENT)
+    state.live.score(id, team1_score, team2_score);
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -865,7 +882,6 @@ pub async fn forfeit(
         return Err(AppError::BadRequest("slot must be 1 or 2"));
     }
     conclude(&state, id, Some(body.slot)).await?;
-    state.room_runners.close(&m.mp_ids);
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }

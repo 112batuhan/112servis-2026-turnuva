@@ -4,6 +4,7 @@
 //! shared services (db pool, http client, oauth clients, config) off `AppState`.
 pub mod admin;
 pub mod auth;
+pub mod bancho;
 pub mod bracket;
 pub mod dev;
 pub mod discord;

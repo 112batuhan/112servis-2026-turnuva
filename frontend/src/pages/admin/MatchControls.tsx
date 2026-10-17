@@ -71,7 +71,12 @@ export function RoomsEditor({ rooms, editable, disabled, onAdd, onRemove }: Room
                   label={`${room.mp_id} numaralı odayı maçtan çıkar`}
                   disabled={disabled}
                   onClick={() => {
-                    if (window.confirm("Bu oda maçtan çıkarılsın mı? Kayıtlı sohbeti silinmez.")) onRemove(room.mp_id);
+                    if (
+                      window.confirm(
+                        "Bu oda maçtan çıkarılsın mı? Kayıtlı sohbeti silinmez; odayı bir bot açtıysa bot odayı osu!'da da kapatır.",
+                      )
+                    )
+                      onRemove(room.mp_id);
                   }}
                 />
               )}

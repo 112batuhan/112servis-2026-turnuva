@@ -1,4 +1,5 @@
 mod auth;
+mod bancho;
 mod config;
 mod db;
 mod discord;
@@ -41,10 +42,9 @@ pub struct AppState {
     pub osu_app_token: Arc<Mutex<Option<osu_api::token::OsuAppToken>>>,
     // Held while every team member's rank is being refreshed.
     pub rank_refresh_lock: Arc<tokio::sync::Mutex<()>>,
-    // Which IRC relay connection saves each multiplayer room's chat.
-    pub chat_loggers: handlers::irc::ChatLoggers,
-    pub room_runners: handlers::irc::RoomRunners,
-    // Each user's Bancho IRC connection, shared by their tabs, and failed logins.
+    // The site's bots on Bancho, which run every multiplayer room.
+    pub bancho: bancho::Bancho,
+    // Each referee's own Bancho IRC connection, shared by their tabs, and failed logins.
     pub irc_users: handlers::irc::IrcUsers,
     // Every open page's live socket: score pushes and referee-page presence.
     pub live: handlers::live::Live,
@@ -82,6 +82,7 @@ async fn main() {
 
     let db_pool = db::connect(&config.database_url).await;
     auth::spawn_session_cleanup(db_pool.clone());
+    let (bancho, bancho_inbox) = bancho::Bancho::new();
 
     let state = AppState {
         osu_client,
@@ -92,14 +93,14 @@ async fn main() {
         config: Arc::clone(&config),
         osu_app_token: Arc::new(Mutex::new(None)),
         rank_refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
-        chat_loggers: handlers::irc::ChatLoggers::default(),
-        room_runners: handlers::irc::RoomRunners::default(),
+        bancho,
         irc_users: handlers::irc::IrcUsers::default(),
         live: handlers::live::Live::default(),
         discord: discord::Discord::new(&config.discord_bot),
     };
     rank_refresh::spawn_daily_refresh(state.clone());
     discord::spawn(&state).await;
+    bancho::spawn(&state, bancho_inbox);
 
     let cors = CorsLayer::new()
         .allow_origin(
@@ -129,6 +130,7 @@ async fn main() {
         .merge(handlers::rules::routes())
         .merge(handlers::notifications::routes())
         .merge(handlers::irc::routes())
+        .merge(handlers::bancho::routes())
         .merge(handlers::live::routes())
         .merge(handlers::discord::routes())
         .merge(handlers::team::routes());

@@ -1,30 +1,35 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import type { Role, RoomAccess } from "../../../api/types";
+import { useSignedInUser } from "../../../auth/AuthContext";
+import { ROLE_LABELS } from "../../../auth/roles";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
-import { SCORE_MODES, type RoomState, type ScoreMode } from "../../../lib/bancho";
+import { normalizeName, SCORE_MODES, type RoomState, type ScoreMode } from "../../../lib/bancho";
 import { formatLength } from "../../../lib/format";
 import { RoomsEditor } from "../MatchControls";
 import { MatchHistory } from "./MatchHistory";
 import { AnnounceScore } from "./MatchScore";
 import type { PoolEntry } from "./pool";
 import { RoomPlayers } from "./RoomPlayers";
-import type { RefereeRoomState } from "./useRefereeRoom";
+import { REF_ROLES } from "./roomStaff";
+import { botBlocker, type RefereeRoomState } from "./useRefereeRoom";
 import "./LobbyPanel.css";
 
 /**
  * The match column, the middle of the referee's cockpit, read top to bottom as the match goes:
- * the room, the map on with its clock, the players as the room has them, the commands that act
- * on them, then the score over every map played so far, the maps it was counted from. The room's links and setup options open from the
- * room bar, since they're set once.
+ * the room and the bot that runs it, the map on with its clock, the players as the room has them,
+ * the commands that act on them, then the score over every map played so far, the maps it was
+ * counted from. The room's links, setup options and referees open from the room bar, since
+ * they're seldom touched.
  */
 export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
-  const { room, lobby, channel, online, inChannel, canRun, busy, actions } = referee;
+  const { room, lobby, channel, access, botReady, canRun, busy, actions } = referee;
   const [settings, setSettings] = useState(false);
   if (!room) return null;
   const bracket = room.kind === "bracket";
   const concluded = room.concluded_at !== null;
   const current = room.rooms.length > 0 ? room.rooms[room.rooms.length - 1] : null;
-  const notOnline = online ? undefined : "Önce Bancho'ya bağlan";
+  const manage = canRun ? undefined : "Bu maçın hakemi değilsin";
 
   return (
     <section className="lobby-panel" aria-label="Maç">
@@ -43,26 +48,17 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
           {lobby.playing && <span className="badge badge-success">Oynanıyor</span>}
           {lobby.locked && <span className="badge">Kilitli</span>}
           {lobby.closed && <span className="badge badge-danger">Kapandı</span>}
+          {channel && !concluded && <BotBadge bot={referee.botName} access={access} />}
           <span className="lobby-bar-actions">
-            {channel && online && !inChannel && !concluded && (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={actions.rejoin}>
-                Kanala katıl
-              </button>
-            )}
             {channel && !concluded && (
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
-                disabled={!online || !canRun || busy}
-                title={
-                  notOnline ??
-                  (canRun
-                    ? "Oda bozulduysa ya da kapandıysa yenisini açar; eskisi listede kalır"
-                    : "Bu maçın hakemi değilsin")
-                }
+                disabled={!canRun || busy}
+                title={manage ?? "Oda bozulduysa ya da kapandıysa en az meşgul botla yenisini açar; eskisi listede kalır"}
                 onClick={() => {
-                  const open = inChannel && !lobby.closed;
-                  if (!open || window.confirm(`${channel} hâlâ açık görünüyor. Yine de yeni bir oda açılsın mı?`)) {
+                  const open = access === "in" && !lobby.closed;
+                  if (!open || window.confirm(`${channel} hâlâ açık. Yine de yeni bir oda açılsın mı?`)) {
                     actions.createRoom();
                   }
                 }}
@@ -84,6 +80,7 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
       </header>
 
       <div className="lobby-body">
+        {channel && !concluded && !botReady && canRun && <BotNotice referee={referee} />}
         {channel && settings && (
           <div className="lobby-settings">
             <RoomsEditor
@@ -94,12 +91,13 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
               onRemove={actions.removeRoom}
             />
             <RoomOptions referee={referee} />
+            {!concluded && <RoomReferees referee={referee} />}
             {!concluded && (
               <button
                 type="button"
                 className="btn btn-danger btn-sm"
-                disabled={!online || !inChannel || lobby.closed}
-                title={inChannel ? "!mp close: odayı osu!'da kapatır" : "Önce odanın kanalına katıl"}
+                disabled={!botReady || lobby.closed}
+                title={botBlocker(referee) ?? "!mp close: odayı osu!'da kapatır"}
                 onClick={() => {
                   if (window.confirm("Oda kapatılsın mı (!mp close)? Bu geri alınamaz.")) actions.close();
                 }}
@@ -112,21 +110,25 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
         {!channel && (
           <div className="lobby-create">
             <p className="lobby-create-text">
-              Oda {bracket ? "Team Vs" : "Head to Head"} olarak kurulur, kilitlenir ve oyuncular davet edilir.
+              Oda, en az meşgul botla açılır: {bracket ? "Team Vs" : "Head to Head"} olarak kurulur, kilitlenir ve
+              oyuncular davet edilir. Bancho'ya bağlanman gerekmez; bağlanırsan bot seni odanın hakemi yapar.
             </p>
             <RoomOptions referee={referee} />
             <button
               type="button"
               className="btn btn-primary"
-              disabled={!online || !canRun || busy || concluded}
-              title={notOnline ?? (canRun ? undefined : "Bu maçın hakemi değilsin")}
+              disabled={!canRun || busy || concluded}
+              title={manage}
               onClick={actions.createRoom}
             >
               {busy ? "Oda kuruluyor…" : "Oda oluştur"}
             </button>
             {canRun && !concluded && (
               <div className="lobby-link">
-                <span className="muted">Odayı başka yerden açtıysan linkini ekle:</span>
+                <span className="muted">
+                  Odayı başka yerden açtıysan linkini ekle; bir bot devralır, odayı açan kişi onu{" "}
+                  <code>!mp addref</code> ile hakem yapınca odaya girer.
+                </span>
                 <RoomsEditor rooms={[]} editable disabled={busy} onAdd={actions.addRoom} onRemove={actions.removeRoom} />
               </div>
             )}
@@ -148,21 +150,19 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
   );
 }
 
-/** The match and room commands under the players, with the line that tells the room the score. */
+/** The match and room commands under the players, with the line that tells the room the score. The room's bot sends them. */
 function Commands({ referee }: { referee: RefereeRoomState }) {
-  const { room, lobby, online, inChannel, actions } = referee;
+  const { room, lobby, botReady, access, actions } = referee;
   const [timer, setTimer] = useState(90);
   const [countdown, setCountdown] = useState(5);
-  const ready = online && inChannel;
+  const ready = botReady;
   const bracket = room?.kind === "bracket";
+  const blocker = botBlocker(referee);
 
   return (
     <div className="lobby-commands" role="group" aria-label="Komutlar">
-      {!ready && (
-        <p className="lobby-commands-hint">
-          {online ? "Komutlar, odanın kanalına katılınca açılır." : "Komutlar için önce Bancho'ya bağlan (sohbet panelinde)."}
-        </p>
-      )}
+      {/* A bot that can't get in says why above the column; one on its way in, here. */}
+      {!ready && access === "joining" && <p className="lobby-commands-hint">{blocker} Komutlar o girince açılır.</p>}
       <div className="lobby-command-row" role="group" aria-label="Maç komutları">
         <div className="lobby-command-group">
           <input
@@ -245,7 +245,7 @@ function Commands({ referee }: { referee: RefereeRoomState }) {
         >
           Kurulumu tekrarla
         </button>
-        <StreamerRef referee={referee} ready={ready} />
+        <StreamerRef referee={referee} ready={ready} blocker={blocker} />
       </div>
     </div>
   );
@@ -255,7 +255,7 @@ function Commands({ referee }: { referee: RefereeRoomState }) {
  * Makes the match's streamer a referee of the room (!mp addref), so their tournament client shows
  * the room's chat on stream; pressed once the room's chat says they are, when it takes it back.
  */
-function StreamerRef({ referee, ready }: { referee: RefereeRoomState; ready: boolean }) {
+function StreamerRef({ referee, ready, blocker }: { referee: RefereeRoomState; ready: boolean; blocker: string | null }) {
   const { streamer, streamerIsRef, actions } = referee;
   if (!streamer) return null;
   return (
@@ -266,7 +266,7 @@ function StreamerRef({ referee, ready }: { referee: RefereeRoomState; ready: boo
       disabled={!ready}
       title={
         !ready
-          ? "Önce odanın kanalına katıl"
+          ? (blocker ?? undefined)
           : streamerIsRef
             ? `${streamer.username} odanın hakemi. Tıklarsan hakemlikten çıkar (!mp removeref).`
             : `${streamer.username} odanın hakemi olur (!mp addref): turnuva istemcisinde oda sohbetini görür.`
@@ -284,6 +284,175 @@ function StreamerRef({ referee, ready }: { referee: RefereeRoomState; ready: boo
         </>
       )}
     </button>
+  );
+}
+
+const ACCESS_LABELS: Record<RoomAccess, string> = {
+  in: "odada",
+  joining: "odaya giriyor",
+  refused: "odaya giremiyor",
+  offline: "bağlı değil",
+  no_bot: "bot yok",
+  closed: "oda kapandı",
+};
+
+/**
+ * The bot that runs the room, and where it stands: in the room (it logs and runs it), on its way,
+ * or kept out. Only a bot in the room takes commands.
+ */
+function BotBadge({ bot, access }: { bot: string | null; access: RoomAccess | null }) {
+  if (!access) return null;
+  const tone = access === "in" ? "is-in" : access === "joining" ? "is-joining" : "is-out";
+  return (
+    <span className={`lobby-bot ${tone}`} title={bot ? `Odayı ${bot} yönetiyor: ${ACCESS_LABELS[access]}` : undefined}>
+      <span className="lobby-bot-dot" aria-hidden="true" />
+      <Icon name="bot" size={14} />
+      <span className="lobby-bot-name">{bot ?? "Bot yok"}</span>
+      {access !== "in" && bot && <span className="lobby-bot-state">{ACCESS_LABELS[access]}</span>}
+      {access === "in" && <span className="sr-only">, odada</span>}
+    </span>
+  );
+}
+
+/**
+ * Why the bot can't run the room, and the way out: a room made elsewhere waits for its maker to
+ * add the bot, and a room whose bot dropped moves to a new room with another bot (bots never
+ * join each other's rooms: Bancho counts that against their limit).
+ */
+function BotNotice({ referee }: { referee: RefereeRoomState }) {
+  const { access, botName, busy, actions } = referee;
+  if (access === "joining" || access === null || access === "in") return null;
+  const bot = botName ?? "bot";
+  let title: string;
+  let body: ReactNode;
+  let action: ReactNode = (
+    <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={actions.createRoom}>
+      {busy ? "Oda kuruluyor…" : "Başka botla yeni oda aç"}
+    </button>
+  );
+  switch (access) {
+    case "refused":
+      title = `${bot} odaya giremiyor`;
+      body = (
+        <>
+          Oda başka yerden açıldı. Açan kişi odada <code>!mp addref {bot}</code> yazınca bot girer; o zamana kadar ne
+          komut gönderebilir ne de sohbeti kaydedebilir.
+        </>
+      );
+      action = (
+        <button type="button" className="btn btn-secondary btn-sm" onClick={actions.rejoin}>
+          Tekrar dene
+        </button>
+      );
+      break;
+    case "offline":
+      title = `${bot} Bancho'ya bağlı değil`;
+      body = <>Bağlanınca odaya döner. Beklemeden sürdürmek için maçı başka bir botun açacağı yeni odaya taşı.</>;
+      break;
+    case "no_bot":
+      title = "Bu odayı bir bot yönetmiyor";
+      body = <>Komutlar ve sohbet kaydı bot ister. Maçı bir botun açacağı yeni odaya taşı.</>;
+      break;
+    case "closed":
+      title = "Oda kapandı";
+      body = <>Maç sürüyorsa yeni bir oda aç; eski oda sohbetiyle listede kalır.</>;
+      break;
+  }
+  return (
+    <div className="lobby-notice" role="status">
+      <p className="lobby-notice-text">
+        <strong className="lobby-notice-title">{title}</strong>
+        <span>{body}</span>
+      </p>
+      {action}
+    </div>
+  );
+}
+
+/**
+ * The room's referees as Bancho has them (!mp addref). A referee who opens the match with Bancho
+ * connected is added by the bot and taken off two minutes after they leave; anyone added here, and
+ * the streamer, stays until taken off. Referees, streamers and commentators (for the tournament
+ * client's chat) can be added, each named with their role; never a bot or a player of the match.
+ */
+function RoomReferees({ referee }: { referee: RefereeRoomState }) {
+  const { lobby, staff, roster, botReady, actions } = referee;
+  const me = useSignedInUser();
+  const [adding, setAdding] = useState("");
+  const blocker = botBlocker(referee);
+  const nameOf = (ref: string) => staff?.find((s) => normalizeName(s.username) === ref)?.username ?? ref;
+  const candidates = (staff ?? []).filter(
+    (s) =>
+      REF_ROLES.some((r) => s.roles.includes(r)) &&
+      !lobby.refs.includes(normalizeName(s.username)) &&
+      !roster.some((p) => p.player.osu_id === s.osu_id),
+  );
+  // The role they'd be there as, first of REF_ROLES they hold.
+  const roleOf = (roles: Role[]) => ROLE_LABELS[REF_ROLES.find((r) => roles.includes(r)) ?? "referee"];
+
+  return (
+    <section className="lobby-refs" aria-labelledby="lobby-refs-title">
+      <h3 id="lobby-refs-title" className="lobby-refs-title">
+        Odanın hakemleri <span className="lobby-refs-count num">{lobby.refs.length}</span>
+      </h3>
+      <p className="lobby-refs-hint">
+        Maçı Bancho bağlıyken açan hakemleri bot ekler, ayrıldıktan iki dakika sonra çıkarır.
+      </p>
+      {lobby.refs.length > 0 && (
+        <ul className="lobby-refs-list">
+          {lobby.refs.map((ref) => {
+            const name = nameOf(ref);
+            return (
+              <li key={ref} className="lobby-refs-row">
+                <span className="lobby-refs-name">
+                  {name}
+                  {normalizeName(me.username) === ref && <span className="lobby-refs-self"> (sen)</span>}
+                </span>
+                <IconButton
+                  icon="close"
+                  iconSize={14}
+                  label={`${name} hakemlikten çıkarılsın (!mp removeref)`}
+                  disabled={!botReady}
+                  onClick={() => actions.removeRef(name)}
+                />
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      <form
+        className="lobby-refs-add"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!adding) return;
+          actions.addRef(adding);
+          setAdding("");
+        }}
+      >
+        <select
+          className="select select-sm"
+          aria-label="Hakem ekle"
+          value={adding}
+          disabled={!botReady || candidates.length === 0}
+          onChange={(e) => setAdding(e.target.value)}
+        >
+          <option value="">{candidates.length === 0 ? "Eklenecek kimse yok" : "Hakem, yayıncı ya da yorumcu seç"}</option>
+          {candidates.map((s) => (
+            <option key={s.id} value={s.username}>
+              {s.username} · {roleOf(s.roles)}
+            </option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          className="btn btn-secondary btn-sm"
+          disabled={!botReady || !adding}
+          title={blocker ?? "!mp addref: turnuva istemcisinde odanın sohbetini görür ve komut yazabilir"}
+        >
+          Ekle
+        </button>
+      </form>
+    </section>
   );
 }
 
@@ -352,7 +521,7 @@ export function useNow(active: boolean): number {
 
 /**
  * The map the room has on and, while it's played, a countdown of its length from BanchoBot's
- * "The match has started!", so the referee knows when to expect the result. The length is the
+ * "The match has started!" (as the bot saw it), so the referee knows when to expect the result. The length is the
  * pool's, already adjusted for the map's mods (DT, HT). A map outside the pool has no known
  * length, so its clock counts up instead. Under the name, the room's mods and team mode.
  */

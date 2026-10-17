@@ -19,7 +19,7 @@ struct MatchEvent {
 }
 
 // A map played in a multiplayer room.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct MatchGame {
     pub beatmap_id: Option<i64>,
     // The room's mods, as acronyms ("HR", "NF"); with freemod, only the ones everyone has.
@@ -31,7 +31,7 @@ pub struct MatchGame {
     pub scores: Vec<GameScore>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct GameScore {
     pub user_id: i64,
     #[serde(default)]

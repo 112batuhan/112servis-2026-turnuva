@@ -1,5 +1,5 @@
 import type { PublicMatch, PublicPoolMap, RefereeRoom } from "../../../api/types";
-import { isFreemodCategory, SIDE_COLOR, splitMods, type MapResult, type SlotTeam } from "../../../lib/bancho";
+import { isFreemodCategory, SIDE_COLOR, type SlotTeam } from "../../../lib/bancho";
 
 // The match's pool as the referee page shows it, shared by the pool panel and the
 // results, and by the public match page, which shows the same match.
@@ -77,57 +77,10 @@ export function matchTeams(room: Pick<MatchData, "kind" | "teams" | "team1_id" |
   return both.every((t) => t !== null) ? (both as MatchTeam[]) : [];
 }
 
-// Mods compared without NoFail (the referee adds it to everything), Nightcore as the
-// DoubleTime it is, in a fixed order.
-function modKey(acronyms: string): string {
-  return splitMods(acronyms)
-    .filter((m) => m !== "NF")
-    .map((m) => (m === "NC" ? "DT" : m))
-    .sort()
-    .join("");
-}
-
 /**
- * The pool entry a finished map was: the one with its beatmap. When the pool has that beatmap
- * more than once (under different mods, or as both FM and TB), the one whose mods it was played
- * with, then the one a team picked, then the first.
+ * The line the room's bot sends for "Skoru odaya yaz": "Skor: Team A 2 - 1 Team B | Sıradaki pick: Team B". The
+ * server builds the one it sends the same way (bancho::tally::score_message); this is its preview.
  */
-export function entryOf(
-  entries: PoolEntry[],
-  result: Pick<MapResult, "beatmapId" | "roomMods" | "freemod">,
-  picked: Set<string>,
-): PoolEntry | undefined {
-  const candidates = entries.filter((e) => e.map.beatmap_id === result.beatmapId);
-  if (candidates.length <= 1) return candidates[0];
-  const played = modKey(result.roomMods);
-  const byMods = candidates.filter((e) =>
-    result.freemod ? e.freemod : !e.freemod && modKey(e.map.mods) === played,
-  );
-  const pool = byMods.length > 0 ? byMods : candidates;
-  return pool.find((e) => picked.has(e.map.id)) ?? pool[0];
-}
-
-/**
- * The team whose turn it is to pick, by the rules: the roll's winner picks first and bans second,
- * so the first pick goes to the team that didn't ban first, and picks alternate after that. Null
- * before anything is marked, when the page can't know who won the roll.
- */
-export function nextPicker(room: Pick<MatchData, "bans" | "picks">, teams: MatchTeam[]): MatchTeam | null {
-  if (teams.length !== 2) return null;
-  const last = room.picks[room.picks.length - 1] ?? room.bans[0];
-  return last ? (teams.find((t) => t.id !== last.team_id) ?? null) : null;
-}
-
-/** Whose pick is next: the team the referee said (`chosen`, until the next ban or pick), or as the rules say. */
-export function pickTurn(
-  room: Pick<MatchData, "bans" | "picks">,
-  teams: MatchTeam[],
-  chosen: string | null,
-): MatchTeam | null {
-  return teams.find((t) => t.id === chosen) ?? nextPicker(room, teams);
-}
-
-/** The line the referee sends to the room: "Skor: Team A 2 - 1 Team B | Sıradaki pick: Team B". */
 export function scoreMessage(teams: MatchTeam[], score: [number, number], next: MatchTeam | null): string {
   const line = `Skor: ${teams[0].name} ${score[0]} - ${score[1]} ${teams[1].name}`;
   return next ? `${line} | Sıradaki pick: ${next.name}` : line;

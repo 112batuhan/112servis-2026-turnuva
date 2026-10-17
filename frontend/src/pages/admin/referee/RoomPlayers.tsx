@@ -19,7 +19,8 @@ import {
 } from "../../../lib/bancho";
 import { formatRank } from "../../../lib/format";
 import { staffRole } from "./roomStaff";
-import type { RefereeRoomState, RosterPlayer } from "./useRefereeRoom";
+import type { RosterPlayer } from "./liveRoom";
+import { botBlocker, type RefereeRoomState } from "./useRefereeRoom";
 import "./RoomPlayers.css";
 
 const STATUS_LABELS: Record<RoomSlot["status"], string> = {
@@ -34,9 +35,11 @@ const STATUS_LABELS: Record<RoomSlot["status"], string> = {
  * not in the room yet.
  */
 export function RoomPlayers({ referee }: { referee: RefereeRoomState }) {
-  const { room, roster, lobby, findRoster, actions, inChannel, canRun } = referee;
+  const { room, roster, lobby, findRoster, actions, botReady, canRun } = referee;
   if (!room) return null;
   const concluded = room.concluded_at !== null;
+  const ready = botReady && !lobby.closed;
+  const why = botBlocker(referee) ?? "Oda kapandı";
   return (
     <PlayersView
       kind={room.kind}
@@ -49,24 +52,11 @@ export function RoomPlayers({ referee }: { referee: RefereeRoomState }) {
       staffRoleOf={(slot) => staffRole(referee.staff, slot)}
       kick={
         canRun && !concluded && referee.staff !== null
-          ? {
-              enabled: inChannel && !lobby.closed,
-              disabledReason: inChannel ? "Oda kapandı" : "Önce odanın kanalına katıl",
-              one: actions.kick,
-              all: actions.kickOutsiders,
-            }
+          ? { enabled: ready, disabledReason: why, one: actions.kick, all: actions.kickOutsiders }
           : undefined
       }
       unreadModsHint="Modları henüz okunmadı; Odayı yenile ile okunur"
-      slotControl={
-        canRun && !concluded
-          ? {
-              enabled: inChannel && !lobby.closed,
-              disabledReason: inChannel ? "Oda kapandı" : "Önce odanın kanalına katıl",
-              place: actions.place,
-            }
-          : undefined
-      }
+      slotControl={canRun && !concluded ? { enabled: ready, disabledReason: why, place: actions.place } : undefined}
       renderContact={(player) =>
         room.discord_channel && canRun ? (
           <DiscordPing matchId={room.id} player={player} />
@@ -79,7 +69,8 @@ export function RoomPlayers({ referee }: { referee: RefereeRoomState }) {
           <IconButton
             icon="userPlus"
             label={`${player.username} oyuncusunu odaya davet et`}
-            disabled={!inChannel || lobby.closed}
+            disabled={!ready}
+            title={ready ? undefined : why}
             onClick={() => actions.invite(player.osu_id)}
           />
         )
@@ -90,7 +81,7 @@ export function RoomPlayers({ referee }: { referee: RefereeRoomState }) {
 
 /** What the referee can do with the room's slots. */
 interface SlotControl {
-  /** In the room's channel, with the room open: the commands can be sent. */
+  /** The room's bot is in the room, which is open: the commands can be sent. */
   enabled: boolean;
   /** Why they can't, while they can't. */
   disabledReason: string;
@@ -303,7 +294,7 @@ function PlayerRow<P extends Player>({
 /**
  * Whoever is in the room without playing in the match: the staff who may be there, named by
  * their role, and anyone else, who shouldn't be. The referee kicks those one by one or all at
- * once (the page also kicks them as they join, see roomAutomation.ts).
+ * once (the room's bot also kicks them as they join).
  */
 function Strangers<P extends Player>({ strangers, view }: { strangers: RoomSlot[]; view: PlayersViewProps<P> }) {
   const outsiders = strangers.filter((s) => !view.staffRoleOf?.(s));

@@ -84,3 +84,10 @@
   flex-shrink: 0;
   margin-left: auto;
 }
+
+/* A host writes in the room through its bot: one line saying through which, and the way to their own
+   connection for private messages. */
+.irc-login.is-via-bot > svg {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}

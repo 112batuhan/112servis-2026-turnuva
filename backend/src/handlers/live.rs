@@ -14,9 +14,14 @@
 //!
 //! The public match page also hears `match` (something about one match changed that
 //! the bracket doesn't show, like its bans: reload that match) and, for the match it
-//! says it shows (`watch`), every line said in its rooms as the relay saves it (`chat`)
-//! and who else is watching it (`spectators`: the signed-in ones by name, each user
-//! once, and a count of the tabs nobody is signed in on).
+//! says it shows (`watch`), every line said in its rooms as the room's bot saves it
+//! (`chat`), the room itself as the bots read it whenever it changes (`room`, the same
+//! view on every page) and who else is watching it (`spectators`: the signed-in ones
+//! by name, each user once, and a count of the tabs nobody is signed in on). Staff
+//! also hear `bancho` when a bot connects, drops or takes a room, for the bots page.
+//!
+//! The room manager (crate::bancho) listens too, through `changes`: whatever the pages
+//! are told changed about a match, it reads again.
 
 use std::{
     collections::{HashMap, HashSet},
@@ -42,7 +47,10 @@ use sqlx::PgPool;
 use tokio::sync::broadcast::{self, error::RecvError};
 use uuid::Uuid;
 
-use crate::{auth::AuthUser, db, db::chat::ChatMessage, error::AppError, role::Role, AppState};
+use crate::{
+    auth::AuthUser, bancho::view::LiveRoom, db, db::chat::ChatMessage, error::AppError, role::Role,
+    AppState,
+};
 
 pub fn routes() -> Router<AppState> {
     Router::new().route("/live", get(connect))
@@ -79,6 +87,11 @@ enum ServerMsg<'a> {
         mp_id: i64,
         message: &'a ChatMessage,
     },
+    Room {
+        match_id: Uuid,
+        room: &'a LiveRoom,
+    },
+    Bancho,
     Presence {
         match_id: Uuid,
         viewers: &'a [Viewer],
@@ -97,7 +110,9 @@ enum ServerMsg<'a> {
 #[serde(tag = "type", rename_all = "snake_case")]
 enum ClientMsg {
     // The match whose referee page this tab shows, or null when it left it.
-    Viewing { match_id: Option<Uuid> },
+    Viewing {
+        match_id: Option<Uuid>,
+    },
     // The match whose rooms' chat this tab wants, or null. Sent again when the match's
     // rooms change. A public match page also counts among its spectators; a referee
     // page that isn't in the room on Bancho reads the chat this way without being one.
@@ -115,8 +130,18 @@ struct Event {
     staff_only: bool,
     // Only for the tabs watching this room's match.
     room: Option<i64>,
-    // Only for the tabs watching this match.
+    // Only for the tabs counted among this match's spectators.
     watchers_of: Option<Uuid>,
+    // Only for the tabs watching this match, spectating or not.
+    watching: Option<Uuid>,
+}
+
+// What the room manager hears: a match changed (read it again), or something that may
+// touch any of them did.
+#[derive(Debug, Clone, Copy)]
+pub enum Change {
+    Match(Uuid),
+    All,
 }
 
 // Who has a page of each match open (its referee page, or its public page): by match,
@@ -180,6 +205,7 @@ impl Presence {
 
 struct Inner {
     events: broadcast::Sender<Arc<Event>>,
+    changes: broadcast::Sender<Change>,
     // Referee pages.
     presence: Mutex<Presence>,
     // Public match pages.
@@ -195,6 +221,7 @@ impl Default for Live {
     fn default() -> Self {
         Self(Arc::new(Inner {
             events: broadcast::channel(BUFFER).0,
+            changes: broadcast::channel(BUFFER).0,
             presence: Mutex::default(),
             spectators: Mutex::default(),
             next_tab: AtomicU64::new(1),
@@ -204,7 +231,7 @@ impl Default for Live {
 
 impl Live {
     fn emit(&self, msg: &ServerMsg, staff_only: bool) {
-        self.send(msg, staff_only, None, None);
+        self.send(msg, staff_only, None, None, None);
     }
 
     fn send(
@@ -213,6 +240,7 @@ impl Live {
         staff_only: bool,
         room: Option<i64>,
         watchers_of: Option<Uuid>,
+        watching: Option<Uuid>,
     ) {
         let Ok(json) = serde_json::to_string(msg) else {
             return;
@@ -223,11 +251,22 @@ impl Live {
             staff_only,
             room,
             watchers_of,
+            watching,
         }));
+    }
+
+    fn changed(&self, change: Change) {
+        let _ = self.0.changes.send(change);
+    }
+
+    // Every change the pages hear about, for the room manager.
+    pub fn changes(&self) -> broadcast::Receiver<Change> {
+        self.0.changes.subscribe()
     }
 
     // A bracket match's score was saved. Call after the change is committed.
     pub fn score(&self, match_id: Uuid, team1_score: Option<i32>, team2_score: Option<i32>) {
+        self.changed(Change::Match(match_id));
         self.emit(
             &ServerMsg::Score {
                 match_id,
@@ -241,6 +280,7 @@ impl Live {
     // Anything else on the bracket changed (teams, times, rooms, staff, conclusions),
     // so pages reload it. Call after the change is committed.
     pub fn bracket_changed(&self) {
+        self.changed(Change::All);
         self.emit(&ServerMsg::Bracket, false);
     }
 
@@ -248,6 +288,7 @@ impl Live {
     // hand-awarded results, a lobby's teams), so its match page reloads it. Call after
     // the change is committed.
     pub fn match_changed(&self, match_id: Uuid) {
+        self.changed(Change::Match(match_id));
         self.emit(&ServerMsg::Match { match_id }, false);
     }
 
@@ -255,6 +296,7 @@ impl Live {
     // "Sayma", where its results are read from); staff only. Call after the change is
     // committed.
     pub fn referee_changed(&self, match_id: Uuid) {
+        self.changed(Change::Match(match_id));
         self.emit(&ServerMsg::Referee { match_id }, true);
     }
 
@@ -266,7 +308,24 @@ impl Live {
             false,
             Some(mp_id),
             None,
+            None,
         );
+    }
+
+    // The match's room as the bots read it now; only tabs watching the match get it.
+    pub fn room(&self, match_id: Uuid, room: &LiveRoom) {
+        self.send(
+            &ServerMsg::Room { match_id, room },
+            false,
+            None,
+            None,
+            Some(match_id),
+        );
+    }
+
+    // A bot connected, dropped, or took or left a room; staff only.
+    pub fn bancho_changed(&self) {
+        self.emit(&ServerMsg::Bancho, true);
     }
 
     fn set_viewing(&self, tab: u64, viewer: &Viewer, match_id: Option<Uuid>) {
@@ -298,6 +357,7 @@ impl Live {
                 false,
                 None,
                 Some(id),
+                None,
             );
         }
     }
@@ -378,8 +438,9 @@ async fn tab(
     viewer: Option<Viewer>,
 ) {
     let id = live.0.next_tab.fetch_add(1, Ordering::Relaxed);
-    // The rooms whose chat this tab is sent.
+    // The rooms whose chat this tab is sent, and their match.
     let mut watching: HashSet<i64> = HashSet::new();
+    let mut watched: Option<Uuid> = None;
     // The match whose public page this tab shows, counted among its spectators.
     let mut spectating: Option<Uuid> = None;
     let mut events = live.0.events.subscribe();
@@ -408,6 +469,9 @@ async fn tab(
                     if event.watchers_of.is_some_and(|m| spectating != Some(m)) {
                         continue;
                     }
+                    if event.watching.is_some_and(|m| watched != Some(m)) {
+                        continue;
+                    }
                     if !send(&mut socket, event.json.clone()).await {
                         break;
                     }
@@ -431,6 +495,7 @@ async fn tab(
                     }
                     Ok(ClientMsg::Watch { match_id, spectate }) => {
                         watching = watched_rooms(&db, match_id).await;
+                        watched = match_id;
                         // Only a match that has a room is watched; a made-up id isn't counted.
                         let now = match_id.filter(|_| spectate && !watching.is_empty());
                         if now != spectating {

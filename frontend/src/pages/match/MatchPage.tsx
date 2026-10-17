@@ -16,7 +16,7 @@ import { draftPhase, PoolView } from "../admin/referee/PoolPanel";
 import { CockpitTabs, panelProps, TABS, useCockpit } from "../admin/referee/RefereeRoomPage";
 import { PlayersView } from "../admin/referee/RoomPlayers";
 import { staffRole, useRoomStaff } from "../admin/referee/roomStaff";
-import { roomLabel } from "../admin/referee/useRefereeRoom";
+import { roomLabel } from "../admin/referee/liveRoom";
 import { MatchChat } from "./MatchChat";
 import { MatchSpectators } from "./MatchSpectators";
 import { useMatchPage, type MatchPageState } from "./useMatchPage";
@@ -315,7 +315,7 @@ function SheetStatus({ page }: { page: MatchPageState }) {
   if (match.concluded_at) return <>Maç bitti</>;
   if (live) {
     return (
-<span title="Hakem sayfası map bittikçe skoru kaydeder">Map bittikçe güncellenir</span>
+<span title="Odanın botu map bittikçe skoru kaydeder">Map bittikçe güncellenir</span>
     );
   }
   return <>Henüz başlamadı</>;

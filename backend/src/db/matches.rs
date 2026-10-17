@@ -254,22 +254,6 @@ pub async fn find_match(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchSta
     .await
 }
 
-// The match a multiplayer room belongs to.
-pub async fn find_match_of_room(pool: &PgPool, mp_id: i64) -> sqlx::Result<Option<MatchState>> {
-    sqlx::query_as::<_, MatchState>(
-        r#"
-        SELECT m.kind, m.referee_id, m.concluded_at,
-               ARRAY(SELECT r.mp_id FROM match_rooms r WHERE r.match_id = m.id
-                     ORDER BY r.added_at, r.mp_id) AS mp_ids
-        FROM matches m
-        WHERE m.id = (SELECT match_id FROM match_rooms WHERE mp_id = $1)
-        "#,
-    )
-    .bind(mp_id)
-    .fetch_optional(pool)
-    .await
-}
-
 // Lobbies are numbered in the order list_lobbies returns them.
 pub async fn find_room(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<RoomRow>> {
     sqlx::query_as::<_, RoomRow>(
@@ -334,17 +318,6 @@ pub async fn set_referee(pool: &PgPool, id: Uuid, referee_id: Option<Uuid>) -> s
     sqlx::query("UPDATE matches SET referee_id = $2 WHERE id = $1")
         .bind(id)
         .bind(referee_id)
-        .execute(pool)
-        .await?;
-    Ok(())
-}
-
-// Adds a room to a match. Fails on match_rooms_pkey when the room already belongs to
-// a match.
-pub async fn add_room(pool: &PgPool, match_id: Uuid, mp_id: i64) -> sqlx::Result<()> {
-    sqlx::query("INSERT INTO match_rooms (mp_id, match_id) VALUES ($1, $2)")
-        .bind(mp_id)
-        .bind(match_id)
         .execute(pool)
         .await?;
     Ok(())

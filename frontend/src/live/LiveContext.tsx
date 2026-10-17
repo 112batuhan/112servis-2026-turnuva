@@ -1,14 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { liveSocketUrl } from "../api/live";
-import type { RefereeViewer, RoomChatMessage } from "../api/types";
+import type { LiveRoom, RefereeViewer, RoomChatMessage } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 
 // One WebSocket per tab to the server's live hub (handlers/live.rs): score changes as
 // they're saved, a signal to reload the bracket when anything else about it changes,
 // and, for staff, who has each match's referee page open and what changed on it. Pages subscribe to the
-// events; the referee page says which match it shows, and the public match page which
-// match's room chat it wants (`watch`), which also counts the tab among that match's
-// spectators and sends it who else is watching. It reconnects on its own and
+// events; the referee page says which match it shows, and the match pages which match they
+// follow (`watch`): its room as the bots read it and its chat, as they change. The public
+// match page is counted among that match's spectators and is sent who else is watching. It reconnects on its own and
 // again whenever the signed-in user changes, since the server reads who it is once.
 
 export type LiveEvent =
@@ -18,8 +18,12 @@ export type LiveEvent =
   | { type: "match"; match_id: string }
   /** Staff: something only the referee page shows changed (room options, "Sayma", an osu! sync). */
   | { type: "referee"; match_id: string }
-  /** A line said in a room of the watched match, as it was saved. */
-  | { type: "chat"; mp_id: number; message: RoomChatMessage };
+  /** A line said in a room of the watched match, as its bot saved it. */
+  | { type: "chat"; mp_id: number; message: RoomChatMessage }
+  /** The watched match's room as its bot reads it now. */
+  | { type: "room"; match_id: string; room: LiveRoom }
+  /** Staff: a bot connected, dropped, or took or left a room. */
+  | { type: "bancho" };
 
 type ServerMsg =
   | LiveEvent
@@ -46,9 +50,9 @@ interface LiveState {
   /** Tells the server this tab shows the match's referee page (or none). */
   setViewing: (matchId: string | null) => void;
   /**
-   * Asks for the chat of the match's rooms (or none). Again whenever its rooms change, since the
+   * Asks for the match's room and its chat (or none). Again whenever its rooms change, since the
    * server looks them up when asked. The tab counts among the match's spectators unless
-   * `spectate` is false (a referee page reading the chat without Bancho).
+   * `spectate` is false (the referee page).
    */
   watch: (matchId: string | null, spectate?: boolean) => void;
 }
@@ -216,7 +220,7 @@ export function useLiveBracket(onScore: (event: Extract<LiveEvent, { type: "scor
         return;
       }
       // None of them changes what the bracket shows.
-      if (event.type === "match" || event.type === "referee" || event.type === "chat") return;
+      if (["match", "referee", "chat", "room", "bancho"].includes(event.type)) return;
       window.clearTimeout(timer);
       timer = window.setTimeout(() => callbacks.current.onChanged(), RELOAD_DELAY_MS);
     });
