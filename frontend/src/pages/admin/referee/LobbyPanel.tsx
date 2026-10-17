@@ -251,9 +251,11 @@ function Commands({ referee }: { referee: RefereeRoomState }) {
 
 /** How the room is set up: score type, NoFail on every map, moving players to their colour. */
 function RoomOptions({ referee }: { referee: RefereeRoomState }) {
-  const { room, options, actions } = referee;
+  const { room, options, canRun, actions } = referee;
+  // Shared by everyone on the page, so only those who run the match change them.
+  const locked = !canRun || room?.concluded_at != null;
   return (
-    <div className="lobby-options">
+    <fieldset className="lobby-options" disabled={locked}>
       <label>
         Skor türü{" "}
         <select
@@ -286,7 +288,15 @@ function RoomOptions({ referee }: { referee: RefereeRoomState }) {
           Girenleri yerine ve takım rengine taşı
         </label>
       )}
-    </div>
+      <label title="Maçın oyuncusu, host, hakem ya da yayıncı olmayan herkes girer girmez atılır">
+        <input
+          type="checkbox"
+          checked={options.autoKick}
+          onChange={(e) => actions.setOptions({ ...options, autoKick: e.target.checked })}
+        />{" "}
+        Maç dışından girenleri at
+      </label>
+    </fieldset>
   );
 }
 

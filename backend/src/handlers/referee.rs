@@ -1,10 +1,11 @@
 use axum::{
     extract::{Path, State},
+    http::StatusCode,
     response::IntoResponse,
-    routing::get,
+    routing::{get, put},
     Json, Router,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -16,12 +17,13 @@ use crate::{
         chat::ChatMessage,
         mappool::{Category, PublicPoolMap, PublicSlot},
         matches::{MatchKind, RoomRow},
+        referee::RoomSettings,
         team::{Player, TeamMemberRow},
     },
     error::AppError,
     handlers::{
         bracket::Streamer,
-        matches::{match_rooms, MatchRoom, Referee},
+        matches::{load_match, match_rooms, require_runs, require_unconcluded, MatchRoom, Referee},
         team::{group_teams, AdminTeamPlayer, Team},
     },
     osu_api,
@@ -31,13 +33,19 @@ use crate::{
 
 // Routes under the `/api` nest. The referee page reads a match from here and runs
 // the osu! room over IRC (handlers/irc.rs); changes to the match itself still go
-// through the shared `/api/matches/:id/*` routes. The public match page reads the
+// through the shared `/api/matches/:id/*` routes. What the page keeps besides (its
+// room options, "Sayma", where the results are read from, whose pick is next) is
+// saved here too, so every referee and host on the page sees the same. The public match page reads the
 // same match, minus what's staff-only, from `/api/public/matches/:id`.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/matches/:id/room", get(get_room))
         .route("/matches/:id/chat", get(get_chat))
         .route("/matches/:id/osu-games", get(get_osu_games))
+        .route("/matches/:id/room-options", put(set_room_options))
+        .route("/matches/:id/results-source", put(set_results_source))
+        .route("/matches/:id/next-pick", put(set_next_pick))
+        .route("/matches/:id/ignored-maps", put(set_ignored_map))
         .route("/public/matches/:id", get(get_public_match))
         .route("/public/matches/:id/chat", get(get_public_chat))
 }
@@ -92,6 +100,10 @@ pub struct RefereeRoom {
     // The match has a Discord channel, so clicking a player's Discord name pings them
     // there (handlers/discord.rs).
     discord_channel: bool,
+    // The room options, where the results are read from and whose pick is next.
+    settings: RoomSettings,
+    // The finished maps left out of the score, by the referee page's key for them.
+    ignored_maps: Vec<String>,
 }
 
 // A match's teams as its room plays them: a bracket match's two (red, blue), or a
@@ -228,6 +240,8 @@ pub async fn get_room(
         map_results: marks.map_results,
         discord_channel: state.discord.enabled()
             && db::discord::channel_of(&state.db, id).await?.is_some(),
+        settings: db::referee::find_settings(&state.db, id).await?,
+        ignored_maps: db::referee::list_ignored(&state.db, id).await?,
     }))
 }
 
@@ -263,6 +277,9 @@ pub struct PublicMatch {
     picks: Vec<PickRow>,
     manual_results: Vec<ManualResultRow>,
     map_results: Vec<MapResultRow>,
+    // The team the referee said picks next, overriding the rules until the next ban
+    // or pick.
+    next_pick_team_id: Option<Uuid>,
 }
 
 // GET /api/public/matches/:id — anyone. A match for its public page, which follows
@@ -313,6 +330,9 @@ pub async fn get_public_match(
         picks: marks.picks,
         manual_results: marks.manual_results,
         map_results: marks.map_results,
+        next_pick_team_id: db::referee::find_settings(&state.db, id)
+            .await?
+            .next_pick_team_id,
     }))
 }
 
@@ -427,4 +447,134 @@ pub async fn get_osu_games(
         });
     }
     Ok(Json(rooms))
+}
+
+// ---------- what the referee page keeps ----------
+
+// It's changed by any referee or a host, until the match is concluded (hosts
+// any time), like the rest of running it.
+async fn check_runs(state: &AppState, user: &AuthUser, id: Uuid) -> Result<MatchKind, AppError> {
+    let m = load_match(state, id).await?;
+    require_runs(user)?;
+    require_unconcluded(user, &m)?;
+    Ok(m.kind)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RoomOptionsBody {
+    score_mode: i16,
+    no_fail: bool,
+    auto_place: bool,
+    auto_kick: bool,
+}
+
+// PUT /api/matches/:id/room-options — how the referee page sets up the room and what
+// it does there by itself.
+pub async fn set_room_options(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<RoomOptionsBody>,
+) -> Result<impl IntoResponse, AppError> {
+    check_runs(&state, &user, id).await?;
+    if !(0..=3).contains(&body.score_mode) {
+        return Err(AppError::BadRequest("unknown score mode"));
+    }
+    db::referee::set_options(
+        &state.db,
+        id,
+        body.score_mode,
+        body.no_fail,
+        body.auto_place,
+        body.auto_kick,
+    )
+    .await?;
+    state.live.referee_changed(id);
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ResultsSourceBody {
+    osu: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ResultsSource {
+    #[serde(with = "time::serde::rfc3339::option")]
+    osu_synced_at: Option<OffsetDateTime>,
+}
+
+// PUT /api/matches/:id/results-source — counts the finished maps from osu!'s record
+// of the rooms (again: each page reads it anew) or from their chat. Returns when it
+// was synced.
+pub async fn set_results_source(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<ResultsSourceBody>,
+) -> Result<impl IntoResponse, AppError> {
+    check_runs(&state, &user, id).await?;
+    let osu_synced_at = db::referee::set_osu_synced(&state.db, id, body.osu).await?;
+    state.live.referee_changed(id);
+    Ok(Json(ResultsSource { osu_synced_at }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct NextPickBody {
+    team_id: Option<Uuid>,
+}
+
+// PUT /api/matches/:id/next-pick — a bracket match's referee says whose pick is next
+// (null: as the rules say), until the next ban or pick is marked.
+pub async fn set_next_pick(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<NextPickBody>,
+) -> Result<impl IntoResponse, AppError> {
+    if check_runs(&state, &user, id).await? != MatchKind::Bracket {
+        return Err(AppError::NotFound);
+    }
+    if let Some(team_id) = body.team_id {
+        let teams = db::bracket::find_match(&state.db, id)
+            .await?
+            .ok_or(AppError::NotFound)?;
+        if Some(team_id) != teams.team1_id && Some(team_id) != teams.team2_id {
+            return Err(AppError::BadRequest("that team doesn't play in this match"));
+        }
+    }
+    db::referee::set_next_pick(&state.db, id, body.team_id).await?;
+    // The match page shows whose pick it is.
+    state.live.match_changed(id);
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IgnoredMapBody {
+    key: String,
+    ignored: bool,
+}
+
+// The referee page's keys are "<source>:<room>:<n>".
+const MAP_KEY_MAX: usize = 64;
+
+// PUT /api/matches/:id/ignored-maps — leaves a finished map out of the score
+// ("Sayma") or counts it again. The score itself is saved by the page.
+pub async fn set_ignored_map(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<IgnoredMapBody>,
+) -> Result<impl IntoResponse, AppError> {
+    check_runs(&state, &user, id).await?;
+    if body.key.is_empty() || body.key.len() > MAP_KEY_MAX {
+        return Err(AppError::BadRequest("that isn't a map of this match"));
+    }
+    if body.ignored {
+        db::referee::ignore_map(&state.db, id, &body.key).await?;
+    } else {
+        db::referee::count_map(&state.db, id, &body.key).await?;
+    }
+    state.live.referee_changed(id);
+    Ok(StatusCode::NO_CONTENT)
 }

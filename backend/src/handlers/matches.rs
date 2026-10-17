@@ -30,7 +30,7 @@ use crate::{
 };
 
 // Routes under the `/api` nest. Lobbies are created and managed by hosts; any staff
-// member can see the staff view, and each match is run by its referee (or a host).
+// member can see the staff view, and any referee (or host) can run each match.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/public/qualifiers", get(list_public_lobbies))
@@ -390,9 +390,14 @@ pub async fn delete_lobby(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     let channel = db::discord::channel_of(&state.db, id).await?;
+    let rooms = db::matches::find_match(&state.db, id)
+        .await?
+        .map(|m| m.mp_ids)
+        .unwrap_or_default();
     if !db::matches::delete_lobby(&state.db, id).await? {
         return Err(AppError::NotFound);
     }
+    state.room_runners.close(&rooms);
     let archive = channel.map(|channel_id| Job::ArchiveChannel {
         channel_id,
         kind: MatchKind::Qualifier,
@@ -451,14 +456,10 @@ pub async fn load_match(state: &AppState, id: Uuid) -> Result<MatchState, AppErr
         .ok_or(AppError::NotFound)
 }
 
-// A match is run by its referee or by a host; other referees can only look.
-pub fn require_runs(user: &AuthUser, m: &MatchState) -> Result<(), AppError> {
-    user.require_role(Role::Referee)?;
-    if is_host(user) || m.referee_id == Some(user.id) {
-        Ok(())
-    } else {
-        Err(AppError::Forbidden)
-    }
+// Any referee (or host) can run any match, so one can step in when its own referee
+// can't; the assigned referee is the one Discord pings and asks about the match.
+pub fn require_runs(user: &AuthUser) -> Result<(), AppError> {
+    user.require_role(Role::Referee)
 }
 
 // Once a match is concluded only hosts can change it (notes aside).
@@ -515,6 +516,7 @@ pub async fn set_referee(
         }
     }
     if m.referee_id != body.referee_id {
+        state.room_runners.set_referee(&m.mp_ids, body.referee_id);
         state
             .discord
             .enqueue(
@@ -587,7 +589,7 @@ pub async fn add_room(
     Json(body): Json<RoomBody>,
 ) -> Result<impl IntoResponse, AppError> {
     let m = load_match(&state, id).await?;
-    require_runs(&user, &m)?;
+    require_runs(&user)?;
     require_unconcluded(&user, &m)?;
     let mp_id = parse_mp_id(&body.link)
         .ok_or(AppError::BadRequest("that isn't an osu! multiplayer link"))?;
@@ -621,7 +623,7 @@ pub async fn remove_room(
     Path((id, mp_id)): Path<(Uuid, i64)>,
 ) -> Result<impl IntoResponse, AppError> {
     let m = load_match(&state, id).await?;
-    require_runs(&user, &m)?;
+    require_runs(&user)?;
     require_unconcluded(&user, &m)?;
     if m.concluded() && m.mp_ids == [mp_id] {
         return Err(AppError::BadRequest(
@@ -644,7 +646,7 @@ pub struct NotesBody {
     notes: String,
 }
 
-// PUT /api/matches/:id/notes — the match's referee or a host notes down anything
+// PUT /api/matches/:id/notes — a referee or a host notes down anything
 // unusual, also after the match is concluded. Staff-only.
 pub async fn set_notes(
     State(state): State<AppState>,
@@ -652,8 +654,9 @@ pub async fn set_notes(
     Path(id): Path<Uuid>,
     Json(body): Json<NotesBody>,
 ) -> Result<impl IntoResponse, AppError> {
-    let m = load_match(&state, id).await?;
-    require_runs(&user, &m)?;
+    require_runs(&user)?;
+    // The match has to exist.
+    load_match(&state, id).await?;
     if body.notes.chars().count() > NOTES_MAX {
         return Err(AppError::BadRequest("notes can be at most 2000 characters"));
     }
@@ -661,7 +664,7 @@ pub async fn set_notes(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// POST /api/matches/:id/conclude — the match's referee or a host marks it as
+// POST /api/matches/:id/conclude — a referee or a host marks it as
 // played. Needs a room; a bracket match also needs its score, and concluding
 // it sends its teams on to their next matches.
 pub async fn conclude(
@@ -670,7 +673,7 @@ pub async fn conclude(
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     let m = load_match(&state, id).await?;
-    require_runs(&user, &m)?;
+    require_runs(&user)?;
     if m.concluded() {
         return Err(AppError::Conflict("this match is already concluded"));
     }
@@ -679,6 +682,7 @@ pub async fn conclude(
     }
     if m.kind == MatchKind::Bracket {
         bracket::conclude(&state, id, None).await?;
+        state.room_runners.close(&m.mp_ids);
         state.live.bracket_changed();
         return Ok(StatusCode::NO_CONTENT);
     }
@@ -699,6 +703,7 @@ pub async fn conclude(
         )
         .await?;
     tx.commit().await?;
+    state.room_runners.close(&m.mp_ids);
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }

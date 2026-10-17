@@ -236,9 +236,9 @@ function StaffLobbyCard({
 }: StaffLobbyCardProps) {
   const concluded = lobby.concluded_at !== null;
   const isMine = lobby.referee?.id === userId;
-  // The match's referee runs it; hosts can run any match, also after it's concluded.
-  const canRun = isHost || isMine;
-  const canEdit = isHost || (isMine && !concluded);
+  // Every referee on this page can run any lobby (its own referee is the one Discord
+  // pings); hosts also after it's concluded.
+  const canEdit = isHost || !concluded;
 
   return (
     <LobbyCard
@@ -274,49 +274,47 @@ function StaffLobbyCard({
           : undefined
       }
       actions={
-        canRun && (
-          <>
-            {isHost && (
-              <button
-                type="button"
-                className="btn btn-danger btn-sm lobby-delete"
-                disabled={busy}
-                onClick={() => {
-                  const teams = lobby.teams.length > 0 ? ` İçindeki ${lobby.teams.length} takım lobisiz kalır.` : "";
-                  if (window.confirm(`Lobi ${number} silinsin mi?${teams}`)) run(() => deleteLobby(lobby.id));
-                }}
-              >
-                Lobiyi sil
-              </button>
-            )}
-            <Link to={`/admin/referee/${lobby.id}`} className="btn btn-secondary btn-sm">
-              Hakem odası
-            </Link>
-            {canRun && !concluded && (
-              <button
-                type="button"
-                className="btn btn-primary btn-sm"
-                disabled={busy || lobby.rooms.length === 0}
-                title={lobby.rooms.length > 0 ? undefined : "Önce maç linkini ekle"}
-                onClick={() => {
-                  if (window.confirm(`Lobi ${number} bitti olarak işaretlensin mi?`)) run(() => concludeMatch(lobby.id));
-                }}
-              >
-                Maçı bitir
-              </button>
-            )}
-            {isHost && concluded && (
-              <button
-                type="button"
-                className="btn btn-secondary btn-sm"
-                disabled={busy}
-                onClick={() => run(() => reopenMatch(lobby.id))}
-              >
-                Yeniden aç
-              </button>
-            )}
-          </>
-        )
+        <>
+          {isHost && (
+            <button
+              type="button"
+              className="btn btn-danger btn-sm lobby-delete"
+              disabled={busy}
+              onClick={() => {
+                const teams = lobby.teams.length > 0 ? ` İçindeki ${lobby.teams.length} takım lobisiz kalır.` : "";
+                if (window.confirm(`Lobi ${number} silinsin mi?${teams}`)) run(() => deleteLobby(lobby.id));
+              }}
+            >
+              Lobiyi sil
+            </button>
+          )}
+          <Link to={`/admin/referee/${lobby.id}`} className="btn btn-secondary btn-sm">
+            Hakem odası
+          </Link>
+          {!concluded && (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={busy || lobby.rooms.length === 0}
+              title={lobby.rooms.length > 0 ? undefined : "Önce maç linkini ekle"}
+              onClick={() => {
+                if (window.confirm(`Lobi ${number} bitti olarak işaretlensin mi?`)) run(() => concludeMatch(lobby.id));
+              }}
+            >
+              Maçı bitir
+            </button>
+          )}
+          {isHost && concluded && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={busy}
+              onClick={() => run(() => reopenMatch(lobby.id))}
+            >
+              Yeniden aç
+            </button>
+          )}
+        </>
       }
     >
       <dl className="staff-rows">
@@ -386,17 +384,13 @@ function StaffLobbyCard({
         <div>
           <dt>Notlar</dt>
           <dd>
-            {canRun ? (
-              <EditableNote
-                value={lobby.referee_notes}
-                label={`Lobi ${number} hakem notları`}
-                placeholder="Ters giden bir şey olursa not al (sadece yetkililer görür)"
-                isPrivate
-                onSave={onNotes}
-              />
-            ) : (
-              <span className={lobby.referee_notes ? "staff-notes" : "muted"}>{lobby.referee_notes || "—"}</span>
-            )}
+            <EditableNote
+              value={lobby.referee_notes}
+              label={`Lobi ${number} hakem notları`}
+              placeholder="Ters giden bir şey olursa not al (sadece yetkililer görür)"
+              isPrivate
+              onSave={onNotes}
+            />
           </dd>
         </div>
       </dl>

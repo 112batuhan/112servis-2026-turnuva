@@ -8,9 +8,15 @@
 //! staff tab hears the new list for that match (`presence`), plus all of them when it
 //! connects (`presence_all`). Nothing here is stored; it's what the open tabs say.
 //!
+//! Staff also hear `referee`: something only the referee page shows changed about a
+//! match (its room options, the maps left out of the score, where its results are
+//! read from), so the referee pages open on it reload it.
+//!
 //! The public match page also hears `match` (something about one match changed that
 //! the bracket doesn't show, like its bans: reload that match) and, for the match it
-//! says it shows (`watch`), every line said in its rooms as the relay saves it (`chat`).
+//! says it shows (`watch`), every line said in its rooms as the relay saves it (`chat`)
+//! and who else is watching it (`spectators`: the signed-in ones by name, each user
+//! once, and a count of the tabs nobody is signed in on).
 
 use std::{
     collections::{HashMap, HashSet},
@@ -66,6 +72,9 @@ enum ServerMsg<'a> {
     Match {
         match_id: Uuid,
     },
+    Referee {
+        match_id: Uuid,
+    },
     Chat {
         mp_id: i64,
         message: &'a ChatMessage,
@@ -73,6 +82,11 @@ enum ServerMsg<'a> {
     Presence {
         match_id: Uuid,
         viewers: &'a [Viewer],
+    },
+    Spectators {
+        match_id: Uuid,
+        viewers: &'a [Viewer],
+        guests: usize,
     },
     PresenceAll {
         matches: HashMap<Uuid, Vec<Viewer>>,
@@ -96,20 +110,29 @@ struct Event {
     staff_only: bool,
     // Only for the tabs watching this room's match.
     room: Option<i64>,
+    // Only for the tabs watching this match.
+    watchers_of: Option<Uuid>,
 }
 
-// Who has each match's referee page open: by match, each tab with its user, in the
-// order they opened it.
+// Who has a page of each match open (its referee page, or its public page): by match,
+// each tab with its user (none for a tab nobody is signed in on), in the order they
+// opened it.
 #[derive(Default)]
 struct Presence {
-    tabs: HashMap<Uuid, Vec<(u64, Viewer)>>,
+    tabs: HashMap<Uuid, Vec<(u64, Option<Viewer>)>>,
 }
 
 impl Presence {
-    // The match's viewers, each user once, in the order they first opened it.
+    // The match's signed-in viewers, each user once, in the order they first opened it.
     fn viewers(&self, match_id: Uuid) -> Vec<Viewer> {
         let mut out: Vec<Viewer> = Vec::new();
-        for (_, viewer) in self.tabs.get(&match_id).into_iter().flatten() {
+        for viewer in self
+            .tabs
+            .get(&match_id)
+            .into_iter()
+            .flatten()
+            .filter_map(|(_, v)| v.as_ref())
+        {
             if !out.iter().any(|v| v.id == viewer.id) {
                 out.push(viewer.clone());
             }
@@ -117,12 +140,19 @@ impl Presence {
         out
     }
 
+    // The match's tabs nobody is signed in on.
+    fn guests(&self, match_id: Uuid) -> usize {
+        self.tabs
+            .get(&match_id)
+            .map_or(0, |tabs| tabs.iter().filter(|(_, v)| v.is_none()).count())
+    }
+
     fn all(&self) -> HashMap<Uuid, Vec<Viewer>> {
         self.tabs.keys().map(|&id| (id, self.viewers(id))).collect()
     }
 
     // Moves a tab to another match (or none). Returns the matches whose lists changed.
-    fn set(&mut self, tab: u64, viewer: &Viewer, match_id: Option<Uuid>) -> Vec<Uuid> {
+    fn set(&mut self, tab: u64, viewer: Option<&Viewer>, match_id: Option<Uuid>) -> Vec<Uuid> {
         let mut changed = Vec::new();
         self.tabs.retain(|&id, tabs| {
             let before = tabs.len();
@@ -133,7 +163,10 @@ impl Presence {
             !tabs.is_empty()
         });
         if let Some(id) = match_id {
-            self.tabs.entry(id).or_default().push((tab, viewer.clone()));
+            self.tabs
+                .entry(id)
+                .or_default()
+                .push((tab, viewer.cloned()));
             changed.push(id);
         }
         changed
@@ -142,7 +175,10 @@ impl Presence {
 
 struct Inner {
     events: broadcast::Sender<Arc<Event>>,
+    // Referee pages.
     presence: Mutex<Presence>,
+    // Public match pages.
+    spectators: Mutex<Presence>,
     next_tab: AtomicU64,
 }
 
@@ -155,6 +191,7 @@ impl Default for Live {
         Self(Arc::new(Inner {
             events: broadcast::channel(BUFFER).0,
             presence: Mutex::default(),
+            spectators: Mutex::default(),
             next_tab: AtomicU64::new(1),
         }))
     }
@@ -162,10 +199,16 @@ impl Default for Live {
 
 impl Live {
     fn emit(&self, msg: &ServerMsg, staff_only: bool) {
-        self.send(msg, staff_only, None);
+        self.send(msg, staff_only, None, None);
     }
 
-    fn send(&self, msg: &ServerMsg, staff_only: bool, room: Option<i64>) {
+    fn send(
+        &self,
+        msg: &ServerMsg,
+        staff_only: bool,
+        room: Option<i64>,
+        watchers_of: Option<Uuid>,
+    ) {
         let Ok(json) = serde_json::to_string(msg) else {
             return;
         };
@@ -174,6 +217,7 @@ impl Live {
             json,
             staff_only,
             room,
+            watchers_of,
         }));
     }
 
@@ -202,15 +246,27 @@ impl Live {
         self.emit(&ServerMsg::Match { match_id }, false);
     }
 
+    // Something only the referee page shows changed about a match (its room options,
+    // "Sayma", where its results are read from); staff only. Call after the change is
+    // committed.
+    pub fn referee_changed(&self, match_id: Uuid) {
+        self.emit(&ServerMsg::Referee { match_id }, true);
+    }
+
     // A line said in a multiplayer room, once it's saved; only tabs watching the match
     // the room belongs to get it.
     pub fn chat(&self, mp_id: i64, message: &ChatMessage) {
-        self.send(&ServerMsg::Chat { mp_id, message }, false, Some(mp_id));
+        self.send(
+            &ServerMsg::Chat { mp_id, message },
+            false,
+            Some(mp_id),
+            None,
+        );
     }
 
     fn set_viewing(&self, tab: u64, viewer: &Viewer, match_id: Option<Uuid>) {
         let mut presence = self.0.presence.lock().unwrap();
-        for id in presence.set(tab, viewer, match_id) {
+        for id in presence.set(tab, Some(viewer), match_id) {
             let viewers = presence.viewers(id);
             self.emit(
                 &ServerMsg::Presence {
@@ -218,6 +274,25 @@ impl Live {
                     viewers: &viewers,
                 },
                 true,
+            );
+        }
+    }
+
+    // Moves a tab to another match's public page (or none); the tabs on each match whose
+    // list changed hear the new one.
+    fn set_spectating(&self, tab: u64, viewer: Option<&Viewer>, match_id: Option<Uuid>) {
+        let mut spectators = self.0.spectators.lock().unwrap();
+        for id in spectators.set(tab, viewer, match_id) {
+            let viewers = spectators.viewers(id);
+            self.send(
+                &ServerMsg::Spectators {
+                    match_id: id,
+                    viewers: &viewers,
+                    guests: spectators.guests(id),
+                },
+                false,
+                None,
+                Some(id),
             );
         }
     }
@@ -246,19 +321,23 @@ pub async fn connect(
     }
     let staff = user.as_ref().is_some_and(sees_presence);
     // Only those who can open a referee page can say they're on one.
+    let referee = user
+        .as_ref()
+        .is_some_and(|user| user.roles.allows(Role::Referee));
+    // Signed in means signed in with osu!, so the name spectators see is the osu! one.
     let viewer = match &user {
-        Some(user) if user.roles.allows(Role::Referee) => db::user::find_user(&state.db, user.id)
+        Some(user) => db::user::find_user(&state.db, user.id)
             .await?
             .map(|profile| Viewer {
                 id: profile.osu.id,
                 username: profile.osu.username,
                 avatar_url: profile.osu.avatar_url,
             }),
-        _ => None,
+        None => None,
     };
     let live = state.live.clone();
     let db = state.db.clone();
-    Ok(ws.on_upgrade(move |socket| tab(socket, live, db, staff, viewer)))
+    Ok(ws.on_upgrade(move |socket| tab(socket, live, db, staff, referee, viewer)))
 }
 
 async fn send(socket: &mut WebSocket, json: String) -> bool {
@@ -281,10 +360,19 @@ async fn watched_rooms(db: &PgPool, match_id: Option<Uuid>) -> HashSet<i64> {
     }
 }
 
-async fn tab(mut socket: WebSocket, live: Live, db: PgPool, staff: bool, viewer: Option<Viewer>) {
+async fn tab(
+    mut socket: WebSocket,
+    live: Live,
+    db: PgPool,
+    staff: bool,
+    referee: bool,
+    viewer: Option<Viewer>,
+) {
     let id = live.0.next_tab.fetch_add(1, Ordering::Relaxed);
     // The rooms whose chat this tab is sent.
     let mut watching: HashSet<i64> = HashSet::new();
+    // The match whose public page this tab shows, counted among its spectators.
+    let mut spectating: Option<Uuid> = None;
     let mut events = live.0.events.subscribe();
     if staff {
         let matches = live.0.presence.lock().unwrap().all();
@@ -308,6 +396,9 @@ async fn tab(mut socket: WebSocket, live: Live, db: PgPool, staff: bool, viewer:
                     if event.room.is_some_and(|room| !watching.contains(&room)) {
                         continue;
                     }
+                    if event.watchers_of.is_some_and(|m| spectating != Some(m)) {
+                        continue;
+                    }
                     if !send(&mut socket, event.json.clone()).await {
                         break;
                     }
@@ -325,12 +416,18 @@ async fn tab(mut socket: WebSocket, live: Live, db: PgPool, staff: bool, viewer:
             msg = socket.recv() => match msg {
                 Some(Ok(Message::Text(text))) => match serde_json::from_str::<ClientMsg>(&text) {
                     Ok(ClientMsg::Viewing { match_id }) => {
-                        if let Some(viewer) = &viewer {
+                        if let (true, Some(viewer)) = (referee, &viewer) {
                             live.set_viewing(id, viewer, match_id);
                         }
                     }
                     Ok(ClientMsg::Watch { match_id }) => {
                         watching = watched_rooms(&db, match_id).await;
+                        // Only a match that has a room is watched; a made-up id isn't counted.
+                        let now = match_id.filter(|_| !watching.is_empty());
+                        if now != spectating {
+                            spectating = now;
+                            live.set_spectating(id, viewer.as_ref(), now);
+                        }
                     }
                     Err(_) => {}
                 },
@@ -344,8 +441,11 @@ async fn tab(mut socket: WebSocket, live: Live, db: PgPool, staff: bool, viewer:
             }
         }
     }
-    if let Some(viewer) = &viewer {
+    if let (true, Some(viewer)) = (referee, &viewer) {
         live.set_viewing(id, viewer, None);
+    }
+    if spectating.is_some() {
+        live.set_spectating(id, viewer.as_ref(), None);
     }
 }
 
@@ -365,9 +465,9 @@ mod tests {
     fn lists_each_user_once() {
         let mut p = Presence::default();
         let m = Uuid::from_u128(100);
-        assert_eq!(p.set(1, &viewer(1), Some(m)), vec![m]);
-        p.set(2, &viewer(1), Some(m));
-        p.set(3, &viewer(2), Some(m));
+        assert_eq!(p.set(1, Some(&viewer(1)), Some(m)), vec![m]);
+        p.set(2, Some(&viewer(1)), Some(m));
+        p.set(3, Some(&viewer(2)), Some(m));
         let names: Vec<_> = p.viewers(m).into_iter().map(|v| v.username).collect();
         assert_eq!(names, ["user1", "user2"]);
     }
@@ -376,12 +476,25 @@ mod tests {
     fn moving_and_leaving_update_both_matches() {
         let mut p = Presence::default();
         let (a, b) = (Uuid::from_u128(100), Uuid::from_u128(200));
-        p.set(1, &viewer(1), Some(a));
-        let mut changed = p.set(1, &viewer(1), Some(b));
+        p.set(1, Some(&viewer(1)), Some(a));
+        let mut changed = p.set(1, Some(&viewer(1)), Some(b));
         changed.sort();
         assert_eq!(changed, vec![a, b]);
         assert!(p.viewers(a).is_empty());
-        assert_eq!(p.set(1, &viewer(1), None), vec![b]);
+        assert_eq!(p.set(1, Some(&viewer(1)), None), vec![b]);
         assert!(p.all().is_empty());
+    }
+
+    #[test]
+    fn counts_guest_tabs_apart_from_names() {
+        let mut p = Presence::default();
+        let m = Uuid::from_u128(100);
+        p.set(1, None, Some(m));
+        p.set(2, None, Some(m));
+        p.set(3, Some(&viewer(1)), Some(m));
+        assert_eq!(p.guests(m), 2);
+        assert_eq!(p.viewers(m).len(), 1);
+        p.set(1, None, None);
+        assert_eq!(p.guests(m), 1);
     }
 }

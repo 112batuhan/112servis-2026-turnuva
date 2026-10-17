@@ -117,10 +117,13 @@ export function MatchChat({ rooms, colors, referee, loaded, live, connected, vis
         ))}
       </div>
 
+      {/* While it streams there's nothing to say here: the header says the match is live. */}
       {live ? (
-        <footer className={`match-chat-foot${connected ? " is-live" : ""}`} role="status">
-          {connected ? "Canlı: yeni mesajlar geldikçe akar" : "Bağlantı koptu, yeniden bağlanıyor…"}
-        </footer>
+        !connected && (
+          <footer className="match-chat-foot" role="status">
+            Bağlantı koptu, yeniden bağlanıyor…
+          </footer>
+        )
       ) : (
         room && <footer className="match-chat-foot is-saved">Maç bitti: kayıtlı sohbet</footer>
       )}

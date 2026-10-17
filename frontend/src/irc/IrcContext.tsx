@@ -38,6 +38,12 @@ export interface IncomingMessage {
   conversation: string;
 }
 
+/**
+ * Whether this tab runs a room's automation (roomAutomation.ts): the server picks one tab
+ * among all that ask, in every browser. "refused": this tab can't run it, and isn't in line.
+ */
+export type AutomationState = "running" | "waiting" | "refused";
+
 type ServerMsg =
   | { type: "connected"; nick: string; session: number }
   | { type: "login_failed" }
@@ -49,7 +55,8 @@ type ServerMsg =
   | { type: "parted"; channel: string }
   | { type: "conversation_closed"; name: string }
   | { type: "error"; message: string }
-  | { type: "closed"; reason: string };
+  | { type: "closed"; reason: string }
+  | { type: "automation"; channel: string; state: AutomationState };
 
 interface IrcApi {
   status: IrcStatus;
@@ -73,6 +80,10 @@ interface IrcApi {
   close: (name: string) => void;
   /** Called for every incoming chat line; returns the unsubscribe. */
   onMessage: (listener: (msg: IncomingMessage) => void) => () => void;
+  /** Asks to run a room's automation (or stops asking); the answers go to `onAutomation`. Again after reconnecting. */
+  automate: (channel: string, on: boolean) => void;
+  /** Called whenever the server says whether this tab runs a room's automation; returns the unsubscribe. */
+  onAutomation: (listener: (channel: string, state: AutomationState) => void) => () => void;
 }
 
 const MAX_LINES = 2000;
@@ -94,6 +105,7 @@ export function IrcProvider({ children }: { children: ReactNode }) {
   const socket = useRef<WebSocket | null>(null);
   const nickRef = useRef<string | null>(null);
   const listeners = useRef(new Set<(msg: IncomingMessage) => void>());
+  const automationListeners = useRef(new Set<(channel: string, state: AutomationState) => void>());
   const nextId = useRef(1);
   // Private messages from before this tab joined (the backend keeps them for the
   // connection) get negative ids, like saved room lines, so they aren't unread.
@@ -186,6 +198,9 @@ export function IrcProvider({ children }: { children: ReactNode }) {
         }
         case "closed":
           setError((e) => e ?? `Bağlantı kapandı: ${msg.reason}`);
+          break;
+        case "automation":
+          for (const listener of automationListeners.current) listener(msg.channel, msg.state);
           break;
       }
     },
@@ -288,9 +303,34 @@ export function IrcProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  const automate = useCallback(
+    (channel: string, on: boolean) => sendJson({ type: "automate", channel, on }),
+    [sendJson],
+  );
+  const onAutomation = useCallback((listener: (channel: string, state: AutomationState) => void) => {
+    automationListeners.current.add(listener);
+    return () => {
+      automationListeners.current.delete(listener);
+    };
+  }, []);
+
   const api = useMemo<IrcApi>(
-    () => ({ status, nick, error, conversations, connect, disconnect, send, join, part, close, onMessage }),
-    [status, nick, error, conversations, connect, disconnect, send, join, part, close, onMessage],
+    () => ({
+      status,
+      nick,
+      error,
+      conversations,
+      connect,
+      disconnect,
+      send,
+      join,
+      part,
+      close,
+      onMessage,
+      automate,
+      onAutomation,
+    }),
+    [status, nick, error, conversations, connect, disconnect, send, join, part, close, onMessage, automate, onAutomation],
   );
 
   return <IrcContext.Provider value={api}>{children}</IrcContext.Provider>;

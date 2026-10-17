@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { API_URL, errorMessage } from "../../../api/client";
 import { pingPlayer } from "../../../api/discord";
-import type { AdminTeamPlayer, MatchKind, Player, Team } from "../../../api/types";
+import type { AdminTeamPlayer, MatchKind, Player, Role, Team } from "../../../api/types";
+import { ROLE_LABELS } from "../../../auth/roles";
 import { DiscordMention } from "../../../components/DiscordMention";
 import { IconButton } from "../../../components/IconButton";
 import {
@@ -16,6 +17,7 @@ import {
   type SlotTeam,
 } from "../../../lib/bancho";
 import { formatRank } from "../../../lib/format";
+import { staffRole } from "./roomStaff";
 import type { RefereeRoomState, RosterPlayer } from "./useRefereeRoom";
 import "./RoomPlayers.css";
 
@@ -43,6 +45,17 @@ export function RoomPlayers({ referee }: { referee: RefereeRoomState }) {
       findRoster={findRoster}
       finished={concluded}
       showMisplaced
+      staffRoleOf={(slot) => staffRole(referee.staff, slot)}
+      kick={
+        canRun && !concluded && referee.staff !== null
+          ? {
+              enabled: inChannel && !lobby.closed,
+              disabledReason: inChannel ? "Oda kapandı" : "Önce odanın kanalına katıl",
+              one: actions.kick,
+              all: actions.kickOutsiders,
+            }
+          : undefined
+      }
       unreadModsHint="Modları henüz okunmadı; Odayı yenile ile okunur"
       slotControl={
         canRun && !concluded
@@ -102,6 +115,15 @@ interface PlayersViewProps<P extends Player> {
   showMisplaced?: boolean;
   /** Makes each slot number open a picker that moves the player (the referee page). */
   slotControl?: SlotControl;
+  /** The role a staff member in the room is there as, so they're told apart from strangers. */
+  staffRoleOf?: (slot: RoomSlot) => Role | null;
+  /** Removes strangers from the room (the referee page). */
+  kick?: {
+    enabled: boolean;
+    disabledReason: string;
+    one: (slot: RoomSlot) => void;
+    all: () => void;
+  };
   /** Why a player's freemod mods show as "?". */
   unreadModsHint?: string;
   /** After the player's rank: how to reach them. */
@@ -137,16 +159,7 @@ export function PlayersView<P extends Player>(props: PlayersViewProps<P>) {
           <TeamPlayers key={team.id} team={team} color={colorOf(team)} view={props} />
         ))}
       </div>
-      {strangers.length > 0 && (
-        <div className="room-players-strangers">
-          <h3 className="room-players-team-name">Maçın oyuncusu değil</h3>
-          <ul className="room-players-list">
-            {strangers.map((slot) => (
-              <StrangerRow key={slot.slot} slot={slot} view={props} />
-            ))}
-          </ul>
-        </div>
-      )}
+      {strangers.length > 0 && <Strangers strangers={strangers} view={props} />}
     </section>
   );
 }
@@ -269,11 +282,6 @@ function PlayerRow<P extends Player>({
           {slot?.host && <span className="badge">Host</span>}
         </span>
         <span className="room-player-meta">
-          {misplaced && showMisplaced && home !== null && color !== null && (
-            <span className="room-player-wrong">
-              Yeri {home}. slot, {TEAM_NAMES[color]} ·{" "}
-            </span>
-          )}
           {formatRank(player.global_rank)}
           {renderContact && <> · {renderContact(player)}</>}
         </span>
@@ -291,23 +299,89 @@ function PlayerRow<P extends Player>({
   );
 }
 
-function StrangerRow<P extends Player>({ slot, view }: { slot: RoomSlot; view: PlayersViewProps<P> }) {
+/**
+ * Whoever is in the room without playing in the match: the staff who may be there, named by
+ * their role, and anyone else, who shouldn't be. The referee kicks those one by one or all at
+ * once (the page also kicks them as they join, see roomAutomation.ts).
+ */
+function Strangers<P extends Player>({ strangers, view }: { strangers: RoomSlot[]; view: PlayersViewProps<P> }) {
+  const outsiders = strangers.filter((s) => !view.staffRoleOf?.(s));
+  const { kick } = view;
   return (
-    <li className={`room-player is-${slot.status} is-stranger`}>
+    <div className={`room-players-strangers${outsiders.length > 0 ? " has-outsiders" : ""}`}>
+      <h3 className="room-players-team-name">
+        <span className="room-players-team-title">Maçın oyuncusu değil</span>
+        {kick && outsiders.length > 1 && (
+          <button
+            type="button"
+            className="btn btn-danger btn-sm room-players-kick-all"
+            disabled={!kick.enabled}
+            title={kick.enabled ? "Maçın oyuncusu, host, hakem ya da yayıncı olmayan herkesi odadan atar" : kick.disabledReason}
+            onClick={() => {
+              if (window.confirm(`${outsiders.map((s) => s.username).join(", ")} odadan atılsın mı?`)) kick.all();
+            }}
+          >
+            Hepsini at ({outsiders.length})
+          </button>
+        )}
+      </h3>
+      <ul className="room-players-list">
+        {strangers.map((slot) => (
+          <StrangerRow key={slot.slot} slot={slot} role={view.staffRoleOf?.(slot) ?? null} view={view} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function StrangerRow<P extends Player>({
+  slot,
+  role,
+  view,
+}: {
+  slot: RoomSlot;
+  /** Staff are named by their role and never kicked from here. */
+  role: Role | null;
+  view: PlayersViewProps<P>;
+}) {
+  const { kick } = view;
+  return (
+    <li className={`room-player is-${slot.status} is-stranger${role ? " is-staff" : " is-outsider"}`}>
       <SlotNumber name={slot.username} slot={slot} home={null} color={null} misplaced={false} view={view} />
       <span className="room-player-text">
         <span className="room-player-name">
           <a href={`https://osu.ppy.sh/users/${slot.userId ?? ""}`} target="_blank" rel="noopener noreferrer">
             {slot.username}
           </a>
+          {role && <span className="badge badge-info">{STAFF_LABELS[role] ?? ROLE_LABELS[role]}</span>}
           {slot.host && <span className="badge">Host</span>}
         </span>
-        <span className="room-player-meta">{slot.team ? `${TEAM_NAMES[slot.team]} takımda` : "Odada"}</span>
+        <span className="room-player-meta">
+          {role ? "Turnuva görevlisi" : <span className="room-player-wrong">Maçta yeri yok</span>}
+          {slot.team && ` · ${TEAM_NAMES[slot.team]} takımda`}
+        </span>
       </span>
       <SlotState slot={slot} lobby={view.lobby} hint={view.unreadModsHint} />
+      {kick &&
+        (role ? (
+          <span />
+        ) : (
+          <button
+            type="button"
+            className="btn btn-danger btn-sm room-player-kick"
+            disabled={!kick.enabled}
+            title={kick.enabled ? `!mp kick: ${slot.username} odadan atılır` : kick.disabledReason}
+            onClick={() => kick.one(slot)}
+          >
+            Odadan at
+          </button>
+        ))}
     </li>
   );
 }
+
+// A room host badge already says "Host", so the tournament's hosts are named in full.
+const STAFF_LABELS: Partial<Record<Role, string>> = { host: "Turnuva hostu" };
 
 const TEAM_NAMES: Record<SlotTeam, string> = { blue: "mavi", red: "kırmızı" };
 
@@ -342,11 +416,17 @@ function SlotNumber<P extends Player>({
     .filter(Boolean)
     .join(" ");
   const figure = slot ? slot.slot : "–";
+  // Where they belong, said only when they aren't there: the chip's colour and figure show it.
+  const belongs = misplaced && home !== null && color !== null ? `; yeri ${home}. slot, ${TEAM_NAMES[color]}` : "";
   const control = view.slotControl;
   if (!control || !slot) {
     return (
-      <span className={classes} title={slot ? describeSlot(slot) : home ? `Odada değil; yeri ${home}. slot` : "Odada değil"}>
+      <span
+        className={classes}
+        title={slot ? describeSlot(slot) + belongs : home ? `Odada değil; yeri ${home}. slot` : "Odada değil"}
+      >
         {figure}
+        {belongs && <span className="sr-only">{belongs}</span>}
       </span>
     );
   }
@@ -362,8 +442,8 @@ function SlotNumber<P extends Player>({
         className={`${classes} is-button`}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={`${name}: ${describeSlot(slot)}. Yerini değiştir`}
-        title={control.enabled ? `${describeSlot(slot)} · yerini değiştir` : control.disabledReason}
+        aria-label={`${name}: ${describeSlot(slot)}${belongs}. Yerini değiştir`}
+        title={control.enabled ? `${describeSlot(slot)}${belongs} · yerini değiştir` : control.disabledReason}
         disabled={!control.enabled}
         onClick={() => setOpen((o) => !o)}
       >
@@ -460,7 +540,9 @@ function SlotPicker({
               aria-label={`${n}. slot${holder && !mine ? `, ${holder.username} ile yer değiştir` : ""}${n === home ? " (yeri)" : ""}`}
               onClick={() => !mine && onPlace(n, null)}
             >
-              <span className={`slot-picker-number${holder?.team ? ` is-team-${holder.team}` : ""}`}>{n}</span>
+              <span className={`room-player-slot is-small${holder?.team ? ` is-team-${holder.team}` : holder ? "" : " is-free"}`}>
+                {n}
+              </span>
               <span className="slot-picker-holder">{mine ? "burada" : (holder?.username ?? "boş")}</span>
               {n === home && <span className="slot-picker-home">yeri</span>}
             </button>

@@ -8,7 +8,7 @@ import "./MatchScore.css";
  * pick follows the rules (see nextPicker) until the referee chooses the other team.
  */
 export function AnnounceScore({ referee }: { referee: RefereeRoomState }) {
-  const { room, teams, tally, nextPick, inChannel, actions } = referee;
+  const { room, teams, tally, nextPick, inChannel, canRun, actions } = referee;
   if (!room || !tally || teams.length !== 2) return null;
   const message = scoreMessage(teams, [tally.team1, tally.team2], nextPick);
   return (
@@ -23,6 +23,7 @@ export function AnnounceScore({ referee }: { referee: RefereeRoomState }) {
             type="button"
             className={`announce-team is-team-${team.color}`}
             aria-pressed={nextPick?.id === team.id}
+            disabled={!canRun || room.concluded_at !== null}
             onClick={() => actions.setNextPick(team.id)}
           >
             {team.name}

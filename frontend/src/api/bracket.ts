@@ -29,7 +29,7 @@ export const deleteBracketMatch = (id: string) => del(`/api/bracket/${id}`);
 /** Everyone a match's stream can be given to. */
 export const fetchStreamers = () => get<Player[]>("/api/streamers");
 
-// The match's referee, or a host. Linking, notes, concluding and the referee itself go
+// Any referee, or a host. Linking, notes, concluding and the referee itself go
 // through the shared match routes in ./matches.
 /** `maps`, from the referee page, replaces the map results the score was counted from. */
 export const setBracketScore = (

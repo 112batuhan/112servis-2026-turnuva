@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
-import { LiveMark } from "../../../components/LiveMark";
 import { splitMods, type MapResult } from "../../../lib/bancho";
 import type { ManualResult } from "../../../api/types";
 import { entryOf, poolEntries, type MatchData, type MatchTeam, type PoolEntry } from "./pool";
@@ -331,11 +330,7 @@ function ScoreStatus({ referee }: { referee: RefereeRoomState }) {
   if (room.concluded_at !== null) return <>Maç bitti</>;
   if (scoreSaving) return <>Kaydediliyor…</>;
   if (liveScore && scoreSaved) {
-    return (
-      <span className="sheet-live" title="Map bittikçe skor sitede güncellenir">
-        <LiveMark compact /> sitede
-      </span>
-    );
+    return <span title="Map bittikçe skor sitede güncellenir">Sitede güncel</span>;
   }
   if (canRun && !scoreSaved) {
     return (
@@ -484,8 +479,10 @@ function LobbyTotals({
  * A concluded match shows what was saved with its score, with nothing to change.
  */
 function ResultSource({ referee }: { referee: RefereeRoomState }) {
-  const { source, osuSyncedAt, syncing, busy, actions } = referee;
+  const { room, source, osuSyncedAt, syncing, busy, canRun, actions } = referee;
   if (source === "saved") return <span className="sheet-source">Skorla kaydedilen sonuçlar</span>;
+  // Shared by everyone on the page, so only those who run the match change it.
+  const locked = !canRun || room?.concluded_at != null;
   const at = osuSyncedAt
     ? new Date(osuSyncedAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
     : null;
@@ -495,7 +492,7 @@ function ResultSource({ referee }: { referee: RefereeRoomState }) {
       <button
         type="button"
         className="btn btn-secondary btn-sm"
-        disabled={syncing || busy}
+        disabled={syncing || busy || locked}
         title="Sonuçları osu!'nun maç kaydından (mp linki) al. Sohbet bir map'i kaçırdıysa düzeltir."
         onClick={actions.syncFromOsu}
       >
@@ -503,7 +500,7 @@ function ResultSource({ referee }: { referee: RefereeRoomState }) {
         {syncing ? "Okunuyor…" : source === "osu" ? "Yeniden oku" : "Maç linkinden eşitle"}
       </button>
       {source === "osu" && (
-        <button type="button" className="btn btn-secondary btn-sm" disabled={syncing || busy} onClick={actions.readFromChat}>
+        <button type="button" className="btn btn-secondary btn-sm" disabled={syncing || busy || locked} onClick={actions.readFromChat}>
           Sohbete dön
         </button>
       )}

@@ -6,6 +6,8 @@
 //! IRC credentials, which live only in memory until they're sent. It answers PINGs,
 //! paces outgoing lines and saves what's said in multiplayer rooms (see RoomLog);
 //! everything Bancho says goes to every tab, and the pages do all the match logic.
+//! What a page does in a room by itself (roomAutomation.ts) runs in one tab only,
+//! which this module picks among every tab that asks (see RoomRunners).
 
 use std::{
     collections::{BTreeSet, HashMap, VecDeque},
@@ -79,6 +81,9 @@ enum ClientMsg {
     Close { name: String },
     // Ends the Bancho connection, for every tab.
     Quit,
+    // Asks to run the room's automation (on), or stops asking (off). The tab is told
+    // whether it runs it, and again whenever that changes.
+    Automate { channel: String, on: bool },
 }
 
 // What the page receives.
@@ -136,6 +141,24 @@ enum ServerMsg {
     Closed {
         reason: String,
     },
+    // Whether this tab runs the room's automation. Only sent to the tab it's about.
+    Automation {
+        channel: String,
+        state: AutomationState,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum AutomationState {
+    // This tab runs it.
+    Running,
+    // Another tab runs it, or none can yet (nobody asking is in the channel); this
+    // tab is next in line.
+    Waiting,
+    // This tab can't run it (the match is concluded or gone) and isn't in line; it
+    // stops asking.
+    Refused,
 }
 
 // GET /api/irc — referees and up. Upgrades to the relay WebSocket.
@@ -240,17 +263,59 @@ async fn tab(mut socket: WebSocket, state: AppState, user_id: Uuid) {
         }
         _ => return close(socket, "login expected").await,
     };
-    pump(socket, attached).await;
+    let id = rand::random();
+    pump(socket, attached, &state, user_id, id).await;
+    state.room_runners.drop_tab(id);
 }
 
-async fn pump(mut socket: WebSocket, mut tab: Attached) {
+// A tab asks to run a room's automation: any referee or host can (only they reach the
+// relay), until the match is concluded. The tab is told where it stands.
+async fn claim_room(
+    state: &AppState,
+    user_id: Uuid,
+    tab: &Attached,
+    id: u64,
+    notify: &mpsc::UnboundedSender<ServerMsg>,
+    mp_id: i64,
+) -> Result<(), AppError> {
+    let m = db::matches::find_match_of_room(&state.db, mp_id).await?;
+    let Some(m) = m.filter(|m| !m.concluded()) else {
+        state.room_runners.unclaim(mp_id, id);
+        let _ = notify.send(ServerMsg::Automation {
+            channel: room_channel(mp_id),
+            state: AutomationState::Refused,
+        });
+        return Ok(());
+    };
+    state.room_runners.claim(
+        mp_id,
+        m.referee_id,
+        Claim {
+            tab: id,
+            user_id,
+            session: tab.session.clone(),
+            notify: notify.clone(),
+            state: None,
+        },
+    );
+    Ok(())
+}
+
+async fn pump(mut socket: WebSocket, mut tab: Attached, state: &AppState, user_id: Uuid, id: u64) {
     for msg in &tab.backlog {
         if !send(&mut socket, msg).await {
             return;
         }
     }
+    // What RoomRunners tells this tab alone.
+    let (notify, mut notices) = mpsc::unbounded_channel();
     loop {
         tokio::select! {
+            Some(msg) = notices.recv() => {
+                if !send(&mut socket, &msg).await {
+                    return;
+                }
+            }
             event = tab.events.recv() => match event {
                 Ok(json) => {
                     if socket.send(Message::Text(json.as_ref().clone())).await.is_err() {
@@ -279,6 +344,18 @@ async fn pump(mut socket: WebSocket, mut tab: Attached) {
                         Some(Command::Close(name))
                     }
                     Ok(ClientMsg::Quit) => Some(Command::Quit),
+                    Ok(ClientMsg::Automate { channel, on }) => {
+                        match room_id(&channel) {
+                            Some(mp_id) if on => {
+                                if let Err(err) = claim_room(state, user_id, &tab, id, &notify, mp_id).await {
+                                    tracing::error!(error = ?err, mp_id, "could not check who runs a room");
+                                }
+                            }
+                            Some(mp_id) => state.room_runners.unclaim(mp_id, id),
+                            None => {}
+                        }
+                        None
+                    }
                     _ => None,
                 };
                 if let Some(command) = command {
@@ -338,6 +415,7 @@ fn unix_ms() -> i64 {
 
 // A tab's handle on its session.
 struct Attached {
+    session: Arc<Session>,
     commands: mpsc::UnboundedSender<Command>,
     events: broadcast::Receiver<Arc<String>>,
     // Sent before anything from `events`.
@@ -345,7 +423,7 @@ struct Attached {
 }
 
 impl Session {
-    fn attach(&self) -> Option<Attached> {
+    fn attach(self: &Arc<Self>) -> Option<Attached> {
         let commands = self.commands.upgrade()?;
         let state = self.state.lock().unwrap();
         let mut backlog = Vec::new();
@@ -367,10 +445,17 @@ impl Session {
             }));
         }
         Some(Attached {
+            session: self.clone(),
             commands,
             events: state.events.subscribe(),
             backlog,
         })
+    }
+
+    // Whether the connection is up and in the room's channel, so it can act there.
+    fn in_room(&self, mp_id: i64) -> bool {
+        let state = self.state.lock().unwrap();
+        state.registered && state.channels.iter().any(|c| room_id(c) == Some(mp_id))
     }
 
     // Forgets a private conversation (by the other person's nick) and tells every tab.
@@ -522,6 +607,7 @@ impl IrcUsers {
             db: state.db.clone(),
             live: state.live.clone(),
             loggers: state.chat_loggers.clone(),
+            runners: state.room_runners.clone(),
             conn: rand::random(),
             user_id,
         };
@@ -584,6 +670,7 @@ async fn run_session(
     // No tab can join from here on; the ones still here get the reason and are closed.
     users.end(user_id, &session);
     log.release_all();
+    log.runners.session_ended(session.id);
     session.emit(&ServerMsg::Closed {
         reason: reason.to_string(),
     });
@@ -709,6 +796,12 @@ async fn run(
                         if let Some(msg) = to_server_msg(&line, nick) {
                             log.record(&msg).await;
                             session.emit(&msg);
+                            // Only a connection in a room's channel can run it.
+                            if let ServerMsg::Joined { channel } | ServerMsg::Parted { channel } = &msg {
+                                if let Some(mp_id) = room_id(channel) {
+                                    log.runners.refresh(mp_id);
+                                }
+                            }
                         }
                     }
                 }
@@ -755,6 +848,8 @@ struct RoomLog {
     db: PgPool,
     live: Live,
     loggers: ChatLoggers,
+    // Told when the connection joins or leaves a room's channel, and when it ends.
+    runners: RoomRunners,
     // Tells this connection apart in `loggers`.
     conn: u64,
     user_id: Uuid,
@@ -762,6 +857,170 @@ struct RoomLog {
 
 fn room_id(channel: &str) -> Option<i64> {
     channel.strip_prefix("#mp_")?.parse().ok()
+}
+
+fn room_channel(mp_id: i64) -> String {
+    format!("#mp_{mp_id}")
+}
+
+// Which tab runs each room's automation (roomAutomation.ts: placing players, kicking
+// whoever doesn't belong, !mp settings as maps start), by room id. Every referee page
+// running the match asks for it, and one of them gets it, so it runs once however many
+// referee pages are open in however many browsers. Only a tab whose Bancho connection
+// is in the room's channel can run it. The match's own referee comes before everyone
+// else; otherwise whoever has it keeps it until they leave the channel or close the tab, and
+// then it goes to the next in line by the order they asked.
+#[derive(Clone, Default)]
+pub struct RoomRunners(Arc<Mutex<HashMap<i64, RunnerRoom>>>);
+
+struct RunnerRoom {
+    // The match's referee, as of the last ask or referee change.
+    referee: Option<Uuid>,
+    // In the order they asked.
+    claims: Vec<Claim>,
+}
+
+struct Claim {
+    tab: u64,
+    user_id: Uuid,
+    session: Arc<Session>,
+    notify: mpsc::UnboundedSender<ServerMsg>,
+    // What the tab was last told; None until it's told anything.
+    state: Option<AutomationState>,
+}
+
+// Who runs a room, given each claim in the order they asked: (runs it now, can run it,
+// is the match's referee). The match's referee first, then whoever runs it already,
+// then the first who can.
+fn pick_runner(claims: &[(bool, bool, bool)]) -> Option<usize> {
+    let can = |i: &usize| claims[*i].1;
+    let all = || (0..claims.len()).filter(can);
+    let current = all().find(|&i| claims[i].0);
+    if current.is_some_and(|i| claims[i].2) {
+        return current;
+    }
+    all()
+        .find(|&i| claims[i].2)
+        .or(current)
+        .or_else(|| all().next())
+}
+
+impl RunnerRoom {
+    // Picks the runner again and tells every tab whose standing changed.
+    fn settle(&mut self, mp_id: i64) {
+        let facts: Vec<_> = self
+            .claims
+            .iter()
+            .map(|c| {
+                (
+                    c.state == Some(AutomationState::Running),
+                    c.session.in_room(mp_id),
+                    Some(c.user_id) == self.referee,
+                )
+            })
+            .collect();
+        let runner = pick_runner(&facts);
+        for (i, claim) in self.claims.iter_mut().enumerate() {
+            let state = if Some(i) == runner {
+                AutomationState::Running
+            } else {
+                AutomationState::Waiting
+            };
+            if claim.state != Some(state) {
+                claim.state = Some(state);
+                let _ = claim.notify.send(ServerMsg::Automation {
+                    channel: room_channel(mp_id),
+                    state,
+                });
+            }
+        }
+    }
+}
+
+impl RoomRunners {
+    // Runs `change` on the room's claims, settles who runs it and forgets a room
+    // nobody asks for any more.
+    fn with_room(&self, mp_id: i64, change: impl FnOnce(&mut RunnerRoom)) {
+        let mut rooms = self.0.lock().unwrap();
+        let Some(room) = rooms.get_mut(&mp_id) else {
+            return;
+        };
+        change(room);
+        room.settle(mp_id);
+        if room.claims.is_empty() {
+            rooms.remove(&mp_id);
+        }
+    }
+
+    fn claim(&self, mp_id: i64, referee: Option<Uuid>, claim: Claim) {
+        self.0
+            .lock()
+            .unwrap()
+            .entry(mp_id)
+            .or_insert_with(|| RunnerRoom {
+                referee,
+                claims: Vec::new(),
+            });
+        self.with_room(mp_id, |room| {
+            room.referee = referee;
+            // Asking again keeps the tab's place in line.
+            match room.claims.iter_mut().find(|c| c.tab == claim.tab) {
+                Some(existing) => existing.notify = claim.notify,
+                None => room.claims.push(claim),
+            }
+        });
+    }
+
+    fn unclaim(&self, mp_id: i64, tab: u64) {
+        self.with_room(mp_id, |room| room.claims.retain(|c| c.tab != tab));
+    }
+
+    fn drop_tab(&self, tab: u64) {
+        let rooms: Vec<i64> = self.0.lock().unwrap().keys().copied().collect();
+        for mp_id in rooms {
+            self.unclaim(mp_id, tab);
+        }
+    }
+
+    // A connection joined or left the room's channel.
+    fn refresh(&self, mp_id: i64) {
+        self.with_room(mp_id, |_| {});
+    }
+
+    // A Bancho connection ended: its tabs can't run anything any more.
+    fn session_ended(&self, session: u32) {
+        let rooms: Vec<i64> = self.0.lock().unwrap().keys().copied().collect();
+        for mp_id in rooms {
+            self.with_room(mp_id, |room| {
+                room.claims.retain(|c| c.session.id != session)
+            });
+        }
+    }
+
+    // The match these rooms belong to has a new referee (or none): they come first now.
+    pub fn set_referee(&self, mp_ids: &[i64], referee: Option<Uuid>) {
+        for &mp_id in mp_ids {
+            self.with_room(mp_id, |room| room.referee = referee);
+        }
+    }
+
+    // The match these rooms belong to was concluded or deleted: nobody runs them.
+    pub fn close(&self, mp_ids: &[i64]) {
+        for &mp_id in mp_ids {
+            self.with_room(mp_id, |room| {
+                for c in room.claims.drain(..) {
+                    refuse(&c, mp_id);
+                }
+            });
+        }
+    }
+}
+
+fn refuse(claim: &Claim, mp_id: i64) {
+    let _ = claim.notify.send(ServerMsg::Automation {
+        channel: room_channel(mp_id),
+        state: AutomationState::Refused,
+    });
 }
 
 impl RoomLog {
@@ -880,6 +1139,50 @@ mod tests {
     use super::*;
 
     #[test]
+    fn referee_runs_the_room_before_others() {
+        // (runs it now, can run it, is the referee)
+        // A host or another referee runs it; the match's referee joins the channel and
+        // takes over.
+        assert_eq!(
+            pick_runner(&[(true, true, false), (false, true, true)]),
+            Some(1)
+        );
+        // The referee isn't in the channel yet: the host keeps it.
+        assert_eq!(
+            pick_runner(&[(true, true, false), (false, false, true)]),
+            Some(0)
+        );
+        // A referee who runs it keeps it.
+        assert_eq!(
+            pick_runner(&[(false, true, false), (true, true, true)]),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn runner_keeps_the_room_until_it_cant() {
+        // A host who runs it isn't displaced by one who asked first.
+        assert_eq!(
+            pick_runner(&[(false, true, false), (true, true, false)]),
+            Some(1)
+        );
+        // Once it left the channel, the first in line who can takes over.
+        assert_eq!(
+            pick_runner(&[
+                (false, false, false),
+                (true, false, false),
+                (false, true, false)
+            ]),
+            Some(2)
+        );
+        assert_eq!(
+            pick_runner(&[(false, false, true), (false, false, false)]),
+            None
+        );
+        assert_eq!(pick_runner(&[]), None);
+    }
+
+    #[test]
     fn parses_privmsg() {
         let line = parse(":BanchoBot!cho@ppy.sh PRIVMSG #mp_1 :Slot 1  Ready").unwrap();
         assert_eq!(line.nick, Some("BanchoBot"));
@@ -922,7 +1225,7 @@ mod tests {
     #[test]
     fn later_tabs_catch_up() {
         let (commands, _rx) = mpsc::unbounded_channel();
-        let session = Session {
+        let session = Arc::new(Session {
             id: 1,
             nick: "Ref".into(),
             commands: commands.downgrade(),
@@ -933,7 +1236,7 @@ mod tests {
                 private: VecDeque::new(),
                 private_count: 0,
             }),
-        };
+        });
         let mut first = session.attach().unwrap();
         session.emit(&ServerMsg::Connected {
             nick: "Ref".into(),

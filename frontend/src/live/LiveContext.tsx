@@ -5,9 +5,10 @@ import { useAuth } from "../auth/AuthContext";
 
 // One WebSocket per tab to the server's live hub (handlers/live.rs): score changes as
 // they're saved, a signal to reload the bracket when anything else about it changes,
-// and, for staff, who has each match's referee page open. Pages subscribe to the
+// and, for staff, who has each match's referee page open and what changed on it. Pages subscribe to the
 // events; the referee page says which match it shows, and the public match page which
-// match's room chat it wants (`watch`). It reconnects on its own and
+// match's room chat it wants (`watch`), which also counts the tab among that match's
+// spectators and sends it who else is watching. It reconnects on its own and
 // again whenever the signed-in user changes, since the server reads who it is once.
 
 export type LiveEvent =
@@ -15,19 +16,31 @@ export type LiveEvent =
   | { type: "bracket" }
   /** Something about one match the bracket doesn't show changed (bans, picks, a lobby's teams). */
   | { type: "match"; match_id: string }
+  /** Staff: something only the referee page shows changed (room options, "Sayma", the results source). */
+  | { type: "referee"; match_id: string }
   /** A line said in a room of the watched match, as it was saved. */
   | { type: "chat"; mp_id: number; message: RoomChatMessage };
 
 type ServerMsg =
   | LiveEvent
   | { type: "presence"; match_id: string; viewers: RefereeViewer[] }
-  | { type: "presence_all"; matches: Record<string, RefereeViewer[]> };
+  | { type: "presence_all"; matches: Record<string, RefereeViewer[]> }
+  | ({ type: "spectators" } & Spectators);
+
+/** Who has the watched match's public page open: signed-in users by name, each once, and the tabs nobody is signed in on. */
+export interface Spectators {
+  match_id: string;
+  viewers: RefereeViewer[];
+  guests: number;
+}
 
 interface LiveState {
   /** The socket is open, so pages don't need to poll. */
   connected: boolean;
   /** Who has each match's referee page open, by match id. Staff only; empty for everyone else. */
   presence: ReadonlyMap<string, RefereeViewer[]>;
+  /** Who is watching the match this tab watches, this tab included; null until the server says. */
+  spectators: Spectators | null;
   /** Calls `handler` with every score and bracket event; returns the unsubscribe. */
   subscribe: (handler: (event: LiveEvent) => void) => () => void;
   /** Tells the server this tab shows the match's referee page (or none). */
@@ -48,6 +61,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [connected, setConnected] = useState(false);
   const [presence, setPresence] = useState<ReadonlyMap<string, RefereeViewer[]>>(new Map());
+  const [spectators, setSpectators] = useState<Spectators | null>(null);
   const handlers = useRef(new Set<(event: LiveEvent) => void>());
   const socket = useRef<WebSocket | null>(null);
   const viewing = useRef<string | null>(null);
@@ -115,6 +129,9 @@ export function LiveProvider({ children }: { children: ReactNode }) {
             else next.delete(msg.match_id);
             return next;
           });
+        } else if (msg.type === "spectators") {
+          // A list for a match this tab has since left is dropped.
+          if (msg.match_id === watching.current) setSpectators({ match_id: msg.match_id, viewers: msg.viewers, guests: msg.guests });
         } else {
           for (const handler of handlers.current) handler(msg);
         }
@@ -123,6 +140,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         if (socket.current === ws) socket.current = null;
         setConnected(false);
         setPresence(new Map());
+        setSpectators(null);
         if (closed) return;
         reconnecting = true;
         timer = window.setTimeout(connect, retry);
@@ -155,6 +173,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
 
   const watch = useCallback(
     (matchId: string | null) => {
+      if (matchId !== watching.current) setSpectators(null);
       watching.current = matchId;
       sendWatch();
     },
@@ -162,8 +181,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ connected, presence, subscribe, setViewing, watch }),
-    [connected, presence, subscribe, setViewing, watch],
+    () => ({ connected, presence, spectators, subscribe, setViewing, watch }),
+    [connected, presence, spectators, subscribe, setViewing, watch],
   );
   return <LiveContext.Provider value={value}>{children}</LiveContext.Provider>;
 }
@@ -193,8 +212,8 @@ export function useLiveBracket(onScore: (event: Extract<LiveEvent, { type: "scor
         callbacks.current.onScore(event);
         return;
       }
-      // Neither changes what the bracket shows.
-      if (event.type === "match" || event.type === "chat") return;
+      // None of them changes what the bracket shows.
+      if (event.type === "match" || event.type === "referee" || event.type === "chat") return;
       window.clearTimeout(timer);
       timer = window.setTimeout(() => callbacks.current.onChanged(), RELOAD_DELAY_MS);
     });

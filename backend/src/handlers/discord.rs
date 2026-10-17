@@ -217,7 +217,7 @@ pub struct PingBody {
     user_id: Uuid,
 }
 
-// POST /api/matches/:id/ping — the match's referee (or a host) pings one of its
+// POST /api/matches/:id/ping — a referee (or a host) pings one of its
 // players in the match's Discord channel, at most every 30 seconds per player.
 pub async fn ping(
     State(state): State<AppState>,
@@ -225,8 +225,9 @@ pub async fn ping(
     Path(id): Path<Uuid>,
     Json(body): Json<PingBody>,
 ) -> Result<impl IntoResponse, AppError> {
-    let m = load_match(&state, id).await?;
-    require_runs(&user, &m)?;
+    require_runs(&user)?;
+    // The match has to exist.
+    load_match(&state, id).await?;
     let Some(bot) = state.discord.bot() else {
         return Err(AppError::Conflict("the Discord bot isn't set up"));
     };

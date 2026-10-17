@@ -116,6 +116,7 @@ const RE = {
   moved: /^(.+) moved to slot (\d+)$/,
   changedTeam: /^(.+) changed to (Red|Blue)$/,
   left: /^(.+) left the game\.$/,
+  kicked: /^Kicked (.+) from the match\.$/,
   becameHost: /^(.+) became the host\.$/,
   changedHost: /^Changed match host to (.+)$/,
   changedBeatmap: new RegExp(String.raw`^Changed beatmap to ${OSU}/b/(\d+) (.*)$`),
@@ -130,6 +131,12 @@ const RE = {
 export function parseCreated(text: string): { mpId: number; name: string } | null {
   const m = RE.created.exec(text);
   return m ? { mpId: Number(m[1]), name: m[2] } : null;
+}
+
+/** BanchoBot announcing someone leaving the room, or being kicked from it: their name. */
+export function parseLeft(text: string): string | null {
+  const m = RE.left.exec(text) ?? RE.kicked.exec(text);
+  return m ? m[1] : null;
 }
 
 /** BanchoBot announcing a player joining the room. */
@@ -263,7 +270,7 @@ export function applyBancho(room: RoomState, text: string): RoomState {
     const team = m[2].toLowerCase() as SlotTeam;
     return withSlot(room, m[1], (s) => ({ ...s, team }));
   }
-  if ((m = RE.left.exec(text))) {
+  if ((m = RE.left.exec(text)) || (m = RE.kicked.exec(text))) {
     const name = m[1];
     return { ...room, slots: room.slots.filter((s) => !sameName(s.username, name)) };
   }
@@ -441,6 +448,23 @@ export function moveCommands(
   if (team !== null && team !== mover.team) commands.push(`!mp team ${slotRef(mover)} ${team}`);
   return commands;
 }
+
+/** Someone allowed in the room: one of the match's players, or a host, referee or streamer. */
+export interface RoomMember {
+  osuId: number;
+  username: string;
+}
+
+/**
+ * Whether someone in the room is one of `members`: by osu! id once it's known (so a player who
+ * renamed is still theirs), by name until then.
+ */
+export function isMember(slot: Pick<RoomSlot, "username" | "userId">, members: RoomMember[]): boolean {
+  return members.some((m) => (slot.userId !== null ? slot.userId === m.osuId : sameName(slot.username, m.username)));
+}
+
+/** Removes someone from the room. */
+export const kickCommand = (slot: Pick<RoomSlot, "userId" | "username">) => `!mp kick ${slotRef(slot)}`;
 
 /** A bracket match's slots and players, for moveCommands and placeCommands. */
 export function matchSlots(players: Pick<Placement, "osuId" | "username">[]): MatchSlots {

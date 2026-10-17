@@ -1,0 +1,149 @@
+/* Who is watching: the right half of the header's live capsule. The count is an ink figure, the eye
+   and the word muted, so "Canlı" stays the loudest thing in the row. */
+.match-spectators {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--space-4) 0 var(--space-3);
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+
+.match-spectators:hover,
+.match-spectators[aria-expanded="true"] {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.match-spectators:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.match-spectators-count {
+  color: var(--color-text);
+  font-size: var(--text-xl);
+  font-weight: 800;
+}
+
+/* On a narrow phone the word goes; the eye and the figure say it, and the label still reads it. */
+@container referee-page (max-width: 420px) {
+  .match-spectators-label {
+    display: none;
+  }
+}
+
+/* A bigger hit target on touch, without growing the pill in the header line. */
+@media (pointer: coarse) {
+  .match-spectators {
+    position: relative;
+  }
+
+  .match-spectators::after {
+    content: "";
+    position: absolute;
+    inset: -4px 0;
+  }
+}
+
+/* The list floats over the cockpit, like the bracket's popovers. */
+.match-spectators-list {
+  position: fixed;
+  z-index: 230;
+  display: flex;
+  flex-direction: column;
+  width: min(280px, calc(100vw - 24px));
+  max-height: min(380px, calc(100svh - 24px));
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-popover);
+}
+
+.match-spectators-head {
+  margin: 0;
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  border-bottom: 1px solid var(--color-border);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.match-spectators-head .num {
+  font-weight: 800;
+}
+
+.match-spectators-list ul {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin: 0;
+  padding: var(--space-1) 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  scrollbar-color: var(--color-border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.match-spectators-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: 5px var(--space-3);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.match-spectators-list img {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--color-surface);
+}
+
+.match-spectators-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.match-spectators-self {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.match-spectators-guests,
+.match-spectators-note {
+  margin: 0;
+  padding: 0 var(--space-3);
+}
+
+.match-spectators-guests {
+  padding-top: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.match-spectators-list ul + .match-spectators-guests {
+  border-top: 1px solid var(--color-border);
+}
+
+.match-spectators-note {
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-3);
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+}

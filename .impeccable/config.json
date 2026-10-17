@@ -29,6 +29,15 @@
         ],
         "createdAt": "2026-10-15T15:32:11.081Z",
         "reason": "Agent: the public pool's mod-colour top rule sits on a section whose radius is reset to 0 in the same rule"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "frontend/src/pages/admin/referee/RoomPlayers.css"
+        ],
+        "createdAt": "2026-10-17T01:57:29.104Z",
+        "reason": "Claude triage: flagged rules are 3px bottom/top inset rules (team-colour underline on slot chips like the score halves, and top edge marking the blue 1-2 / red 3-4 zones in the slot picker), per DESIGN.md's team-colour underline and ruled-top conventions; not side borders"
       }
     ]
   }

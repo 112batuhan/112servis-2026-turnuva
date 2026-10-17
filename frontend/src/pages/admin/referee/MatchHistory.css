@@ -63,12 +63,6 @@
   font-size: var(--text-sm);
 }
 
-.sheet-live {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
 .sheet-team {
   display: flex;
   flex-direction: column;

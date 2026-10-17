@@ -491,9 +491,14 @@ pub async fn delete_match(
     // Its public announcement, if it had one, stays and says it was cancelled.
     let stored = db::discord::match_discord(&state.db, id).await?;
     let info = db::discord::match_info(&state.db, id).await?;
+    let rooms = db::matches::find_match(&state.db, id)
+        .await?
+        .map(|m| m.mp_ids)
+        .unwrap_or_default();
     if !db::bracket::delete_match(&state.db, id).await? {
         return Err(AppError::NotFound);
     }
+    state.room_runners.close(&rooms);
     let mut jobs = Vec::new();
     if let Some(channel_id) = channel {
         jobs.push(Job::ArchiveChannel {
@@ -525,7 +530,7 @@ pub struct ScoreBody {
     maps: Option<Vec<MapResultRow>>,
 }
 
-// PUT /api/bracket/:id/score — the match's referee or a host enters the score, and
+// PUT /api/bracket/:id/score — a referee or a host enters the score, and
 // from the referee page the map results behind it. The score decides who moves on,
 // so a concluded match has to be reopened first.
 pub async fn set_score(
@@ -538,7 +543,7 @@ pub async fn set_score(
     if m.kind != MatchKind::Bracket {
         return Err(AppError::NotFound);
     }
-    require_runs(&user, &m)?;
+    require_runs(&user)?;
     let valid = |score: Option<i32>| score.is_none_or(|s| (0..=SCORE_MAX).contains(&s));
     if !valid(body.team1_score) || !valid(body.team2_score) {
         return Err(AppError::BadRequest("scores must be between 0 and 99"));
@@ -606,7 +611,7 @@ pub struct MapTeamBody {
     team_id: Uuid,
 }
 
-// Bans and picks are marked by the match's referee or a host until the match is
+// Bans and picks are marked by a referee or a host until the match is
 // concluded (hosts any time), for one of its two teams and a map of its pool.
 async fn check_map_team(
     state: &AppState,
@@ -619,7 +624,7 @@ async fn check_map_team(
     if m.kind != MatchKind::Bracket {
         return Err(AppError::NotFound);
     }
-    require_runs(user, &m)?;
+    require_runs(user)?;
     require_unconcluded(user, &m)?;
     let teams = db::bracket::find_match(&state.db, id)
         .await?
@@ -636,7 +641,7 @@ async fn check_map_team(
 // Taking a ban or pick back: the same people, on the same terms.
 async fn check_unmark(state: &AppState, user: &AuthUser, id: Uuid) -> Result<(), AppError> {
     let m = load_match(state, id).await?;
-    require_runs(user, &m)?;
+    require_runs(user)?;
     require_unconcluded(user, &m)
 }
 
@@ -652,6 +657,8 @@ pub async fn set_ban(
     if !db::bracket::set_ban(&state.db, id, map_id, body.team_id).await? {
         return Err(AppError::Conflict("that map has been picked"));
     }
+    // The rules say whose pick is next again.
+    db::referee::clear_next_pick(&state.db, id).await?;
     state.live.match_changed(id);
     Ok(StatusCode::NO_CONTENT)
 }
@@ -666,6 +673,8 @@ pub async fn remove_ban(
     if !db::bracket::delete_ban(&state.db, id, map_id).await? {
         return Err(AppError::NotFound);
     }
+    // The rules say whose pick is next again.
+    db::referee::clear_next_pick(&state.db, id).await?;
     state.live.match_changed(id);
     Ok(StatusCode::NO_CONTENT)
 }
@@ -682,6 +691,8 @@ pub async fn set_pick(
     if !db::bracket::set_pick(&state.db, id, map_id, body.team_id).await? {
         return Err(AppError::Conflict("that map is banned"));
     }
+    // The rules say whose pick is next again.
+    db::referee::clear_next_pick(&state.db, id).await?;
     state.live.match_changed(id);
     Ok(StatusCode::NO_CONTENT)
 }
@@ -696,6 +707,8 @@ pub async fn remove_pick(
     if !db::bracket::delete_pick(&state.db, id, map_id).await? {
         return Err(AppError::NotFound);
     }
+    // The rules say whose pick is next again.
+    db::referee::clear_next_pick(&state.db, id).await?;
     state.live.match_changed(id);
     Ok(StatusCode::NO_CONTENT)
 }
@@ -831,7 +844,7 @@ pub struct ForfeitBody {
     slot: i16,
 }
 
-// POST /api/bracket/:id/forfeit — the match's referee or a host concludes it by
+// POST /api/bracket/:id/forfeit — a referee or a host concludes it by
 // forfeit: a team didn't show up or the match couldn't be finished. The other team
 // moves on as the winner. Needs both teams, but no room or score.
 pub async fn forfeit(
@@ -844,11 +857,12 @@ pub async fn forfeit(
     if m.kind != MatchKind::Bracket {
         return Err(AppError::NotFound);
     }
-    require_runs(&user, &m)?;
+    require_runs(&user)?;
     if !(1..=2).contains(&body.slot) {
         return Err(AppError::BadRequest("slot must be 1 or 2"));
     }
     conclude(&state, id, Some(body.slot)).await?;
+    state.room_runners.close(&m.mp_ids);
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }
@@ -862,14 +876,14 @@ pub struct ManualResultBody {
     note: String,
 }
 
-// Hand-awarded map wins change the score, so like the score they're for the match's
-// referee or a host, and fixed once it's concluded.
+// Hand-awarded map wins change the score, so like the score they're for a referee or
+// a host, and fixed once it's concluded.
 async fn check_results(state: &AppState, user: &AuthUser, id: Uuid) -> Result<(), AppError> {
     let m = load_match(state, id).await?;
     if m.kind != MatchKind::Bracket {
         return Err(AppError::NotFound);
     }
-    require_runs(user, &m)?;
+    require_runs(user)?;
     if m.concluded() {
         return Err(AppError::Conflict(
             "this match is concluded, reopen it to change its results",

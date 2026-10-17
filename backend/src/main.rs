@@ -43,6 +43,7 @@ pub struct AppState {
     pub rank_refresh_lock: Arc<tokio::sync::Mutex<()>>,
     // Which IRC relay connection saves each multiplayer room's chat.
     pub chat_loggers: handlers::irc::ChatLoggers,
+    pub room_runners: handlers::irc::RoomRunners,
     // Each user's Bancho IRC connection, shared by their tabs, and failed logins.
     pub irc_users: handlers::irc::IrcUsers,
     // Every open page's live socket: score pushes and referee-page presence.
@@ -92,6 +93,7 @@ async fn main() {
         osu_app_token: Arc::new(Mutex::new(None)),
         rank_refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
         chat_loggers: handlers::irc::ChatLoggers::default(),
+        room_runners: handlers::irc::RoomRunners::default(),
         irc_users: handlers::irc::IrcUsers::default(),
         live: handlers::live::Live::default(),
         discord: discord::Discord::new(&config.discord_bot),

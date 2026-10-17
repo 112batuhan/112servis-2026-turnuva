@@ -491,6 +491,23 @@ export interface RefereeRoom {
   map_results: MapResultRow[];
   /** The match has a Discord channel: clicking a player's Discord name pings them there. */
   discord_channel: boolean;
+  /** What the referee page keeps about the match, the same for every referee and host on it. */
+  settings: RoomSettings;
+  /** The finished maps left out of the score ("Sayma"), by the referee page's key for them. */
+  ignored_maps: string[];
+}
+
+/** The referee page's room options, results source and pick override for a match. */
+export interface RoomSettings {
+  /** !mp set's score mode (0 score, 1 accuracy, 2 combo, 3 Score V2). */
+  score_mode: number;
+  no_fail: boolean;
+  auto_place: boolean;
+  auto_kick: boolean;
+  /** When the results were last synced from osu!'s record of the rooms; null reads them from the chat. */
+  osu_synced_at: string | null;
+  /** The team the referee said picks next, overriding the rules until the next ban or pick. */
+  next_pick_team_id: string | null;
 }
 
 /** The stage a match is played in, which sets its map pool. */
@@ -533,6 +550,8 @@ export interface PublicMatch {
   picks: MapPick[];
   manual_results: ManualResult[];
   map_results: MapResultRow[];
+  /** The team the referee said picks next, overriding the rules until the next ban or pick. */
+  next_pick_team_id: string | null;
 }
 
 /** Someone who has a match's referee page open (sent live to staff). */

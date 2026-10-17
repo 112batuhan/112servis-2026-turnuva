@@ -118,6 +118,15 @@ export function nextPicker(room: Pick<MatchData, "bans" | "picks">, teams: Match
   return last ? (teams.find((t) => t.id !== last.team_id) ?? null) : null;
 }
 
+/** Whose pick is next: the team the referee said (`chosen`, until the next ban or pick), or as the rules say. */
+export function pickTurn(
+  room: Pick<MatchData, "bans" | "picks">,
+  teams: MatchTeam[],
+  chosen: string | null,
+): MatchTeam | null {
+  return teams.find((t) => t.id === chosen) ?? nextPicker(room, teams);
+}
+
 /** The line the referee sends to the room: "Skor: Team A 2 - 1 Team B | Sıradaki pick: Team B". */
 export function scoreMessage(teams: MatchTeam[], score: [number, number], next: MatchTeam | null): string {
   const line = `Skor: ${teams[0].name} ${score[0]} - ${score[1]} ${teams[1].name}`;

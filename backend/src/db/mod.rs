@@ -11,6 +11,7 @@ pub mod mappool;
 pub mod matches;
 pub mod notifications;
 pub mod ranks;
+pub mod referee;
 pub mod reschedule;
 pub mod rules;
 pub mod session;

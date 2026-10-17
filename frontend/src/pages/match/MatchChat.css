@@ -100,10 +100,6 @@
   background: var(--color-warning);
 }
 
-.match-chat-foot.is-live::before {
-  background: var(--color-success);
-}
-
 .match-chat-foot.is-saved::before {
   background: var(--color-text-subtle);
 }

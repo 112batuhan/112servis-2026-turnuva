@@ -20,7 +20,7 @@ export const unassignTeam = (teamId: string) => del(`/api/teams/${teamId}/qualif
 /** Everyone a match can be given to. */
 export const fetchReferees = () => get<Player[]>("/api/referees");
 
-// The match's referee, or a host.
+// Referees and hosts.
 /** A referee passes their own id to take a match or null to give it up; hosts can pick anyone. */
 export const setReferee = (matchId: string, refereeId: string | null) =>
   put<void>(`/api/matches/${matchId}/referee`, { referee_id: refereeId });

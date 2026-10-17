@@ -5,7 +5,7 @@ import type { Player, PublicMatch, RoomChatMessage } from "../../api/types";
 import type { ChatLine } from "../../irc/IrcContext";
 import { useLive } from "../../live/LiveContext";
 import { EMPTY_ROOM, sameName, type RoomSlot, type RoomState } from "../../lib/bancho";
-import { BAN_LIMIT, entryOf, matchTeams, nextPicker, poolEntries, type MatchTeam } from "../admin/referee/pool";
+import { BAN_LIMIT, entryOf, matchTeams, pickTurn, poolEntries, type MatchTeam } from "../admin/referee/pool";
 import { toChatLine } from "../admin/referee/roomChat";
 import {
   currentPoolEntry,
@@ -52,7 +52,7 @@ export function useMatchPage(matchId: string) {
   const [chat, setChat] = useState<ReadonlyMap<number, RoomChatMessage[]>>(new Map());
   // Whether the saved chat has arrived once, so what it holds isn't counted as new.
   const [chatLoaded, setChatLoaded] = useState(false);
-  const { subscribe, watch, connected } = useLive();
+  const { subscribe, watch, connected, spectators: watchers } = useLive();
 
   const reload = useCallback(async () => {
     try {
@@ -205,7 +205,10 @@ export function useMatchPage(matchId: string) {
     ]);
   }, [match, finished]);
 
-  const nextPick = match && live && match.bans.length >= BAN_LIMIT ? nextPicker(match, teams) : null;
+  // Who is watching with this tab, only while the match is live (that's when it's watched).
+  const spectators = live && watchers?.match_id === matchId ? watchers : null;
+
+  const nextPick = match && live && match.bans.length >= BAN_LIMIT ? pickTurn(match, teams, match.next_pick_team_id) : null;
 
   return {
     match,
@@ -224,6 +227,7 @@ export function useMatchPage(matchId: string) {
     played,
     live,
     nextPick,
+    spectators,
   };
 }
 

@@ -63,10 +63,10 @@ export function MatchPanel({
   const { busy } = editor;
   const code = matchCode(match);
   const concluded = match.concluded_at !== null;
-  const isMine = match.referee?.id === user.id;
-  // The match's referee runs it; hosts can run any match, also after it's concluded.
-  const canRun = isHost || isMine;
-  const canEdit = isHost || (isMine && !concluded);
+  // Any referee can run any match (its own referee is the one Discord pings); hosts also
+  // after it's concluded.
+  const canRun = hasRole(user, "referee");
+  const canEdit = isHost || (canRun && !concluded);
   const team = (id: string | null) => (id ? teams.get(id) : undefined);
   const slotSources = sources.get(match.id) ?? [null, null];
 

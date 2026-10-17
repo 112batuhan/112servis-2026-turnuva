@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/pages/admin/referee/RoomPlayers.css"
+        ],
+        "createdAt": "2026-10-17T02:04:44.081Z",
+        "reason": "Claude triage: same as the frontend/-prefixed entry; the hook reports this file relative to frontend/. Flagged rules are 3px top inset edges marking the blue 1-2 / red 3-4 slot zones in the slot picker, per DESIGN.md's team-colour conventions; not side borders"
+      }
+    ]
+  }
+}

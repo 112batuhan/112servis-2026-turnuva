@@ -1,4 +1,4 @@
-import { API_URL, get } from "./client";
+import { API_URL, get, put } from "./client";
 import type { OsuRoomGames, RefereeRoom, RoomChat } from "./types";
 
 // Referees and up.
@@ -7,6 +7,21 @@ export const fetchRefereeRoom = (matchId: string) => get<RefereeRoom>(`/api/matc
 export const fetchRoomChat = (matchId: string) => get<RoomChat[]>(`/api/matches/${matchId}/chat`);
 /** Each of the match's rooms as osu! recorded it, for when the chat missed something. */
 export const fetchOsuGames = (matchId: string) => get<OsuRoomGames[]>(`/api/matches/${matchId}/osu-games`);
+
+// Any referee, or a host: what the referee page keeps, shared by everyone on it.
+export const setRoomOptions = (
+  matchId: string,
+  options: { score_mode: number; no_fail: boolean; auto_place: boolean; auto_kick: boolean },
+) => put<void>(`/api/matches/${matchId}/room-options`, options);
+/** Counts the results from osu!'s record of the rooms (again) or from their chat; returns when it was synced. */
+export const setResultsSource = (matchId: string, osu: boolean) =>
+  put<{ osu_synced_at: string | null }>(`/api/matches/${matchId}/results-source`, { osu });
+/** Whose pick is next, until the next ban or pick; null goes back to the rules. */
+export const setNextPick = (matchId: string, teamId: string | null) =>
+  put<void>(`/api/matches/${matchId}/next-pick`, { team_id: teamId });
+/** Leaves a finished map out of the score ("Sayma"), or counts it again. */
+export const setIgnoredMap = (matchId: string, key: string, ignored: boolean) =>
+  put<void>(`/api/matches/${matchId}/ignored-maps`, { key, ignored });
 
 /** The Bancho IRC relay's WebSocket (backend/src/handlers/irc.rs). */
 export function ircSocketUrl(): string {

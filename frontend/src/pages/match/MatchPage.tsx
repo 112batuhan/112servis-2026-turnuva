@@ -14,8 +14,10 @@ import { BAN_LIMIT, poolEntries } from "../admin/referee/pool";
 import { PoolView } from "../admin/referee/PoolPanel";
 import { CockpitTabs, panelProps, TABS, useCockpit } from "../admin/referee/RefereeRoomPage";
 import { PlayersView } from "../admin/referee/RoomPlayers";
+import { staffRole, useRoomStaff } from "../admin/referee/roomStaff";
 import { roomLabel } from "../admin/referee/useRefereeRoom";
 import { MatchChat } from "./MatchChat";
+import { MatchSpectators } from "./MatchSpectators";
 import { useMatchPage, type MatchPageState } from "./useMatchPage";
 import "../admin/referee/RefereeRoomPage.css";
 import "../admin/referee/LobbyPanel.css";
@@ -65,44 +67,57 @@ function MatchView({ matchId }: { matchId: string }) {
 
   return (
     <div className="page referee-page match-page" ref={pageRef}>
-      <header className="referee-header">
-        <Link to={bracket ? bracketMatchPath(match.id, false) : "/qualifiers"} className="referee-back">
-          {bracket ? "← Bracket" : "← Elemeler"}
-        </Link>
-        <h1 className="referee-title">
-          {roomLabel(match)}{" "}
-          {bracket ? (
-            <span className={named ? "sr-only" : "referee-title-teams"}>
-              {teamName(match.team1_id)} vs {teamName(match.team2_id)}
-            </span>
-          ) : (
-            <span className="referee-title-teams">· {match.teams.length} takım</span>
-          )}
-        </h1>
-        {page.live && <LiveMark />}
-        {match.concluded_at && (
-          <span className="badge badge-success">{match.forfeit_slot ? "Hükmen bitti" : "Bitti"}</span>
-        )}
-        <span className="referee-meta match-meta">
-          {match.starts_at && <time dateTime={match.starts_at}>{formatMatchTime(match.starts_at)}</time>}
-          {match.stage &&
-            (match.stage.published ? (
-              <Link to={`/mappool?stage=${match.stage.id}`}>{match.stage.name}</Link>
+      <header className="referee-header match-header">
+        <div className="match-header-lead">
+          <Link to={bracket ? bracketMatchPath(match.id, false) : "/qualifiers"} className="referee-back">
+            {bracket ? "← Bracket" : "← Elemeler"}
+          </Link>
+          <h1 className="referee-title">
+            {roomLabel(match)}{" "}
+            {bracket ? (
+              <span className={named ? "sr-only" : "referee-title-teams"}>
+                {teamName(match.team1_id)} vs {teamName(match.team2_id)}
+              </span>
             ) : (
-              <span>{match.stage.name}</span>
-            ))}
+              <span className="referee-title-teams">· {match.teams.length} takım</span>
+            )}
+          </h1>
+        </div>
+        <p className="referee-meta match-meta">
+          {match.starts_at && (
+            <time className="match-meta-time" dateTime={match.starts_at}>
+              {formatMatchTime(match.starts_at)}
+            </time>
+          )}
+          {match.stage && <span className="match-meta-value">{match.stage.name}</span>}
           <span>
-            Hakem:{" "}
+            Hakem{" "}
             {match.referee ? (
               <>
-                {match.referee.username} <DiscordMention player={match.referee} fallback="" />
+                <span className="match-meta-value">{match.referee.username}</span>{" "}
+                <DiscordMention player={match.referee} fallback="" />
               </>
             ) : (
               "henüz yok"
             )}
           </span>
-          {bracket && <span>Yayıncı: {match.streamer?.username ?? "henüz yok"}</span>}
-        </span>
+          {bracket && (
+            <span>
+              Yayıncı{" "}
+              {match.streamer ? <span className="match-meta-value">{match.streamer.username}</span> : "henüz yok"}
+            </span>
+          )}
+        </p>
+        {page.live ? (
+          <div className="match-onair">
+            <LiveMark large />
+            {page.spectators && <MatchSpectators spectators={page.spectators} />}
+          </div>
+        ) : (
+          match.concluded_at && (
+            <span className="match-done">{match.forfeit_slot ? "Hükmen bitti" : "Bitti"}</span>
+          )
+        )}
       </header>
 
       <div className="referee-bar" ref={barRef}>
@@ -114,7 +129,14 @@ function MatchView({ matchId }: { matchId: string }) {
           status={{
             pool: <PoolStatus page={page} />,
             room: <RoomStatus page={page} />,
-            chat: <ChatStatus unread={chatUnread} live={page.live} connected={connected} />,
+            chat: (
+              <ChatStatus
+                unread={chatUnread}
+                live={page.live}
+                connected={connected}
+                lines={roomChats.length > 0 ? roomChats[roomChats.length - 1].lines.length : 0}
+              />
+            ),
           }}
         />
         <ErrorAlert message={loadError} />
@@ -157,6 +179,8 @@ function MatchView({ matchId }: { matchId: string }) {
  */
 function MatchColumn({ page }: { page: MatchPageState }) {
   const { match, lobby, roster, findRoster, teams, tally, finished } = page;
+  // Staff in the room are named by their role rather than left as strangers.
+  const staff = useRoomStaff();
   if (!match) return null;
   const current = match.rooms.length > 0 ? match.rooms[match.rooms.length - 1] : null;
 
@@ -207,6 +231,7 @@ function MatchColumn({ page }: { page: MatchPageState }) {
             roster={roster}
             lobby={lobby}
             findRoster={findRoster}
+            staffRoleOf={(slot) => staffRole(staff, slot)}
             banners
           />
         )}
@@ -285,9 +310,7 @@ function SheetStatus({ page }: { page: MatchPageState }) {
   if (match.concluded_at) return <>Maç bitti</>;
   if (live) {
     return (
-      <span className="sheet-live" title="Hakem sayfası map bittikçe skoru kaydeder">
-        <LiveMark compact /> map bittikçe güncellenir
-      </span>
+<span title="Hakem sayfası map bittikçe skoru kaydeder">Map bittikçe güncellenir</span>
     );
   }
   return <>Henüz başlamadı</>;
@@ -343,9 +366,17 @@ function RoomStatus({ page }: { page: MatchPageState }) {
   );
 }
 
-/** The phone's chat tab: new lines waiting, or whether they're arriving. */
-function ChatStatus({ unread, live, connected }: { unread: number; live: boolean; connected: boolean }) {
+/**
+ * The phone's chat tab: new lines waiting, or how many there are (the header already says the match
+ * is live), or that it's reconnecting.
+ */
+function ChatStatus({ unread, live, connected, lines }: { unread: number; live: boolean; connected: boolean; lines: number }) {
   if (unread > 0) return <span className="referee-tab-unread num">{unread} yeni</span>;
   if (!live) return <span>Kayıtlı</span>;
-  return connected ? <span className="referee-tab-online">Canlı</span> : <span>Bağlanıyor…</span>;
+  if (!connected) return <span>Bağlanıyor…</span>;
+  return (
+    <span>
+      <span className="num">{lines}</span> mesaj
+    </span>
+  );
 }

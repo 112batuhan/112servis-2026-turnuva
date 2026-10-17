@@ -11,7 +11,15 @@ import {
 } from "../../../api/bracket";
 import { errorMessage } from "../../../api/client";
 import { addMatchRoom, removeMatchRoom } from "../../../api/matches";
-import { fetchOsuGames, fetchRefereeRoom, fetchRoomChat } from "../../../api/referee";
+import {
+  fetchOsuGames,
+  fetchRefereeRoom,
+  fetchRoomChat,
+  setIgnoredMap,
+  setNextPick as saveNextPick,
+  setResultsSource,
+  setRoomOptions,
+} from "../../../api/referee";
 import type {
   AdminTeamPlayer,
   MapPlayerScore,
@@ -26,11 +34,14 @@ import type {
 import { useSignedInUser } from "../../../auth/AuthContext";
 import { hasRole } from "../../../auth/roles";
 import { conversationKey, isChannel, useIrc, type ChatLine } from "../../../irc/IrcContext";
+import { useLive } from "../../../live/LiveContext";
 import {
   applyBancho,
   BANCHO_BOT,
   EMPTY_ROOM,
   isFreemod,
+  isMember,
+  kickCommand,
   matchSlots,
   MATCH_STARTED,
   modAcronyms,
@@ -48,18 +59,20 @@ import {
   type MapResult,
   type MapScore,
   type Placement,
+  type RoomMember,
   type RoomSlot,
   type RoomState,
   type ScoreMode,
   type SlotTeam,
 } from "../../../lib/bancho";
 import { matchCode } from "../../../lib/bracket";
-import { readJson, writeJson } from "../../../lib/storage";
+import { LIVE_REFRESH_MS } from "../../../lib/useLiveRefresh";
 import { registerRoom, unregisterRoom } from "./roomAutomation";
+import { useRoomStaff } from "./roomStaff";
 import {
   entryOf,
   matchTeams,
-  nextPicker,
+  pickTurn,
   poolEntries,
   scoreMessage,
   type MatchData,
@@ -86,6 +99,8 @@ export interface RoomOptions {
   noFail: boolean;
   /** Bracket matches: moves players to their slot and their team's colour as they join. */
   autoPlace: boolean;
+  /** Kicks anyone who joins without being a player of the match, a host, a referee or a streamer. */
+  autoKick: boolean;
 }
 
 /** One of the match's rooms in the chat: its saved lines followed by the live ones. */
@@ -147,24 +162,18 @@ const CREATE_TIMEOUT_MS = 20_000;
 
 const PLAY_MODES: Record<string, number> = { osu: 0, taiko: 1, fruits: 2, mania: 3 };
 
-const DEFAULT_OPTIONS: RoomOptions = { scoreMode: 3, noFail: true, autoPlace: true };
+const DEFAULT_OPTIONS: RoomOptions = { scoreMode: 3, noFail: true, autoPlace: true, autoKick: true };
 
-// Each match's options, so switching to another match and back keeps them. For this
-// tab only, until it's reloaded.
-const matchOptions = new Map<string, RoomOptions>();
-
-// The finished maps the referee doesn't count, per match, kept in the browser: the
-// running score is saved from them, so a reload mustn't start counting them again.
-const ignoredKey = (matchId: string) => `referee-ignored-maps:${matchId}`;
-
-// The rooms as osu! recorded them, once the referee synced the results from there:
-// kept in the browser, so a reload keeps counting from them rather than the chat.
-interface OsuSync {
+// The rooms as osu! recorded them, read by this page while the match's results are
+// counted from there.
+interface OsuGames {
   rooms: OsuRoomGames[];
-  /** When they were fetched, ISO. */
+  /** The sync they were read for (RoomSettings.osu_synced_at). */
   at: string;
 }
-const osuKey = (matchId: string) => `referee-osu-games:${matchId}`;
+
+// How long a burst of live changes (a ban and the score it moves) is gathered into one reload.
+const RELOAD_DELAY_MS = 250;
 
 // How long after the chat sees a map finish the osu! record is read again, so osu! has it too.
 const OSU_REFETCH_MS = 5_000;
@@ -344,38 +353,128 @@ export function useRefereeRoom(matchId: string) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [options, setOptions] = useState<RoomOptions>(() => matchOptions.get(matchId) ?? DEFAULT_OPTIONS);
-  useEffect(() => {
-    matchOptions.set(matchId, options);
-  }, [matchId, options]);
-  // Finished maps the referee doesn't count (warmups, replays), by index.
-  const [ignored, setIgnored] = useState<Set<string>>(() => new Set(readJson<string[]>(ignoredKey(matchId), [])));
-  useEffect(() => {
-    writeJson(ignoredKey(matchId), [...ignored]);
-  }, [matchId, ignored]);
-  // Set once the referee syncs the results from osu!; until then they're read from the chat.
-  const [osuSync, setOsuSync] = useState<OsuSync | null>(() => readJson<OsuSync | null>(osuKey(matchId), null));
-  useEffect(() => {
-    writeJson(osuKey(matchId), osuSync);
-  }, [matchId, osuSync]);
-  const [syncing, setSyncing] = useState(false);
   // Each room's saved chat, by room id.
   const [saved, setSaved] = useState<Map<number, SavedChat>>(new Map());
   // The rooms the saved chat was last loaded for, so the score isn't read from a half-loaded chat.
   const [savedFor, setSavedFor] = useState<string | null>(null);
 
-  const reload = useCallback(async () => {
-    try {
-      setRoom(await fetchRefereeRoom(matchId));
-      setLoadError(null);
-    } catch (e) {
-      setLoadError(errorMessage(e));
-    }
-  }, [matchId]);
+  // Set while a reload the live socket asked for is applied: what someone else changed
+  // isn't saved again from here (see the score below).
+  const remote = useRef(false);
+  const load = useCallback(
+    async (fromLive: boolean) => {
+      try {
+        const next = await fetchRefereeRoom(matchId);
+        remote.current = fromLive;
+        setRoom(next);
+        setLoadError(null);
+      } catch (e) {
+        setLoadError(errorMessage(e));
+      }
+    },
+    [matchId],
+  );
+  const reload = useCallback(() => load(false), [load]);
 
   useEffect(() => {
     reload();
   }, [reload]);
+
+  // Every referee and host on the page sees the same match: whatever one of them changes
+  // (bans, picks, results, "Sayma", the room options, the rooms, the score) reloads it
+  // here. While the socket is down, the page polls instead.
+  const { subscribe, connected } = useLive();
+  useEffect(() => {
+    let timer: number | undefined;
+    const later = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => load(true), RELOAD_DELAY_MS);
+    };
+    const off = subscribe((event) => {
+      switch (event.type) {
+        case "score":
+        case "match":
+        case "referee":
+          if (event.match_id === matchId) later();
+          return;
+        case "bracket":
+          // Rooms, staff, conclusions; also what a reconnect sends.
+          later();
+          return;
+      }
+    });
+    return () => {
+      off();
+      window.clearTimeout(timer);
+    };
+  }, [subscribe, matchId, load]);
+  useEffect(() => {
+    if (connected) return;
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") load(true);
+    }, LIVE_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [connected, load]);
+
+  // What the page keeps about the match, shared by everyone on it (RoomSettings).
+  const settings = room?.settings;
+  const options = useMemo<RoomOptions>(
+    () =>
+      settings
+        ? {
+            scoreMode: settings.score_mode as ScoreMode,
+            noFail: settings.no_fail,
+            autoPlace: settings.auto_place,
+            autoKick: settings.auto_kick,
+          }
+        : DEFAULT_OPTIONS,
+    [settings],
+  );
+  // Finished maps the referee doesn't count (warmups, replays), by FinishedMap.key.
+  const ignoredMaps = room?.ignored_maps;
+  const ignored = useMemo(() => new Set(ignoredMaps ?? []), [ignoredMaps]);
+
+  // Changes what the page keeps at once and saves it; if saving fails, the page goes
+  // back to what the server has.
+  const keep = useCallback(
+    (change: (r: RefereeRoom) => RefereeRoom, save: () => Promise<unknown>) => {
+      setRoom((r) => r && change(r));
+      save().catch((e) => {
+        setError(errorMessage(e));
+        reload();
+      });
+    },
+    [reload],
+  );
+
+  // Set once someone synced the results from osu!; until then they're read from the chat.
+  // Each page reads osu!'s record itself, again whenever someone syncs it anew.
+  const osuSyncedAt = settings?.osu_synced_at ?? null;
+  const [osuGames, setOsuGames] = useState<OsuGames | null>(null);
+  const osuGamesFor = useRef<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  useEffect(() => {
+    if (!osuSyncedAt) {
+      osuGamesFor.current = null;
+      setOsuGames(null);
+      return;
+    }
+    if (osuGamesFor.current === osuSyncedAt) return;
+    osuGamesFor.current = osuSyncedAt;
+    let live = true;
+    fetchOsuGames(matchId)
+      .then((rooms) => live && setOsuGames({ rooms, at: osuSyncedAt }))
+      .catch((e) => {
+        if (!live) return;
+        osuGamesFor.current = null;
+        setError(errorMessage(e));
+      });
+    return () => {
+      live = false;
+    };
+  }, [matchId, osuSyncedAt]);
+  // Whether the results are read from what they should be: not while osu!'s record is on its way.
+  const osuReady = osuSyncedAt === null || osuGames?.at === osuSyncedAt;
 
   const concluded = room !== null && room.concluded_at !== null;
   const rooms = useMemo(() => room?.rooms ?? [], [room]);
@@ -384,7 +483,8 @@ export function useRefereeRoom(matchId: string) {
   const conversation = channel ? irc.conversations[conversationKey(channel)] : undefined;
   const online = irc.status === "online";
   const inChannel = online && conversation?.joined === true;
-  const canRun = room !== null && (hasRole(user, "host") || room.referee?.id === user.id);
+  // Any referee (or host) can run any match, so one can step in when its own referee can't.
+  const canRun = room !== null && hasRole(user, "referee");
 
   // Loads every room's saved chat whenever the match's rooms change. Live lines up to
   // this point are in it, so only later ones are added on top (see mergeChat).
@@ -457,18 +557,28 @@ export function useRefereeRoom(matchId: string) {
 
   // Every room's finished maps, oldest room first: from osu!'s record of the room once
   // the referee synced it (unless osu! had none), otherwise from its chat.
-  const readSource: ResultSource = osuSync ? "osu" : "chat";
+  const readSource: ResultSource = osuSyncedAt ? "osu" : "chat";
   const finished = useMemo<FinishedMap[]>(
     () =>
       roomStates.flatMap(({ mpId, state }) => {
-        const games = osuSync?.rooms.find((r) => r.mp_id === mpId)?.games;
+        const games = osuSyncedAt ? osuGames?.rooms.find((r) => r.mp_id === mpId)?.games : undefined;
         const [from, results] = games ? ["osu", osuResults(games)] : ["chat", state.results];
         return results.map((result, n) => ({ result, key: `${from}:${mpId}:${n}` }));
       }),
-    [roomStates, osuSync],
+    [roomStates, osuSyncedAt, osuGames],
   );
 
   const roster = useMemo<RosterPlayer<AdminTeamPlayer>[]>(() => (room ? rosterOf(room) : []), [room]);
+
+  // The hosts, referees and streamers: they may be in the room without playing.
+  const staff = useRoomStaff();
+  const members = useMemo<RoomMember[]>(
+    () => [
+      ...roster.map((r) => ({ osuId: r.player.osu_id, username: r.player.username })),
+      ...(staff ?? []).map((s) => ({ osuId: s.osu_id, username: s.username })),
+    ],
+    [roster, staff],
+  );
 
   const findRoster = useCallback(
     (slot: Pick<RoomSlot, "username" | "userId">) =>
@@ -526,20 +636,25 @@ export function useRefereeRoom(matchId: string) {
   // The running score is saved as it changes, so the site shows it live: when a map
   // finishes, a result is awarded by hand or a map is left out. Not on the first
   // reading after the page loads, which would overwrite a score entered elsewhere
-  // (the referee can still save that one by hand).
+  // (the referee can still save that one by hand), nor when the change came from
+  // someone else on the page: they saved it, and this page's chat may be behind theirs.
   const liveScore =
     tally !== null &&
     canRun &&
     !concluded &&
     room?.team1_id != null &&
     room?.team2_id != null &&
-    savedFor === roomsKey;
+    savedFor === roomsKey &&
+    osuReady;
   const lastTally = useRef<string | null>(null);
   // Set by a sync from osu!: the referee asked for those results, so they're saved
   // even if they're the first reading.
   const saveNext = useRef(false);
   const [scoreSaving, setScoreSaving] = useState(false);
   useEffect(() => {
+    // Runs after every reload, since `room` is always new.
+    const fromRemote = remote.current;
+    remote.current = false;
     if (!liveScore || !room || !tally) {
       lastTally.current = null;
       return;
@@ -549,7 +664,7 @@ export function useRefereeRoom(matchId: string) {
     lastTally.current = key;
     const forced = saveNext.current;
     saveNext.current = false;
-    if (!forced && (previous === null || previous === key)) return;
+    if (!forced && (previous === null || previous === key || fromRemote)) return;
     if (scoreSaved) return;
     const { team1, team2, maps } = tally;
     setScoreSaving(true);
@@ -559,14 +674,20 @@ export function useRefereeRoom(matchId: string) {
       .finally(() => setScoreSaving(false));
   }, [liveScore, room, tally, scoreSaved]);
 
-  // Reads osu!'s record of the match's rooms and counts the results from it from now on.
+  // Reads osu!'s record of the match's rooms and counts the results from it from now on,
+  // on every page open on the match.
   const syncFromOsu = useCallback(async () => {
     setSyncing(true);
     setError(null);
     try {
       const rooms = await fetchOsuGames(matchId);
+      const { osu_synced_at: at } = await setResultsSource(matchId, true);
+      if (at) {
+        osuGamesFor.current = at;
+        setOsuGames({ rooms, at });
+      }
       saveNext.current = true;
-      setOsuSync({ rooms, at: new Date().toISOString() });
+      setRoom((r) => r && { ...r, settings: { ...r.settings, osu_synced_at: at } });
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -581,14 +702,14 @@ export function useRefereeRoom(matchId: string) {
   useEffect(() => {
     const grew = chatFinished > seenFinished.current;
     seenFinished.current = chatFinished;
-    if (!grew || !osuSync || concluded) return;
+    if (!grew || !osuSyncedAt || concluded) return;
     const timer = window.setTimeout(() => {
       fetchOsuGames(matchId)
-        .then((rooms) => setOsuSync({ rooms, at: new Date().toISOString() }))
+        .then((rooms) => osuGamesFor.current === osuSyncedAt && setOsuGames({ rooms, at: osuSyncedAt }))
         .catch((e) => setError(errorMessage(e)));
     }, OSU_REFETCH_MS);
     return () => window.clearTimeout(timer);
-  }, [chatFinished, osuSync, concluded, matchId]);
+  }, [chatFinished, osuSyncedAt, concluded, matchId]);
 
   const say = useCallback(
     (text: string, target: string | null = channel) => {
@@ -617,6 +738,8 @@ export function useRefereeRoom(matchId: string) {
   // so the automation knows who's in which slot.
   const automate = canRun && !concluded;
   const autoPlace = room?.kind === "bracket" && options.autoPlace;
+  // Nobody is kicked before the staff are known, or if they can't be loaded.
+  const autoKick = options.autoKick && staff !== null;
   const placements = useMemo<Placement[]>(
     () =>
       roster.flatMap((r) =>
@@ -629,8 +752,8 @@ export function useRefereeRoom(matchId: string) {
     for (const r of rooms.slice(0, -1)) unregisterRoom(`#mp_${r.mp_id}`);
     if (!channel) return;
     if (!automate) return unregisterRoom(channel);
-    registerRoom(channel, { autoPlace, players: placements, room: latestState });
-  }, [rooms, channel, automate, autoPlace, placements, latestState]);
+    registerRoom(channel, { autoPlace, autoKick, players: placements, members, room: latestState });
+  }, [rooms, channel, automate, autoPlace, autoKick, placements, members, latestState]);
   const { onMessage } = irc;
 
   async function run(action: () => Promise<void>) {
@@ -687,18 +810,28 @@ export function useRefereeRoom(matchId: string) {
   }
 
   // Whose pick is next: by the rules from the bans and picks, unless the referee said
-  // otherwise since the last one was marked.
+  // otherwise since the last one was marked (marking one clears it on the server).
   const teams = useMemo<MatchTeam[]>(() => (room ? matchTeams(room) : []), [room]);
-  const marks = room ? `${room.bans.length}:${room.picks.length}` : "";
-  const [pickOverride, setPickOverride] = useState<{ marks: string; teamId: string } | null>(null);
-  const ruledPicker = room ? nextPicker(room, teams) : null;
-  const nextPick =
-    pickOverride?.marks === marks ? (teams.find((t) => t.id === pickOverride.teamId) ?? ruledPicker) : ruledPicker;
+  const nextPick = room ? pickTurn(room, teams, room.settings.next_pick_team_id) : null;
 
   const actions = {
     reload,
-    setOptions,
     say,
+
+    /** Changes the room options for everyone on the page. */
+    setOptions: (next: RoomOptions) => {
+      if (!room) return;
+      const saved = {
+        score_mode: next.scoreMode,
+        no_fail: next.noFail,
+        auto_place: next.autoPlace,
+        auto_kick: next.autoKick,
+      };
+      keep(
+        (r) => ({ ...r, settings: { ...r.settings, ...saved } }),
+        () => setRoomOptions(room.id, saved),
+      );
+    },
 
     /** !mp make, adds the room to the match, then sets it up. Also replaces a broken room. */
     createRoom: () =>
@@ -749,6 +882,15 @@ export function useRefereeRoom(matchId: string) {
       say("!mp settings");
     },
 
+    /** Removes someone from the room. */
+    kick: (slot: RoomSlot) => say(kickCommand(slot)),
+
+    /** Removes everyone in the room who isn't a player of the match, a host, a referee or a streamer. */
+    kickOutsiders: () => {
+      if (staff === null) return;
+      for (const slot of latestState.slots) if (!isMember(slot, members)) say(kickCommand(slot));
+    },
+
     /** Sets a map and its mods in the room, without recording who picked it. */
     pickMap: (map: PublicPoolMap, freemod: boolean) => {
       say(`!mp map ${map.beatmap_id} ${PLAY_MODES[map.mode] ?? 0}`);
@@ -775,7 +917,13 @@ export function useRefereeRoom(matchId: string) {
       }),
 
     /** Says whose pick is next, overriding the rules until the next ban or pick. */
-    setNextPick: (teamId: string) => setPickOverride({ marks, teamId }),
+    setNextPick: (teamId: string) => {
+      if (!room) return;
+      keep(
+        (r) => ({ ...r, settings: { ...r.settings, next_pick_team_id: teamId } }),
+        () => saveNextPick(room.id, teamId),
+      );
+    },
 
     /** Tells the room the running score and whose pick is next. */
     announceScore: () => {
@@ -791,18 +939,30 @@ export function useRefereeRoom(matchId: string) {
     close: () => say("!mp close"),
     rejoin: () => channel && join(channel),
 
-    toggleIgnored: (key: string) =>
-      setIgnored((prev) => {
-        const next = new Set(prev);
-        if (!next.delete(key)) next.add(key);
-        return next;
-      }),
+    /** Leaves a finished map out of the score ("Sayma"), or counts it again. */
+    toggleIgnored: (key: string) => {
+      if (!room) return;
+      const ignore = !ignored.has(key);
+      keep(
+        (r) => ({
+          ...r,
+          ignored_maps: ignore ? [...r.ignored_maps, key] : r.ignored_maps.filter((k) => k !== key),
+        }),
+        () => setIgnoredMap(room.id, key, ignore),
+      );
+    },
 
     /** Counts the results from osu!'s record of the rooms, and saves them. Again to read it anew. */
     syncFromOsu,
 
     /** Goes back to counting the results from the rooms' chat. */
-    readFromChat: () => setOsuSync(null),
+    readFromChat: () => {
+      if (!room) return;
+      keep(
+        (r) => ({ ...r, settings: { ...r.settings, osu_synced_at: null } }),
+        () => setResultsSource(room.id, false),
+      );
+    },
 
     ban: (mapId: string, teamId: string) =>
       run(async () => {
@@ -867,11 +1027,13 @@ export function useRefereeRoom(matchId: string) {
     nextPick,
     roster,
     findRoster,
+    staff,
+    members,
     options,
     ignored,
     finished,
     source,
-    osuSyncedAt: osuSync?.at ?? null,
+    osuSyncedAt,
     syncing,
     tally,
     scoreSaved,
