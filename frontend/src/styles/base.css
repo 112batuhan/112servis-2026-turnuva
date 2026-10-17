@@ -142,11 +142,12 @@ button:disabled {
   font-family: var(--font-mono);
 }
 
-/* The 112 crystal, cut from the banner as an alpha mask, so it takes the current text colour. */
+/* The tilted trophy, cut from the designers' artwork as an alpha mask, so it takes the current
+   text colour. */
 .brand-mark {
   display: inline-block;
   flex: none;
-  aspect-ratio: 199 / 220;
+  aspect-ratio: 263 / 278;
   height: 1.5em;
   background: currentColor;
   mask: url("../assets/mark.png") center / contain no-repeat;

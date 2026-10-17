@@ -482,7 +482,7 @@
       },
       "wordmark": {
         "displayName": "Wordmark",
-        "purpose": "The nav brand beside the crystal mark."
+        "purpose": "The nav brand beside the trophy mark."
       },
       "headline": {
         "displayName": "Headline",
@@ -591,13 +591,13 @@
         "where": "Landing hero under 1200px, elliptical feather."
       },
       {
-        "name": "crystal-mark",
+        "name": "trophy-mark",
         "files": [
           "frontend/src/assets/mark.png",
           "frontend/public/favicon.png",
           "frontend/public/apple-touch-icon.png"
         ],
-        "where": "Nav brand (.brand-mark, CSS mask in currentColor, 199:220) and favicon / touch icon only."
+        "where": "Nav brand (.brand-mark, CSS mask in currentColor, 263:278) and favicon / touch icon only."
       },
       {
         "name": "gears",
@@ -706,7 +706,7 @@
       "name": "Navigation",
       "kind": "nav",
       "refersTo": "nav-link-active",
-      "description": "Crystal mark and expanded wordmark with frost year; active link in frost wash with a frost underline. The crystal (26px, a CSS mask of frontend/src/assets/mark.png in currentColor) sits before the wordmark in the build; it is designer artwork, so the snippet omits it rather than redraw it.",
+      "description": "Trophy mark and expanded wordmark with frost year; active link in frost wash with a frost underline. The trophy (26px, a CSS mask of frontend/src/assets/mark.png in currentColor) sits before the wordmark in the build; it is designer artwork, so the snippet omits it rather than redraw it.",
       "html": "<nav class=\"ds-nav\"><span class=\"ds-brand\"><span>112servis <b>2026</b></span></span><a class=\"ds-link is-active\" href=\"#\">Ana sayfa</a><a class=\"ds-link\" href=\"#\">Mappool</a><a class=\"ds-link\" href=\"#\">Maçlar</a></nav>",
       "css": ".ds-nav{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--color-bg);border-bottom:1px solid var(--color-border);font-family:var(--font-sans)}.ds-brand{display:inline-flex;align-items:center;gap:8px;margin-right:12px;font-family:var(--font-display);font-stretch:var(--font-wordmark-stretch,125%);font-size:var(--text-base,16px);font-weight:500;color:var(--color-text)}.ds-brand b{font-weight:500}.ds-brand b{color:var(--color-primary)}.ds-link{padding:6px 12px;border-radius:var(--radius-md,8px);color:var(--color-text-muted);font-size:var(--text-md,14px);text-decoration:none;transition:background-color 150ms ease,color 150ms ease}.ds-link:hover{color:var(--color-text);background:var(--color-hover)}.ds-link.is-active{color:var(--color-text);background:var(--color-primary-soft);box-shadow:inset 0 -2px 0 var(--color-primary)}.ds-link:focus-visible{outline:2px solid var(--color-focus);outline-offset:2px}"
     },
@@ -756,7 +756,7 @@
       "Fira Sans for body and controls; Fira Code only for ids.",
       "A heavy ink rule opens each page and section; hairline rules separate rows.",
       "Team red and team blue structure every head-to-head; one frost accent marks live, yours, current and the primary action.",
-      "Slate ground with gear linework and grain behind the content; the crystal mark in the nav and favicon; the banner as the landing hero.",
+      "Slate ground with gear linework and grain behind the content; the trophy mark in the nav and favicon; the banner as the landing hero.",
       "Every colour is a role token taken from the test banner, so the final banner is a value swap."
     ],
     "rules": [

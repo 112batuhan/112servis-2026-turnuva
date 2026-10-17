@@ -49,12 +49,12 @@ A purpose-built site for this one tournament and its community, not a generic to
 - The name is **112servis**: one word, lowercase, no space. The site title is "112servis 2026 Turnuva".
 - The site is **Turkish only**, and no English version is planned. Technical terms used by the osu! community (mappool, stage, bracket, referee) stay as the community says them.
 - The edition is **"112'nin Son Kış Turnuvası"** (112's last winter tournament).
-- The designers' first banner (`design/bannertest.png`, still a test version) sets the look: a cold slate ground, faint gear linework, a frosted trophy and, at its centre, the tournament's mark: **an ice crystal drawn with the digits 1, 1 and 2** (not a letter K). The site's palette, the nav mark, the favicon and the landing hero all come from it.
+- The designers' first banner (`design/bannertest.png`, still a test version) sets the look: a cold slate ground, faint gear linework, a frosted trophy and, at its centre, the tournament's mark: **an ice crystal drawn with the digits 1, 1 and 2** (not a letter K). The site's palette and the landing hero come from it. The nav mark and the favicon are the banner's **trophy**, tilted as in the banner, from the designers' crisp drawing of it (`design/trophy.png`).
 - More artwork may follow. Keep every colour behind a role token, and re-export the assets from the final banner the same way (`frontend/src/assets/README.md`) rather than inventing new artwork.
 
 ## Evidence on Hand
 
-- The banner and the 112 crystal mark cut from it are the only artwork. No past editions, results, testimonials or sponsor material exist yet. Don't invent any.
+- The banner and the trophy drawing (`design/trophy.png`) are the only artwork. No past editions, results, testimonials or sponsor material exist yet. Don't invent any.
 - Real data on the site comes from the osu! API (ranks, beatmap metadata, match scores) and from team banners players upload.
 - `backend/seed/` holds dummy accounts, teams and matches for testing only. They aren't real content.
 

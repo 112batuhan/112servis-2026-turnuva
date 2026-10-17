@@ -74,7 +74,7 @@
   }
 }
 
-/* The crystal and the wordmark in the banner's expanded lettering. */
+/* The trophy and the wordmark in the banner's expanded lettering. */
 .nav-brand {
   display: inline-flex;
   flex-shrink: 0;
@@ -250,7 +250,7 @@
     white-space: nowrap;
   }
 
-  /* "Siteye dön" needs its words, so in the admin bar the crystal alone stands for the brand. */
+  /* "Siteye dön" needs its words, so in the admin bar the trophy alone stands for the brand. */
   .navbar.is-admin .nav-brand-text {
     position: absolute;
     width: 1px;
@@ -260,7 +260,7 @@
     white-space: nowrap;
   }
 
-  /* A staff member's account row has a button more; on the narrowest phones the crystal alone
+  /* A staff member's account row has a button more; on the narrowest phones the trophy alone
      stands for the brand there too. */
   @media (max-width: 420px) {
     .navbar:has(.nav-admin-link) .nav-brand-text {

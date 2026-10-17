@@ -199,7 +199,7 @@ Density is high and calm: a 16px body, a dense 4px-based spacing scale, rows of 
 - Fira Sans for body and controls; Fira Code only for ids.
 - A heavy ink rule opens each page and section; hairline rules separate rows.
 - Team red and team blue structure every head-to-head; one frost accent marks live, yours, current and the primary action.
-- Slate ground with gear linework and grain behind the content; the crystal mark in the nav and favicon; the banner as the landing hero.
+- Slate ground with gear linework and grain behind the content; the trophy mark in the nav and favicon; the banner as the landing hero.
 - Every colour is a role token taken from the test banner, so the final banner is a value swap.
 
 ## Colors
@@ -243,7 +243,7 @@ A cold slate palette from the banner: a blue-grey ground and its frost ink, one 
 ### Hierarchy
 - **Display** (300 at 125% width, clamp 44–88px, line-height 0.95, -0.03em): the landing wordmark "112servis 2026" only (`--text-hero`).
 - **Tagline** (300 at 125% width, 24px, muted ink): the banner's line "112'nin Son Kış Turnuvası", set as live type under the landing wordmark.
-- **Wordmark** (500 at 125% width, 16px): "112servis 2026" in the top bar beside the crystal.
+- **Wordmark** (500 at 125% width, 16px): "112servis 2026" in the top bar beside the trophy.
 - **Headline** (800, 44px, 34px under 560px wide; line-height 1): page titles, every other `h1` (`--text-title`). A count beside the title is set as a muted display figure at 30px, not a pill.
 - **Title** (800, 40px): landing section heads ("Sıradaki maçlar", "Son sonuçlar", "Takımın").
 - **Section** (800, 24px): every `h2`.
@@ -291,7 +291,7 @@ Behind everything, fixed to the viewport, sits the banner's atmosphere: gear lin
 
 Gently rounded controls (8px) on a square-edged sheet. Rules run edge to edge with no rounding; buttons, inputs and the "yours" strip use 8px; the score block uses 6px; admin panels and centred cards 12px; badges, avatars and round icon buttons are full pills. The live dot is an 8px circle.
 
-The one drawn silhouette is the 112 crystal (`.brand-mark`): an alpha matte cut from the banner, used as a CSS mask so it takes the current text colour, at a 199:220 aspect. The banner on the landing has no frame: its edges are feathered into the ground with mask gradients (a linear fade on all four sides of the wide banner; an elliptical fade on the crest crop, whose centre is lighter than the page).
+The one drawn silhouette is the banner's trophy, tilted as the banner has it (`.brand-mark`): an alpha matte cut from the designers' crisp drawing (`design/trophy.png`), used as a CSS mask so it takes the current text colour, at a 263:278 aspect. The banner on the landing has no frame: its edges are feathered into the ground with mask gradients (a linear fade on all four sides of the wide banner; an elliptical fade on the crest crop, whose centre is lighter than the page).
 
 ## Components
 
@@ -312,7 +312,7 @@ The one drawn silhouette is the 112 crystal (`.brand-mark`): an alpha matte cut 
 - **Focus:** border turns frost with a 3px frost-wash halo.
 
 ### Navigation
-- **Top bar:** the brand first: the crystal mark (26px tall, in ink) beside the wordmark "112servis 2026" in the expanded Archivo at 500, the year in frost; then text links in muted 14px ink; hover adds the wash; the active link gets a frost-wash pill with a 2px frost underline. On `/admin/*` the bar turns the admin tint and its links become the admin tabs.
+- **Top bar:** the brand first: the trophy mark (26px tall, in ink) beside the wordmark "112servis 2026" in the expanded Archivo at 500, the year in frost; then text links in muted 14px ink; hover adds the wash; the active link gets a frost-wash pill with a 2px frost underline. On `/admin/*` the bar turns the admin tint and its links become the admin tabs.
 
 ### Landing hero
 The banner with its lettering cropped off, feathered into the ground, beside the headline from 1200px wide (the 1316px export, 760px for lower densities); under 1200px the crest-only crop (trophy and crystal) with an elliptical feather above the headline. Under it or beside it: the wordmark in Display, the tagline "112'nin Son Kış Turnuvası" in Tagline type (muted), the facts line, and the actions (login as the one primary, Mappool or "Maçlar" secondary) under the facts, all over the heavy rule. The image carries a Turkish alt text describing the crystal and trophy.
@@ -349,7 +349,7 @@ The stages in play order as a horizontal strip of 3px top rules: done in muted, 
 
 ### Atmosphere and artwork
 - **Gear linework and grain:** on the page ground only, site-wide, behind all content. Never inside a surface, a card or a section.
-- **The crystal mark:** the nav brand and the favicon / touch icon (the mark in frost ink on the slate ground) only.
+- **The trophy mark:** the nav brand and the favicon / touch icon (the mark in frost ink on the slate ground) only.
 - **The banner:** the landing hero only, in the two crops above.
 All three come from the designers' banner and are re-exported per `frontend/src/assets/README.md`; the gear SVGs are drawn after the banner's cogs, not traced.
 
