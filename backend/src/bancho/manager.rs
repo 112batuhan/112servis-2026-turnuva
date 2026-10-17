@@ -48,9 +48,12 @@ const FULL_BACKOFF: Duration = Duration::from_secs(15 * 60);
 // A referee who left the match (or whose connection dropped) stays one of the room's
 // referees this long, so a reconnect keeps it.
 const REF_GRACE: Duration = Duration::from_secs(120);
-// A concluded match's room (and one replaced by a newer room) is closed this long after,
-// so the players can still talk, and stops counting against its bot.
-const CLOSE_AFTER: TimeDuration = TimeDuration::minutes(15);
+// A concluded match's room is closed this long after, so the last lines (a result, a
+// "gg") still reach it and a conclusion clicked by mistake can be undone; it then stops
+// counting against its bot. The players keep talking in the match's Discord channel.
+const CLOSE_AFTER_CONCLUDED: TimeDuration = TimeDuration::seconds(30);
+// A room replaced by a newer one is closed this long after, while players move over.
+const CLOSE_AFTER_REPLACED: TimeDuration = TimeDuration::minutes(15);
 
 struct Bot {
     login: BotLogin,
@@ -517,8 +520,8 @@ impl Manager {
         for rooms in by_match.values() {
             for (i, t) in rooms.iter().enumerate() {
                 let close_at = match (t.concluded_at, rooms.get(i + 1)) {
-                    (Some(at), _) => Some(at + CLOSE_AFTER),
-                    (None, Some(next)) => Some(next.added_at + CLOSE_AFTER),
+                    (Some(at), _) => Some(at + CLOSE_AFTER_CONCLUDED),
+                    (None, Some(next)) => Some(next.added_at + CLOSE_AFTER_REPLACED),
                     (None, None) => None,
                 };
                 if let Some(room) = self.rooms.get_mut(&t.mp_id) {
