@@ -94,9 +94,15 @@ pub struct RoomRow {
     pub team1_score: Option<i32>,
     pub team2_score: Option<i32>,
     pub forfeit_slot: Option<i16>,
+    // Bracket matches only: who streams it, all null when nobody does.
+    pub streamer_id: Option<Uuid>,
+    pub streamer_osu_id: Option<i64>,
+    pub streamer_username: Option<String>,
+    pub streamer_avatar_url: Option<String>,
     pub lobby_number: Option<i64>,
     pub stage_id: Option<Uuid>,
     pub stage_name: Option<String>,
+    pub stage_published: Option<bool>,
 }
 
 // Every qualifier lobby, earliest first.
@@ -259,16 +265,19 @@ pub async fn find_room(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<RoomRow>>
                d.discord_id AS referee_discord_id, d.username AS referee_discord_username,
                b.side, b.number, b.team1_id, b.team2_id, b.team1_score, b.team2_score,
                b.forfeit_slot,
+               s.id AS streamer_id, s.osu_id AS streamer_osu_id,
+               s.username AS streamer_username, s.avatar_url AS streamer_avatar_url,
                CASE WHEN m.kind = 'qualifier' THEN
                    (SELECT count(*) FROM matches q
                     WHERE q.kind = 'qualifier'
                       AND (q.starts_at, q.created_at) <= (m.starts_at, m.created_at))
                END AS lobby_number,
-               st.id AS stage_id, st.name AS stage_name
+               st.id AS stage_id, st.name AS stage_name, st.published AS stage_published
         FROM matches m
         LEFT JOIN bracket_matches b ON b.match_id = m.id
         LEFT JOIN osu_users u ON u.id = m.referee_id
         LEFT JOIN discord_accounts d ON d.osu_user_id = u.id
+        LEFT JOIN osu_users s ON s.id = b.streamer_id
         LEFT JOIN stages st ON st.id = CASE
             WHEN m.kind = 'qualifier' THEN (SELECT s.id FROM stages s WHERE s.is_qualifier)
             ELSE b.stage_id

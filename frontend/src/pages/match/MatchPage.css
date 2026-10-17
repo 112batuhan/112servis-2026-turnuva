@@ -1,0 +1,103 @@
+/* The public match page wears the referee page's cockpit (RefereeRoomPage.css); this adds what
+   spectators get instead of the referee's controls. */
+
+/* When, which pool, who referees and streams: one muted line, the parts set apart by dots. */
+.match-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+}
+
+.match-meta > * + *::before {
+  content: "·";
+  margin-right: var(--space-2);
+  color: var(--color-text-subtle);
+}
+
+.match-meta a {
+  color: inherit;
+}
+
+.match-meta a:hover {
+  color: var(--color-text);
+}
+
+/* On a phone the line wraps, and a dot would start the next one: spacing alone sets them apart. */
+@container referee-page (max-width: 760px) {
+  .match-meta {
+    gap: 0 var(--space-3);
+  }
+
+  .match-meta > * + *::before {
+    content: none;
+  }
+}
+
+/* The room bar's link out to osu!, at its end. */
+.match-osu-link {
+  margin-left: auto;
+}
+
+/* A finished match's team cards: the teams page's ruled cards, two to a row, each ruled in its
+   side's colour instead of ink, as the live players are. */
+.match-team-grid {
+  gap: var(--space-5) var(--space-4);
+}
+
+.match-team-grid .match-team-side {
+  min-width: 0;
+}
+
+.match-team-grid .match-team-side.is-team-red .team-card {
+  border-top-color: var(--color-team-red);
+}
+
+.match-team-grid .match-team-side.is-team-blue .team-card {
+  border-top-color: var(--color-team-blue);
+}
+
+/* The grid follows the match column, not the window. */
+@container lobby-panel (max-width: 560px) {
+  .match-team-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Before the room is open, in the map clock's place: the start time as a figure, its countdown,
+   and what will appear. */
+.match-waiting {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.match-waiting-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.match-waiting-countdown {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.match-waiting-text {
+  max-width: 60ch;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}

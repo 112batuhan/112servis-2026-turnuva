@@ -13,6 +13,7 @@ pub struct ChatMessage {
     pub action: bool,
 }
 
+// Saves a line and returns it as stored, so it can be sent on to the match page.
 pub async fn insert_message(
     pool: &PgPool,
     mp_id: i64,
@@ -20,11 +21,12 @@ pub async fn insert_message(
     text: &str,
     action: bool,
     logged_by: Uuid,
-) -> sqlx::Result<()> {
-    sqlx::query(
+) -> sqlx::Result<ChatMessage> {
+    sqlx::query_as::<_, ChatMessage>(
         r#"
         INSERT INTO room_chat_messages (mp_id, sender, text, action, logged_by)
         VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, sent_at, sender, text, action
         "#,
     )
     .bind(mp_id)
@@ -32,9 +34,8 @@ pub async fn insert_message(
     .bind(text)
     .bind(action)
     .bind(logged_by)
-    .execute(pool)
-    .await?;
-    Ok(())
+    .fetch_one(pool)
+    .await
 }
 
 // A room's whole chat, oldest first.

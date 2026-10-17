@@ -71,6 +71,26 @@ pub struct Streamer {
     avatar_url: String,
 }
 
+impl Streamer {
+    // From the streamer_* columns, all null when nobody streams the match.
+    pub fn from_columns(
+        id: Option<Uuid>,
+        osu_id: Option<i64>,
+        username: Option<String>,
+        avatar_url: Option<String>,
+    ) -> Option<Self> {
+        match (id, osu_id, username, avatar_url) {
+            (Some(id), Some(osu_id), Some(username), Some(avatar_url)) => Some(Streamer {
+                id,
+                osu_id,
+                username,
+                avatar_url,
+            }),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct NextMatch {
     match_id: Uuid,
@@ -128,20 +148,12 @@ fn to_match(row: BracketRow, links: &[LinkRow]) -> (BracketMatch, String) {
                 slot: l.slot,
             })
     };
-    let streamer = match (
+    let streamer = Streamer::from_columns(
         row.streamer_id,
         row.streamer_osu_id,
         row.streamer_username,
         row.streamer_avatar_url,
-    ) {
-        (Some(id), Some(osu_id), Some(username), Some(avatar_url)) => Some(Streamer {
-            id,
-            osu_id,
-            username,
-            avatar_url,
-        }),
-        _ => None,
-    };
+    );
     let stage = match (
         row.stage_id,
         row.stage_name,
@@ -640,6 +652,7 @@ pub async fn set_ban(
     if !db::bracket::set_ban(&state.db, id, map_id, body.team_id).await? {
         return Err(AppError::Conflict("that map has been picked"));
     }
+    state.live.match_changed(id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -653,6 +666,7 @@ pub async fn remove_ban(
     if !db::bracket::delete_ban(&state.db, id, map_id).await? {
         return Err(AppError::NotFound);
     }
+    state.live.match_changed(id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -668,6 +682,7 @@ pub async fn set_pick(
     if !db::bracket::set_pick(&state.db, id, map_id, body.team_id).await? {
         return Err(AppError::Conflict("that map is banned"));
     }
+    state.live.match_changed(id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -681,6 +696,7 @@ pub async fn remove_pick(
     if !db::bracket::delete_pick(&state.db, id, map_id).await? {
         return Err(AppError::NotFound);
     }
+    state.live.match_changed(id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -891,6 +907,7 @@ pub async fn add_manual_result(
     }
     let result_id =
         db::bracket::add_manual_result(&state.db, id, body.map_id, body.team_id, note).await?;
+    state.live.match_changed(id);
     Ok((StatusCode::CREATED, Json(Created { id: result_id })))
 }
 
@@ -904,6 +921,7 @@ pub async fn remove_manual_result(
     if !db::bracket::delete_manual_result(&state.db, id, result_id).await? {
         return Err(AppError::NotFound);
     }
+    state.live.match_changed(id);
     Ok(StatusCode::NO_CONTENT)
 }
 

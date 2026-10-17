@@ -10,6 +10,21 @@ export function bracketMatchPath(matchId: string, admin: boolean): string {
   return `${admin ? "/admin/bracket" : "/bracket"}?match=${matchId}`;
 }
 
+/** A match's public page, which follows it live (pages/match/MatchPage.tsx). */
+export function matchPagePath(matchId: string): string {
+  return `/match/${matchId}`;
+}
+
+/** Whether a bracket match is linked to its public page: once both its teams are known. */
+export function hasMatchPage(m: Pick<BracketMatch, "team1_id" | "team2_id">): boolean {
+  return m.team1_id !== null && m.team2_id !== null;
+}
+
+/** Where a fixture row leads: the match's own page, or the bracket while it's still waiting for a team. */
+export function fixturePath(m: Pick<BracketMatch, "id" | "team1_id" | "team2_id">): string {
+  return hasMatchPage(m) ? matchPagePath(m.id) : bracketMatchPath(m.id, false);
+}
+
 export const SIDE_LABELS: Record<BracketSide, string> = {
   winners: "Winners",
   losers: "Losers",

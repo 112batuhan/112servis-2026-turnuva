@@ -1,0 +1,116 @@
+/* The room's chat for spectators: the referee page's log, with the filter in its head where the
+   referee has the Bancho login, and the live state where the referee has the input. */
+.match-chat-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--rule);
+}
+
+.match-chat-title {
+  font-size: var(--text-xl);
+}
+
+.match-chat-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.match-chat-filter:hover {
+  color: var(--color-text);
+}
+
+/* A switch: a track with a thumb that slides over and turns frost when on. */
+.match-chat-filter input {
+  appearance: none;
+  position: relative;
+  flex-shrink: 0;
+  width: 30px;
+  height: 18px;
+  margin: 0;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  background: var(--color-surface-sunken);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.match-chat-filter input::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.match-chat-filter input:checked {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+.match-chat-filter input:checked::before {
+  transform: translateX(12px);
+  background: var(--color-primary);
+}
+
+.match-chat-filter input:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.match-chat-hidden {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* Under the log: whether new lines are arriving. */
+.match-chat-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border-top: var(--rule);
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+}
+
+.match-chat-foot::before {
+  content: "";
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-warning);
+}
+
+.match-chat-foot.is-live::before {
+  background: var(--color-success);
+}
+
+.match-chat-foot.is-saved::before {
+  background: var(--color-text-subtle);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-chat-filter input,
+  .match-chat-filter input::before {
+    transition: none;
+  }
+}

@@ -71,6 +71,72 @@
   color: var(--color-warning);
 }
 
+/* The public match page heads each team with its banner, under the side's rule: a wide crop,
+   the name and who's in the room set on its darkened foot, as the team card sets its name. Without
+   a banner the team's initial, cropped by the edge, holds the same height so both sides line up. */
+.room-players-banner {
+  position: relative;
+  aspect-ratio: 4 / 1;
+  margin: var(--space-2) 0 var(--space-1);
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+.room-players-banner.is-empty {
+  background: var(--color-surface-raised);
+}
+
+.room-players-banner img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.room-players-monogram {
+  position: absolute;
+  right: -0.04em;
+  bottom: -0.26em;
+  color: var(--color-border);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: 140px;
+  font-weight: 900;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+.room-players-banner .room-players-team-name {
+  position: absolute;
+  inset: auto 0 0;
+  padding: var(--space-5) var(--space-3) var(--space-2);
+  background: linear-gradient(transparent, var(--color-scrim));
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  line-height: 1.1;
+  /* A 1px outline on every side, so the name reads on any banner, white ones included. */
+  text-shadow:
+    -1px -1px 0 var(--color-text-outline),
+    1px -1px 0 var(--color-text-outline),
+    -1px 1px 0 var(--color-text-outline),
+    1px 1px 0 var(--color-text-outline),
+    0 2px 4px var(--color-text-outline);
+}
+
+.room-players-banner.is-empty .room-players-team-name {
+  background: none;
+  text-shadow: none;
+}
+
+.room-players-banner .room-players-team-count {
+  color: var(--color-text);
+}
+
 .room-players-team-count {
   margin-left: auto;
   flex-shrink: 0;
@@ -107,6 +173,16 @@
 
 .room-player.is-stranger {
   grid-template-columns: 2rem minmax(0, 1fr) auto auto;
+}
+
+/* A finished match: the teams as a roster, avatar and name only. */
+.room-players.is-roster .room-player {
+  grid-template-columns: 28px minmax(0, 1fr);
+}
+
+/* Read only (the public match page): no button column. */
+.room-players.is-static .room-player:not(.is-stranger) {
+  grid-template-columns: 2rem 28px minmax(0, 1fr) auto auto;
 }
 
 .room-player-slot {

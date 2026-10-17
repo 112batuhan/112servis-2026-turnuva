@@ -9,9 +9,12 @@ import { RefereeWatchers } from "../../../components/bracket/RefereeWatchers";
 import { DiscordMention } from "../../../components/DiscordMention";
 import { EditableNote } from "../../../components/EditableNote";
 import { IconButton } from "../../../components/IconButton";
+import { MatchPageLink } from "../../../components/MatchPageLink";
 import {
   BOARD,
   compareByCode,
+  hasMatchPage,
+  isLive,
   matchCode,
   nextNumber,
   SIDE_LABELS,
@@ -124,6 +127,7 @@ export function MatchPanel({
           <h2 className={`match-panel-code is-${match.side}`}>{code}</h2>
           <MatchStatus match={match} now={new Date().toISOString()} />
           <RefereeWatchers viewers={watchers} />
+          {hasMatchPage(match) && <MatchPageLink matchId={match.id} live={isLive(match)} variant="row" />}
           <IconButton icon="close" label="Paneli kapat" onClick={onClose} className="match-panel-close" />
         </header>
 

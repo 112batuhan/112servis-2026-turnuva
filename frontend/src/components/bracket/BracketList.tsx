@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { BracketMatch, BracketSide, RefereeViewer, Team } from "../../api/types";
 import {
   groupByStage,
+  hasMatchPage,
   incomingSources,
   matchCode,
   SIDE_LABELS,
@@ -16,6 +17,7 @@ import { readString, writeString } from "../../lib/storage";
 import { useStoredSet } from "../../lib/useExpandedSet";
 import { Icon } from "../Icon";
 import { LiveMark } from "../LiveMark";
+import { MatchPageLink } from "../MatchPageLink";
 import { RoomLinks } from "../RoomLinks";
 import { TeamPopover } from "../TeamPopover";
 import { MatchTime } from "./MatchTime";
@@ -251,6 +253,7 @@ export function BracketList<M extends BracketMatch>({
                           <td className="bracket-list-status-cell">
                             <span className="bracket-list-status">
                               <MatchStatus match={m} now={now} />
+                              {hasMatchPage(m) && <MatchPageLink matchId={m.id} live={isLive(m)} variant="text" />}
                               <RoomLinks rooms={m.rooms} />
                               <RefereeWatchers viewers={presence?.get(m.id)} />
                             </span>

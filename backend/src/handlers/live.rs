@@ -7,9 +7,13 @@
 //! tab tells the server which match's referee page it shows (`viewing`), and every
 //! staff tab hears the new list for that match (`presence`), plus all of them when it
 //! connects (`presence_all`). Nothing here is stored; it's what the open tabs say.
+//!
+//! The public match page also hears `match` (something about one match changed that
+//! the bracket doesn't show, like its bans: reload that match) and, for the match it
+//! says it shows (`watch`), every line said in its rooms as the relay saves it (`chat`).
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::{
         atomic::{AtomicU64, Ordering},
         Arc, Mutex,
@@ -28,10 +32,11 @@ use axum::{
     Router,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
 use tokio::sync::broadcast::{self, error::RecvError};
 use uuid::Uuid;
 
-use crate::{auth::AuthUser, db, error::AppError, role::Role, AppState};
+use crate::{auth::AuthUser, db, db::chat::ChatMessage, error::AppError, role::Role, AppState};
 
 pub fn routes() -> Router<AppState> {
     Router::new().route("/live", get(connect))
@@ -58,6 +63,13 @@ enum ServerMsg<'a> {
         team2_score: Option<i32>,
     },
     Bracket,
+    Match {
+        match_id: Uuid,
+    },
+    Chat {
+        mp_id: i64,
+        message: &'a ChatMessage,
+    },
     Presence {
         match_id: Uuid,
         viewers: &'a [Viewer],
@@ -72,6 +84,9 @@ enum ServerMsg<'a> {
 enum ClientMsg {
     // The match whose referee page this tab shows, or null when it left it.
     Viewing { match_id: Option<Uuid> },
+    // The match whose public page this tab shows, or null: its rooms' chat is sent.
+    // Sent again when the match's rooms change.
+    Watch { match_id: Option<Uuid> },
 }
 
 // One event, serialized once for every tab.
@@ -79,6 +94,8 @@ enum ClientMsg {
 struct Event {
     json: String,
     staff_only: bool,
+    // Only for the tabs watching this room's match.
+    room: Option<i64>,
 }
 
 // Who has each match's referee page open: by match, each tab with its user, in the
@@ -145,11 +162,19 @@ impl Default for Live {
 
 impl Live {
     fn emit(&self, msg: &ServerMsg, staff_only: bool) {
+        self.send(msg, staff_only, None);
+    }
+
+    fn send(&self, msg: &ServerMsg, staff_only: bool, room: Option<i64>) {
         let Ok(json) = serde_json::to_string(msg) else {
             return;
         };
         // An error only means no tab is listening.
-        let _ = self.0.events.send(Arc::new(Event { json, staff_only }));
+        let _ = self.0.events.send(Arc::new(Event {
+            json,
+            staff_only,
+            room,
+        }));
     }
 
     // A bracket match's score was saved. Call after the change is committed.
@@ -168,6 +193,19 @@ impl Live {
     // so pages reload it. Call after the change is committed.
     pub fn bracket_changed(&self) {
         self.emit(&ServerMsg::Bracket, false);
+    }
+
+    // Something about one match changed that the bracket doesn't show (bans, picks,
+    // hand-awarded results, a lobby's teams), so its match page reloads it. Call after
+    // the change is committed.
+    pub fn match_changed(&self, match_id: Uuid) {
+        self.emit(&ServerMsg::Match { match_id }, false);
+    }
+
+    // A line said in a multiplayer room, once it's saved; only tabs watching the match
+    // the room belongs to get it.
+    pub fn chat(&self, mp_id: i64, message: &ChatMessage) {
+        self.send(&ServerMsg::Chat { mp_id, message }, false, Some(mp_id));
     }
 
     fn set_viewing(&self, tab: u64, viewer: &Viewer, match_id: Option<Uuid>) {
@@ -219,15 +257,34 @@ pub async fn connect(
         _ => None,
     };
     let live = state.live.clone();
-    Ok(ws.on_upgrade(move |socket| tab(socket, live, staff, viewer)))
+    let db = state.db.clone();
+    Ok(ws.on_upgrade(move |socket| tab(socket, live, db, staff, viewer)))
 }
 
 async fn send(socket: &mut WebSocket, json: String) -> bool {
     socket.send(Message::Text(json)).await.is_ok()
 }
 
-async fn tab(mut socket: WebSocket, live: Live, staff: bool, viewer: Option<Viewer>) {
+// The rooms of the match a tab watches; none for a match that doesn't exist.
+async fn watched_rooms(db: &PgPool, match_id: Option<Uuid>) -> HashSet<i64> {
+    let Some(match_id) = match_id else {
+        return HashSet::new();
+    };
+    match db::matches::find_match(db, match_id).await {
+        Ok(m) => m
+            .map(|m| m.mp_ids.into_iter().collect())
+            .unwrap_or_default(),
+        Err(err) => {
+            tracing::error!(error = ?err, %match_id, "could not read a watched match's rooms");
+            HashSet::new()
+        }
+    }
+}
+
+async fn tab(mut socket: WebSocket, live: Live, db: PgPool, staff: bool, viewer: Option<Viewer>) {
     let id = live.0.next_tab.fetch_add(1, Ordering::Relaxed);
+    // The rooms whose chat this tab is sent.
+    let mut watching: HashSet<i64> = HashSet::new();
     let mut events = live.0.events.subscribe();
     if staff {
         let matches = live.0.presence.lock().unwrap().all();
@@ -248,6 +305,9 @@ async fn tab(mut socket: WebSocket, live: Live, staff: bool, viewer: Option<View
                     if event.staff_only && !staff {
                         continue;
                     }
+                    if event.room.is_some_and(|room| !watching.contains(&room)) {
+                        continue;
+                    }
                     if !send(&mut socket, event.json.clone()).await {
                         break;
                     }
@@ -263,13 +323,17 @@ async fn tab(mut socket: WebSocket, live: Live, staff: bool, viewer: Option<View
                 Err(RecvError::Closed) => break,
             },
             msg = socket.recv() => match msg {
-                Some(Ok(Message::Text(text))) => {
-                    if let (Ok(ClientMsg::Viewing { match_id }), Some(viewer)) =
-                        (serde_json::from_str::<ClientMsg>(&text), &viewer)
-                    {
-                        live.set_viewing(id, viewer, match_id);
+                Some(Ok(Message::Text(text))) => match serde_json::from_str::<ClientMsg>(&text) {
+                    Ok(ClientMsg::Viewing { match_id }) => {
+                        if let Some(viewer) = &viewer {
+                            live.set_viewing(id, viewer, match_id);
+                        }
                     }
-                }
+                    Ok(ClientMsg::Watch { match_id }) => {
+                        watching = watched_rooms(&db, match_id).await;
+                    }
+                    Err(_) => {}
+                },
                 Some(Ok(Message::Close(_))) | Some(Err(_)) | None => break,
                 Some(Ok(_)) => {}
             },

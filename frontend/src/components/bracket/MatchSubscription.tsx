@@ -3,9 +3,10 @@ import { Link } from "react-router-dom";
 import { errorMessage } from "../../api/client";
 import { fetchSubscriptions, subscribe, unsubscribe } from "../../api/discord";
 import type { BracketMatch, Team } from "../../api/types";
-import { matchCode } from "../../lib/bracket";
+import { hasMatchPage, isLive, matchCode } from "../../lib/bracket";
 import { Icon } from "../Icon";
 import { IconButton } from "../IconButton";
+import { MatchPageLink } from "../MatchPageLink";
 import "./MatchSubscription.css";
 
 export interface SubscriptionState {
@@ -100,6 +101,7 @@ export function SelectedMatchBar({
         <span className="muted">
           {match ? "Bu maç bitti." : "Bir maç seç: başlamadan önce Discord'da etiketlenmek için abone olabilirsin."}
         </span>
+        {match && hasMatchPage(match) && <MatchPageLink matchId={match.id} variant="text" />}
       </div>
     );
   }
@@ -110,6 +112,7 @@ export function SelectedMatchBar({
       <span className="match-sub-title">
         <strong>{matchCode(match)}</strong> {name(match.team1_id)} <span className="muted">vs</span> {name(match.team2_id)}
       </span>
+      {hasMatchPage(match) && <MatchPageLink matchId={match.id} live={isLive(match)} variant="text" />}
       {subs.linked ? (
         <button
           type="button"

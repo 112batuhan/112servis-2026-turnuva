@@ -121,7 +121,8 @@
   color: var(--color-text-muted);
 }
 
-.chat-line.is-me .chat-from {
+.chat-line.is-me .chat-from,
+.chat-line.is-referee .chat-from {
   color: var(--color-info);
 }
 

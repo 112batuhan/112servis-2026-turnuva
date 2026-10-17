@@ -3,13 +3,16 @@ import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { LiveMark } from "../../../components/LiveMark";
 import { splitMods, type MapResult } from "../../../lib/bancho";
-import { entryOf, poolEntries, type MatchTeam, type PoolEntry } from "./pool";
+import type { ManualResult } from "../../../api/types";
+import { entryOf, poolEntries, type MatchData, type MatchTeam, type PoolEntry } from "./pool";
 import {
   scorer,
   teamTotals,
+  type FinishedMap,
   type RefereeRoomState,
   type ResultRow,
   type RosterPlayer,
+  type Tally,
   type TeamTotal,
 } from "./useRefereeRoom";
 import "./MatchHistory.css";
@@ -53,6 +56,8 @@ function playerLines(result: MapResult, freemod: boolean, roster: RosterPlayer[]
 
 const formatScore = (score: number) => score.toLocaleString("tr-TR");
 
+const NONE: Set<string> = new Set();
+
 /**
  * The match's score sheet. In a bracket match the two teams are columns that run from the score
  * at the top down through every map: each map's totals sit in them, the winner's cell lit, so the
@@ -64,12 +69,71 @@ const formatScore = (score: number) => score.toLocaleString("tr-TR");
  */
 export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
   const { room, finished, roster, ignored, actions, canRun, busy, tally, teams } = referee;
-  const [open, setOpen] = useState<Record<string, boolean>>({});
   if (!room) return null;
+  const concluded = room.concluded_at !== null;
+  const editable = teams.length === 2 && tally !== null && canRun && !concluded;
+  return (
+    <ScoreSheet
+      room={room}
+      teams={teams}
+      tally={tally}
+      finished={finished}
+      roster={roster}
+      status={<ScoreStatus referee={referee} />}
+      ignore={{ ignored, disabled: concluded, toggle: actions.toggleIgnored }}
+      renderManualAction={
+        editable
+          ? (manual, label) => (
+              <IconButton
+                icon="undo"
+                className="sheet-toggle"
+                label={`${label}: hakem kararını geri al`}
+                disabled={busy}
+                onClick={() => actions.removeManualResult(manual.id)}
+              />
+            )
+          : undefined
+      }
+      footer={
+        <>
+          {room.rooms.length > 0 && <ResultSource referee={referee} />}
+          {editable && (
+            <div className="sheet-tools">
+              <ManualResultForm referee={referee} teams={teams} />
+              <ForfeitControl referee={referee} teams={teams} />
+            </div>
+          )}
+        </>
+      }
+    />
+  );
+}
+
+interface ScoreSheetProps {
+  room: MatchData;
+  /** A bracket match's two teams; none for a lobby. */
+  teams: MatchTeam[];
+  /** A bracket match's map wins; null for a lobby. */
+  tally: Tally | null;
+  /** Every finished map of the match's rooms, for a lobby's sheet. */
+  finished: FinishedMap[];
+  roster: RosterPlayer[];
+  /** Under the title: where the score stands. */
+  status: ReactNode;
+  /** The referee's "Sayma" boxes, which leave a map out of the score. */
+  ignore?: { ignored: Set<string>; disabled: boolean; toggle: (key: string) => void };
+  /** The button that takes back a hand-awarded result. */
+  renderManualAction?: (manual: ManualResult, label: string) => ReactNode;
+  /** Under the maps. */
+  footer?: ReactNode;
+}
+
+/** The score sheet itself, shared by the referee page and the public match page. */
+export function ScoreSheet({ room, teams, tally, finished, roster, status, ignore, renderManualAction, footer }: ScoreSheetProps) {
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const ignored = ignore?.ignored ?? NONE;
   const bracket = teams.length === 2 && tally !== null;
   const entries = poolEntries(room);
-  const concluded = room.concluded_at !== null;
-  const editable = bracket && canRun && !concluded;
 
   // A lobby has no score: just its finished pool maps.
   const rows: ResultRow[] =
@@ -91,11 +155,9 @@ export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
           <h3 id="sheet-title" className="sheet-title">
             {bracket ? "Skor" : "Maplar"}
           </h3>
-          <p className="sheet-status">
-            {bracket ? <ScoreStatus referee={referee} /> : `${rows.length} map oynandı`}
-          </p>
+          <p className="sheet-status">{bracket ? status : `${rows.length} map oynandı`}</p>
         </div>
-        {bracket && <ScoreHeads referee={referee} teams={teams} />}
+        {bracket && <ScoreHeads room={room} tally={tally} teams={teams} />}
         <div className="sheet-head-end" />
       </div>
 
@@ -146,15 +208,19 @@ export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
                         )}
                       </span>
                     )}
-                    <label className="sheet-ignore" title="Isınma ya da tekrar gibi sayılmaması gereken bir map">
-                      <input
-                        type="checkbox"
-                        checked={off}
-                        disabled={concluded}
-                        onChange={() => actions.toggleIgnored(key)}
-                      />
-                      <span className="sheet-ignore-text">Sayma</span>
-                    </label>
+                    {ignore ? (
+                      <label className="sheet-ignore" title="Isınma ya da tekrar gibi sayılmaması gereken bir map">
+                        <input
+                          type="checkbox"
+                          checked={off}
+                          disabled={ignore.disabled}
+                          onChange={() => ignore.toggle(key)}
+                        />
+                        <span className="sheet-ignore-text">Sayma</span>
+                      </label>
+                    ) : (
+                      <span />
+                    )}
                     <IconButton
                       icon="chevronDown"
                       className="sheet-toggle"
@@ -208,17 +274,7 @@ export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
                     </span>
                   ))}
                   <span />
-                  {editable ? (
-                    <IconButton
-                      icon="undo"
-                      className="sheet-toggle"
-                      label={`${entry?.label ?? "Puan"}: hakem kararını geri al`}
-                      disabled={busy}
-                      onClick={() => actions.removeManualResult(manual.id)}
-                    />
-                  ) : (
-                    <span />
-                  )}
+                  {renderManualAction?.(manual, entry?.label ?? "Puan") ?? <span />}
                 </div>
               </li>
             );
@@ -227,15 +283,9 @@ export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
       )}
 
       <footer className="sheet-foot">
-        {room.rooms.length > 0 && <ResultSource referee={referee} />}
+        {footer}
         {outsidePool > 0 && (
           <span className="sheet-note">Havuzda olmayan {outsidePool} map (ısınma ya da yanlış map) sayılmıyor.</span>
-        )}
-        {editable && (
-          <div className="sheet-tools">
-            <ManualResultForm referee={referee} teams={teams} />
-            <ForfeitControl referee={referee} teams={teams} />
-          </div>
         )}
       </footer>
     </section>
@@ -246,9 +296,8 @@ export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
  * The tops of the two team columns: each team's name over its figure, the side ahead in full
  * ink. A concluded match shows its saved result, a forfeit W and FF.
  */
-function ScoreHeads({ referee, teams }: { referee: RefereeRoomState; teams: MatchTeam[] }) {
-  const { room, tally } = referee;
-  if (!room || !tally) return null;
+function ScoreHeads({ room, tally, teams }: { room: MatchData; tally: Tally | null; teams: MatchTeam[] }) {
+  if (!tally) return null;
   const forfeit = room.forfeit_slot;
   const figures: [string, string] = forfeit
     ? forfeit === 1

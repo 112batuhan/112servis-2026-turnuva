@@ -4,6 +4,7 @@ import {
   compareByCode,
   compareByTime,
   groupByStage,
+  hasMatchPage,
   isLive,
   matchCode,
   scoreHalves,
@@ -13,6 +14,7 @@ import { LiveMark } from "../LiveMark";
 import { formatClock } from "../../lib/format";
 import { IconButton } from "../IconButton";
 import { TeamPopover } from "../TeamPopover";
+import { MatchPageLink } from "../MatchPageLink";
 import { RefereeRoomLink } from "./RefereeRoomLink";
 import { TeamBanner } from "./TeamBanner";
 import "./BracketCalendar.css";
@@ -197,6 +199,7 @@ export function BracketCalendar({
           <strong>{matchCode(m)}</strong>
           {isLive(m) && <LiveMark compact />}
           {m.stage && <span className="cal-match-stage">{m.stage.name}</span>}
+          {hasMatchPage(m) && <MatchPageLink matchId={m.id} live={isLive(m)} variant="card" />}
           {showRefereeRoom && <RefereeRoomLink matchId={m.id} variant="card" />}
         </span>
         {slots.map((slot, i) => {

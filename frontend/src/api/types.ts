@@ -478,7 +478,7 @@ export interface RefereeRoom {
   /** A bracket match's teams, or a lobby's in signup order. */
   teams: Team<AdminTeamPlayer>[];
   /** The map pool it's played in, published or not. */
-  stage: { id: string; name: string } | null;
+  stage: RoomStage | null;
   categories: Category[];
   slots: PublicSlot[];
   maps: PublicPoolMap[];
@@ -491,6 +491,48 @@ export interface RefereeRoom {
   map_results: MapResultRow[];
   /** The match has a Discord channel: clicking a player's Discord name pings them there. */
   discord_channel: boolean;
+}
+
+/** The stage a match is played in, which sets its map pool. */
+export interface RoomStage {
+  id: string;
+  name: string;
+  /** Whether its pool is on the public mappool page. */
+  published: boolean;
+}
+
+/**
+ * GET /api/public/matches/:id: a match as its public page shows it. The referee page's view
+ * without the referee's notes and the players' Discords; the pool is empty until its stage is
+ * published.
+ */
+export interface PublicMatch {
+  id: string;
+  kind: MatchKind;
+  side: BracketSide | null;
+  number: number | null;
+  lobby_number: number | null;
+  starts_at: string | null;
+  referee: MatchReferee | null;
+  streamer: MatchStreamer | null;
+  /** Oldest first; the last one is where the match is being played. */
+  rooms: MatchRoom[];
+  concluded_at: string | null;
+  team1_id: string | null;
+  team2_id: string | null;
+  team1_score: number | null;
+  team2_score: number | null;
+  forfeit_slot: 1 | 2 | null;
+  /** A bracket match's teams, or a lobby's in signup order. */
+  teams: Team[];
+  stage: RoomStage | null;
+  categories: Category[];
+  slots: PublicSlot[];
+  maps: PublicPoolMap[];
+  bans: MapBan[];
+  picks: MapPick[];
+  manual_results: ManualResult[];
+  map_results: MapResultRow[];
 }
 
 /** Someone who has a match's referee page open (sent live to staff). */
@@ -564,7 +606,10 @@ export interface RoomChatMessage {
   action: boolean;
 }
 
-/** One room's saved chat, oldest first. GET /api/matches/:id/chat returns one per room. */
+/**
+ * One room's saved chat, oldest first. GET /api/matches/:id/chat (and the public
+ * /api/public/matches/:id/chat) return one per room.
+ */
 export interface RoomChat {
   mp_id: number;
   messages: RoomChatMessage[];

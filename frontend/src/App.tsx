@@ -17,6 +17,7 @@ import { UsersPage } from "./pages/admin/UsersPage";
 import { BracketPage } from "./pages/BracketPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LinkDiscordPage } from "./pages/LinkDiscordPage";
+import { MatchPage } from "./pages/match/MatchPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PublicPoolPage } from "./pages/PublicPoolPage";
 import { QualifiersPage } from "./pages/QualifiersPage";
@@ -66,6 +67,7 @@ export function App() {
           <Route path="/teams" element={<TeamsPage />} />
           <Route path="/qualifiers" element={<QualifiersPage />} />
           <Route path="/bracket" element={<BracketPage />} />
+          <Route path="/match/:matchId" element={<MatchPage />} />
           <Route path="/staff" element={<StaffPage />} />
 
           <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />

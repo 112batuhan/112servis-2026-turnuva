@@ -3,6 +3,7 @@ import type { BracketMatch, Team } from "../api/types";
 import { isLive, matchCode, scoreHalves, sourceLabel, winningSlot, type Source } from "../lib/bracket";
 import { formatShortMatchTime } from "../lib/format";
 import { Countdown } from "./Countdown";
+import { Icon } from "./Icon";
 import { LiveMark } from "./LiveMark";
 import { TeamBanner } from "./bracket/TeamBanner";
 import "./FixtureRow.css";
@@ -102,7 +103,15 @@ export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Prop
       {side(2)}
       <span className="fixture-meta">
         <span className={`fixture-code is-${match.side}`}>{matchCode(match)}</span>
-        {match.stage && <span className="fixture-stage">{match.stage.name}</span>}
+        {live ? (
+          // A live row opens the match's page: say so where the stage would be.
+          <span className="fixture-watch">
+            <Icon name="monitor" size={13} />
+            Canlı takip et
+          </span>
+        ) : (
+          match.stage && <span className="fixture-stage">{match.stage.name}</span>
+        )}
       </span>
     </Link>
   );

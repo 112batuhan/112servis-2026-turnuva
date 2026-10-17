@@ -110,6 +110,14 @@
   font-weight: 600;
 }
 
+.lobby-card-page {
+  margin-left: auto;
+}
+
+.lobby-card-page + .lobby-card-count {
+  margin-left: var(--space-2);
+}
+
 .lobby-card-link {
   margin-left: auto;
   font-weight: 600;

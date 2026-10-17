@@ -1,5 +1,5 @@
 import { del, get, patch, post, put } from "./client";
-import type { Player, PublicQualifiers, StaffQualifiers } from "./types";
+import type { Player, PublicMatch, PublicQualifiers, RoomChat, StaffQualifiers } from "./types";
 
 export const fetchPublicQualifiers = () => get<PublicQualifiers>("/api/public/qualifiers");
 /** Signs the caller's team up for a lobby, or moves it there. */
@@ -31,3 +31,8 @@ export const setMatchNotes = (matchId: string, notes: string) => put<void>(`/api
 export const concludeMatch = (matchId: string) => post<void>(`/api/matches/${matchId}/conclude`);
 /** Host-only. */
 export const reopenMatch = (matchId: string) => post<void>(`/api/matches/${matchId}/reopen`);
+
+// Anyone: the public match page.
+export const fetchPublicMatch = (matchId: string) => get<PublicMatch>(`/api/public/matches/${matchId}`);
+/** The saved chat of each of the match's rooms; new lines arrive over the live socket. */
+export const fetchPublicChat = (matchId: string) => get<RoomChat[]>(`/api/public/matches/${matchId}/chat`);

@@ -6,7 +6,7 @@ use uuid::Uuid;
 use super::{
     channels,
     jobs::Embed,
-    messages::{self, number, side_code, site_url},
+    messages::{self, match_page_url, number, side_code},
     snowflake, Bot, BotResult,
 };
 use crate::{
@@ -175,7 +175,7 @@ pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embe
     let score = messages::result_line(info).unwrap_or_else(|| format!("{team1} – {team2}"));
     let mut embed = Embed {
         title: Some(format!("{code}: {score}")),
-        url: Some(site_url(state, &format!("/bracket?match={}", info.id))),
+        url: Some(match_page_url(state, info.id)),
         color: Some(messages::COLOR),
         ..Embed::default()
     };
@@ -244,6 +244,14 @@ pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embe
             .collect();
         embed.fields.push(("Odalar".into(), rooms.join(" "), false));
     }
+    embed.fields.push((
+        "Maç sayfası".into(),
+        format!(
+            "[Map sonuçları ve oda sohbeti]({})",
+            match_page_url(state, info.id)
+        ),
+        false,
+    ));
     Ok(embed)
 }
 

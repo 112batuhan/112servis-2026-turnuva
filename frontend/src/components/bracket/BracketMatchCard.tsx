@@ -1,7 +1,8 @@
 import type { BracketMatch, RefereeViewer, Team } from "../../api/types";
-import { isLive, matchCode, scoreHalves, sourceLabel, winningSlot, type Source } from "../../lib/bracket";
+import { hasMatchPage, isLive, matchCode, scoreHalves, sourceLabel, winningSlot, type Source } from "../../lib/bracket";
 import { Icon } from "../Icon";
 import { LiveMark } from "../LiveMark";
+import { MatchPageLink } from "../MatchPageLink";
 import { TeamPopover } from "../TeamPopover";
 import { MatchTime } from "./MatchTime";
 import { MatchTimeLink } from "./MatchTimeLink";
@@ -75,6 +76,7 @@ export function BracketMatchCard({
           </span>
         )}
         <RefereeWatchers viewers={watchers} />
+        {hasMatchPage(match) && <MatchPageLink matchId={match.id} live={live} variant="card" />}
         {showRefereeRoom && <RefereeRoomLink matchId={match.id} variant="card" />}
       </div>
       {slots.map((slot, i) => {

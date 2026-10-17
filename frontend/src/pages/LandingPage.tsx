@@ -10,7 +10,7 @@ import { useAuth } from "../auth/AuthContext";
 import { canPlay } from "../auth/roles";
 import { Countdown } from "../components/Countdown";
 import { FixtureRow } from "../components/FixtureRow";
-import { bracketMatchPath, compareByTime, incomingSources, withScore } from "../lib/bracket";
+import { compareByTime, fixturePath, incomingSources, withScore } from "../lib/bracket";
 import { formatMatchTime } from "../lib/format";
 import { useLiveRefresh } from "../lib/useLiveRefresh";
 import { useLiveBracket } from "../live/LiveContext";
@@ -104,7 +104,7 @@ export function LandingPage() {
     <li key={m.id}>
       <FixtureRow
         match={m}
-        to={bracketMatchPath(m.id, false)}
+        to={fixturePath(m)}
         team1={m.team1_id ? teamsById.get(m.team1_id) : undefined}
         team2={m.team2_id ? teamsById.get(m.team2_id) : undefined}
         sources={sources.get(m.id)}
@@ -278,7 +278,7 @@ function MyTeamSection({ data, myTeamId }: { data: PublicBracket; myTeamId: stri
           <li>
             <FixtureRow
               match={next}
-              to={bracketMatchPath(next.id, false)}
+              to={fixturePath(next)}
               team1={teamOf(next.team1_id)}
               team2={teamOf(next.team2_id)}
               sources={sources.get(next.id)}

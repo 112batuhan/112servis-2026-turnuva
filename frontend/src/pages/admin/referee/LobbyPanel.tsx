@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { IconButton } from "../../../components/IconButton";
-import { SCORE_MODES, type ScoreMode } from "../../../lib/bancho";
+import { SCORE_MODES, type RoomState, type ScoreMode } from "../../../lib/bancho";
 import { formatLength } from "../../../lib/format";
 import { RoomsEditor } from "../MatchControls";
 import { MatchHistory } from "./MatchHistory";
 import { AnnounceScore } from "./MatchScore";
+import type { PoolEntry } from "./pool";
 import { RoomPlayers } from "./RoomPlayers";
 import type { RefereeRoomState } from "./useRefereeRoom";
 import "./LobbyPanel.css";
@@ -130,7 +131,14 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
             )}
           </div>
         )}
-        {channel && <MapClock referee={referee} />}
+        {channel && (
+          <MapClock
+            lobby={referee.lobby}
+            currentEntry={referee.currentEntry}
+            mapStartedAt={referee.mapStartedAt}
+            emptyText="Odada henüz map yok. Soldaki havuzdan bir map'e tıkla."
+          />
+        )}
         <RoomPlayers referee={referee} />
         {channel && !concluded && <Commands referee={referee} />}
         <MatchHistory referee={referee} />
@@ -277,7 +285,7 @@ function RoomOptions({ referee }: { referee: RefereeRoomState }) {
 }
 
 /** The current time, ticking while `active`. */
-function useNow(active: boolean): number {
+export function useNow(active: boolean): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!active) return;
@@ -294,8 +302,20 @@ function useNow(active: boolean): number {
  * pool's, already adjusted for the map's mods (DT, HT). A map outside the pool has no known
  * length, so its clock counts up instead. Under the name, the room's mods and team mode.
  */
-function MapClock({ referee }: { referee: RefereeRoomState }) {
-  const { lobby, currentEntry, mapStartedAt } = referee;
+export function MapClock({
+  lobby,
+  currentEntry,
+  mapStartedAt,
+  emptyText,
+}: {
+  lobby: RoomState;
+  /** The pool entry the room has on, if it's a pool map. */
+  currentEntry: PoolEntry | undefined;
+  /** When the map being played started, ms. */
+  mapStartedAt: number | null;
+  /** What to say while the room has no map. */
+  emptyText: string;
+}) {
   const startedAt = lobby.playing ? mapStartedAt : null;
   const playing = startedAt !== null;
   const now = useNow(playing);
@@ -303,7 +323,7 @@ function MapClock({ referee }: { referee: RefereeRoomState }) {
   if (lobby.beatmapId === null) {
     return (
       <div className="lobby-map is-empty">
-        <span className="lobby-map-empty">Odada henüz map yok. Soldaki havuzdan bir map'e tıkla.</span>
+        <span className="lobby-map-empty">{emptyText}</span>
         {lobby.teamMode && <span className="lobby-map-meta">{roomInfo}</span>}
       </div>
     );

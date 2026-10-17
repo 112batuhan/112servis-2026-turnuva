@@ -327,6 +327,31 @@ export function applyBancho(room: RoomState, text: string): RoomState {
   return room;
 }
 
+// ---------- the chat as spectators read it ----------
+
+// BanchoBot's lines a spectator follows the match by: maps set, started, finished,
+// aborted, and the room closing. Everything else it says (joins, slot moves, settings
+// dumps, timers, locks, mods, and each player's "finished playing", which the score
+// sheet already lists) is the room being run.
+const MATCH_LINES = [
+  /^The match has (started|finished)!$/,
+  /^Aborted the match$/,
+  /^Closed the match$/,
+  RE.changedBeatmap,
+  RE.beatmapChanged,
+  // Who picks first.
+  /^.+ rolls \d+ point\(s\)$/,
+];
+
+/**
+ * Whether a room line is the room being run rather than the match being played: BanchoBot's
+ * housekeeping, and the referee's !mp commands. The public match page hides these unless asked.
+ */
+export function isRoomNoise(from: string, text: string): boolean {
+  if (from === BANCHO_BOT) return !MATCH_LINES.some((re) => re.test(text));
+  return /^!mp\b/i.test(text.trim());
+}
+
 // ---------- commands ----------
 
 export type ScoreMode = 0 | 1 | 2 | 3;

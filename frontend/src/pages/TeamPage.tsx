@@ -22,6 +22,7 @@ import { DiscordMention } from "../components/DiscordMention";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { MatchReschedules } from "../components/MatchReschedules";
 import { PlayerChip } from "../components/PlayerChip";
+import { MatchPageLink } from "../components/MatchPageLink";
 import { RoomLinks } from "../components/RoomLinks";
 import { TeamCard } from "../components/TeamCard";
 import { TeamMatches } from "../components/TeamMatches";
@@ -398,6 +399,8 @@ function QualifierInfo({ teamId, onError }: { teamId: string; onError: (message:
               <RoomLinks rooms={lobby.rooms} />
             </>
           )}
+          {" · "}
+          <MatchPageLink matchId={lobby.id} live={!lobby.open && !lobby.concluded_at && lobby.rooms.length > 0} variant="text" />
         </span>
       </div>
       {lobby.open ? (

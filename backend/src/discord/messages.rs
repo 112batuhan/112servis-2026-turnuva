@@ -134,12 +134,14 @@ pub fn site_url(state: &AppState, path: &str) -> String {
     format!("{}{path}", state.config.frontend_url.trim_end_matches('/'))
 }
 
-// The match on the public site.
+// The match's page on the public site, which follows it live: the score, the maps,
+// the room's players and its chat.
+pub fn match_page_url(state: &AppState, match_id: Uuid) -> String {
+    site_url(state, &format!("/match/{match_id}"))
+}
+
 fn match_url(state: &AppState, info: &MatchInfo) -> String {
-    match info.kind {
-        MatchKind::Bracket => site_url(state, &format!("/bracket?match={}", info.id)),
-        MatchKind::Qualifier => site_url(state, "/qualifiers"),
-    }
+    match_page_url(state, info.id)
 }
 
 // Where staff take the match.
@@ -313,9 +315,15 @@ impl Ctx<'_> {
 
 // The match as its card and its public announcement show it: the time, the stage, the
 // teams with their players, the staff, the rooms and, while it's played, the running
-// score. `p` collects the people it names, whom the card pings and the announcement
-// doesn't.
-fn match_fields(info: &MatchInfo, players: &[MatchPlayer], p: &mut Pings, embed: Embed) -> Embed {
+// score, and the link to the match page. `p` collects the people it names, whom the
+// card pings and the announcement doesn't.
+fn match_fields(
+    state: &AppState,
+    info: &MatchInfo,
+    players: &[MatchPlayer],
+    p: &mut Pings,
+    embed: Embed,
+) -> Embed {
     let concluded = info.concluded_at.is_some();
     let mut embed = embed.field(
         "🕒 Maç saati",
@@ -376,6 +384,16 @@ fn match_fields(info: &MatchInfo, players: &[MatchPlayer], p: &mut Pings, embed:
         }
         embed = embed.field("🎮 Maç linki", rooms, false);
     }
+    let page = if concluded {
+        "Skor, map sonuçları ve oda sohbeti"
+    } else {
+        "Skor, pick'ler ve oda sohbeti, canlı"
+    };
+    embed = embed.field(
+        "📺 Maç sayfası",
+        format!("[{page}]({})", match_url(state, info)),
+        false,
+    );
     // While it's being played, the running score as the referee page saves it: every
     // change queues a sync, which edits the card and the announcement.
     if info.kind == MatchKind::Bracket && !concluded && !info.mp_ids.is_empty() {
@@ -408,7 +426,7 @@ pub fn match_card(state: &AppState, info: &MatchInfo, players: &[MatchPlayer]) -
     )
     .url(match_url(state, info))
     .description(about.join("\n\n"));
-    let mut embed = match_fields(info, players, &mut p, embed);
+    let mut embed = match_fields(state, info, players, &mut p, embed);
     if concluded {
         let result = match (info.kind, result_line(info)) {
             (MatchKind::Bracket, Some(line)) if info.forfeit_slot.is_some() => {
@@ -776,7 +794,10 @@ async fn match_event(
                 }
                 _ => "🏁 Maç tamamlandı.".to_string(),
             };
-            let text = format!("{text} Kanal 1 saat daha açık kalacak, sonra arşive taşınacak.");
+            let text = format!(
+                "{text} Sonuçlar ve oda sohbeti: <{}>\nKanal 1 saat daha açık kalacak, sonra arşive taşınacak.",
+                match_url(cx.state, info)
+            );
             let mut p = Pings::default();
             let all = p.everyone(info, players);
             cx.post_match(id, format!("{text}\n{all}"), p);
@@ -938,7 +959,7 @@ pub fn announcement(
     // players and staff hear about it in their own channel.
     let mut embed = Embed::new(title.clone(), color).url(match_url(state, info));
     embed.description = description;
-    let embed = match_fields(info, players, &mut Pings::default(), embed);
+    let embed = match_fields(state, info, players, &mut Pings::default(), embed);
     let (embed, gallery) = with_banners(state, info, embed);
     OutMessage {
         content: status,

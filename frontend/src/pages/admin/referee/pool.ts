@@ -1,8 +1,30 @@
-import type { PublicPoolMap, RefereeRoom } from "../../../api/types";
+import type { PublicMatch, PublicPoolMap, RefereeRoom } from "../../../api/types";
 import { isFreemodCategory, splitMods, type MapResult, type SlotTeam } from "../../../lib/bancho";
 
 // The match's pool as the referee page shows it, shared by the pool panel and the
-// results.
+// results, and by the public match page, which shows the same match.
+
+/** A match as the referee page or the public match page has it: what both share. */
+export type MatchData = Pick<
+  RefereeRoom | PublicMatch,
+  | "id"
+  | "kind"
+  | "categories"
+  | "slots"
+  | "maps"
+  | "team1_id"
+  | "team2_id"
+  | "team1_score"
+  | "team2_score"
+  | "forfeit_slot"
+  | "concluded_at"
+  | "bans"
+  | "picks"
+  | "manual_results"
+  | "map_results"
+  | "rooms"
+  | "stage"
+> & { teams: { id: string; name: string }[] };
 
 /** How many bans a bracket match has; the ban buttons give way to the pick buttons after them. */
 export const BAN_LIMIT = 2;
@@ -25,7 +47,7 @@ export interface MatchTeam {
 }
 
 /** The pool in category and slot order. A category with one slot is just its name. */
-export function poolEntries(room: RefereeRoom): PoolEntry[] {
+export function poolEntries(room: Pick<MatchData, "categories" | "slots" | "maps">): PoolEntry[] {
   const entries: PoolEntry[] = [];
   for (const category of room.categories) {
     const slots = room.slots.filter((s) => s.category_id === category.id).sort((a, b) => a.position - b.position);
@@ -45,7 +67,7 @@ export function poolEntries(room: RefereeRoom): PoolEntry[] {
 }
 
 /** A bracket match's two teams, red then blue, once both are known; otherwise none. */
-export function matchTeams(room: RefereeRoom): MatchTeam[] {
+export function matchTeams(room: Pick<MatchData, "kind" | "teams" | "team1_id" | "team2_id">): MatchTeam[] {
   if (room.kind !== "bracket") return [];
   const team = (id: string | null, color: SlotTeam): MatchTeam | null => {
     const t = id ? room.teams.find((t) => t.id === id) : undefined;
@@ -90,7 +112,7 @@ export function entryOf(
  * so the first pick goes to the team that didn't ban first, and picks alternate after that. Null
  * before anything is marked, when the page can't know who won the roll.
  */
-export function nextPicker(room: RefereeRoom, teams: MatchTeam[]): MatchTeam | null {
+export function nextPicker(room: Pick<MatchData, "bans" | "picks">, teams: MatchTeam[]): MatchTeam | null {
   if (teams.length !== 2) return null;
   const last = room.picks[room.picks.length - 1] ?? room.bans[0];
   return last ? (teams.find((t) => t.id !== last.team_id) ?? null) : null;

@@ -1,4 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { Link, useParams } from "react-router-dom";
 import type { RefereeViewer } from "../../../api/types";
 import { useSignedInUser } from "../../../auth/AuthContext";
@@ -33,42 +43,8 @@ function RefereeRoom({ matchId }: { matchId: string }) {
     return () => setViewing(null);
   }, [matchId, setViewing]);
 
-  // On a phone the cockpit is one panel at a time under a tab bar; wider, every panel shows and
-  // the bar is hidden. The CSS decides which, so the page reads it back from the bar.
-  const [tab, setTab] = useState<CockpitTab>("room");
-  const [compact, setCompact] = useState(false);
+  const { tab, select, compact, pageRef, barRef, tabsRef } = useCockpit(room !== null);
   const [chatUnread, setChatUnread] = useState(0);
-  const pageRef = useRef<HTMLDivElement>(null);
-  const barRef = useRef<HTMLDivElement>(null);
-  const tabsRef = useRef<HTMLDivElement>(null);
-  const loaded = room !== null;
-  useLayoutEffect(() => {
-    const page = pageRef.current;
-    const bar = barRef.current;
-    const tabs = tabsRef.current;
-    if (!page || !bar || !tabs) return;
-    const update = () => {
-      setCompact(tabs.offsetHeight > 0);
-      page.style.setProperty("--referee-bar-height", `${bar.offsetHeight}px`);
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(bar);
-    return () => observer.disconnect();
-  }, [loaded]);
-
-  // Picking a tab brings the bar up under the top bar, so the panel gets the whole screen.
-  const select = useCallback((next: CockpitTab) => {
-    setTab(next);
-    const bar = barRef.current;
-    if (!bar) return;
-    const stuckAt = parseFloat(getComputedStyle(bar).top) || 0;
-    const offset = bar.getBoundingClientRect().top - stuckAt;
-    if (offset > 1) {
-      const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      window.scrollBy({ top: offset, behavior: smooth ? "smooth" : "auto" });
-    }
-  }, []);
 
   const colors = useMemo(() => {
     const map = new Map<string, SlotTeam | null>();
@@ -108,8 +84,7 @@ function RefereeRoom({ matchId }: { matchId: string }) {
           {room.starts_at && formatMatchTime(room.starts_at)}
           {room.referee ? ` · Hakem: ${room.referee.username}` : " · Hakem yok"}
         </span>
-        {room.concluded_at && <span className="badge badge-success">Bitti</span>}
-        {!referee.canRun && (
+        {room.concluded_at && <span className="badge badge-success">Bitti</span>}        {!referee.canRun && (
           <span className="badge badge-warning" title="Odayı sadece maçın hakemi ya da bir host kurabilir">
             Bu maçın hakemi değilsin
           </span>
@@ -119,7 +94,17 @@ function RefereeRoom({ matchId }: { matchId: string }) {
 
       {/* On a phone this sticks under the top bar: the tabs, and an error where it can't scroll away. */}
       <div className="referee-bar" ref={barRef}>
-        <CockpitTabs tabsRef={tabsRef} active={tab} onSelect={select} referee={referee} chatUnread={chatUnread} />
+        <CockpitTabs
+          tabsRef={tabsRef}
+          label="Hakem paneli"
+          active={tab}
+          onSelect={select}
+          status={{
+            pool: <PoolStatus referee={referee} />,
+            room: <RoomStatus referee={referee} />,
+            chat: <ChatStatus unread={chatUnread} />,
+          }}
+        />
         <ErrorAlert message={error} />
       </div>
 
@@ -145,15 +130,57 @@ function RefereeRoom({ matchId }: { matchId: string }) {
   );
 }
 
-type CockpitTab = "pool" | "room" | "chat";
+export type CockpitTab = "pool" | "room" | "chat";
 
-const TABS: { id: CockpitTab; label: string }[] = [
+export const TABS: { id: CockpitTab; label: string }[] = [
   { id: "pool", label: "Havuz" },
   { id: "room", label: "Maç" },
   { id: "chat", label: "Sohbet" },
 ];
 
-const panelProps = (id: CockpitTab) => ({
+/**
+ * The cockpit's layout: on a phone one panel at a time under a tab bar; wider, every panel shows
+ * and the bar is hidden. The CSS decides which, so this reads it back from the bar. Shared by the
+ * referee page and the public match page.
+ */
+export function useCockpit(loaded: boolean) {
+  const [tab, setTab] = useState<CockpitTab>("room");
+  const [compact, setCompact] = useState(false);
+  const pageRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const page = pageRef.current;
+    const bar = barRef.current;
+    const tabs = tabsRef.current;
+    if (!page || !bar || !tabs) return;
+    const update = () => {
+      setCompact(tabs.offsetHeight > 0);
+      page.style.setProperty("--referee-bar-height", `${bar.offsetHeight}px`);
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, [loaded]);
+
+  // Picking a tab brings the bar up under the top bar, so the panel gets the whole screen.
+  const select = useCallback((next: CockpitTab) => {
+    setTab(next);
+    const bar = barRef.current;
+    if (!bar) return;
+    const stuckAt = parseFloat(getComputedStyle(bar).top) || 0;
+    const offset = bar.getBoundingClientRect().top - stuckAt;
+    if (offset > 1) {
+      const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      window.scrollBy({ top: offset, behavior: smooth ? "smooth" : "auto" });
+    }
+  }, []);
+
+  return { tab, select, compact, pageRef, barRef, tabsRef };
+}
+
+export const panelProps = (id: CockpitTab) => ({
   role: "tabpanel",
   id: `referee-panel-${id}`,
   "aria-labelledby": `referee-tab-${id}`,
@@ -161,17 +188,19 @@ const panelProps = (id: CockpitTab) => ({
 
 interface CockpitTabsProps {
   tabsRef: RefObject<HTMLDivElement>;
+  /** The tab list's accessible name. */
+  label: string;
   active: CockpitTab;
   onSelect: (tab: CockpitTab) => void;
-  referee: RefereeRoomState;
-  chatUnread: number;
+  /** Where each panel stands, in one short line. */
+  status: Record<CockpitTab, ReactNode>;
 }
 
 /**
  * The phone's cockpit tabs. Each one carries where its panel stands (the draft, the score, the
- * chat), so the referee knows when to switch without switching to look.
+ * chat), so nobody has to switch to look.
  */
-function CockpitTabs({ tabsRef, active, onSelect, referee, chatUnread }: CockpitTabsProps) {
+export function CockpitTabs({ tabsRef, label: listLabel, active, onSelect, status }: CockpitTabsProps) {
   function onKeyDown(e: KeyboardEvent) {
     const at = TABS.findIndex((t) => t.id === active);
     const to =
@@ -187,7 +216,7 @@ function CockpitTabs({ tabsRef, active, onSelect, referee, chatUnread }: Cockpit
   }
 
   return (
-    <div className="referee-tabs" role="tablist" aria-label="Hakem paneli" ref={tabsRef} onKeyDown={onKeyDown}>
+    <div className="referee-tabs" role="tablist" aria-label={listLabel} ref={tabsRef} onKeyDown={onKeyDown}>
       {TABS.map(({ id, label }) => (
         <button
           key={id}
@@ -201,11 +230,7 @@ function CockpitTabs({ tabsRef, active, onSelect, referee, chatUnread }: Cockpit
           onClick={() => onSelect(id)}
         >
           <span className="referee-tab-label">{label}</span>
-          <span className="referee-tab-status">
-            {id === "pool" && <PoolStatus referee={referee} />}
-            {id === "room" && <RoomStatus referee={referee} />}
-            {id === "chat" && <ChatStatus unread={chatUnread} />}
-          </span>
+          <span className="referee-tab-status">{status[id]}</span>
         </button>
       ))}
     </div>

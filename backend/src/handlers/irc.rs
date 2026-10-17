@@ -37,7 +37,7 @@ use tokio::{
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::{auth::AuthUser, db, error::AppError, role::Role, AppState};
+use crate::{auth::AuthUser, db, error::AppError, handlers::live::Live, role::Role, AppState};
 
 pub fn routes() -> Router<AppState> {
     Router::new().route("/irc", get(connect))
@@ -520,6 +520,7 @@ impl IrcUsers {
 
         let log = RoomLog {
             db: state.db.clone(),
+            live: state.live.clone(),
             loggers: state.chat_loggers.clone(),
             conn: rand::random(),
             user_id,
@@ -748,9 +749,11 @@ async fn run(
 pub struct ChatLoggers(Arc<Mutex<HashMap<i64, u64>>>);
 
 // Saves the lines said in multiplayer rooms (#mp_<id>) to room_chat_messages, for
-// moderation. Private messages aren't saved.
+// moderation, and sends each one to the pages watching its match. Private messages
+// aren't saved.
 struct RoomLog {
     db: PgPool,
+    live: Live,
     loggers: ChatLoggers,
     // Tells this connection apart in `loggers`.
     conn: u64,
@@ -779,11 +782,11 @@ impl RoomLog {
                 if !claimed {
                     return;
                 }
-                if let Err(err) =
-                    db::chat::insert_message(&self.db, mp_id, from, text, *action, self.user_id)
-                        .await
+                match db::chat::insert_message(&self.db, mp_id, from, text, *action, self.user_id)
+                    .await
                 {
-                    tracing::error!(error = ?err, mp_id, "could not save a chat line");
+                    Ok(message) => self.live.chat(mp_id, &message),
+                    Err(err) => tracing::error!(error = ?err, mp_id, "could not save a chat line"),
                 }
             }
             ServerMsg::Parted { channel } => {

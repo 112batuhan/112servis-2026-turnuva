@@ -17,6 +17,8 @@ import type {
   MapPlayerScore,
   MapResultRow,
   OsuRoomGames,
+  Player,
+  PublicMatch,
   PublicPoolMap,
   RefereeRoom,
   Team,
@@ -49,12 +51,21 @@ import {
 import { matchCode } from "../../../lib/bracket";
 import { readJson, writeJson } from "../../../lib/storage";
 import { registerRoom, unregisterRoom } from "./roomAutomation";
-import { entryOf, matchTeams, nextPicker, poolEntries, scoreMessage, type MatchTeam, type PoolEntry } from "./pool";
+import {
+  entryOf,
+  matchTeams,
+  nextPicker,
+  poolEntries,
+  scoreMessage,
+  type MatchData,
+  type MatchTeam,
+  type PoolEntry,
+} from "./pool";
 import { mergeChat, toChatLine, type SavedChat } from "./roomChat";
 
-export interface RosterPlayer {
-  player: AdminTeamPlayer;
-  team: Team<AdminTeamPlayer>;
+export interface RosterPlayer<P extends Player = Player> {
+  player: P;
+  team: Team<P>;
   /** Bracket matches: the colour the player's team plays as (team 1 red, team 2 blue). */
   color: SlotTeam | null;
 }
@@ -211,7 +222,7 @@ function oneAtATime<T>(task: () => Promise<T>): Promise<T> {
 }
 
 /** "Lobi 3" or "W2". */
-export function roomLabel(room: RefereeRoom): string {
+export function roomLabel(room: Pick<RefereeRoom | PublicMatch, "kind" | "lobby_number" | "side" | "number">): string {
   if (room.kind === "qualifier") return `Lobi ${room.lobby_number ?? "?"}`;
   return room.side && room.number !== null ? matchCode({ side: room.side, number: room.number }) : "Maç";
 }
@@ -223,7 +234,8 @@ export function roomName(room: RefereeRoom): string {
   return `${ROOM_PREFIX}: (${name(room.team1_id)}) vs (${name(room.team2_id)})`;
 }
 
-function readLobby(lines: ChatLine[]): RoomState {
+/** A room as BanchoBot's lines in its chat describe it. */
+export function readLobby(lines: Pick<ChatLine, "from" | "text" | "notice">[]): RoomState {
   return lines.filter((l) => l.from === BANCHO_BOT && !l.notice).reduce((r, l) => applyBancho(r, l.text), EMPTY_ROOM);
 }
 
@@ -244,8 +256,40 @@ export function teamTotals(result: MapResult, roster: RosterPlayer[]): TeamTotal
   return [...totals].map(([teamId, score]) => ({ teamId, score })).sort((a, b) => b.score - a.score);
 }
 
-/** A concluded match's saved map results as the results list shows them. */
-function savedTally(room: RefereeRoom, entries: PoolEntry[], roster: RosterPlayer[]): Tally {
+/**
+ * The map pool entry a room has on, given BanchoBot's description of it; picks tell apart a
+ * beatmap the pool has twice.
+ */
+export function currentPoolEntry(room: MatchData, lobby: RoomState): PoolEntry | undefined {
+  if (lobby.beatmapId === null) return undefined;
+  return entryOf(
+    poolEntries(room),
+    { beatmapId: lobby.beatmapId, roomMods: modAcronyms(lobby.mods ?? ""), freemod: isFreemod(lobby.mods) },
+    new Set(room.picks.map((p) => p.map_id)),
+  );
+}
+
+/** When the map being played started: the room's last "The match has started!", so a reload keeps the clock. */
+export function mapStartTime(lobby: RoomState, lines: Pick<ChatLine, "from" | "text" | "notice" | "at">[] | null): number | null {
+  if (!lobby.playing || !lines) return null;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const l = lines[i];
+    if (l.from === BANCHO_BOT && !l.notice && l.text === MATCH_STARTED) return l.at;
+  }
+  return null;
+}
+
+/** The match's players with their teams and, in a bracket match, the colour each plays as. */
+export function rosterOf<P extends Player>(
+  room: Pick<MatchData, "kind" | "team1_id" | "team2_id"> & { teams: Team<P>[] },
+): RosterPlayer<P>[] {
+  const color = (team: Team<P>): SlotTeam | null =>
+    room.kind !== "bracket" ? null : team.id === room.team1_id ? "red" : team.id === room.team2_id ? "blue" : null;
+  return room.teams.flatMap((team) => team.players.map((player) => ({ player, team, color: color(team) })));
+}
+
+/** A match's saved map results as the results list shows them, with its map wins. */
+export function savedTally(room: MatchData, entries: PoolEntry[], roster: RosterPlayer[]): Tally {
   const rows: ResultRow[] = room.map_results.flatMap((saved, i) => {
     const entry = entries.find((e) => e.map.id === saved.map_id);
     if (!entry) return [];
@@ -388,25 +432,10 @@ export function useRefereeRoom(matchId: string) {
     return { ...latest, results: roomStates.flatMap((r) => r.state.results) };
   }, [roomStates]);
 
-  // The pool map the room has on, and when it started if it's being played: the last
-  // "The match has started!" of the latest room, so a reload keeps the clock.
-  const currentEntry = useMemo<PoolEntry | undefined>(() => {
-    if (!room || lobby.beatmapId === null) return undefined;
-    return entryOf(
-      poolEntries(room),
-      { beatmapId: lobby.beatmapId, roomMods: modAcronyms(lobby.mods ?? ""), freemod: isFreemod(lobby.mods) },
-      new Set(room.picks.map((p) => p.map_id)),
-    );
-  }, [room, lobby.beatmapId, lobby.mods]);
+  // The pool map the room has on, and when it started if it's being played.
+  const currentEntry = useMemo(() => (room ? currentPoolEntry(room, lobby) : undefined), [room, lobby]);
   const latestLines = roomChats.length > 0 ? roomChats[roomChats.length - 1].lines : null;
-  const mapStartedAt = useMemo(() => {
-    if (!lobby.playing || !latestLines) return null;
-    for (let i = latestLines.length - 1; i >= 0; i--) {
-      const l = latestLines[i];
-      if (l.from === BANCHO_BOT && !l.notice && l.text === MATCH_STARTED) return l.at;
-    }
-    return null;
-  }, [lobby.playing, latestLines]);
+  const mapStartedAt = useMemo(() => mapStartTime(lobby, latestLines), [lobby, latestLines]);
 
   // Every room's finished maps, oldest room first: from osu!'s record of the room once
   // the referee synced it (unless osu! had none), otherwise from its chat.
@@ -421,12 +450,7 @@ export function useRefereeRoom(matchId: string) {
     [roomStates, osuSync],
   );
 
-  const roster = useMemo<RosterPlayer[]>(() => {
-    if (!room) return [];
-    const color = (team: Team<AdminTeamPlayer>): SlotTeam | null =>
-      room.kind !== "bracket" ? null : team.id === room.team1_id ? "red" : team.id === room.team2_id ? "blue" : null;
-    return room.teams.flatMap((team) => team.players.map((player) => ({ player, team, color: color(team) })));
-  }, [room]);
+  const roster = useMemo<RosterPlayer<AdminTeamPlayer>[]>(() => (room ? rosterOf(room) : []), [room]);
 
   const findRoster = useCallback(
     (slot: Pick<RoomSlot, "username" | "userId">) =>

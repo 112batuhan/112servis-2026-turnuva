@@ -241,26 +241,32 @@ async fn move_team(
         }
         Err(err) => return Err(err.into()),
     }
-    let jobs: Vec<Job> = [Some(match_id), previous]
-        .into_iter()
-        .flatten()
-        .map(|match_id| Job::SyncMatch { match_id })
+    let changed: Vec<Uuid> = [Some(match_id), previous].into_iter().flatten().collect();
+    let jobs: Vec<Job> = changed
+        .iter()
+        .map(|&match_id| Job::SyncMatch { match_id })
         .collect();
     state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await?;
+    for id in changed {
+        state.live.match_changed(id);
+    }
     Ok(StatusCode::NO_CONTENT)
 }
 
 // Lobbies are numbered by start time, so adding, moving or deleting one can rename
-// the others' channels.
+// the others' channels, and renumber them on their match pages.
 async fn sync_lobbies(state: &AppState, extra: Vec<Job>) -> Result<(), AppError> {
-    let mut jobs: Vec<Job> = db::discord::lobby_ids(&state.db)
-        .await?
-        .into_iter()
-        .map(|match_id| Job::SyncMatch { match_id })
+    let ids = db::discord::lobby_ids(&state.db).await?;
+    let mut jobs: Vec<Job> = ids
+        .iter()
+        .map(|&match_id| Job::SyncMatch { match_id })
         .collect();
     jobs.extend(extra);
     state.discord.enqueue(&state.db, &jobs).await?;
+    for id in ids {
+        state.live.match_changed(id);
+    }
     Ok(())
 }
 
@@ -295,6 +301,7 @@ pub async fn leave_lobby(
         .enqueue(&mut *tx, &[Job::SyncMatch { match_id }])
         .await?;
     tx.commit().await?;
+    state.live.match_changed(match_id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -423,6 +430,7 @@ pub async fn unassign_team(
         .enqueue(&mut *tx, &[Job::SyncMatch { match_id }])
         .await?;
     tx.commit().await?;
+    state.live.match_changed(match_id);
     Ok(StatusCode::NO_CONTENT)
 }
 

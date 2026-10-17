@@ -195,10 +195,12 @@
   color: var(--color-text);
   font: inherit;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
 }
 
 .pool-pick:hover:not(:disabled) {
+  text-decoration: none;
   background: var(--color-hover);
 }
 

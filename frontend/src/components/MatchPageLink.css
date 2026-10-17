@@ -1,0 +1,41 @@
+.match-page-link {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+
+.match-page-link:hover {
+  color: var(--color-text);
+}
+
+/* A live match's link is frost: the page is where it's happening. */
+.match-page-link.is-live {
+  color: var(--color-primary);
+}
+
+.match-page-link.is-card {
+  display: inline-flex;
+  padding: 1px;
+  border-radius: var(--radius-sm);
+}
+
+.match-page-link.is-card:hover {
+  background: var(--color-hover);
+}
+
+.match-page-link.is-row.is-live {
+  border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
+}
+
+.match-page-link.is-text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.match-page-link.is-text:hover span {
+  text-decoration: underline;
+}

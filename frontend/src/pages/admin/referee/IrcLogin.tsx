@@ -49,7 +49,7 @@ export function IrcLogin() {
   return (
     <form className="irc-login" onSubmit={submit}>
       <h2 className="irc-login-title">Bancho'ya bağlan</h2>
-      <p className="irc-login-why">Odayı yönetmek ve sohbete yazmak için kendi osu! IRC hesabınla.</p>
+      <p className="irc-login-why">Odayı yönetmek ve sohbete yazabilmek için kendi Bancho IRC şifrenle giriş yap.</p>
       <input
         className="input input-sm"
         aria-label="osu! kullanıcı adı"

@@ -1,17 +1,22 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { liveSocketUrl } from "../api/live";
-import type { RefereeViewer } from "../api/types";
+import type { RefereeViewer, RoomChatMessage } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 
 // One WebSocket per tab to the server's live hub (handlers/live.rs): score changes as
 // they're saved, a signal to reload the bracket when anything else about it changes,
 // and, for staff, who has each match's referee page open. Pages subscribe to the
-// events; the referee page says which match it shows. It reconnects on its own and
+// events; the referee page says which match it shows, and the public match page which
+// match's room chat it wants (`watch`). It reconnects on its own and
 // again whenever the signed-in user changes, since the server reads who it is once.
 
 export type LiveEvent =
   | { type: "score"; match_id: string; team1_score: number | null; team2_score: number | null }
-  | { type: "bracket" };
+  | { type: "bracket" }
+  /** Something about one match the bracket doesn't show changed (bans, picks, a lobby's teams). */
+  | { type: "match"; match_id: string }
+  /** A line said in a room of the watched match, as it was saved. */
+  | { type: "chat"; mp_id: number; message: RoomChatMessage };
 
 type ServerMsg =
   | LiveEvent
@@ -27,6 +32,11 @@ interface LiveState {
   subscribe: (handler: (event: LiveEvent) => void) => () => void;
   /** Tells the server this tab shows the match's referee page (or none). */
   setViewing: (matchId: string | null) => void;
+  /**
+   * Asks for the chat of the match's rooms (or none). Again whenever its rooms change, since the
+   * server looks them up when asked.
+   */
+  watch: (matchId: string | null) => void;
 }
 
 const LiveContext = createContext<LiveState | null>(null);
@@ -41,10 +51,15 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const handlers = useRef(new Set<(event: LiveEvent) => void>());
   const socket = useRef<WebSocket | null>(null);
   const viewing = useRef<string | null>(null);
+  const watching = useRef<string | null>(null);
 
   const sendViewing = useCallback(() => {
     const ws = socket.current;
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "viewing", match_id: viewing.current }));
+  }, []);
+  const sendWatch = useCallback(() => {
+    const ws = socket.current;
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "watch", match_id: watching.current }));
   }, []);
 
   // A page kept in the browser's back/forward cache would keep its socket, and with it
@@ -81,6 +96,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
         retry = RETRY_MIN_MS;
         setConnected(true);
         if (viewing.current) sendViewing();
+        if (watching.current) sendWatch();
         if (reconnecting) for (const handler of handlers.current) handler({ type: "bracket" });
       };
       ws.onmessage = (e) => {
@@ -120,7 +136,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       socket.current?.close();
       socket.current = null;
     };
-  }, [userKey, generation, sendViewing]);
+  }, [userKey, generation, sendViewing, sendWatch]);
 
   const subscribe = useCallback((handler: (event: LiveEvent) => void) => {
     handlers.current.add(handler);
@@ -137,9 +153,17 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     [sendViewing],
   );
 
+  const watch = useCallback(
+    (matchId: string | null) => {
+      watching.current = matchId;
+      sendWatch();
+    },
+    [sendWatch],
+  );
+
   const value = useMemo(
-    () => ({ connected, presence, subscribe, setViewing }),
-    [connected, presence, subscribe, setViewing],
+    () => ({ connected, presence, subscribe, setViewing, watch }),
+    [connected, presence, subscribe, setViewing, watch],
   );
   return <LiveContext.Provider value={value}>{children}</LiveContext.Provider>;
 }
@@ -169,6 +193,8 @@ export function useLiveBracket(onScore: (event: Extract<LiveEvent, { type: "scor
         callbacks.current.onScore(event);
         return;
       }
+      // Neither changes what the bracket shows.
+      if (event.type === "match" || event.type === "chat") return;
       window.clearTimeout(timer);
       timer = window.setTimeout(() => callbacks.current.onChanged(), RELOAD_DELAY_MS);
     });

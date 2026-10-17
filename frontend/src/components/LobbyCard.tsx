@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { API_URL } from "../api/client";
 import type { Lobby, Player, Team } from "../api/types";
 import { formatMatchTime } from "../lib/format";
+import { MatchPageLink } from "./MatchPageLink";
 import { RoomLinks } from "./RoomLinks";
 import { Countdown } from "./Countdown";
 import { DiscordMention } from "./DiscordMention";
@@ -45,6 +46,13 @@ export function LobbyCard<P extends Player>({
         <div className="lobby-card-title">
           <h3>Lobi {number}</h3>
           <LobbyStatus lobby={lobby} full={full} />
+          <span className="lobby-card-page">
+            <MatchPageLink
+              matchId={lobby.id}
+              live={!lobby.open && !lobby.concluded_at && lobby.rooms.length > 0}
+              variant="text"
+            />
+          </span>
           <span className={full ? "lobby-card-count is-full" : "lobby-card-count"} title="Kayıtlı takımlar">
             {lobby.teams.length}/{capacity}
           </span>

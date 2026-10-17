@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import { fetchPublicBracket } from "../api/bracket";
 import { errorMessage } from "../api/client";
 import type { BracketMatch, PublicBracket } from "../api/types";
-import { bracketMatchPath, compareByTime, incomingSources, withScore } from "../lib/bracket";
+import { bracketMatchPath, compareByTime, fixturePath, incomingSources, withScore } from "../lib/bracket";
 import { useLiveBracket } from "../live/LiveContext";
 import { isAdminPath } from "../pages/admin/tabs";
 import { FixtureRow } from "./FixtureRow";
@@ -11,8 +11,8 @@ import "./TeamMatches.css";
 
 /**
  * A team's next bracket match and the ones it has played, newest first. Each one links to the
- * bracket's grid with that match selected: the admin bracket from an admin page, the public one
- * everywhere else. Loads the public bracket when it mounts, so it's fresh every time it's opened.
+ * match's public page (the bracket's grid while it waits for a team), or from an admin page to the
+ * admin bracket with that match selected. Loads the public bracket when it mounts, so it's fresh every time it's opened.
  */
 export function TeamMatches({ teamId }: { teamId: string }) {
   const [data, setData] = useState<PublicBracket | null>(null);
@@ -47,7 +47,7 @@ export function TeamMatches({ teamId }: { teamId: string }) {
   const row = (m: BracketMatch) => (
     <FixtureRow
       match={m}
-      to={bracketMatchPath(m.id, admin)}
+      to={admin ? bracketMatchPath(m.id, true) : fixturePath(m)}
       team1={m.team1_id ? teams.get(m.team1_id) : undefined}
       team2={m.team2_id ? teams.get(m.team2_id) : undefined}
       sources={sources.get(m.id)}

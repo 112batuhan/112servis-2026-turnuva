@@ -1,7 +1,8 @@
+import type { ReactNode } from "react";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { formatLength } from "../../../lib/format";
-import { BAN_LIMIT, entryOf, matchTeams, poolEntries, type MatchTeam, type PoolEntry } from "./pool";
+import { BAN_LIMIT, entryOf, matchTeams, poolEntries, type MatchData, type MatchTeam, type PoolEntry } from "./pool";
 import type { RefereeRoomState } from "./useRefereeRoom";
 import "./PoolPanel.css";
 
@@ -18,12 +19,8 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
   // By entry, so a beatmap that's in the pool twice is told apart by its mods.
   const played = new Set(finished.map((f) => entryOf(entries, f.result, picks)?.map.id));
   const teams = matchTeams(room);
-  const teamOf = (id: string) => teams.find((t) => t.id === id);
-  const bannedBy = new Map(room.bans.map((b) => [b.map_id, teamOf(b.team_id)]));
-  const pickedBy = new Map(room.picks.map((p) => [p.map_id, teamOf(p.team_id)]));
   const canMark = teams.length === 2 && canRun && room.concluded_at === null;
   const banning = room.bans.length < BAN_LIMIT;
-  const labelOf = new Map(entries.map((e) => [e.map.id, e.label]));
 
   // A ban or pick to take back, or the buttons for whichever phase the match is in.
   function markActions(entry: PoolEntry, banned: MatchTeam | undefined, picked: MatchTeam | undefined) {
@@ -61,14 +58,73 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
   }
 
   return (
+    <PoolView
+      room={room}
+      currentEntry={currentEntry}
+      played={played}
+      phase={canMark ? (banning ? "Ban sırası" : "Pick sırası") : null}
+      pick={{
+        disabled: (_entry, banned) => !inChannel || banned !== undefined,
+        title: (entry, banned) =>
+          banned
+            ? `${entry.label}: ${banned.name} yasakladı`
+            : inChannel
+              ? `${entry.label} seç: !mp map ${entry.map.beatmap_id}, ${entry.freemod ? "Freemod" : entry.map.mods || "NM"}`
+              : "Önce odanın kanalına katıl",
+        onPick: (entry) => actions.pickMap(entry.map, entry.freemod),
+      }}
+      renderActions={canMark ? markActions : undefined}
+    />
+  );
+}
+
+interface PoolViewProps {
+  room: MatchData;
+  /** The map the room has on. */
+  currentEntry: PoolEntry | undefined;
+  /** The pool maps (PublicPoolMap.id) played so far. */
+  played: Set<string | undefined>;
+  /** Where the draft stands, beside the title. */
+  phase?: string | null;
+  /**
+   * Makes each map a button that sets it in the room (the referee page). Without it each map
+   * links to its beatmap on osu!.
+   */
+  pick?: {
+    disabled: (entry: PoolEntry, banned: MatchTeam | undefined) => boolean;
+    title: (entry: PoolEntry, banned: MatchTeam | undefined) => string;
+    onPick: (entry: PoolEntry) => void;
+  };
+  /** The referee's ban and pick buttons at the end of each map. */
+  renderActions?: (entry: PoolEntry, banned: MatchTeam | undefined, picked: MatchTeam | undefined) => ReactNode;
+}
+
+/**
+ * The match's pool with the draft so far: the bans and picks as team-coloured chips, then every
+ * map with what happened to it (banned, picked, on in the room, played). Shared by the referee
+ * page and the public match page.
+ */
+export function PoolView({ room, currentEntry, played, phase, pick, renderActions }: PoolViewProps) {
+  const entries = poolEntries(room);
+  const teams = matchTeams(room);
+  const teamOf = (id: string) => teams.find((t) => t.id === id);
+  const bannedBy = new Map(room.bans.map((b) => [b.map_id, teamOf(b.team_id)]));
+  const pickedBy = new Map(room.picks.map((p) => [p.map_id, teamOf(p.team_id)]));
+  const labelOf = new Map(entries.map((e) => [e.map.id, e.label]));
+
+  return (
     <section className="pool-panel" aria-label="Mappool">
       <h2 className="pool-panel-title">
         Mappool
         {room.stage && <span className="pool-panel-stage">{room.stage.name}</span>}
-        {canMark && <span className="pool-panel-phase">{banning ? "Ban sırası" : "Pick sırası"}</span>}
+        {phase && <span className="pool-panel-phase">{phase}</span>}
       </h2>
       {!room.stage && <p className="pool-panel-note">Bu maça stage seçilmemiş.</p>}
-      {room.stage && entries.length === 0 && <p className="pool-panel-note">Bu stage'in havuzunda map yok.</p>}
+      {room.stage && entries.length === 0 && (
+        <p className="pool-panel-note">
+          {pick || room.stage.published ? "Bu stage'in havuzunda map yok." : "Bu stage'in havuzu henüz yayımlanmadı."}
+        </p>
+      )}
 
       {teams.length === 2 && entries.length > 0 && (
         <dl className="pool-draft" aria-label="Yasaklar ve seçimler">
@@ -106,12 +162,35 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
           const current = currentEntry?.map.id === map.id;
           const banned = bannedBy.get(map.id);
           const picked = pickedBy.get(map.id);
-          const mods = freemod ? "Freemod" : map.mods || "NM";
-          const pickTitle = banned
-            ? `${label}: ${banned.name} yasakladı`
-            : inChannel
-              ? `${label} seç: !mp map ${map.beatmap_id}, ${mods}`
-              : "Önce odanın kanalına katıl";
+          const body = (
+            <>
+              <span className="pool-pick-label" style={{ borderColor: color, color }}>
+                {label}
+              </span>
+              <span className="pool-pick-text">
+                <span className="pool-pick-title">
+                  {map.artist} - {map.title}
+                </span>
+                <span className="pool-pick-meta">
+                  <Icon name="star" size={11} className="pool-pick-star" />
+                  {map.star_rating.toFixed(2)} · {formatLength(map.total_length)} · {Math.round(map.bpm)} BPM
+                  {freemod && " · Freemod"} · [{map.version}]
+                </span>
+              </span>
+              {banned && (
+                <span className={`pool-mark is-team-${banned.color}`} title={`${banned.name} yasakladı`}>
+                  yasak
+                </span>
+              )}
+              {picked && (
+                <span className={`pool-mark is-team-${picked.color}`} title={`${picked.name} seçti`}>
+                  seçim
+                </span>
+              )}
+              {!banned && !picked && current && <span className="pool-mark is-current">Odada</span>}
+              {!banned && !picked && !current && played.has(map.id) && <span className="pool-mark">Oynandı</span>}
+            </>
+          );
           return (
             <li
               key={map.id}
@@ -125,40 +204,28 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
                 .filter(Boolean)
                 .join(" ")}
             >
-              <button
-                type="button"
-                className="pool-pick"
-                disabled={!inChannel || banned !== undefined}
-                title={pickTitle}
-                onClick={() => actions.pickMap(map, freemod)}
-              >
-                <span className="pool-pick-label" style={{ borderColor: color, color }}>
-                  {label}
-                </span>
-                <span className="pool-pick-text">
-                  <span className="pool-pick-title">
-                    {map.artist} - {map.title}
-                  </span>
-                  <span className="pool-pick-meta">
-                    <Icon name="star" size={11} className="pool-pick-star" />
-                    {map.star_rating.toFixed(2)} · {formatLength(map.total_length)} · {Math.round(map.bpm)} BPM
-                    {freemod && " · Freemod"} · [{map.version}]
-                  </span>
-                </span>
-                {banned && (
-                  <span className={`pool-mark is-team-${banned.color}`} title={`${banned.name} yasakladı`}>
-                    yasak
-                  </span>
-                )}
-                {picked && (
-                  <span className={`pool-mark is-team-${picked.color}`} title={`${picked.name} seçti`}>
-                    seçim
-                  </span>
-                )}
-                {!banned && !picked && current && <span className="pool-mark is-current">Odada</span>}
-                {!banned && !picked && !current && played.has(map.id) && <span className="pool-mark">Oynandı</span>}
-              </button>
-              {canMark && <span className="pool-mark-actions">{markActions(entry, banned, picked)}</span>}
+              {pick ? (
+                <button
+                  type="button"
+                  className="pool-pick"
+                  disabled={pick.disabled(entry, banned)}
+                  title={pick.title(entry, banned)}
+                  onClick={() => pick.onPick(entry)}
+                >
+                  {body}
+                </button>
+              ) : (
+                <a
+                  className="pool-pick"
+                  href={`https://osu.ppy.sh/b/${map.beatmap_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`${label}: osu!'da aç`}
+                >
+                  {body}
+                </a>
+              )}
+              {renderActions && <span className="pool-mark-actions">{renderActions(entry, banned, picked)}</span>}
             </li>
           );
         })}

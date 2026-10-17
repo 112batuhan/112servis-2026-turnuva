@@ -20,7 +20,7 @@ interface Props {
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
 
-function Linkified({ text }: { text: string }) {
+export function Linkified({ text }: { text: string }) {
   const parts = text.split(URL_RE);
   return (
     <>
@@ -203,13 +203,25 @@ export function ChatPanel({ rooms, colors, top, visible = true, onUnread }: Prop
   );
 }
 
-function ChatRow({ line, me, colors }: { line: ChatLine; me: string | null; colors: Map<string, SlotTeam | null> }) {
+interface ChatRowProps {
+  line: ChatLine;
+  /** Our nick, whose lines stand out. */
+  me: string | null;
+  colors: Map<string, SlotTeam | null>;
+  /** The match's referee, whose lines stand out on the public page. */
+  referee?: string | null;
+}
+
+/** One chat line, IRC style: the time, who said it in their team's colour, what they said. */
+export function ChatRow({ line, me, colors, referee }: ChatRowProps) {
   const fromMe = me !== null && line.from.toLowerCase() === me.toLowerCase();
+  const fromReferee = referee != null && normalizeName(line.from) === normalizeName(referee);
   const color = colors.get(normalizeName(line.from));
   const classes = [
     "chat-line",
     line.from === BANCHO_BOT && "is-bot",
     fromMe && "is-me",
+    fromReferee && "is-referee",
     line.notice && "is-notice",
     color && `is-team-${color}`,
     colors.has(normalizeName(line.from)) && "is-player",
