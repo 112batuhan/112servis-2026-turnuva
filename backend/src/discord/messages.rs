@@ -20,6 +20,7 @@ use crate::{
         matches::MatchKind,
         notifications::StaffRole,
     },
+    handlers::matches::lobby_name,
     team_rank, AppState,
 };
 
@@ -33,11 +34,11 @@ const COLOR_BAD: u32 = 0xed4245;
 // A finished match.
 pub const COLOR_DONE: u32 = 0x747f8d;
 
-// "W1", "L3" or "Lobi 2".
+// "W1", "L3" or "Lobi B".
 pub fn code(info: &MatchInfo) -> String {
     match (info.kind, info.side, info.number) {
         (MatchKind::Bracket, Some(side), Some(n)) => side_code(side, n),
-        _ => format!("Lobi {}", info.lobby_number.unwrap_or(0)),
+        _ => format!("Lobi {}", lobby_name(info.lobby_index.unwrap_or_default())),
     }
 }
 
@@ -48,7 +49,7 @@ pub fn side_code(side: Side, number: i32) -> String {
     }
 }
 
-// "W1: Sokak Kedileri vs Tatlı Krizi" or "Lobi 2".
+// "W1: Sokak Kedileri vs Tatlı Krizi" or "Eleme lobi B".
 pub fn title(info: &MatchInfo) -> String {
     match info.kind {
         MatchKind::Bracket => format!(
@@ -57,7 +58,10 @@ pub fn title(info: &MatchInfo) -> String {
             info.team1_name.as_deref().unwrap_or("?"),
             info.team2_name.as_deref().unwrap_or("?"),
         ),
-        MatchKind::Qualifier => format!("Eleme {}", code(info).to_lowercase()),
+        MatchKind::Qualifier => format!(
+            "Eleme lobi {}",
+            lobby_name(info.lobby_index.unwrap_or_default())
+        ),
     }
 }
 
@@ -1080,7 +1084,7 @@ mod tests {
             archived: false,
             side: Some(Side::Winners),
             number: Some(3),
-            lobby_number: None,
+            lobby_index: None,
             team1_id: Some(Uuid::from_u128(1)),
             team2_id: Some(Uuid::from_u128(2)),
             team1_name: Some("Kırmızı".into()),

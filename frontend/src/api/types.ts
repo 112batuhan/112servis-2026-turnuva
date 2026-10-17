@@ -269,6 +269,8 @@ export interface MatchRoom {
 
 export interface Lobby<P extends Player = Player> {
   id: string;
+  /** Its letter, fixed when it's created: "A", "B". */
+  name: string;
   starts_at: string;
   /** Players can still join or leave: it hasn't started or been concluded. */
   open: boolean;
@@ -464,8 +466,8 @@ export interface RefereeRoom {
   /** Bracket matches only (W1, L3). */
   side: BracketSide | null;
   number: number | null;
-  /** Qualifiers only: the lobby's place by start time. */
-  lobby_number: number | null;
+  /** Qualifiers only: the lobby's letter, "A". */
+  lobby_name: string | null;
   starts_at: string | null;
   referee: MatchReferee | null;
   /** Bracket matches only: who streams it, whom the referee can add as a referee of the room. */
@@ -538,7 +540,7 @@ export interface PublicMatch {
   kind: MatchKind;
   side: BracketSide | null;
   number: number | null;
-  lobby_number: number | null;
+  lobby_name: string | null;
   starts_at: string | null;
   referee: MatchReferee | null;
   streamer: MatchStreamer | null;
@@ -706,7 +708,7 @@ export type BotState = "online" | "connecting" | "off" | "login_failed" | "full"
 export interface BotRoomView {
   mp_id: number;
   match_id: string;
-  /** "W3", "Lobi 2"; null for a match that's over. */
+  /** "W3", "Lobi B"; null for a match that's over. */
   label: string | null;
   /** The bot made it, rather than being added to it. */
   made: boolean;

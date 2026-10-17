@@ -11,8 +11,6 @@ import "./LobbyCard.css";
 
 interface Props<P extends Player> {
   lobby: Lobby<P>;
-  /** Place in the list, which is ordered by start time. */
-  number: number;
   capacity: number;
   /** Marks the viewer's own lobby. */
   highlight?: boolean;
@@ -29,7 +27,6 @@ interface Props<P extends Player> {
 
 export function LobbyCard<P extends Player>({
   lobby,
-  number,
   capacity,
   highlight,
   onStart,
@@ -44,7 +41,7 @@ export function LobbyCard<P extends Player>({
     <article className={highlight ? "lobby-card is-mine" : "lobby-card"}>
       <header className="lobby-card-header">
         <div className="lobby-card-title">
-          <h3>Lobi {number}</h3>
+          <h3>Lobi {lobby.name}</h3>
           <LobbyStatus lobby={lobby} full={full} />
           <span className="lobby-card-page">
             <MatchPageLink

@@ -24,7 +24,10 @@ use crate::{
     error::AppError,
     handlers::{
         bracket::Streamer,
-        matches::{load_match, match_rooms, require_runs, require_unconcluded, MatchRoom, Referee},
+        matches::{
+            load_match, lobby_name, match_rooms, require_runs, require_unconcluded, MatchRoom,
+            Referee,
+        },
         team::{group_teams, AdminTeamPlayer, Team},
     },
     role::Role,
@@ -66,8 +69,8 @@ pub struct RefereeRoom {
     // Bracket matches only: shown as W1, L3.
     side: Option<Side>,
     number: Option<i32>,
-    // Qualifiers only: the lobby's place by start time.
-    lobby_number: Option<i64>,
+    // Qualifiers only: the lobby's letter, "A".
+    lobby_name: Option<String>,
     #[serde(with = "time::serde::rfc3339::option")]
     starts_at: Option<OffsetDateTime>,
     referee: Option<Referee>,
@@ -236,7 +239,7 @@ pub async fn get_room(
         kind: row.kind,
         side: row.side,
         number: row.number,
-        lobby_number: row.lobby_number,
+        lobby_name: row.lobby_index.map(lobby_name),
         starts_at: row.starts_at,
         referee: Referee::from_columns(row.referee),
         streamer: Streamer::from_columns(
@@ -279,7 +282,7 @@ pub struct PublicMatch {
     kind: MatchKind,
     side: Option<Side>,
     number: Option<i32>,
-    lobby_number: Option<i64>,
+    lobby_name: Option<String>,
     #[serde(with = "time::serde::rfc3339::option")]
     starts_at: Option<OffsetDateTime>,
     // Staff Discord accounts are public on purpose.
@@ -331,7 +334,7 @@ pub async fn get_public_match(
         kind: row.kind,
         side: row.side,
         number: row.number,
-        lobby_number: row.lobby_number,
+        lobby_name: row.lobby_index.map(lobby_name),
         starts_at: row.starts_at,
         referee: Referee::from_columns(row.referee),
         streamer: Streamer::from_columns(

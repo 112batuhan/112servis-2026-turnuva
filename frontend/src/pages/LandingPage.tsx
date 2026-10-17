@@ -92,9 +92,9 @@ export function LandingPage() {
     .filter((m) => m.concluded_at)
     .sort((a, b) => (b.concluded_at ?? "").localeCompare(a.concluded_at ?? ""))
     .slice(0, RESULTS_LIMIT);
-  const lobbies = (data?.qualifiers?.lobbies ?? []).map((lobby, i) => ({ lobby, number: i + 1 }));
+  const lobbies = data?.qualifiers?.lobbies ?? [];
   // Lobbies matter until the bracket starts; one a referee forgot to close shouldn't linger after.
-  const openLobbies = matches.some((m) => m.concluded_at) ? [] : lobbies.filter(({ lobby }) => !lobby.concluded_at);
+  const openLobbies = matches.some((m) => m.concluded_at) ? [] : lobbies.filter((lobby) => !lobby.concluded_at);
 
   const myTeamId = data?.bracket?.my_team_id ?? null;
   const played = matches.filter((m) => m.concluded_at).length;
@@ -196,10 +196,10 @@ export function LandingPage() {
                 </Link>
               </header>
               <ul className="lobby-lines">
-                {openLobbies.map(({ lobby, number }) => (
+                {openLobbies.map((lobby) => (
                   <li key={lobby.id}>
                     <Link to="/qualifiers" className="lobby-line">
-                      <span className="lobby-line-name">Lobi {number}</span>
+                      <span className="lobby-line-name">Lobi {lobby.name}</span>
                       <span className="lobby-line-time">{formatMatchTime(lobby.starts_at)}</span>
                       <span className="lobby-line-fill num">
                         {lobby.teams.length}/{data.qualifiers?.capacity}

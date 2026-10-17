@@ -344,7 +344,7 @@ pub struct MatchInfo {
     pub archived: bool,
     pub side: Option<Side>,
     pub number: Option<i32>,
-    pub lobby_number: Option<i64>,
+    pub lobby_index: Option<i32>,
     pub team1_id: Option<Uuid>,
     pub team2_id: Option<Uuid>,
     pub team1_name: Option<String>,
@@ -377,11 +377,7 @@ pub async fn match_info(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Optio
         SELECT m.id, m.kind, m.starts_at, m.concluded_at,
                COALESCE(m.concluded_at <= now() - make_interval(secs => $2), false) AS archived,
                b.side, b.number,
-               CASE WHEN m.kind = 'qualifier' THEN
-                   (SELECT count(*) FROM matches q
-                    WHERE q.kind = 'qualifier'
-                      AND (q.starts_at, q.created_at) <= (m.starts_at, m.created_at))
-               END AS lobby_number,
+               m.lobby_index,
                b.team1_id, b.team2_id, t1.name AS team1_name, t2.name AS team2_name,
                b.team1_score, b.team2_score, b.forfeit_slot,
                tb1.updated_at AS team1_banner_at, tb2.updated_at AS team2_banner_at,
@@ -554,13 +550,6 @@ pub async fn syncable_matches(pool: &PgPool) -> sqlx::Result<Vec<Uuid>> {
     )
     .fetch_all(pool)
     .await
-}
-
-// Lobby numbers follow start times, so moving one lobby can renumber the others.
-pub async fn lobby_ids(ex: impl PgExecutor<'_>) -> sqlx::Result<Vec<Uuid>> {
-    sqlx::query_scalar("SELECT id FROM matches WHERE kind = 'qualifier'")
-        .fetch_all(ex)
-        .await
 }
 
 // Matches starting within `window` that haven't been reminded about at this time yet:

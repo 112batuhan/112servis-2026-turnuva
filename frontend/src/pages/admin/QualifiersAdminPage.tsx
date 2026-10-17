@@ -91,9 +91,7 @@ export function QualifiersAdminPage() {
   }
 
   const lobbies = data?.lobbies ?? [];
-  // Numbered by place in the full list, so filtering doesn't renumber them.
-  const numbered = lobbies.map((lobby, i) => ({ lobby, number: i + 1 }));
-  const shown = mineOnly ? numbered.filter(({ lobby }) => lobby.referee?.id === user.id) : numbered;
+  const shown = mineOnly ? lobbies.filter((lobby) => lobby.referee?.id === user.id) : lobbies;
   const unrefereed = lobbies.filter((l) => !l.referee && !l.concluded_at).length;
 
   return (
@@ -188,11 +186,10 @@ export function QualifiersAdminPage() {
       )}
       {data && shown.length > 0 && (
         <div className="lobby-grid">
-          {shown.map(({ lobby, number }) => (
+          {shown.map((lobby) => (
             <StaffLobbyCard
               key={lobby.id}
               lobby={lobby}
-              number={number}
               data={data}
               userId={user.id}
               isHost={isHost}
@@ -211,7 +208,6 @@ export function QualifiersAdminPage() {
 
 interface StaffLobbyCardProps {
   lobby: StaffLobby;
-  number: number;
   data: StaffQualifiers;
   userId: string;
   isHost: boolean;
@@ -224,7 +220,6 @@ interface StaffLobbyCardProps {
 
 function StaffLobbyCard({
   lobby,
-  number,
   data,
   userId,
   isHost,
@@ -243,7 +238,6 @@ function StaffLobbyCard({
   return (
     <LobbyCard
       lobby={lobby}
-      number={number}
       capacity={data.capacity}
       highlight={isMine}
       onStart={onStart}
@@ -282,7 +276,7 @@ function StaffLobbyCard({
               disabled={busy}
               onClick={() => {
                 const teams = lobby.teams.length > 0 ? ` İçindeki ${lobby.teams.length} takım lobisiz kalır.` : "";
-                if (window.confirm(`Lobi ${number} silinsin mi?${teams}`)) run(() => deleteLobby(lobby.id));
+                if (window.confirm(`Lobi ${lobby.name} silinsin mi?${teams}`)) run(() => deleteLobby(lobby.id));
               }}
             >
               Lobiyi sil
@@ -298,7 +292,7 @@ function StaffLobbyCard({
               disabled={busy || lobby.rooms.length === 0}
               title={lobby.rooms.length > 0 ? undefined : "Önce maç linkini ekle"}
               onClick={() => {
-                if (window.confirm(`Lobi ${number} bitti olarak işaretlensin mi?`)) run(() => concludeMatch(lobby.id));
+                if (window.confirm(`Lobi ${lobby.name} bitti olarak işaretlensin mi?`)) run(() => concludeMatch(lobby.id));
               }}
             >
               Maçı bitir
@@ -386,7 +380,7 @@ function StaffLobbyCard({
           <dd>
             <EditableNote
               value={lobby.referee_notes}
-              label={`Lobi ${number} hakem notları`}
+              label={`Lobi ${lobby.name} hakem notları`}
               placeholder="Ters giden bir şey olursa not al (sadece yetkililer görür)"
               isPrivate
               onSave={onNotes}
@@ -423,10 +417,10 @@ function LobbySelect({ label, team, current, lobbies, capacity, disabled, compac
       onChange={(e) => e.target.value && onSelect(e.target.value)}
     >
       <option value="">{label}</option>
-      {lobbies.map((lobby, i) =>
+      {lobbies.map((lobby) =>
         lobby.id === current ? null : (
           <option key={lobby.id} value={lobby.id} disabled={lobby.teams.length >= capacity}>
-            Lobi {i + 1} · {formatMatchTime(lobby.starts_at)} ({lobby.teams.length}/{capacity})
+            Lobi {lobby.name} · {formatMatchTime(lobby.starts_at)} ({lobby.teams.length}/{capacity})
           </option>
         ),
       )}

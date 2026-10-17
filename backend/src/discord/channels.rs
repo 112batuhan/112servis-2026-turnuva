@@ -106,7 +106,7 @@ async fn overwrites(
     Ok(list)
 }
 
-// "w1-sokak-kedileri-vs-tatli-krizi", "lobi-3". Discord would lowercase and dash it the
+// "w1-sokak-kedileri-vs-tatli-krizi", "lobi-c". Discord would lowercase and dash it the
 // same way; doing it here keeps the name comparable with what Discord stores.
 fn channel_name(info: &MatchInfo) -> String {
     let raw = match info.kind {

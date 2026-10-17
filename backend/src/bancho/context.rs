@@ -12,11 +12,14 @@ use super::{
     commands::{side_color, side_slots, ROOM_PREFIX},
     tally::{pool_entries, score_key, PoolEntry, RosterPlayer},
 };
-use crate::db::{
-    self,
-    bracket::{BanRow, ManualResultRow, MapResultRow, PickRow, Side},
-    matches::MatchKind,
-    referee::RoomSettings,
+use crate::{
+    db::{
+        self,
+        bracket::{BanRow, ManualResultRow, MapResultRow, PickRow, Side},
+        matches::MatchKind,
+        referee::RoomSettings,
+    },
+    handlers::matches::lobby_name,
 };
 
 #[derive(Debug, Clone)]
@@ -30,9 +33,10 @@ pub struct MatchContext {
     pub kind: MatchKind,
     pub concluded_at: Option<OffsetDateTime>,
     pub forfeit: bool,
-    // "W3", "Lobi 2": how the bots page names it.
+    // "W3", "Lobi B": how the bots page names it.
     pub label: String,
-    // The osu! room name: "112S: (Team A) vs (Team B)".
+    // The osu! room name: "112S: (Team A) vs (Team B)", or "112S: (Qualifiers) vs
+    // (Lobby B)" for a lobby.
     pub room_name: String,
     // Bracket matches: team 1 (blue) and team 2 (red), once both are known.
     pub sides: Option<[MatchTeam; 2]>,
@@ -116,6 +120,7 @@ pub async fn load(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchContext>>
         (Some(a), Some(b)) if bracket => Some([a, b]),
         _ => None,
     };
+    let lobby = lobby_name(row.lobby_index.unwrap_or_default());
     let room_name = if bracket {
         let name = |id: Option<Uuid>| team(id).map_or("TBD".to_string(), |t| t.name);
         format!(
@@ -124,10 +129,7 @@ pub async fn load(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchContext>>
             name(row.team2_id)
         )
     } else {
-        format!(
-            "{ROOM_PREFIX}: Qualifiers Lobby {}",
-            row.lobby_number.unwrap_or_default()
-        )
+        format!("{ROOM_PREFIX}: (Qualifiers) vs (Lobby {lobby})")
     };
 
     let entries = match row.stage_id {
@@ -161,7 +163,7 @@ pub async fn load(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchContext>>
         label: if bracket {
             code(row.side, row.number)
         } else {
-            format!("Lobi {}", row.lobby_number.unwrap_or_default())
+            format!("Lobi {lobby}")
         },
         room_name,
         sides,

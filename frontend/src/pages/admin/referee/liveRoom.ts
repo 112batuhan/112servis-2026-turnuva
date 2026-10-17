@@ -70,9 +70,9 @@ export interface Tally {
  */
 export type ResultSource = "chat" | "saved";
 
-/** "Lobi 3" or "W2". */
-export function roomLabel(room: Pick<RefereeRoom | PublicMatch, "kind" | "lobby_number" | "side" | "number">): string {
-  if (room.kind === "qualifier") return `Lobi ${room.lobby_number ?? "?"}`;
+/** "Lobi C" or "W2". */
+export function roomLabel(room: Pick<RefereeRoom | PublicMatch, "kind" | "lobby_name" | "side" | "number">): string {
+  if (room.kind === "qualifier") return `Lobi ${room.lobby_name ?? "?"}`;
   return room.side && room.number !== null ? matchCode({ side: room.side, number: room.number }) : "Maç";
 }
 

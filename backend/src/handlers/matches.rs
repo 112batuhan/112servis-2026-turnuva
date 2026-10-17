@@ -58,6 +58,18 @@ const LOBBY_SIZE: i64 = 7;
 
 const NOTES_MAX: usize = 2000;
 
+// A lobby's letter from its index: 1 is "A", 26 "Z", 27 "AA".
+pub fn lobby_name(index: i32) -> String {
+    let mut n = index.max(1) as u32;
+    let mut name = Vec::new();
+    while n > 0 {
+        n -= 1;
+        name.push(char::from(b'A' + (n % 26) as u8));
+        n /= 26;
+    }
+    name.into_iter().rev().collect()
+}
+
 pub fn is_host(user: &AuthUser) -> bool {
     user.roles.has(Role::Host)
 }
@@ -97,6 +109,8 @@ impl Referee {
 #[derive(Debug, Serialize)]
 pub struct Lobby<P> {
     id: Uuid,
+    // Its letter: "A", "B".
+    name: String,
     #[serde(with = "time::serde::rfc3339")]
     starts_at: OffsetDateTime,
     // Players can still join or leave: it hasn't started or been concluded.
@@ -112,6 +126,7 @@ pub struct Lobby<P> {
 fn to_lobby<P>(row: MatchRow, teams: Vec<Team<P>>, now: OffsetDateTime) -> (Lobby<P>, String) {
     let lobby = Lobby {
         id: row.id,
+        name: lobby_name(row.lobby_index),
         starts_at: row.starts_at,
         open: row.concluded_at.is_none() && row.starts_at > now,
         referee: Referee::from_columns(row.referee),
@@ -254,22 +269,6 @@ async fn move_team(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// Lobbies are numbered by start time, so adding, moving or deleting one can rename
-// the others' channels, and renumber them on their match pages.
-async fn sync_lobbies(state: &AppState, extra: Vec<Job>) -> Result<(), AppError> {
-    let ids = db::discord::lobby_ids(&state.db).await?;
-    let mut jobs: Vec<Job> = ids
-        .iter()
-        .map(|&match_id| Job::SyncMatch { match_id })
-        .collect();
-    jobs.extend(extra);
-    state.discord.enqueue(&state.db, &jobs).await?;
-    for id in ids {
-        state.live.match_changed(id);
-    }
-    Ok(())
-}
-
 // PUT /api/me/qualifier — either player signs their team up for a lobby, or moves
 // it to another one.
 pub async fn join_lobby(
@@ -363,7 +362,6 @@ pub async fn create_lobby(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     db::matches::create_lobby(&state.db, body.starts_at).await?;
-    sync_lobbies(&state, Vec::new()).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -378,7 +376,12 @@ pub async fn reschedule_lobby(
     if !db::matches::reschedule_lobby(&state.db, id, body.starts_at).await? {
         return Err(AppError::NotFound);
     }
-    sync_lobbies(&state, vec![Job::TimeSet { match_id: id }]).await?;
+    let jobs = [
+        Job::SyncMatch { match_id: id },
+        Job::TimeSet { match_id: id },
+    ];
+    state.discord.enqueue(&state.db, &jobs).await?;
+    state.live.match_changed(id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -398,7 +401,9 @@ pub async fn delete_lobby(
         channel_id,
         kind: MatchKind::Qualifier,
     });
-    sync_lobbies(&state, archive.into_iter().collect()).await?;
+    let jobs: Vec<Job> = archive.into_iter().collect();
+    state.discord.enqueue(&state.db, &jobs).await?;
+    state.live.match_changed(id);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -750,4 +755,21 @@ pub async fn reopen(
     tx.commit().await?;
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::lobby_name;
+
+    #[test]
+    fn lobby_names_run_through_the_alphabet() {
+        assert_eq!(lobby_name(1), "A");
+        assert_eq!(lobby_name(2), "B");
+        assert_eq!(lobby_name(26), "Z");
+        assert_eq!(lobby_name(27), "AA");
+        assert_eq!(lobby_name(52), "AZ");
+        assert_eq!(lobby_name(53), "BA");
+        assert_eq!(lobby_name(702), "ZZ");
+        assert_eq!(lobby_name(703), "AAA");
+    }
 }

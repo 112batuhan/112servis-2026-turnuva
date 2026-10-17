@@ -363,15 +363,14 @@ function QualifierInfo({ teamId, onError }: { teamId: string; onError: (message:
   useEffect(load, [load, teamId]);
 
   if (!qualifiers) return null;
-  const index = qualifiers.lobbies.findIndex((l) => l.teams.some((t) => t.id === teamId));
-  if (index < 0) {
+  const lobby = qualifiers.lobbies.find((l) => l.teams.some((t) => t.id === teamId));
+  if (!lobby) {
     return (
       <p className="muted team-name-hint">
         Eleme lobinizi <Link to="/qualifiers">Elemeler</Link> sayfasından seçebilirsiniz.
       </p>
     );
   }
-  const lobby = qualifiers.lobbies[index];
   if (lobby.concluded_at) return null;
 
   return (
@@ -380,7 +379,7 @@ function QualifierInfo({ teamId, onError }: { teamId: string; onError: (message:
         <span className="team-qualifier-label">Eleme lobisi</span>
         <span>
           <Link to="/qualifiers" className="team-qualifier-lobby">
-            Lobi {index + 1}
+            Lobi {lobby.name}
           </Link>{" "}
           · {formatMatchTime(lobby.starts_at)}
         </span>

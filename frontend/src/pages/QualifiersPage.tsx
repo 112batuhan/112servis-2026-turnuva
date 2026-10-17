@@ -42,8 +42,7 @@ export function QualifiersPage() {
 
   const lobbies = data?.lobbies;
   const myTeamId = data?.my_team_id ?? null;
-  const myIndex = lobbies && myTeamId ? lobbies.findIndex((l) => l.teams.some((t) => t.id === myTeamId)) : -1;
-  const myLobby = myIndex >= 0 ? lobbies![myIndex] : null;
+  const myLobby = (myTeamId ? lobbies?.find((l) => l.teams.some((t) => t.id === myTeamId)) : undefined) ?? null;
   // Once their lobby has started a team stays where it is.
   const canMove = myTeamId !== null && (!myLobby || myLobby.open);
 
@@ -92,7 +91,7 @@ export function QualifiersPage() {
           {myLobby ? (
             <>
               <p>
-                Takımın <strong>Lobi {myIndex + 1}</strong> için kayıtlı: {formatMatchTime(myLobby.starts_at)}.{" "}
+                Takımın <strong>Lobi {myLobby.name}</strong> için kayıtlı: {formatMatchTime(myLobby.starts_at)}.{" "}
                 {myLobby.open
                   ? "Lobi başlayana kadar sen veya takım arkadaşın başka bir lobiye geçebilirsiniz."
                   : "Lobi başladığı için artık değiştirilemez."}
@@ -122,11 +121,10 @@ export function QualifiersPage() {
       {lobbies?.length === 0 && <p className="status">Henüz eleme lobisi açılmadı.</p>}
       {lobbies && lobbies.length > 0 && (
         <div className="lobby-grid">
-          {lobbies.map((lobby, i) => (
+          {lobbies.map((lobby) => (
             <LobbyCard
               key={lobby.id}
               lobby={lobby}
-              number={i + 1}
               capacity={data!.capacity}
               highlight={lobby === myLobby}
               onStart={() => reload().catch((e) => setError(errorMessage(e)))}

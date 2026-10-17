@@ -28,6 +28,8 @@ pub struct RefereeColumns {
 #[derive(Debug, sqlx::FromRow)]
 pub struct MatchRow {
     pub id: Uuid,
+    // Its letter, as crate::handlers::matches::lobby_name spells it.
+    pub lobby_index: i32,
     pub starts_at: OffsetDateTime,
     // Its rooms, oldest first.
     pub mp_ids: Vec<i64>,
@@ -74,7 +76,7 @@ pub struct EntryRow {
 }
 
 // A match as the referee page shows it. The bracket_* fields are null for
-// qualifiers and lobby_number is null for bracket matches. The stage is the bracket
+// qualifiers and lobby_index is null for bracket matches. The stage is the bracket
 // match's own, or the qualifier stage for a lobby.
 #[derive(Debug, sqlx::FromRow)]
 pub struct RoomRow {
@@ -99,7 +101,7 @@ pub struct RoomRow {
     pub streamer_osu_id: Option<i64>,
     pub streamer_username: Option<String>,
     pub streamer_avatar_url: Option<String>,
-    pub lobby_number: Option<i64>,
+    pub lobby_index: Option<i32>,
     pub stage_id: Option<Uuid>,
     pub stage_name: Option<String>,
     pub stage_published: Option<bool>,
@@ -110,7 +112,7 @@ pub struct RoomRow {
 pub async fn list_lobbies(pool: &PgPool) -> sqlx::Result<Vec<MatchRow>> {
     sqlx::query_as::<_, MatchRow>(
         r#"
-        SELECT m.id, m.starts_at, m.referee_notes, m.concluded_at,
+        SELECT m.id, m.lobby_index, m.starts_at, m.referee_notes, m.concluded_at,
                ARRAY(SELECT r.mp_id FROM match_rooms r WHERE r.match_id = m.id
                      ORDER BY r.added_at, r.mp_id) AS mp_ids,
                u.id AS referee_id, u.osu_id AS referee_osu_id,
@@ -136,9 +138,14 @@ pub async fn list_entries(pool: &PgPool) -> sqlx::Result<Vec<EntryRow>> {
     .await
 }
 
+// Names a new lobby with the letter after the last lobby's.
 pub async fn create_lobby(pool: &PgPool, starts_at: OffsetDateTime) -> sqlx::Result<Uuid> {
     sqlx::query_scalar(
-        "INSERT INTO matches (kind, starts_at) VALUES ('qualifier', $1) RETURNING id",
+        r#"
+        INSERT INTO matches (kind, starts_at, lobby_index)
+        SELECT 'qualifier', $1, COALESCE(max(lobby_index), 0) + 1 FROM matches
+        RETURNING id
+        "#,
     )
     .bind(starts_at)
     .fetch_one(pool)
@@ -268,11 +275,7 @@ pub async fn find_room(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<RoomRow>>
                b.forfeit_slot,
                s.id AS streamer_id, s.osu_id AS streamer_osu_id,
                s.username AS streamer_username, s.avatar_url AS streamer_avatar_url,
-               CASE WHEN m.kind = 'qualifier' THEN
-                   (SELECT count(*) FROM matches q
-                    WHERE q.kind = 'qualifier'
-                      AND (q.starts_at, q.created_at) <= (m.starts_at, m.created_at))
-               END AS lobby_number,
+               m.lobby_index,
                st.id AS stage_id, st.name AS stage_name, st.published AS stage_published,
                st.best_of AS stage_best_of
         FROM matches m

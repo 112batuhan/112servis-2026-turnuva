@@ -154,7 +154,7 @@ pub enum BotState {
 pub struct BotRoom {
     pub mp_id: i64,
     pub match_id: Uuid,
-    // "W3", "Lobi 2"; None for a match that's over.
+    // "W3", "Lobi B"; None for a match that's over.
     pub label: Option<String>,
     // The bot made it, rather than being added to it.
     pub made: bool,

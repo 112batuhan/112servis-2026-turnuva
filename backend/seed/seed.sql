@@ -165,7 +165,8 @@ JOIN osu_users b ON b.osu_id < 0 AND b.username = v.invitee;
 -- Qualifier lobbies around now: one concluded (full, seven teams, its chat further
 -- down), one being played, and upcoming ones with and without a referee. Every lobby
 -- has a dummy referee or dummy teams, so clear.sql removes it. 'Kayıp Rank' is left
--- without a lobby. Teams sign up a minute apart in the order listed.
+-- without a lobby. Teams sign up a minute apart in the order listed. Each lobby takes
+-- the letter after the last one, after any real lobbies.
 DO $$
 DECLARE
     lobby record;
@@ -183,13 +184,14 @@ BEGIN
             (interval '3 days',   'DevHakem',   NULL, false, '', ARRAY[]::text[])
         ) AS v (offset_by, referee, mp_id, concluded, notes, teams)
     LOOP
-        INSERT INTO matches (kind, starts_at, referee_id, referee_notes, concluded_at)
+        INSERT INTO matches (kind, starts_at, referee_id, referee_notes, concluded_at, lobby_index)
         VALUES (
             'qualifier',
             date_trunc('hour', now()) + lobby.offset_by,
             (SELECT id FROM osu_users WHERE osu_id < 0 AND username = lobby.referee),
             lobby.notes,
-            CASE WHEN lobby.concluded THEN now() - interval '1 day' END
+            CASE WHEN lobby.concluded THEN now() - interval '1 day' END,
+            (SELECT COALESCE(max(lobby_index), 0) + 1 FROM matches)
         )
         RETURNING id INTO new_match;
         INSERT INTO match_rooms (mp_id, match_id)
