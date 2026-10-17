@@ -1,16 +1,16 @@
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::{Executor, PgConnection, PgPool};
 use uuid::Uuid;
 
 use crate::role::Role;
 
 const CLEAR_SQL: &str = include_str!("../../seed/clear.sql");
-// Postgres runs a multi-statement query as one transaction, so a failed seed
-// leaves the old data in place.
+// Seeding runs in one transaction, so a failed seed leaves the old data in place.
 const RESEED_SQL: &str = concat!(
     include_str!("../../seed/clear.sql"),
     include_str!("../../seed/seed.sql")
 );
+const LIVE_SQL: &str = include_str!("../../seed/live.sql");
 
 // Banners for some of the seeded teams, by team name. They're bytes, so they're
 // added here rather than in seed.sql.
@@ -75,7 +75,51 @@ pub async fn user_exists(pool: &PgPool, id: Uuid) -> sqlx::Result<bool> {
 }
 
 pub async fn seed(pool: &PgPool) -> sqlx::Result<()> {
-    sqlx::raw_sql(RESEED_SQL).execute(pool).await?;
+    let mut tx = pool.begin().await?;
+    reseed(&mut tx).await?;
+    tx.commit().await
+}
+
+pub enum LiveSeed {
+    Done,
+    // A dummy account, which the reseed would delete.
+    Dummy,
+    // The account is in a team that isn't seeded, so it can't join the test team.
+    InTeam,
+}
+
+// The regular seed plus live.sql's match for `user_id`, a real account.
+pub async fn seed_live(pool: &PgPool, user_id: Uuid) -> sqlx::Result<LiveSeed> {
+    let mut tx = pool.begin().await?;
+    let dummy: bool = sqlx::query_scalar("SELECT osu_id < 0 FROM osu_users WHERE id = $1")
+        .bind(user_id)
+        .fetch_one(&mut *tx)
+        .await?;
+    if dummy {
+        return Ok(LiveSeed::Dummy);
+    }
+    reseed(&mut tx).await?;
+    let in_team: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM team_members WHERE user_id = $1)")
+            .bind(user_id)
+            .fetch_one(&mut *tx)
+            .await?;
+    if in_team {
+        return Ok(LiveSeed::InTeam);
+    }
+    // live.sql reads it; local to the transaction.
+    sqlx::query("SELECT set_config('dev.live_user', $1, true)")
+        .bind(user_id.to_string())
+        .execute(&mut *tx)
+        .await?;
+    tx.execute(LIVE_SQL).await?;
+    tx.commit().await?;
+    Ok(LiveSeed::Done)
+}
+
+async fn reseed(conn: &mut PgConnection) -> sqlx::Result<()> {
+    // A plain &str runs as a simple query, which may hold several statements.
+    conn.execute(RESEED_SQL).await?;
     let (names, images): (Vec<&str>, Vec<&[u8]>) = BANNERS.into_iter().unzip();
     sqlx::query(
         r#"
@@ -89,7 +133,7 @@ pub async fn seed(pool: &PgPool) -> sqlx::Result<()> {
     )
     .bind(names)
     .bind(images)
-    .execute(pool)
+    .execute(&mut *conn)
     .await?;
     Ok(())
 }

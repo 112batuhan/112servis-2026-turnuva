@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { errorMessage } from "../api/client";
-import { devClear, devLoginAs, devSeed, fetchDevAccounts } from "../api/dev";
+import { devClear, devLoginAs, devSeed, devSeedLive, fetchDevAccounts } from "../api/dev";
 import type { DevAccount } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { ROLE_LABELS } from "../auth/roles";
@@ -46,6 +46,8 @@ export function DevSwitcher() {
     }
   }
 
+  // The live test puts the signed-in account in a team, so it needs a real one.
+  const real = accounts.some((a) => a.id === user?.id && !a.dummy);
   const needle = filter.trim().toLowerCase();
   const shown = needle ? accounts.filter((a) => a.username.toLowerCase().includes(needle)) : accounts;
 
@@ -97,6 +99,17 @@ export function DevSwitcher() {
             <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => run(devSeed)}>
               Reseed dummies
             </button>
+            {real && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy}
+                title="Reseed, then put you in a team with a bracket match starting now, to play in a real osu! room"
+                onClick={() => run(devSeedLive)}
+              >
+                Reseed + live match
+              </button>
+            )}
             <button
               type="button"
               className="btn btn-danger btn-sm"

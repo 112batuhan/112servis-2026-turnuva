@@ -17,6 +17,7 @@ pub fn routes() -> Router<AppState> {
         .route("/dev/accounts", get(list_accounts))
         .route("/dev/login/:id", post(login_as))
         .route("/dev/seed", post(seed).delete(clear))
+        .route("/dev/seed/live", post(seed_live))
 }
 
 pub async fn list_accounts(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
@@ -40,6 +41,23 @@ pub async fn login_as(
 pub async fn seed(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     db::dev::seed(&state.db).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+// POST /api/dev/seed/live — reseeds, then puts the signed-in real account in a team
+// with a bracket match starting now (seed/live.sql), to test a real osu! room.
+pub async fn seed_live(
+    State(state): State<AppState>,
+    user: auth::AuthUser,
+) -> Result<impl IntoResponse, AppError> {
+    match db::dev::seed_live(&state.db, user.id).await? {
+        db::dev::LiveSeed::Done => Ok(StatusCode::NO_CONTENT),
+        db::dev::LiveSeed::Dummy => Err(AppError::BadRequest(
+            "Sign in with a real osu! account to seed a live test for it.",
+        )),
+        db::dev::LiveSeed::InTeam => Err(AppError::Conflict(
+            "You're already in a team; leave it first.",
+        )),
+    }
 }
 
 pub async fn clear(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
