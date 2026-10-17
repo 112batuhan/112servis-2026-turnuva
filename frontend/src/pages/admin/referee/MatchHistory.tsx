@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { splitMods, type MapResult } from "../../../lib/bancho";
+import { bestOfLabel, firstTo, raceOf, type Race } from "../../../lib/bestOf";
 import type { ManualResult } from "../../../api/types";
 import { entryOf, poolEntries, type MatchData, type MatchTeam, type PoolEntry } from "./pool";
 import {
@@ -68,10 +69,11 @@ const NONE: Set<string> = new Set();
  * no score: its sheet lists each map's leading team. Maps outside the pool are left out.
  */
 export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
-  const { room, finished, roster, ignored, actions, canRun, busy, tally, teams } = referee;
+  const { room, finished, roster, ignored, actions, canRun, busy, tally, teams, race } = referee;
   if (!room) return null;
   const concluded = room.concluded_at !== null;
   const editable = teams.length === 2 && tally !== null && canRun && !concluded;
+  const runs = canRun && !concluded && room.rooms.length > 0;
   return (
     <ScoreSheet
       room={room}
@@ -80,6 +82,7 @@ export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
       finished={finished}
       roster={roster}
       status={<ScoreStatus referee={referee} />}
+      raceAction={(r) => <RaceAction referee={referee} race={r} />}
       ignore={{ ignored, disabled: concluded, toggle: actions.toggleIgnored }}
       renderManualAction={
         editable
@@ -103,7 +106,8 @@ export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
               <ForfeitControl referee={referee} teams={teams} />
             </div>
           )}
-          {canRun && !concluded && room.rooms.length > 0 && <ConcludeControl referee={referee} />}
+          {/* A decided race offers it in its line under the score instead. */}
+          {runs && race?.kind !== "won" && <ConcludeControl referee={referee} />}
         </>
       }
     />
@@ -125,16 +129,38 @@ interface ScoreSheetProps {
   ignore?: { ignored: Set<string>; disabled: boolean; toggle: (key: string) => void };
   /** The button that takes back a hand-awarded result. */
   renderManualAction?: (manual: ManualResult, label: string) => ReactNode;
+  /** The referee's control in the race line (concluding a won match). */
+  raceAction?: (race: Race) => ReactNode;
   /** Under the maps. */
   footer?: ReactNode;
 }
 
 /** The score sheet itself, shared by the referee page and the public match page. */
-export function ScoreSheet({ room, teams, tally, finished, roster, status, ignore, renderManualAction, footer }: ScoreSheetProps) {
+export function ScoreSheet({
+  room,
+  teams,
+  tally,
+  finished,
+  roster,
+  status,
+  ignore,
+  renderManualAction,
+  raceAction,
+  footer,
+}: ScoreSheetProps) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const ignored = ignore?.ignored ?? NONE;
   const bracket = teams.length === 2 && tally !== null;
   const entries = poolEntries(room);
+  // The stage's best of: the sheet counts towards it (a concluded match by its saved score).
+  const bestOf = bracket && room.kind === "bracket" ? (room.stage?.best_of ?? null) : null;
+  const concluded = room.concluded_at !== null;
+  const score: [number, number] | null = tally
+    ? concluded
+      ? [room.team1_score ?? 0, room.team2_score ?? 0]
+      : [tally.team1, tally.team2]
+    : null;
+  const race = bestOf !== null && score && !room.forfeit_slot ? raceOf(bestOf, score[0], score[1]) : null;
 
   // A lobby has no score: just its finished pool maps.
   const rows: ResultRow[] =
@@ -155,12 +181,20 @@ export function ScoreSheet({ room, teams, tally, finished, roster, status, ignor
         <div className="sheet-head-main">
           <h3 id="sheet-title" className="sheet-title">
             {bracket ? "Skor" : "Maplar"}
+            {bestOf !== null && (
+              <span className="sheet-bo" title={`${firstTo(bestOf)} map alan kazanır`}>
+                {bestOfLabel(bestOf)}
+                <span className="sr-only">, {firstTo(bestOf)} map alan kazanır</span>
+              </span>
+            )}
           </h3>
           <p className="sheet-status">{bracket ? status : `${rows.length} map oynandı`}</p>
         </div>
-        {bracket && <ScoreHeads room={room} tally={tally} teams={teams} />}
+        {bracket && <ScoreHeads room={room} tally={tally} teams={teams} bestOf={bestOf} />}
         <div className="sheet-head-end" />
       </div>
+
+      {race && score && !concluded && <RaceLine race={race} score={score} teams={teams} room={room} action={raceAction} />}
 
       {empty && (
         <div className="sheet-row is-empty">
@@ -297,7 +331,17 @@ export function ScoreSheet({ room, teams, tally, finished, roster, status, ignor
  * The tops of the two team columns: each team's name over its figure, the side ahead in full
  * ink. A concluded match shows its saved result, a forfeit W and FF.
  */
-function ScoreHeads({ room, tally, teams }: { room: MatchData; tally: Tally | null; teams: MatchTeam[] }) {
+function ScoreHeads({
+  room,
+  tally,
+  teams,
+  bestOf,
+}: {
+  room: MatchData;
+  tally: Tally | null;
+  teams: MatchTeam[];
+  bestOf: number | null;
+}) {
   if (!tally) return null;
   const forfeit = room.forfeit_slot;
   const figures: [string, string] = forfeit
@@ -308,32 +352,129 @@ function ScoreHeads({ room, tally, teams }: { room: MatchData; tally: Tally | nu
       ? [String(room.team1_score ?? "–"), String(room.team2_score ?? "–")]
       : [String(tally.team1), String(tally.team2)];
   const lead = figures[0] === figures[1] ? null : Number(figures[0]) > Number(figures[1]) || figures[0] === "W" ? 0 : 1;
+  // The wins each team needs, as pips under its figure; a forfeit has none to count.
+  const need = bestOf !== null && !forfeit ? firstTo(bestOf) : null;
   return (
     <>
-      {teams.map((team, i) => (
-        <div key={team.id} className={`sheet-team is-team-${team.color}${lead === i ? " is-ahead" : ""}`}>
-          <span className="sheet-team-name" title={team.name}>
-            {team.name}
-          </span>
-          <span className="sheet-team-figure" aria-label={`${team.name}: ${figures[i]}`}>
-            {figures[i]}
-          </span>
-        </div>
-      ))}
+      {teams.map((team, i) => {
+        const wins = Number(figures[i]) || 0;
+        return (
+          <div key={team.id} className={`sheet-team is-team-${team.color}${lead === i ? " is-ahead" : ""}`}>
+            <span className="sheet-team-name" title={team.name}>
+              {team.name}
+            </span>
+            <span
+              className="sheet-team-figure"
+              aria-label={`${team.name}: ${figures[i]}${need !== null ? `, ${need} map gerekli` : ""}`}
+            >
+              {figures[i]}
+            </span>
+            {need !== null && (
+              <span className="sheet-pips" aria-hidden="true">
+                {Array.from({ length: need }, (_, k) => (
+                  <span key={k} className={k < wins ? "is-lit" : undefined} />
+                ))}
+              </span>
+            )}
+          </div>
+        );
+      })}
     </>
   );
 }
 
+/**
+ * Where the match stands against its best of, under the score while it's played: a team on match
+ * point, a team that has the wins it needs (the referee still concludes it), or a score the best
+ * of can't have. Nothing otherwise; the tiebreaker shows in the pool and the room.
+ */
+function RaceLine({
+  race,
+  score,
+  teams,
+  room,
+  action,
+}: {
+  race: Race;
+  score: [number, number];
+  teams: MatchTeam[];
+  room: MatchData;
+  action?: (race: Race) => ReactNode;
+}) {
+  if (race.kind === "open" || race.kind === "tiebreaker") return null;
+  const bestOf = room.stage?.best_of ?? 0;
+  const line = `${score[0]} – ${score[1]}`;
+  let tone = "";
+  let body: ReactNode;
+  switch (race.kind) {
+    case "matchPoint": {
+      const team = teams[race.slots[0] - 1];
+      tone = ` is-match-point is-team-${team.color}`;
+      body = (
+        <>
+          <strong className="sheet-race-title">Maç sayısı</strong>
+          <span className="sheet-race-detail">
+            <span className={`sheet-race-team is-team-${team.color}`}>{team.name}</span> bir map daha alırsa kazanır
+          </span>
+        </>
+      );
+      break;
+    }
+    case "won": {
+      const team = teams[race.slot - 1];
+      tone = ` is-won is-team-${team.color}`;
+      body = (
+        <>
+          <strong className="sheet-race-title">{team.name} maçı aldı</strong>
+          <span className="sheet-race-detail">
+            {line} · {bestOfLabel(bestOf)} · hakem onaylayınca kesinleşir
+          </span>
+        </>
+      );
+      break;
+    }
+    case "over":
+      tone = " is-over";
+      body = (
+        <>
+          <strong className="sheet-race-title">Skor {bestOfLabel(bestOf)}'u aşıyor</strong>
+          <span className="sheet-race-detail">{line} · sayılan map'lere bak, fazladan biri sayılmış olabilir</span>
+        </>
+      );
+      break;
+  }
+  const extra = action?.(race);
+  return (
+    <div className={`sheet-race${tone}`} role="status">
+      <span className="sheet-race-text">{body}</span>
+      {extra && <span className="sheet-race-action">{extra}</span>}
+    </div>
+  );
+}
+
+/** The referee's control in the race line: concluding a match a team has won. */
+function RaceAction({ referee, race }: { referee: RefereeRoomState; race: Race }) {
+  const { room, canRun } = referee;
+  if (!room || !canRun || room.concluded_at !== null || race.kind !== "won") return null;
+  return <ConcludeControl referee={referee} />;
+}
+
 /** Whether the site shows the score as it is here, and the way to save it when it doesn't. */
 function ScoreStatus({ referee }: { referee: RefereeRoomState }) {
-  const { room, teams, liveScore, scoreSaving, scoreSaved, canRun, busy, actions } = referee;
+  const { room, teams, liveScore, keepsScore, scoreBehind, scoreSaving, scoreSaved, canRun, busy, actions } = referee;
   if (!room) return null;
   if (room.forfeit_slot) return <>Hükmen: {teams[room.forfeit_slot - 1]?.name} çekildi</>;
   if (room.concluded_at !== null) return <>Maç bitti</>;
   if (scoreSaving) return <>Kaydediliyor…</>;
   if (liveScore && scoreSaved) {
-    return <span title="Map bittikçe skor sitede güncellenir">Sitede güncel</span>;
+    return (
+      <span title={keepsScore ? "Map bittikçe skor sitede güncellenir" : "Skoru odadaki hakem kaydediyor; burası sitedeki sohbetten okur"}>
+        Sitede güncel
+      </span>
+    );
   }
+  // The page in the room saves it in a moment.
+  if (liveScore && !keepsScore && !scoreBehind) return <>Güncelleniyor…</>;
   if (canRun && !scoreSaved) {
     return (
       <>
@@ -512,7 +653,7 @@ function ResultSource({ referee }: { referee: RefereeRoomState }) {
  * Behind a confirmation, since reopening it takes a host.
  */
 function ConcludeControl({ referee }: { referee: RefereeRoomState }) {
-  const { room, teams, tally, busy, actions } = referee;
+  const { room, teams, tally, busy, actions, race, bestOf } = referee;
   if (!room) return null;
   const label = roomLabel(room);
   let blocker: string | null = null;
@@ -523,6 +664,10 @@ function ConcludeControl({ referee }: { referee: RefereeRoomState }) {
     else {
       const winner = tally.team1 > tally.team2 ? teams[0] : teams[1];
       detail = `\nSkor: ${tally.team1} – ${tally.team2} (${winner.name} kazanır)`;
+      // Allowed, since something may have happened, but said.
+      if (bestOf !== null && race && race.kind !== "won") {
+        detail += `\n\nDikkat: ${bestOfLabel(bestOf)} maçta kazanmak için ${firstTo(bestOf)} map gerekiyor.`;
+      }
     }
   }
   return (

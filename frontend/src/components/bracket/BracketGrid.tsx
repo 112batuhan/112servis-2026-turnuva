@@ -11,6 +11,7 @@ import {
   type PointerEvent,
 } from "react";
 import type { BracketMatch, RefereeViewer, Team } from "../../api/types";
+import { stageLabel } from "../../lib/bestOf";
 import { BOARD, compareByTime, snapPosition, incomingSources, matchCode, overlapsAny, type Point } from "../../lib/bracket";
 import { IconButton } from "../IconButton";
 import { BracketMatchCard } from "./BracketMatchCard";
@@ -148,7 +149,7 @@ export function BracketGrid({
     const pos = posOf(m);
     const key = `${m.stage.id}|${m.side}|${pos.x}`;
     const current = stageLabels.get(key);
-    if (!current || pos.y < current.y) stageLabels.set(key, { name: m.stage.name, ...pos });
+    if (!current || pos.y < current.y) stageLabels.set(key, { name: stageLabel(m.stage), ...pos });
   }
 
   // Lines touching the selected, hovered or dragged match are drawn on top in the accent colour.
@@ -456,7 +457,7 @@ export function BracketGrid({
           const pos = posOf(m);
           const dragging = drag?.id === m.id && drag.moved;
           const mine = viewerId !== undefined && (m.referee?.id === viewerId || m.streamer?.id === viewerId);
-          const code = m.stage ? `${matchCode(m)} (${m.stage.name})` : matchCode(m);
+          const code = m.stage ? `${matchCode(m)} (${stageLabel(m.stage)})` : matchCode(m);
           const classes = [
             "bracket-slot",
             m.id === selectedId && "is-selected",

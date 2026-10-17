@@ -59,6 +59,8 @@ export interface Stage {
   published: boolean;
   /** The qualifier lobbies' map pool; at most one stage is. */
   is_qualifier: boolean;
+  /** How many maps its bracket matches are played to (odd); null until the hosts set it. */
+  best_of: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -325,6 +327,8 @@ export interface MatchStage {
   published: boolean;
   /** Orders the stages. */
   position: number;
+  /** How many maps the match is played to; null when not set. */
+  best_of: number | null;
 }
 
 export interface BracketMatch {
@@ -464,6 +468,8 @@ export interface RefereeRoom {
   lobby_number: number | null;
   starts_at: string | null;
   referee: MatchReferee | null;
+  /** Bracket matches only: who streams it, whom the referee can add as a referee of the room. */
+  streamer: MatchStreamer | null;
   /** Oldest first; the last one is where the match is being played. */
   rooms: MatchRoom[];
   referee_notes: string;
@@ -516,6 +522,8 @@ export interface RoomStage {
   name: string;
   /** Whether its pool is on the public mappool page. */
   published: boolean;
+  /** How many maps a bracket match in it is played to; null when not set. */
+  best_of: number | null;
 }
 
 /**

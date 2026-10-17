@@ -8,7 +8,9 @@ use axum::{
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{auth::AuthUser, db, error::AppError, osu_api, role::Role, AppState};
+use crate::{
+    auth::AuthUser, db, discord::jobs::Job, error::AppError, osu_api, role::Role, AppState,
+};
 
 // Routes under the `/api` nest. The authed endpoints require map_pooler+, except that
 // only hosts create, rename, reorder and delete stages: stages are the tournament's
@@ -24,6 +26,7 @@ pub fn routes() -> Router<AppState> {
             "/stages/:id",
             get(get_stage).delete(delete_stage).patch(update_stage),
         )
+        .route("/stages/:id/best-of", put(set_stage_best_of))
         .route("/stages/:id/categories", post(create_category))
         .route("/categories/reorder", post(reorder_categories))
         .route(
@@ -188,6 +191,40 @@ pub async fn set_qualifier_stage(
         ),
         Err(err) => Err(err.into()),
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BestOfBody {
+    best_of: Option<i32>,
+}
+
+// The most maps a match may be played to; the column allows the same.
+const MAX_BEST_OF: i32 = 25;
+
+// PUT /api/stages/:id/best-of — host-only. How many maps the stage's bracket matches
+// are played to (odd), or none. The referee page, the match pages and Discord show it.
+pub async fn set_stage_best_of(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<BestOfBody>,
+) -> Result<impl IntoResponse, AppError> {
+    user.require_role(Role::Host)?;
+    if let Some(n) = body.best_of {
+        if !(1..=MAX_BEST_OF).contains(&n) || n % 2 == 0 {
+            return Err(AppError::BadRequest("best of must be an odd number from 1 to 25"));
+        }
+    }
+    let matches = db::mappool::set_stage_best_of(&state.db, id, body.best_of)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let jobs: Vec<Job> = matches
+        .into_iter()
+        .map(|match_id| Job::SyncMatch { match_id })
+        .collect();
+    state.discord.enqueue(&state.db, &jobs).await?;
+    state.live.bracket_changed();
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // ---------- categories ----------

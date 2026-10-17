@@ -83,6 +83,7 @@ function RefereeRoom({ matchId }: { matchId: string }) {
         <span className="referee-meta">
           {room.starts_at && formatMatchTime(room.starts_at)}
           {room.referee ? ` · Hakem: ${room.referee.username}` : " · Hakem yok"}
+          {room.streamer && ` · Yayıncı: ${room.streamer.username}`}
         </span>
         {room.concluded_at && <span className="badge badge-success">Bitti</span>}        {!referee.canRun && (
           <span className="badge badge-warning" title="Odayı sadece maçın hakemi ya da bir host kurabilir">
@@ -239,12 +240,13 @@ export function CockpitTabs({ tabsRef, label: listLabel, active, onSelect, statu
 
 /** The draft's phase: bans so far, then whose pick is next in their team's colour. */
 function PoolStatus({ referee }: { referee: RefereeRoomState }) {
-  const { room, teams, nextPick } = referee;
+  const { room, teams, nextPick, race } = referee;
   if (!room) return null;
   const maps = poolEntries(room).length;
-  if (room.kind !== "bracket" || teams.length !== 2 || maps === 0 || room.concluded_at) {
+  if (room.kind !== "bracket" || teams.length !== 2 || maps === 0 || room.concluded_at || race?.kind === "won") {
     return <span className="num">{maps} map</span>;
   }
+  if (race?.kind === "tiebreaker") return <span>Tiebreaker</span>;
   if (room.bans.length < BAN_LIMIT) {
     return (
       <span>

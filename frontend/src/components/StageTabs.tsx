@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Stage } from "../api/types";
+import { bestOfLabel, firstTo } from "../lib/bestOf";
 import "./StageTabs.css";
 
 interface Props {
@@ -25,6 +26,11 @@ export function StageTabs({ stages, selectedId, onSelect, showStatus, children }
             onClick={() => onSelect(stage.id)}
           >
             {stage.name}
+            {stage.best_of !== null && !stage.is_qualifier && (
+              <span className="stage-tab-bo" title={`${firstTo(stage.best_of)} map alan kazanır`}>
+                {bestOfLabel(stage.best_of)}
+              </span>
+            )}
             {showStatus && <StageStatusDot published={stage.published} />}
           </button>
         ))}

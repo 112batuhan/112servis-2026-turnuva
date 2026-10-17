@@ -366,6 +366,7 @@ pub struct MatchInfo {
     pub streamer_in_guild: Option<bool>,
     pub stage_id: Option<Uuid>,
     pub stage_name: Option<String>,
+    pub stage_best_of: Option<i32>,
     pub mp_ids: Vec<i64>,
     pub entries: i64,
 }
@@ -388,7 +389,7 @@ pub async fn match_info(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Optio
                rd.discord_id AS referee_discord_id, rd.in_guild AS referee_in_guild,
                b.streamer_id, s.username AS streamer_username,
                sd.discord_id AS streamer_discord_id, sd.in_guild AS streamer_in_guild,
-               st.id AS stage_id, st.name AS stage_name,
+               st.id AS stage_id, st.name AS stage_name, st.best_of AS stage_best_of,
                ARRAY(SELECT mr.mp_id FROM match_rooms mr WHERE mr.match_id = m.id
                      ORDER BY mr.added_at, mr.mp_id) AS mp_ids,
                (SELECT count(*) FROM qualifier_entries e WHERE e.match_id = m.id) AS entries

@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import type { BracketMatch, Team } from "../api/types";
+import { stageLabel } from "../lib/bestOf";
 import { isLive, matchCode, scoreHalves, sourceLabel, winningSlot, type Source } from "../lib/bracket";
 import { formatShortMatchTime } from "../lib/format";
 import { Countdown } from "./Countdown";
@@ -110,7 +111,7 @@ export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Prop
             Canlı takip et
           </span>
         ) : (
-          match.stage && <span className="fixture-stage">{match.stage.name}</span>
+          match.stage && <span className="fixture-stage">{stageLabel(match.stage)}</span>
         )}
       </span>
     </Link>

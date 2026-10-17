@@ -42,6 +42,20 @@
   background: var(--color-primary-soft);
 }
 
+/* How many maps the stage's matches go to, as a quiet figure after its name. */
+.stage-tab-bo {
+  color: var(--color-text-subtle);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stage-tab[aria-current="page"] .stage-tab-bo {
+  color: var(--color-text-muted);
+}
+
 /* Published = filled green; draft = hollow amber ring, so it isn't colour-only. */
 .stage-dot {
   width: 9px;

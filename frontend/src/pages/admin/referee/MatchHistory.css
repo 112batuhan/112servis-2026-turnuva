@@ -106,6 +106,39 @@
   line-height: 1;
 }
 
+/* The stage's best of beside the title, as a quiet figure. */
+.sheet-bo {
+  margin-left: var(--space-2);
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The wins each team needs, as pips under its figure: lit in ink as they're won. */
+.sheet-pips {
+  display: flex;
+  justify-content: center;
+  gap: 3px;
+  width: 100%;
+  padding-top: 3px;
+}
+
+.sheet-pips > span {
+  flex: 0 1 10px;
+  min-width: 3px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--color-text) 22%, transparent);
+  transition: background-color var(--duration-fast) ease;
+}
+
+.sheet-pips > .is-lit {
+  background: var(--color-text);
+}
+
 .sheet-team.is-ahead .sheet-team-name {
   color: var(--color-text);
 }
@@ -113,6 +146,76 @@
 .sheet-team.is-ahead .sheet-team-figure {
   color: var(--color-text);
   font-weight: 800;
+}
+
+/* ---- The race line: where the match stands against its best of, right under the score, washed
+   in the colour of what it's about (the team on match point or that won). ---- */
+.sheet-race {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--rule);
+}
+
+.sheet-race.is-won.is-team-blue {
+  background: var(--color-team-blue-soft);
+}
+
+.sheet-race.is-won.is-team-red {
+  background: var(--color-team-red-soft);
+}
+
+.sheet-race.is-over {
+  background: color-mix(in srgb, var(--color-warning) 14%, transparent);
+}
+
+.sheet-race-text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--space-2);
+  min-width: 0;
+}
+
+.sheet-race-title {
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.sheet-race.is-over .sheet-race-title {
+  color: var(--color-warning);
+}
+
+.sheet-race-detail {
+  min-width: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet-race-team {
+  font-weight: 700;
+}
+
+.sheet-race-team.is-team-blue {
+  color: var(--color-team-blue);
+}
+
+.sheet-race-team.is-team-red {
+  color: var(--color-team-red);
+}
+
+.sheet-race-action {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: auto;
 }
 
 /* ---- Rows ---- */

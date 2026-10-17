@@ -5,6 +5,7 @@ import type { Player, PublicMatch, RoomChatMessage } from "../../api/types";
 import type { ChatLine } from "../../irc/IrcContext";
 import { useLive } from "../../live/LiveContext";
 import { EMPTY_ROOM, sameName, type RoomSlot, type RoomState } from "../../lib/bancho";
+import { raceOf, type Race } from "../../lib/bestOf";
 import { BAN_LIMIT, entryOf, matchTeams, pickTurn, poolEntries, type MatchTeam } from "../admin/referee/pool";
 import { toChatLine } from "../admin/referee/roomChat";
 import {
@@ -194,6 +195,16 @@ export function useMatchPage(matchId: string) {
     };
   }, [match, roster]);
 
+  // Where the saved score stands against the stage's best of (the tiebreaker, a decided race).
+  const bestOf = match?.kind === "bracket" ? (match.stage?.best_of ?? null) : null;
+  const race = useMemo<Race | null>(
+    () =>
+      bestOf !== null && tally && !match?.forfeit_slot && match?.concluded_at === null
+        ? raceOf(bestOf, tally.team1, tally.team2)
+        : null,
+    [bestOf, tally, match?.forfeit_slot, match?.concluded_at],
+  );
+
   // The pool maps played so far, from the saved results and the rooms' chat.
   const played = useMemo(() => {
     if (!match) return new Set<string | undefined>();
@@ -208,7 +219,10 @@ export function useMatchPage(matchId: string) {
   // Who is watching with this tab, only while the match is live (that's when it's watched).
   const spectators = live && watchers?.match_id === matchId ? watchers : null;
 
-  const nextPick = match && live && match.bans.length >= BAN_LIMIT ? pickTurn(match, teams, match.next_pick_team_id) : null;
+  const nextPick =
+    match && live && match.bans.length >= BAN_LIMIT && race?.kind !== "tiebreaker" && race?.kind !== "won"
+      ? pickTurn(match, teams, match.next_pick_team_id)
+      : null;
 
   return {
     match,
@@ -227,6 +241,7 @@ export function useMatchPage(matchId: string) {
     played,
     live,
     nextPick,
+    race,
     spectators,
   };
 }

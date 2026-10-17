@@ -491,8 +491,8 @@ async fn match_details(state: &AppState, info: &MatchInfo) -> super::BotResult<R
             .collect();
         embed.fields.push((name, names.join("\n"), true));
     }
-    if let Some(stage) = &info.stage_name {
-        embed.fields.push(("Aşama".into(), stage.clone(), false));
+    if let Some(stage) = super::messages::stage_label(info) {
+        embed.fields.push(("Aşama".into(), stage, false));
     }
     embed.fields.push((
         "Hakem".into(),

@@ -279,6 +279,23 @@
   border-top: var(--rule);
 }
 
+/* The streamer's way into the room's chat, set apart at the end of the room commands; once the
+   room has them as a referee it holds the success colour, pressed. */
+.lobby-streamer-ref {
+  margin-left: auto;
+}
+
+.lobby-streamer-name {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.lobby-streamer-ref.is-on {
+  border-color: color-mix(in srgb, var(--color-success) 55%, transparent);
+  background: color-mix(in srgb, var(--color-success) 12%, transparent);
+  color: var(--color-success);
+}
+
 .lobby-commands .announce {
   padding-top: var(--space-2);
   border-top: var(--rule);

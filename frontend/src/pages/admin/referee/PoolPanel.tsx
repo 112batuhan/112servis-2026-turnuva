@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
+import { stageLabel, type Race } from "../../../lib/bestOf";
 import { formatLength } from "../../../lib/format";
 import { BAN_LIMIT, entryOf, matchTeams, poolEntries, type MatchData, type MatchTeam, type PoolEntry } from "./pool";
 import type { RefereeRoomState } from "./useRefereeRoom";
@@ -12,7 +13,7 @@ import "./PoolPanel.css";
  * which team picked which map; a pick sets the map too. Banned maps can't be picked.
  */
 export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
-  const { room, currentEntry, finished, inChannel, canRun, busy, actions } = referee;
+  const { room, currentEntry, finished, inChannel, canRun, busy, actions, race } = referee;
   if (!room) return null;
   const entries = poolEntries(room);
   const picks = new Set(room.picks.map((p) => p.map_id));
@@ -62,7 +63,7 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
       room={room}
       currentEntry={currentEntry}
       played={played}
-      phase={canMark ? (banning ? "Ban sırası" : "Pick sırası") : null}
+      phase={canMark ? draftPhase(banning, race) : null}
       pick={{
         disabled: (_entry, banned) => !inChannel || banned !== undefined,
         title: (entry, banned) =>
@@ -76,6 +77,13 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
       renderActions={canMark ? markActions : undefined}
     />
   );
+}
+
+/** Where the draft stands: bans, picks, then the tiebreaker; nothing once a team has won. */
+export function draftPhase(banning: boolean, race: Race | null): string | null {
+  if (race?.kind === "won") return null;
+  if (race?.kind === "tiebreaker") return "Tiebreaker";
+  return banning ? "Ban sırası" : "Pick sırası";
 }
 
 interface PoolViewProps {
@@ -116,7 +124,9 @@ export function PoolView({ room, currentEntry, played, phase, pick, renderAction
     <section className="pool-panel" aria-label="Mappool">
       <h2 className="pool-panel-title">
         Mappool
-        {room.stage && <span className="pool-panel-stage">{room.stage.name}</span>}
+        {room.stage && (
+          <span className="pool-panel-stage">{room.kind === "bracket" ? stageLabel(room.stage) : room.stage.name}</span>
+        )}
         {phase && <span className="pool-panel-phase">{phase}</span>}
       </h2>
       {!room.stage && <p className="pool-panel-note">Bu maça stage seçilmemiş.</p>}

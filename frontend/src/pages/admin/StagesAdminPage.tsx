@@ -9,6 +9,7 @@ import {
   renameStage,
   reorderStages,
   setQualifierStage,
+  setStageBestOf,
 } from "../../api/mappool";
 import type { Stage } from "../../api/types";
 import { useSignedInUser } from "../../auth/AuthContext";
@@ -16,6 +17,7 @@ import { ErrorAlert } from "../../components/ErrorAlert";
 import { Icon } from "../../components/Icon";
 import { IconButton } from "../../components/IconButton";
 import { InlineEdit } from "../../components/InlineEdit";
+import { BEST_OF_CHOICES, bestOfLabel, firstTo } from "../../lib/bestOf";
 import { useDragReorder } from "../../lib/dragAndDrop";
 import { moveBy, moveToTarget, sortByIds } from "../../lib/reorder";
 import { rememberStage } from "./mappool/useStageEditor";
@@ -76,6 +78,15 @@ export function StagesAdminPage() {
     });
   }
 
+  // Applies right away and saves in the background, like the order.
+  function applyBestOf(stage: Stage, bestOf: number | null) {
+    setStages((list) => list && list.map((s) => (s.id === stage.id ? { ...s, best_of: bestOf } : s)));
+    setStageBestOf(stage.id, bestOf).catch((e) => {
+      setError(errorMessage(e));
+      load().catch(() => {});
+    });
+  }
+
   function remove(stage: Stage) {
     const count = matchCounts.get(stage.id) ?? 0;
     const matches = count > 0 ? ` ${count} bracket maçı stage'siz kalır.` : "";
@@ -97,7 +108,9 @@ export function StagesAdminPage() {
       <p className="stages-admin-hint">
         Stage'ler turnuvanın turları. Her birinin bir mappool'u olur ve bracket maçları bir stage'de oynanır. Mappool'un
         kategorilerini ve map'lerini <Link to="/admin/mappool">Mappool</Link> sekmesinde, maçların stage'ini{" "}
-        <Link to="/admin/bracket">Bracket</Link> sekmesindeki maç panelinden ayarla.
+        <Link to="/admin/bracket">Bracket</Link> sekmesindeki maç panelinden ayarla. Bo, stage'in maçlarının kaç map
+        üzerinden oynandığı: hakem sayfası skoru buna göre takip eder, beraberlikte tiebreaker'ı açar, maç sayfası ve
+        Discord da gösterir.
       </p>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
 
@@ -149,6 +162,23 @@ export function StagesAdminPage() {
                 >
                   {stage.published ? "Yayında" : "Taslak"}
                 </span>
+                <select
+                  className="select select-sm stage-row-bo"
+                  value={stage.best_of ?? ""}
+                  aria-label={`${stage.name}: kaç map üzerinden oynanıyor`}
+                  title="Maçlar kaç map üzerinden oynanıyor"
+                  onChange={(e) => applyBestOf(stage, e.target.value ? Number(e.target.value) : null)}
+                >
+                  <option value="">Bo —</option>
+                  {BEST_OF_CHOICES.map((n) => (
+                    <option key={n} value={n}>
+                      {bestOfLabel(n)} · {firstTo(n)} alan kazanır
+                    </option>
+                  ))}
+                  {stage.best_of !== null && !(BEST_OF_CHOICES as readonly number[]).includes(stage.best_of) && (
+                    <option value={stage.best_of}>{bestOfLabel(stage.best_of)}</option>
+                  )}
+                </select>
                 <span className="stage-row-meta">{count} maç</span>
                 <Link
                   to="/admin/mappool"

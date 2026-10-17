@@ -70,6 +70,11 @@ export interface RoomState {
   current: MapScore[];
   /** Finished maps, oldest first. */
   results: MapResult[];
+  /**
+   * Who was added as a referee of the room (!mp addref) and not removed since, by normalizeName;
+   * their tournament client then shows the room's chat. The room's maker isn't listed.
+   */
+  refs: string[];
 }
 
 export const EMPTY_ROOM: RoomState = {
@@ -86,6 +91,7 @@ export const EMPTY_ROOM: RoomState = {
   slots: [],
   current: [],
   results: [],
+  refs: [],
 };
 
 /** Usernames compare without case, and IRC writes spaces as underscores. */
@@ -125,6 +131,8 @@ const RE = {
   size: /^Changed match to size (\d+)$/,
   finished: /^(.+) finished playing \(Score: (\d+), (PASSED|FAILED)\)\.$/,
   mods: /^(Enabled|Disabled) (.*)$/,
+  addedRef: /^Added (.+) to the match referees$/,
+  removedRef: /^Removed (.+) from the match referees$/,
 };
 
 /** The room id from BanchoBot's reply to !mp make, or null for any other message. */
@@ -290,6 +298,14 @@ export function applyBancho(room: RoomState, text: string): RoomState {
     // Without freemod, osu! takes the players' own mods off.
     const slots = isFreemod(mods) ? room.slots : room.slots.map((s) => ({ ...s, mods: "" }));
     return { ...room, mods, slots };
+  }
+  if ((m = RE.addedRef.exec(text))) {
+    const name = normalizeName(m[1]);
+    return room.refs.includes(name) ? room : { ...room, refs: [...room.refs, name] };
+  }
+  if ((m = RE.removedRef.exec(text))) {
+    const name = normalizeName(m[1]);
+    return { ...room, refs: room.refs.filter((r) => r !== name) };
   }
   if (text === "Locked the match") return { ...room, locked: true };
   if (text === "Unlocked the match") return { ...room, locked: false };
@@ -462,6 +478,16 @@ export interface RoomMember {
 export function isMember(slot: Pick<RoomSlot, "username" | "userId">, members: RoomMember[]): boolean {
   return members.some((m) => (slot.userId !== null ? slot.userId === m.osuId : sameName(slot.username, m.username)));
 }
+
+/** Whether someone was added as a referee of the room. */
+export const isRoomRef = (room: Pick<RoomState, "refs">, username: string) => room.refs.includes(normalizeName(username));
+
+/**
+ * Makes someone a referee of the room, so they can join its channel and their tournament client
+ * shows its chat. By name, as !mp addref takes it.
+ */
+export const addRefCommand = (username: string) => `!mp addref ${ircName(username)}`;
+export const removeRefCommand = (username: string) => `!mp removeref ${ircName(username)}`;
 
 /** Removes someone from the room. */
 export const kickCommand = (slot: Pick<RoomSlot, "userId" | "username">) => `!mp kick ${slotRef(slot)}`;

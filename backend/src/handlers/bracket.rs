@@ -106,6 +106,8 @@ pub struct MatchStage {
     name: String,
     published: bool,
     position: i32,
+    // How many maps the match is played to; null when the hosts haven't set it.
+    best_of: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -165,6 +167,7 @@ fn to_match(row: BracketRow, links: &[LinkRow]) -> (BracketMatch, String) {
             name,
             published,
             position,
+            best_of: row.stage_best_of,
         }),
         _ => None,
     };

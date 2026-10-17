@@ -6,12 +6,13 @@ import { ErrorAlert } from "../../components/ErrorAlert";
 import { LiveMark } from "../../components/LiveMark";
 import { TeamCard } from "../../components/TeamCard";
 import { normalizeName, type SlotTeam } from "../../lib/bancho";
+import { stageLabel } from "../../lib/bestOf";
 import { bracketMatchPath } from "../../lib/bracket";
 import { formatMatchTime } from "../../lib/format";
 import { MapClock } from "../admin/referee/LobbyPanel";
 import { ScoreSheet } from "../admin/referee/MatchHistory";
 import { BAN_LIMIT, poolEntries } from "../admin/referee/pool";
-import { PoolView } from "../admin/referee/PoolPanel";
+import { draftPhase, PoolView } from "../admin/referee/PoolPanel";
 import { CockpitTabs, panelProps, TABS, useCockpit } from "../admin/referee/RefereeRoomPage";
 import { PlayersView } from "../admin/referee/RoomPlayers";
 import { staffRole, useRoomStaff } from "../admin/referee/roomStaff";
@@ -89,7 +90,11 @@ function MatchView({ matchId }: { matchId: string }) {
               {formatMatchTime(match.starts_at)}
             </time>
           )}
-          {match.stage && <span className="match-meta-value">{match.stage.name}</span>}
+          {match.stage && (
+            <span className="match-meta-value">
+              {match.kind === "bracket" ? stageLabel(match.stage) : match.stage.name}
+            </span>
+          )}
           <span>
             Hakem{" "}
             {match.referee ? (
@@ -150,7 +155,7 @@ function MatchView({ matchId }: { matchId: string }) {
                 room={match}
                 currentEntry={match.concluded_at ? undefined : page.currentEntry}
                 played={page.played}
-                phase={page.live && page.teams.length === 2 ? (match.bans.length < BAN_LIMIT ? "Ban sırası" : "Pick sırası") : null}
+                phase={page.live && page.teams.length === 2 ? draftPhase(match.bans.length < BAN_LIMIT, page.race) : null}
               />
             )}
             {id === "room" && <MatchColumn page={page} />}
@@ -318,10 +323,11 @@ function SheetStatus({ page }: { page: MatchPageState }) {
 
 /** The phone's pool tab: the bans so far, then whose pick it is by the rules. */
 function PoolStatus({ page }: { page: MatchPageState }) {
-  const { match, teams, nextPick, live } = page;
+  const { match, teams, nextPick, live, race } = page;
   if (!match) return null;
   const maps = poolEntries(match).length;
-  if (!live || teams.length !== 2 || maps === 0) return <span className="num">{maps} map</span>;
+  if (!live || teams.length !== 2 || maps === 0 || race?.kind === "won") return <span className="num">{maps} map</span>;
+  if (race?.kind === "tiebreaker") return <span>Tiebreaker</span>;
   if (match.bans.length < BAN_LIMIT) {
     return (
       <span>

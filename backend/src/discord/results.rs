@@ -209,8 +209,8 @@ pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embe
             .fields
             .push(("Kazanan".into(), format!("🏆 **{w}**{how}"), true));
     }
-    if let Some(stage) = &info.stage_name {
-        embed.fields.push(("Aşama".into(), stage.clone(), true));
+    if let Some(stage) = super::messages::stage_label(info) {
+        embed.fields.push(("Aşama".into(), stage, true));
     }
     let mut ban_lines = Vec::new();
     for team in [info.team1_id, info.team2_id].into_iter().flatten() {

@@ -47,9 +47,10 @@ interface LiveState {
   setViewing: (matchId: string | null) => void;
   /**
    * Asks for the chat of the match's rooms (or none). Again whenever its rooms change, since the
-   * server looks them up when asked.
+   * server looks them up when asked. The tab counts among the match's spectators unless
+   * `spectate` is false (a referee page reading the chat without Bancho).
    */
-  watch: (matchId: string | null) => void;
+  watch: (matchId: string | null, spectate?: boolean) => void;
 }
 
 const LiveContext = createContext<LiveState | null>(null);
@@ -66,6 +67,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const socket = useRef<WebSocket | null>(null);
   const viewing = useRef<string | null>(null);
   const watching = useRef<string | null>(null);
+  const spectating = useRef(true);
 
   const sendViewing = useCallback(() => {
     const ws = socket.current;
@@ -73,7 +75,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   }, []);
   const sendWatch = useCallback(() => {
     const ws = socket.current;
-    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "watch", match_id: watching.current }));
+    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "watch", match_id: watching.current, spectate: spectating.current }));
   }, []);
 
   // A page kept in the browser's back/forward cache would keep its socket, and with it
@@ -172,9 +174,10 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   );
 
   const watch = useCallback(
-    (matchId: string | null) => {
-      if (matchId !== watching.current) setSpectators(null);
+    (matchId: string | null, spectate = true) => {
+      if (matchId !== watching.current || !spectate) setSpectators(null);
       watching.current = matchId;
+      spectating.current = spectate;
       sendWatch();
     },
     [sendWatch],

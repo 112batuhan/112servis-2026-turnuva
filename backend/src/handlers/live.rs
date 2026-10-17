@@ -98,9 +98,14 @@ enum ServerMsg<'a> {
 enum ClientMsg {
     // The match whose referee page this tab shows, or null when it left it.
     Viewing { match_id: Option<Uuid> },
-    // The match whose public page this tab shows, or null: its rooms' chat is sent.
-    // Sent again when the match's rooms change.
-    Watch { match_id: Option<Uuid> },
+    // The match whose rooms' chat this tab wants, or null. Sent again when the match's
+    // rooms change. A public match page also counts among its spectators; a referee
+    // page that isn't in the room on Bancho reads the chat this way without being one.
+    Watch {
+        match_id: Option<Uuid>,
+        #[serde(default = "spectate_by_default")]
+        spectate: bool,
+    },
 }
 
 // One event, serialized once for every tab.
@@ -298,6 +303,10 @@ impl Live {
     }
 }
 
+fn spectate_by_default() -> bool {
+    true
+}
+
 // Staff who can open the bracket admin page see who's on which referee page.
 fn sees_presence(user: &AuthUser) -> bool {
     [Role::Referee, Role::Streamer, Role::MapPooler]
@@ -420,10 +429,10 @@ async fn tab(
                             live.set_viewing(id, viewer, match_id);
                         }
                     }
-                    Ok(ClientMsg::Watch { match_id }) => {
+                    Ok(ClientMsg::Watch { match_id, spectate }) => {
                         watching = watched_rooms(&db, match_id).await;
                         // Only a match that has a room is watched; a made-up id isn't counted.
-                        let now = match_id.filter(|_| !watching.is_empty());
+                        let now = match_id.filter(|_| spectate && !watching.is_empty());
                         if now != spectating {
                             spectating = now;
                             live.set_spectating(id, viewer.as_ref(), now);

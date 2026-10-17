@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { SCORE_MODES, type RoomState, type ScoreMode } from "../../../lib/bancho";
 import { formatLength } from "../../../lib/format";
@@ -244,8 +245,45 @@ function Commands({ referee }: { referee: RefereeRoomState }) {
         >
           Kurulumu tekrarla
         </button>
+        <StreamerRef referee={referee} ready={ready} />
       </div>
     </div>
+  );
+}
+
+/**
+ * Makes the match's streamer a referee of the room (!mp addref), so their tournament client shows
+ * the room's chat on stream; pressed once the room's chat says they are, when it takes it back.
+ */
+function StreamerRef({ referee, ready }: { referee: RefereeRoomState; ready: boolean }) {
+  const { streamer, streamerIsRef, actions } = referee;
+  if (!streamer) return null;
+  return (
+    <button
+      type="button"
+      className={`btn btn-secondary btn-sm lobby-streamer-ref${streamerIsRef ? " is-on" : ""}`}
+      aria-pressed={streamerIsRef}
+      disabled={!ready}
+      title={
+        !ready
+          ? "Önce odanın kanalına katıl"
+          : streamerIsRef
+            ? `${streamer.username} odanın hakemi. Tıklarsan hakemlikten çıkar (!mp removeref).`
+            : `${streamer.username} odanın hakemi olur (!mp addref): turnuva istemcisinde oda sohbetini görür.`
+      }
+      onClick={actions.toggleStreamerRef}
+    >
+      <Icon name={streamerIsRef ? "check" : "monitor"} size={14} />
+      {streamerIsRef ? (
+        <>
+          Yayıncı hakem <span className="lobby-streamer-name">{streamer.username}</span>
+        </>
+      ) : (
+        <>
+          Yayıncıyı hakem ekle <span className="lobby-streamer-name">{streamer.username}</span>
+        </>
+      )}
+    </button>
   );
 }
 

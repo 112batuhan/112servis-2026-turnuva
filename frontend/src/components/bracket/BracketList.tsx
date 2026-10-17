@@ -13,6 +13,7 @@ import {
   winningSlot,
   type Source,
 } from "../../lib/bracket";
+import { stageLabel } from "../../lib/bestOf";
 import { readString, writeString } from "../../lib/storage";
 import { useStoredSet } from "../../lib/useExpandedSet";
 import { Icon } from "../Icon";
@@ -155,7 +156,7 @@ export function BracketList<M extends BracketMatch>({
                       <span className="bracket-list-group-head">
                         <button type="button" className="bracket-list-group-toggle" aria-expanded={!collapsed}>
                           <Icon name="chevronDown" size={18} className="bracket-list-group-caret" />
-                          {group.stage?.name ?? "Stage'i belirlenmemiş"}
+                          {group.stage ? stageLabel(group.stage) : "Stage'i belirlenmemiş"}
                           <span className="badge">{group.matches.length} maç</span>
                         </button>
                         {group.stage?.published && <Link to={`/mappool?stage=${group.stage.id}`}>Mappool</Link>}

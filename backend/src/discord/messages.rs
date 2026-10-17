@@ -313,6 +313,16 @@ impl Ctx<'_> {
     }
 }
 
+// The stage as Discord names it, with how many maps the match is played to when the
+// hosts set it: "Çeyrek Final · Bo9".
+pub fn stage_label(info: &MatchInfo) -> Option<String> {
+    let stage = info.stage_name.as_deref()?;
+    Some(match (info.kind, info.stage_best_of) {
+        (MatchKind::Bracket, Some(n)) => format!("{stage} · Bo{n}"),
+        _ => stage.to_string(),
+    })
+}
+
 // The match as its card and its public announcement show it: the time, the stage, the
 // teams with their players, the staff, the rooms and, while it's played, the running
 // score, and the link to the match page. `p` collects the people it names, whom the
@@ -331,7 +341,7 @@ fn match_fields(
             .map_or("Henüz belirlenmedi".to_string(), when),
         false,
     );
-    if let Some(stage) = &info.stage_name {
+    if let Some(stage) = stage_label(info) {
         embed = embed.field("🗺️ Aşama", stage, false);
     }
 
@@ -1090,6 +1100,7 @@ mod tests {
             streamer_in_guild: None,
             stage_id: None,
             stage_name: None,
+            stage_best_of: None,
             mp_ids: Vec::new(),
             entries: 0,
         }

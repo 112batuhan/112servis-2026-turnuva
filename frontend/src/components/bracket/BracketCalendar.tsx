@@ -11,6 +11,7 @@ import {
   winningSlot,
 } from "../../lib/bracket";
 import { LiveMark } from "../LiveMark";
+import { stageLabel } from "../../lib/bestOf";
 import { formatClock } from "../../lib/format";
 import { IconButton } from "../IconButton";
 import { TeamPopover } from "../TeamPopover";
@@ -198,7 +199,7 @@ export function BracketCalendar({
           {m.starts_at && <span className="cal-match-time">{formatClock(m.starts_at)}</span>}
           <strong>{matchCode(m)}</strong>
           {isLive(m) && <LiveMark compact />}
-          {m.stage && <span className="cal-match-stage">{m.stage.name}</span>}
+          {m.stage && <span className="cal-match-stage">{stageLabel(m.stage)}</span>}
           {hasMatchPage(m) && <MatchPageLink matchId={m.id} live={isLive(m)} variant="card" />}
           {showRefereeRoom && <RefereeRoomLink matchId={m.id} variant="card" />}
         </span>

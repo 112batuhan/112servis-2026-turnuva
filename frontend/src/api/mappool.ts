@@ -21,6 +21,8 @@ export const deleteStage = (id: string) => del(`/api/stages/${id}`);
 /** null leaves no stage as the qualifier pool. */
 export const setQualifierStage = (stageId: string | null) =>
   put<void>("/api/stages/qualifier", { stage_id: stageId });
+export const setStageBestOf = (stageId: string, bestOf: number | null) =>
+  put<void>(`/api/stages/${stageId}/best-of`, { best_of: bestOf });
 
 // ---- categories ----
 export const createCategory = (stageId: string, name: string) =>

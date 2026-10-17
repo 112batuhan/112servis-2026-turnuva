@@ -55,6 +55,8 @@ pub struct RoomStage {
     id: Uuid,
     name: String,
     published: bool,
+    // How many maps a bracket match in it is played to; null when not set.
+    best_of: Option<i32>,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,6 +71,9 @@ pub struct RefereeRoom {
     #[serde(with = "time::serde::rfc3339::option")]
     starts_at: Option<OffsetDateTime>,
     referee: Option<Referee>,
+    // Bracket matches only: who streams it, so the referee can add them as a referee of
+    // the room (their tournament client then shows its chat).
+    streamer: Option<Streamer>,
     // Oldest first; the last one is where the match is being played.
     rooms: Vec<MatchRoom>,
     referee_notes: String,
@@ -189,6 +194,7 @@ fn room_stage(row: &RoomRow) -> Option<RoomStage> {
             id,
             name: name.clone(),
             published: row.stage_published.unwrap_or(false),
+            best_of: row.stage_best_of,
         }),
         _ => None,
     }
@@ -221,6 +227,12 @@ pub async fn get_room(
         lobby_number: row.lobby_number,
         starts_at: row.starts_at,
         referee: Referee::from_columns(row.referee),
+        streamer: Streamer::from_columns(
+            row.streamer_id,
+            row.streamer_osu_id,
+            row.streamer_username,
+            row.streamer_avatar_url,
+        ),
         rooms: match_rooms(row.mp_ids),
         referee_notes: row.referee_notes,
         concluded_at: row.concluded_at,

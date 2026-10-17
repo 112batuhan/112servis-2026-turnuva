@@ -7,6 +7,7 @@ import { DiscordMention } from "../../../components/DiscordMention";
 import { IconButton } from "../../../components/IconButton";
 import {
   isFreemod,
+  isRoomRef,
   roomSize,
   sameName,
   SIDE_COLOR,
@@ -358,6 +359,7 @@ function StrangerRow<P extends Player>({
         </span>
         <span className="room-player-meta">
           {role ? "Turnuva görevlisi" : <span className="room-player-wrong">Maçta yeri yok</span>}
+          {isRoomRef(view.lobby, slot.username) && " · odanın hakemi"}
           {slot.team && ` · ${TEAM_NAMES[slot.team]} takımda`}
         </span>
       </span>

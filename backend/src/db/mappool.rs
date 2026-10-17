@@ -13,6 +13,8 @@ pub struct Stage {
     pub published: bool,
     // Whether this is the qualifier lobbies' map pool; at most one stage is.
     pub is_qualifier: bool,
+    // How many maps its bracket matches are played to (odd); null until the hosts set it.
+    pub best_of: Option<i32>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -231,6 +233,31 @@ pub async fn set_qualifier_stage(pool: &PgPool, id: Option<Uuid>) -> sqlx::Resul
     }
     tx.commit().await?;
     Ok(true)
+}
+
+// Sets how many maps a stage's bracket matches are played to (None: not set). Returns
+// the ids of its bracket matches, whose Discord cards show it, or None when there's no
+// such stage.
+pub async fn set_stage_best_of(
+    pool: &PgPool,
+    id: Uuid,
+    best_of: Option<i32>,
+) -> sqlx::Result<Option<Vec<Uuid>>> {
+    let mut tx = pool.begin().await?;
+    let found = sqlx::query("UPDATE stages SET best_of = $2, updated_at = now() WHERE id = $1")
+        .bind(id)
+        .bind(best_of)
+        .execute(&mut *tx)
+        .await?;
+    if found.rows_affected() == 0 {
+        return Ok(None);
+    }
+    let matches = sqlx::query_scalar("SELECT match_id FROM bracket_matches WHERE stage_id = $1")
+        .bind(id)
+        .fetch_all(&mut *tx)
+        .await?;
+    tx.commit().await?;
+    Ok(Some(matches))
 }
 
 pub async fn list_published_stages(pool: &PgPool) -> sqlx::Result<Vec<Stage>> {

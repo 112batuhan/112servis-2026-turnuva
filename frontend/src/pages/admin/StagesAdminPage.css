@@ -74,3 +74,19 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* How many maps the stage's matches go to: a compact select whose value reads as the figure. */
+.stage-row-bo {
+  width: auto;
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stage-row-bo option {
+  font-family: var(--font-sans);
+  font-stretch: normal;
+  font-weight: 400;
+}
