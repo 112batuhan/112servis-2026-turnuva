@@ -30,19 +30,24 @@ import {
   applyBancho,
   BANCHO_BOT,
   EMPTY_ROOM,
-  ircName,
   isFreemod,
+  matchSlots,
   MATCH_STARTED,
   modAcronyms,
   modsCommand,
+  moveCommands,
   parseCreated,
+  placeCommands,
   playerRef,
   ROOM_PREFIX,
   sameName,
+  SIDE_COLOR,
+  SIDE_SLOTS,
   splitMods,
   TEAM_MODE,
   type MapResult,
   type MapScore,
+  type Placement,
   type RoomSlot,
   type RoomState,
   type ScoreMode,
@@ -66,16 +71,21 @@ import { mergeChat, toChatLine, type SavedChat } from "./roomChat";
 export interface RosterPlayer<P extends Player = Player> {
   player: P;
   team: Team<P>;
-  /** Bracket matches: the colour the player's team plays as (team 1 red, team 2 blue). */
+  /** Bracket matches: the colour the player's team plays as (team 1 blue, team 2 red). */
   color: SlotTeam | null;
+  /**
+   * Bracket matches: the room slot the player belongs in. Team 1's players take 1 and 2, team 2's
+   * 3 and 4, in the order the team lists them; the pages list them in that order too.
+   */
+  home: number | null;
 }
 
 export interface RoomOptions {
   scoreMode: ScoreMode;
   /** Adds NoFail to every non-freemod map. */
   noFail: boolean;
-  /** Bracket matches: moves players to their team's colour as they join. */
-  autoTeams: boolean;
+  /** Bracket matches: moves players to their slot and their team's colour as they join. */
+  autoPlace: boolean;
 }
 
 /** One of the match's rooms in the chat: its saved lines followed by the live ones. */
@@ -137,7 +147,7 @@ const CREATE_TIMEOUT_MS = 20_000;
 
 const PLAY_MODES: Record<string, number> = { osu: 0, taiko: 1, fruits: 2, mania: 3 };
 
-const DEFAULT_OPTIONS: RoomOptions = { scoreMode: 3, noFail: true, autoTeams: true };
+const DEFAULT_OPTIONS: RoomOptions = { scoreMode: 3, noFail: true, autoPlace: true };
 
 // Each match's options, so switching to another match and back keeps them. For this
 // tab only, until it's reloaded.
@@ -279,13 +289,21 @@ export function mapStartTime(lobby: RoomState, lines: Pick<ChatLine, "from" | "t
   return null;
 }
 
-/** The match's players with their teams and, in a bracket match, the colour each plays as. */
+/** The match's players with their teams and, in a bracket match, the colour and slot each plays in. */
 export function rosterOf<P extends Player>(
   room: Pick<MatchData, "kind" | "team1_id" | "team2_id"> & { teams: Team<P>[] },
 ): RosterPlayer<P>[] {
-  const color = (team: Team<P>): SlotTeam | null =>
-    room.kind !== "bracket" ? null : team.id === room.team1_id ? "red" : team.id === room.team2_id ? "blue" : null;
-  return room.teams.flatMap((team) => team.players.map((player) => ({ player, team, color: color(team) })));
+  const side = (team: Team<P>): 1 | 2 | null =>
+    room.kind !== "bracket" ? null : team.id === room.team1_id ? 1 : team.id === room.team2_id ? 2 : null;
+  return room.teams.flatMap((team) => {
+    const s = side(team);
+    return team.players.map((player, i) => ({
+      player,
+      team,
+      color: s ? SIDE_COLOR[s] : null,
+      home: s ? (SIDE_SLOTS[s][i] ?? null) : null,
+    }));
+  });
 }
 
 /** A match's saved map results as the results list shows them, with its map wins. */
@@ -593,22 +611,26 @@ export function useRefereeRoom(matchId: string) {
     if (!conversation?.joined) join(channel);
   }, [status, channel, concluded, conversation?.joined, join]);
 
-  // Reads everyone's mods as each map starts and puts bracket players on their team's
-  // colour as they join, also while the referee is on another match (see
-  // roomAutomation.ts). Replaced rooms stop.
+  // Reads everyone's mods as each map starts and puts bracket players in their slot and
+  // on their team's colour as they join, also while the referee is on another match (see
+  // roomAutomation.ts). Replaced rooms stop. The room as the page reads it goes along,
+  // so the automation knows who's in which slot.
   const automate = canRun && !concluded;
-  const autoTeams = room?.kind === "bracket" && options.autoTeams;
+  const autoPlace = room?.kind === "bracket" && options.autoPlace;
+  const placements = useMemo<Placement[]>(
+    () =>
+      roster.flatMap((r) =>
+        r.color ? [{ osuId: r.player.osu_id, username: r.player.username, slot: r.home, team: r.color }] : [],
+      ),
+    [roster],
+  );
+  const latestState = roomStates.length > 0 ? roomStates[roomStates.length - 1].state : EMPTY_ROOM;
   useEffect(() => {
     for (const r of rooms.slice(0, -1)) unregisterRoom(`#mp_${r.mp_id}`);
     if (!channel) return;
     if (!automate) return unregisterRoom(channel);
-    registerRoom(channel, {
-      autoTeams,
-      players: roster.flatMap((r) =>
-        r.color ? [{ osuId: r.player.osu_id, username: r.player.username, color: r.color }] : [],
-      ),
-    });
-  }, [rooms, channel, automate, autoTeams, roster]);
+    registerRoom(channel, { autoPlace, players: placements, room: latestState });
+  }, [rooms, channel, automate, autoPlace, placements, latestState]);
   const { onMessage } = irc;
 
   async function run(action: () => Promise<void>) {
@@ -706,15 +728,25 @@ export function useRefereeRoom(matchId: string) {
     setUpRoom: () => channel && setUp(channel),
     invite: (osuId: number) => say(`!mp invite ${playerRef(osuId)}`),
     inviteAll: () => roster.forEach((r) => say(`!mp invite ${playerRef(r.player.osu_id)}`)),
-    moveToTeam: (slot: Pick<RoomSlot, "userId" | "username">, team: SlotTeam) =>
-      say(`!mp team ${slot.userId ? playerRef(slot.userId) : ircName(slot.username)} ${team}`),
+    /**
+     * Moves a player in the room to slot `to` and onto `team` (either null to leave it), swapping
+     * with whoever holds the slot, then reads the room again so the page shows where they ended up.
+     */
+    place: (slot: RoomSlot, to: number | null, team: SlotTeam | null) => {
+      const r = findRoster(slot);
+      const mover = r ? { ...slot, userId: r.player.osu_id } : slot;
+      const commands = moveCommands(latestState, mover, to, team);
+      if (commands.length === 0) return;
+      for (const line of commands) say(line);
+      say("!mp settings");
+    },
 
-    /** Puts everyone in the room on their team's colour. */
-    fixTeams: () => {
-      for (const slot of lobby.slots) {
-        const r = findRoster(slot);
-        if (r?.color && slot.team !== r.color) say(`!mp team ${playerRef(r.player.osu_id)} ${r.color}`);
-      }
+    /** Puts every bracket player in the room in their slot and on their team's colour. */
+    fixPlacement: () => {
+      const commands = placeCommands(latestState, placements, matchSlots(placements));
+      if (commands.length === 0) return;
+      for (const line of commands) say(line);
+      say("!mp settings");
     },
 
     /** Sets a map and its mods in the room, without recording who picked it. */

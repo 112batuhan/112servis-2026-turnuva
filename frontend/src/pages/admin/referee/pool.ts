@@ -1,5 +1,5 @@
 import type { PublicMatch, PublicPoolMap, RefereeRoom } from "../../../api/types";
-import { isFreemodCategory, splitMods, type MapResult, type SlotTeam } from "../../../lib/bancho";
+import { isFreemodCategory, SIDE_COLOR, splitMods, type MapResult, type SlotTeam } from "../../../lib/bancho";
 
 // The match's pool as the referee page shows it, shared by the pool panel and the
 // results, and by the public match page, which shows the same match.
@@ -66,14 +66,14 @@ export function poolEntries(room: Pick<MatchData, "categories" | "slots" | "maps
   return entries;
 }
 
-/** A bracket match's two teams, red then blue, once both are known; otherwise none. */
+/** A bracket match's two teams, blue (team 1) then red, once both are known; otherwise none. */
 export function matchTeams(room: Pick<MatchData, "kind" | "teams" | "team1_id" | "team2_id">): MatchTeam[] {
   if (room.kind !== "bracket") return [];
   const team = (id: string | null, color: SlotTeam): MatchTeam | null => {
     const t = id ? room.teams.find((t) => t.id === id) : undefined;
     return t ? { id: t.id, name: t.name, color } : null;
   };
-  const both = [team(room.team1_id, "red"), team(room.team2_id, "blue")];
+  const both = [team(room.team1_id, SIDE_COLOR[1]), team(room.team2_id, SIDE_COLOR[2])];
   return both.every((t) => t !== null) ? (both as MatchTeam[]) : [];
 }
 

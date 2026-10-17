@@ -368,6 +368,142 @@ export const TEAM_MODE = { headToHead: 0, teamVs: 2 } as const;
 /** "#<osu id>" addresses a player in !mp commands whatever their current name. */
 export const playerRef = (osuId: number) => `#${osuId}`;
 
+// ---------- placing players ----------
+
+/** The colour each side of a bracket match plays as in the room: team 1 blue, team 2 red. */
+export const SIDE_COLOR: Record<1 | 2, SlotTeam> = { 1: "blue", 2: "red" };
+
+/** The slots each side's two players sit in: team 1 (blue) in 1 and 2, team 2 (red) in 3 and 4. */
+export const SIDE_SLOTS: Record<1 | 2, readonly [number, number]> = { 1: [1, 2], 2: [3, 4] };
+
+/** The most slots an osu! room has. */
+const MAX_SLOTS = 16;
+
+/** A player in the room, addressed by osu! id when it's known and as BanchoBot names them otherwise. */
+export function slotRef(slot: Pick<RoomSlot, "userId" | "username">): string {
+  return slot.userId !== null ? playerRef(slot.userId) : ircName(slot.username);
+}
+
+/** How many slots the room has, as far as anyone can tell. */
+export function roomSize(room: Pick<RoomState, "size" | "slots">, atLeast = 0): number {
+  return Math.min(MAX_SLOTS, Math.max(room.size ?? 0, atLeast, ...room.slots.map((s) => s.slot)));
+}
+
+/** Who belongs in the room's match slots, for moving anyone else out of them. */
+export interface MatchSlots {
+  /** The slots the match's players sit in. */
+  reserved: readonly number[];
+  /** Whether someone in the room is one of the match's players. */
+  isPlayer: (slot: Pick<RoomSlot, "username" | "userId">) => boolean;
+}
+
+/**
+ * The !mp commands that put a player in the room into slot `to` and onto `team` (either null to
+ * leave it as it is). A slot someone else holds is swapped: they wait in a free slot (the room
+ * grows by one for them when it's full, and shrinks back after), the player takes the slot, and
+ * they take the player's old one. Given `match`, someone in a match slot who isn't one of its
+ * players is moved out to a free slot past the match's instead, and stays there.
+ */
+export function moveCommands(
+  room: Pick<RoomState, "size" | "slots">,
+  mover: RoomSlot,
+  to: number | null,
+  team: SlotTeam | null,
+  match?: MatchSlots,
+): string[] {
+  const commands: string[] = [];
+  if (to !== null && to !== mover.slot) {
+    const other = room.slots.find((s) => s.slot === to && s !== mover && !sameName(s.username, mover.username));
+    if (!other) {
+      commands.push(`!mp move ${slotRef(mover)} ${to}`);
+    } else {
+      const outsider = match !== undefined && !match.isPlayer(other);
+      // A room grown for an outsider grows past the match's slots, whatever size it was thought to be.
+      const size = roomSize(room, outsider ? Math.max(to, ...match.reserved) : to);
+      const taken = new Set(room.slots.map((s) => s.slot));
+      let spare = Array.from({ length: size }, (_, i) => i + 1).find(
+        (n) => !taken.has(n) && !(outsider && match.reserved.includes(n)),
+      );
+      const grow = spare === undefined && size < MAX_SLOTS;
+      if (grow) {
+        spare = size + 1;
+        commands.push(`!mp size ${spare}`);
+      }
+      if (spare !== undefined) {
+        commands.push(`!mp move ${slotRef(other)} ${spare}`, `!mp move ${slotRef(mover)} ${to}`);
+        if (!outsider) {
+          commands.push(`!mp move ${slotRef(other)} ${mover.slot}`);
+          if (grow) commands.push(`!mp size ${size}`);
+        }
+      }
+    }
+  }
+  if (team !== null && team !== mover.team) commands.push(`!mp team ${slotRef(mover)} ${team}`);
+  return commands;
+}
+
+/** A bracket match's slots and players, for moveCommands and placeCommands. */
+export function matchSlots(players: Pick<Placement, "osuId" | "username">[]): MatchSlots {
+  return {
+    reserved: [...SIDE_SLOTS[1], ...SIDE_SLOTS[2]],
+    isPlayer: (s) => players.some((p) => s.userId === p.osuId || sameName(s.username, p.username)),
+  };
+}
+
+/** Where a player belongs in the room. */
+export interface Placement {
+  osuId: number;
+  username: string;
+  /** Their slot; null when any will do. */
+  slot: number | null;
+  /** Their colour; null in head to head. */
+  team: SlotTeam | null;
+}
+
+// The room after the !mp move, team and size commands moveCommands makes, as Bancho would leave it.
+function afterCommands(room: Pick<RoomState, "size" | "slots">, commands: string[]): Pick<RoomState, "size" | "slots"> {
+  let { size, slots } = room;
+  for (const line of commands) {
+    const [, verb, ref, value] = line.split(" ");
+    if (verb === "size") {
+      size = Number(ref);
+      continue;
+    }
+    slots = slots.map((s) =>
+      slotRef(s) !== ref ? s : verb === "move" ? { ...s, slot: Number(value) } : { ...s, team: value as SlotTeam },
+    );
+  }
+  return { size, slots };
+}
+
+/**
+ * The !mp commands that put every one of `players` who's in the room in their place, one after
+ * the other, each move counted in for the next (see moveCommands).
+ */
+export function placeCommands(
+  room: Pick<RoomState, "size" | "slots">,
+  players: Placement[],
+  match?: MatchSlots,
+): string[] {
+  // Players are addressed by osu! id, which the chat's joins don't give.
+  let state = {
+    size: room.size,
+    slots: room.slots.map((s) => {
+      const p = players.find((p) => s.userId === p.osuId || sameName(s.username, p.username));
+      return p ? { ...s, userId: p.osuId } : s;
+    }),
+  };
+  const commands: string[] = [];
+  for (const p of players) {
+    const mover = state.slots.find((s) => s.userId === p.osuId);
+    if (!mover) continue;
+    const next = moveCommands(state, mover, p.slot, p.team, match);
+    commands.push(...next);
+    state = afterCommands(state, next);
+  }
+  return commands;
+}
+
 /** A pool category is freemod when it's named FM or TB (FM1, TB, …). */
 export function isFreemodCategory(name: string): boolean {
   return /^(FM|TB)/i.test(name.trim());

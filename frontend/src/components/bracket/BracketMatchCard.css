@@ -90,13 +90,13 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Team 1 plays red and team 2 blue, as in the osu! room: the score cells carry the side. */
+/* Team 1 plays blue and team 2 red, as in the osu! room: the score cells carry the side. */
 .bm-card-team:nth-child(2) .bm-card-score {
-  background: color-mix(in srgb, var(--color-team-red) 34%, transparent);
+  background: color-mix(in srgb, var(--color-team-blue) 34%, transparent);
 }
 
 .bm-card-team:nth-child(3) .bm-card-score {
-  background: color-mix(in srgb, var(--color-team-blue) 34%, transparent);
+  background: color-mix(in srgb, var(--color-team-red) 34%, transparent);
 }
 
 /* No black box for a team without a banner. */

@@ -336,13 +336,13 @@ fn match_fields(
     }
 
     for team in players.chunk_by(|a, b| a.team_id == b.team_id) {
-        // Bracket teams in their colours on the referee page: team 1 red, team 2 blue.
+        // Bracket teams in their osu! room colours: team 1 blue (slots 1-2), team 2 red.
         let side = if info.kind != MatchKind::Bracket {
             ""
         } else if Some(team[0].team_id) == info.team1_id {
-            "🔴 "
-        } else {
             "🔵 "
+        } else {
+            "🔴 "
         };
         let names: Vec<String> = team.iter().map(|pl| p.player(pl)).collect();
         embed = embed.field(

@@ -13,7 +13,7 @@
   gap: var(--space-3) var(--space-5);
 }
 
-/* Red facing blue. */
+/* Blue (team 1, slots 1-2) facing red (team 2, slots 3-4). */
 .room-players-teams.is-versus {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -156,10 +156,11 @@
   list-style: none;
 }
 
-/* Slot | avatar | name and Discord | mods | ready or score | invite or move. */
+/* Slot | avatar | name and Discord | mods | ready or score | invite. */
 .room-player {
+  position: relative;
   display: grid;
-  grid-template-columns: 2rem 28px minmax(0, 1fr) auto auto auto;
+  grid-template-columns: 2.25rem 28px minmax(0, 1fr) auto auto auto;
   align-items: center;
   gap: var(--space-2);
   min-height: 44px;
@@ -172,7 +173,7 @@
 }
 
 .room-player.is-stranger {
-  grid-template-columns: 2rem minmax(0, 1fr) auto auto;
+  grid-template-columns: 2.25rem minmax(0, 1fr) auto auto;
 }
 
 /* A finished match: the teams as a roster, avatar and name only. */
@@ -182,10 +183,25 @@
 
 /* Read only (the public match page): no button column. */
 .room-players.is-static .room-player:not(.is-stranger) {
-  grid-template-columns: 2rem 28px minmax(0, 1fr) auto auto;
+  grid-template-columns: 2.25rem 28px minmax(0, 1fr) auto auto;
+}
+
+/* The slot the player is in, as a chip in the colour of the team they're on in the room: blue
+   or red figure on its wash, underlined in the colour like a score half. A player out of their
+   slot or colour gets a danger ring. For the referee it's a button that opens the slot picker. */
+.room-player-slot-cell {
+  display: contents;
 }
 
 .room-player-slot {
+  display: inline-grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
   color: var(--color-text);
   font-family: var(--font-display);
   font-stretch: var(--font-display-stretch);
@@ -193,12 +209,240 @@
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  text-align: center;
+}
+
+.room-player-slot.is-team-blue {
+  background: var(--color-team-blue-soft);
+  box-shadow: inset 0 -3px 0 var(--color-team-blue);
+  color: var(--color-team-blue);
+}
+
+.room-player-slot.is-team-red {
+  background: var(--color-team-red-soft);
+  box-shadow: inset 0 -3px 0 var(--color-team-red);
+  color: var(--color-team-red);
+}
+
+.room-player-slot.is-misplaced {
+  outline: 2px solid var(--color-danger);
+  outline-offset: 1px;
+}
+
+.room-player-slot.is-button {
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-out);
+}
+
+.room-player-slot.is-button:not(.is-team-blue, .is-team-red):hover:not(:disabled) {
+  background: var(--color-hover);
+}
+
+.room-player-slot.is-team-blue.is-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-team-blue) 24%, transparent);
+}
+
+.room-player-slot.is-team-red.is-button:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-team-red) 24%, transparent);
+}
+
+.room-player-slot.is-button:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.room-player-slot.is-button:disabled {
+  cursor: not-allowed;
+}
+
+.room-player-slot.is-button[aria-expanded="true"] {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
 }
 
 .room-player.is-away .room-player-slot {
   color: var(--color-text-subtle);
   font-weight: 600;
+}
+
+/* Where to put a player, under their slot number: every slot of the room in four columns, a
+   bracket match's 1-2 edged blue and 3-4 red, each with who holds it; the two colours; and the
+   button that sends a player who's out of place home. */
+.slot-picker {
+  position: absolute;
+  top: calc(100% - 2px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(340px, calc(100cqi - var(--space-2)));
+  min-width: 260px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-popover);
+}
+
+/* The right-hand team's picker opens leftwards, inside the column. */
+.room-players-teams.is-versus > :nth-child(2) .slot-picker {
+  right: 0;
+  left: auto;
+}
+
+.slot-picker-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  margin: 0;
+}
+
+.slot-picker-name {
+  font-weight: 700;
+}
+
+.slot-picker-now {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.slot-picker-slots {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+.slot-picker-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: var(--space-2) var(--space-1) 6px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.slot-picker-slot:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-hover);
+}
+
+.slot-picker-slot.is-zone-blue {
+  box-shadow: inset 0 3px 0 var(--color-team-blue);
+}
+
+.slot-picker-slot.is-zone-red {
+  box-shadow: inset 0 3px 0 var(--color-team-red);
+}
+
+.slot-picker-slot[aria-pressed="true"] {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+  cursor: default;
+}
+
+.slot-picker-slot:focus-visible,
+.slot-picker-team:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.slot-picker-number {
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.slot-picker-number.is-team-blue {
+  color: var(--color-team-blue);
+}
+
+.slot-picker-number.is-team-red {
+  color: var(--color-team-red);
+}
+
+.slot-picker-holder {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The slot the player belongs in. */
+.slot-picker-home {
+  position: absolute;
+  top: 3px;
+  right: 4px;
+  color: var(--color-primary);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.slot-picker-teams {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-1);
+}
+
+.slot-picker-team {
+  height: var(--control-height-sm, 30px);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.slot-picker-team.is-team-blue {
+  color: var(--color-team-blue);
+}
+
+.slot-picker-team.is-team-red {
+  color: var(--color-team-red);
+}
+
+.slot-picker-team.is-team-blue[aria-pressed="true"] {
+  border-color: var(--color-team-blue);
+  background: var(--color-team-blue-soft);
+  box-shadow: inset 0 -2px 0 var(--color-team-blue);
+  cursor: default;
+}
+
+.slot-picker-team.is-team-red[aria-pressed="true"] {
+  border-color: var(--color-team-red);
+  background: var(--color-team-red-soft);
+  box-shadow: inset 0 -2px 0 var(--color-team-red);
+  cursor: default;
+}
+
+.slot-picker-home-button {
+  width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .room-player-slot.is-button,
+  .slot-picker-slot {
+    transition: none;
+  }
 }
 
 .room-player-avatar {
@@ -307,10 +551,6 @@
   font-weight: 600;
 }
 
-.room-player .room-player-fix {
-  color: var(--color-danger);
-  background: var(--color-danger-soft);
-}
 
 /* Reads as text, like DiscordMention; clicking it pings the player in the match's channel. */
 .room-player-ping {

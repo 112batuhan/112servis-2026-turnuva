@@ -217,8 +217,14 @@ function Commands({ referee }: { referee: RefereeRoomState }) {
           Hepsini davet et
         </button>
         {bracket && (
-          <button type="button" className="btn btn-secondary btn-sm" disabled={!ready} onClick={actions.fixTeams}>
-            Takımları düzelt
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={!ready}
+            title="Mavi takımı 1-2. slotlara, kırmızı takımı 3-4. slotlara ve kendi rengine taşır"
+            onClick={actions.fixPlacement}
+          >
+            Yerleri düzelt
           </button>
         )}
         <button
@@ -274,10 +280,10 @@ function RoomOptions({ referee }: { referee: RefereeRoomState }) {
         <label>
           <input
             type="checkbox"
-            checked={options.autoTeams}
-            onChange={(e) => actions.setOptions({ ...options, autoTeams: e.target.checked })}
+            checked={options.autoPlace}
+            onChange={(e) => actions.setOptions({ ...options, autoPlace: e.target.checked })}
           />{" "}
-          Girenleri takım rengine taşı
+          Girenleri yerine ve takım rengine taşı
         </label>
       )}
     </div>

@@ -468,7 +468,7 @@ export interface RefereeRoom {
   rooms: MatchRoom[];
   referee_notes: string;
   concluded_at: string | null;
-  /** Bracket matches only: the teams playing red (1) and blue (2). */
+  /** Bracket matches only: the teams playing blue (1, slots 1-2) and red (2, slots 3-4). */
   team1_id: string | null;
   team2_id: string | null;
   team1_score: number | null;

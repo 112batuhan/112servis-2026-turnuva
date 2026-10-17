@@ -225,7 +225,7 @@ function MatchColumn({ page }: { page: MatchPageState }) {
 
 /**
  * A finished match's teams as the teams page shows them: each one's card, ruled in its side's
- * colour (red then blue in a bracket match), since the room's state no longer says anything.
+ * colour (blue then red in a bracket match), since the room's state no longer says anything.
  */
 function MatchTeamCards({ page }: { page: MatchPageState }) {
   const { match, roster } = page;
@@ -319,10 +319,10 @@ function RoomStatus({ page }: { page: MatchPageState }) {
   if (tally && teams.length === 2 && (match.rooms.length > 0 || match.concluded_at)) {
     text = (
       <span className="referee-tab-score num">
-        <span className="is-team-red">{match.forfeit_slot === 1 ? "FF" : match.forfeit_slot === 2 ? "W" : tally.team1}</span>
+        <span className="is-team-blue">{match.forfeit_slot === 1 ? "FF" : match.forfeit_slot === 2 ? "W" : tally.team1}</span>
         <span aria-hidden="true">–</span>
         <span className="sr-only"> - </span>
-        <span className="is-team-blue">{match.forfeit_slot === 2 ? "FF" : match.forfeit_slot === 1 ? "W" : tally.team2}</span>
+        <span className="is-team-red">{match.forfeit_slot === 2 ? "FF" : match.forfeit_slot === 1 ? "W" : tally.team2}</span>
       </span>
     );
   } else if (match.rooms.length === 0) {

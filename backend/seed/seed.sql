@@ -569,7 +569,7 @@ END $$;
 
 -- W1's rooms and their chat, so the referee page has a concluded match to show them
 -- for. The first room broke after three maps and the match went on in a second one.
--- Team 1 plays red and takes five maps to blue's three, like the seeded 5-3. The maps
+-- Team 1 plays blue (slots 1-2) and takes five maps to red's three, like the seeded 5-3. The maps
 -- are picked from W1's stage pool, with made-up ones should that stage have none.
 INSERT INTO match_rooms (mp_id, match_id, added_at)
 SELECT 112236001, m.id, m.starts_at + interval '20 minutes'
@@ -588,7 +588,7 @@ WITH w1 AS (
     WHERE b.side = 'winners' AND b.number = 1
 ),
 players AS (
-    SELECT u.username, u.osu_id, tm.team_id = w1.team1_id AS red,
+    SELECT u.username, u.osu_id, tm.team_id = w1.team1_id AS team1,
            row_number() OVER (ORDER BY tm.team_id = w1.team1_id DESC, u.username) AS slot
     FROM w1
     JOIN team_members tm ON tm.team_id IN (w1.team1_id, w1.team2_id)
@@ -622,7 +622,7 @@ maps AS (
 lines (room, at, sender, text) AS (
     SELECT room, interval '20 minutes' * (room - 1) + interval '20 seconds' * p.slot, 'BanchoBot',
            p.username || ' joined in slot ' || p.slot || ' for team '
-               || CASE WHEN p.red THEN 'red' ELSE 'blue' END || '.'
+               || CASE WHEN p.team1 THEN 'blue' ELSE 'red' END || '.'
     FROM players p, generate_series(1, 2) room
     UNION ALL
     SELECT 1, interval '2 minutes', COALESCE(w1.referee, 'BanchoBot'), 'glhf! İlk pick kırmızı takımda.'
@@ -670,7 +670,7 @@ lines (room, at, sender, text) AS (
     UNION ALL
     SELECT m.room, m.at + interval '33 seconds' + p.slot * interval '1 second', 'BanchoBot',
            'Slot ' || p.slot || '  Not Ready https://osu.ppy.sh/u/' || p.osu_id || ' ' || rpad(p.username, 16)
-               || ' [Team ' || CASE WHEN p.red THEN 'Red' ELSE 'Blue' END
+               || ' [Team ' || CASE WHEN p.team1 THEN 'Blue' ELSE 'Red' END
                || CASE WHEN m.category <> 'FM' OR p.slot = 3 THEN ''
                        WHEN p.slot = 1 THEN ' / Hidden'
                        WHEN p.slot = 2 THEN ' / HardRock'
@@ -680,7 +680,7 @@ lines (room, at, sender, text) AS (
     UNION ALL
     SELECT m.room, m.at + interval '4 minutes' + p.slot * interval '1 second', 'BanchoBot',
            p.username || ' finished playing (Score: '
-               || CASE WHEN p.red = (m.k NOT IN (2, 4, 6)) THEN 700000 ELSE 450000 END
+               || CASE WHEN p.team1 = (m.k NOT IN (2, 4, 6)) THEN 700000 ELSE 450000 END
                   + p.slot * 13579 + m.k * 2468
                || ', PASSED).'
     FROM maps m, players p
@@ -701,13 +701,13 @@ FROM w1, lines l
 WHERE w1.rooms[l.room] IS NOT NULL
 ORDER BY l.at;
 
--- W1's bans, from maps it didn't play: red took out NM4 and blue DT3.
+-- W1's bans, from maps it didn't play: blue (team 1) took out NM4 and red DT3.
 INSERT INTO match_bans (match_id, pool_map_id, team_id, created_at)
-SELECT b.match_id, pm.id, CASE WHEN v.red THEN b.team1_id ELSE b.team2_id END, m.starts_at + v.at
+SELECT b.match_id, pm.id, CASE WHEN v.team1 THEN b.team1_id ELSE b.team2_id END, m.starts_at + v.at
 FROM bracket_matches b
 JOIN matches m ON m.id = b.match_id
 CROSS JOIN (VALUES (true, 'NM', 3, interval '1 minute'),
-                   (false, 'DT', 2, interval '90 seconds')) AS v (red, category, slot, at)
+                   (false, 'DT', 2, interval '90 seconds')) AS v (team1, category, slot, at)
 JOIN stage_categories c ON c.stage_id = b.stage_id AND c.name = v.category
 JOIN category_slots s ON s.category_id = c.id AND s.position = v.slot
 JOIN pool_maps pm ON pm.slot_id = s.id
@@ -715,7 +715,7 @@ WHERE b.side = 'winners' AND b.number = 1
   AND b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL;
 
 -- W1's picks: the maps its chat plays, in the same order, the teams taking turns
--- from red.
+-- from blue (team 1).
 INSERT INTO match_picks (match_id, pool_map_id, team_id, created_at)
 SELECT b.match_id, pm.id, CASE WHEN v.k % 2 = 1 THEN b.team1_id ELSE b.team2_id END,
        m.starts_at + interval '2 minutes' + v.k * interval '6 minutes'
@@ -729,7 +729,7 @@ JOIN pool_maps pm ON pm.slot_id = s.id
 WHERE b.side = 'winners' AND b.number = 1
   AND b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL;
 
--- The first winners match being played right now, mid-match: red took NM1, blue HD1,
+-- The first winners match being played right now, mid-match: blue (team 1) took NM1, red HD1,
 -- and FM1 is being played, with everyone's mods read from !mp settings as it started.
 -- Its score and the two finished maps are saved as the referee page saves them, so the
 -- page shows them live on the site.
@@ -751,14 +751,14 @@ WITH live AS (
     LIMIT 1
 ),
 players AS (
-    SELECT u.id AS user_id, u.username, u.osu_id, tm.team_id = live.team1_id AS red,
+    SELECT u.id AS user_id, u.username, u.osu_id, tm.team_id = live.team1_id AS team1,
            row_number() OVER (ORDER BY tm.team_id = live.team1_id DESC, u.username) AS slot
     FROM live
     JOIN team_members tm ON tm.team_id IN (live.team1_id, live.team2_id)
     JOIN osu_users u ON u.id = tm.user_id
 ),
 maps AS (
-    SELECT pk.k, pk.category, pk.finished, pk.k % 2 = 1 AS red_wins,
+    SELECT pk.k, pk.category, pk.finished, pk.k % 2 = 1 AS team1_wins,
            interval '3 minutes' + (pk.k - 1) * interval '6 minutes' AS at,
            pm.id AS map_id,
            COALESCE(pm.beatmap_id, 4100000 + pk.k) AS beatmap_id,
@@ -779,8 +779,8 @@ maps AS (
 ),
 -- Each player's score and mods on the finished maps, like W1's chat makes them up.
 scores AS (
-    SELECT m.k, p.user_id, p.username, p.slot, p.red,
-           CASE WHEN p.red = m.red_wins THEN 700000 ELSE 450000 END
+    SELECT m.k, p.user_id, p.username, p.slot, p.team1,
+           CASE WHEN p.team1 = m.team1_wins THEN 700000 ELSE 450000 END
                + p.slot * 13579 + m.k * 2468 AS score,
            CASE m.category WHEN 'HD' THEN 'HDNF' ELSE 'NF' END AS mods
     FROM maps m, players p
@@ -789,7 +789,7 @@ scores AS (
 lines (at, sender, text) AS (
     SELECT interval '20 seconds' * p.slot, 'BanchoBot',
            p.username || ' joined in slot ' || p.slot || ' for team '
-               || CASE WHEN p.red THEN 'red' ELSE 'blue' END || '.'
+               || CASE WHEN p.team1 THEN 'blue' ELSE 'red' END || '.'
     FROM players p
     UNION ALL
     SELECT m.at - interval '10 seconds', COALESCE(live.referee, 'BanchoBot'),
@@ -823,7 +823,7 @@ lines (at, sender, text) AS (
     UNION ALL
     SELECT m.at + interval '33 seconds' + p.slot * interval '1 second', 'BanchoBot',
            'Slot ' || p.slot || '  Not Ready https://osu.ppy.sh/u/' || p.osu_id || ' ' || rpad(p.username, 16)
-               || ' [Team ' || CASE WHEN p.red THEN 'Red' ELSE 'Blue' END
+               || ' [Team ' || CASE WHEN p.team1 THEN 'Blue' ELSE 'Red' END
                || CASE WHEN m.category <> 'FM' OR p.slot = 3 THEN ''
                        WHEN p.slot = 1 THEN ' / Hidden'
                        WHEN p.slot = 2 THEN ' / HardRock'
@@ -853,8 +853,8 @@ score AS (
 results AS (
     INSERT INTO match_map_results (match_id, position, pool_map_id, team1_score, team2_score)
     SELECT live.id, m.k, m.map_id,
-           (SELECT sum(sc.score) FROM scores sc WHERE sc.k = m.k AND sc.red),
-           (SELECT sum(sc.score) FROM scores sc WHERE sc.k = m.k AND NOT sc.red)
+           (SELECT sum(sc.score) FROM scores sc WHERE sc.k = m.k AND sc.team1),
+           (SELECT sum(sc.score) FROM scores sc WHERE sc.k = m.k AND NOT sc.team1)
     FROM live, maps m
     WHERE m.finished AND m.map_id IS NOT NULL
 )
@@ -871,7 +871,7 @@ WHERE m.map_id IS NOT NULL;
 -- mods are the category's plus NoFail, or their own on FM and TB.
 WITH done AS (
     SELECT b.match_id, b.stage_id, b.team1_id, b.team2_id,
-           b.team1_score > b.team2_score AS red_won,
+           b.team1_score > b.team2_score AS team1_won,
            LEAST(b.team1_score, b.team2_score) AS lost_maps,
            b.team1_score + b.team2_score AS played
     FROM bracket_matches b
@@ -892,7 +892,7 @@ maps AS (
     SELECT d.match_id, pk.category, pm.id AS map_id,
            row_number() OVER (PARTITION BY d.match_id ORDER BY pk.k)::int AS position,
            -- The winner's maps are the odd ones and every one after the loser's last.
-           (pk.k % 2 = 1 OR pk.k > 2 * d.lost_maps) = d.red_won AS red_wins
+           (pk.k % 2 = 1 OR pk.k > 2 * d.lost_maps) = d.team1_won AS team1_wins
     FROM done d
     JOIN picks pk ON pk.k <= d.played
     JOIN stage_categories c ON c.stage_id = d.stage_id AND c.name = pk.category
@@ -900,7 +900,7 @@ maps AS (
     JOIN pool_maps pm ON pm.slot_id = s.id
 ),
 players AS (
-    SELECT d.match_id, u.id AS user_id, tm.team_id = d.team1_id AS red,
+    SELECT d.match_id, u.id AS user_id, tm.team_id = d.team1_id AS team1,
            row_number() OVER (PARTITION BY d.match_id
                               ORDER BY tm.team_id = d.team1_id DESC, u.username) AS slot
     FROM done d
@@ -908,8 +908,8 @@ players AS (
     JOIN osu_users u ON u.id = tm.user_id
 ),
 scores AS (
-    SELECT m.match_id, m.position, p.user_id, p.red,
-           CASE WHEN p.red = m.red_wins THEN 700000 ELSE 450000 END
+    SELECT m.match_id, m.position, p.user_id, p.team1,
+           CASE WHEN p.team1 = m.team1_wins THEN 700000 ELSE 450000 END
                + p.slot * 13579 + m.position * 2468 AS score,
            CASE m.category
                WHEN 'NM' THEN 'NF' WHEN 'HD' THEN 'HDNF' WHEN 'HR' THEN 'HRNF' WHEN 'DT' THEN 'DTNF'
@@ -923,9 +923,9 @@ results AS (
     INSERT INTO match_map_results (match_id, position, pool_map_id, team1_score, team2_score)
     SELECT m.match_id, m.position, m.map_id,
            (SELECT sum(sc.score) FROM scores sc
-            WHERE sc.match_id = m.match_id AND sc.position = m.position AND sc.red),
+            WHERE sc.match_id = m.match_id AND sc.position = m.position AND sc.team1),
            (SELECT sum(sc.score) FROM scores sc
-            WHERE sc.match_id = m.match_id AND sc.position = m.position AND NOT sc.red)
+            WHERE sc.match_id = m.match_id AND sc.position = m.position AND NOT sc.team1)
     FROM maps m
     RETURNING match_id
 )

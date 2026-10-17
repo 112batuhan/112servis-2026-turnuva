@@ -22,7 +22,7 @@ interface Props {
 
 /**
  * One match as a line of a fixture sheet: the time, the red team, the score (or "vs"), the blue
- * team, then the match code and stage. Team 1 plays red and team 2 blue, as in the osu! room.
+ * team, then the match code and stage. Team 1 plays blue and team 2 red, as in the osu! room.
  */
 export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Props) {
   const winner = winningSlot(match);

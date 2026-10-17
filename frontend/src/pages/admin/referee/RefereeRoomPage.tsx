@@ -265,10 +265,10 @@ function RoomStatus({ referee }: { referee: RefereeRoomState }) {
   if (room.kind === "bracket" && tally && teams.length === 2) {
     text = (
       <span className="referee-tab-score num">
-        <span className="is-team-red">{tally.team1}</span>
+        <span className="is-team-blue">{tally.team1}</span>
         <span aria-hidden="true">–</span>
         <span className="sr-only"> - </span>
-        <span className="is-team-blue">{tally.team2}</span>
+        <span className="is-team-red">{tally.team2}</span>
       </span>
     );
   } else if (room.rooms.length === 0) {
