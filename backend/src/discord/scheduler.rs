@@ -17,6 +17,11 @@ pub async fn run(state: AppState) {
     interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     loop {
         interval.tick().await;
+        // Switched off: nothing is marked sent, so what's still due goes out once it's
+        // back on.
+        if !state.discord.enabled() {
+            continue;
+        }
         if let Err(err) = tick(&state).await {
             tracing::error!(error = %err, "discord scheduler failed");
         }

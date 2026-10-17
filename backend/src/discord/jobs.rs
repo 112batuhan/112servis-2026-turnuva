@@ -355,7 +355,9 @@ pub async fn run_worker(state: AppState, bot: Arc<Bot>) {
         tokio::time::sleep(Duration::from_secs(5)).await;
     };
     loop {
-        loop {
+        bot.until_active(true).await;
+        // A job that's running when the bot is switched off still finishes.
+        while bot.active() {
             match db::discord::next_job(&state.db).await {
                 Ok(Some(row)) => process(&state, &bot, row).await,
                 Ok(None) => break,
@@ -379,6 +381,7 @@ pub async fn run_worker(state: AppState, bot: Arc<Bot>) {
                 }
             }
             _ = tokio::time::sleep(Duration::from_secs_f64(wait)) => {}
+            _ = bot.until_active(false) => {}
         }
     }
 }

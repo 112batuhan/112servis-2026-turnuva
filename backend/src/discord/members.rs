@@ -158,6 +158,10 @@ pub async fn reconcile(state: &AppState, bot: &Bot) -> BotResult {
     // Anything worth retrying still fails the job.
     let mut skipped = 0;
     for (id, current) in &present {
+        // Switched off part way through: the sync it runs when it's back redoes this.
+        if !bot.active() {
+            return Ok(());
+        }
         let Some(user) = snowflake::user(id) else {
             continue;
         };

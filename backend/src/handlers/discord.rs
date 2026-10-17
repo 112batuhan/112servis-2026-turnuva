@@ -26,6 +26,7 @@ pub fn routes() -> Router<AppState> {
         .route("/discord", get(get_discord))
         .route("/discord/settings", put(save_settings))
         .route("/discord/sync", post(sync))
+        .route("/discord/active", put(set_active))
         .route("/me/subscriptions", get(my_subscriptions))
         .route(
             "/bracket/:id/subscription",
@@ -60,6 +61,8 @@ pub struct GuildView {
 pub struct DiscordView {
     // Whether DISCORD_BOT_TOKEN and DISCORD_GUILD_ID are set.
     enabled: bool,
+    // Whether hosts have it switched on.
+    active: bool,
     connected: bool,
     // The server's roles and channels to pick from; null when the bot is off or
     // Discord couldn't be reached.
@@ -74,9 +77,11 @@ pub async fn get_discord(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     let settings = db::discord::settings(&state.db).await?;
-    let Some(bot) = state.discord.bot() else {
+    // The server can be read while the bot is switched off, so it can be set up first.
+    let Some(bot) = state.discord.configured() else {
         return Ok(Json(DiscordView {
             enabled: false,
+            active: false,
             connected: false,
             guild: None,
             settings,
@@ -130,6 +135,7 @@ pub async fn get_discord(
     };
     Ok(Json(DiscordView {
         enabled: true,
+        active: bot.active(),
         connected: bot.connected(),
         guild,
         settings,
@@ -157,9 +163,40 @@ pub async fn sync(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     if !state.discord.enabled() {
-        return Err(AppError::Conflict("the Discord bot isn't set up"));
+        return Err(AppError::Conflict("the Discord bot is off"));
     }
     state.discord.enqueue(&state.db, &[Job::SyncAll]).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ActiveBody {
+    active: bool,
+}
+
+// PUT /api/discord/active — host-only. Switches the bot off (the gateway closes, jobs
+// still waiting are dropped and nothing new is queued) or back on (it reconnects and
+// runs a full sync, which catches up on what happened meanwhile).
+pub async fn set_active(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(body): Json<ActiveBody>,
+) -> Result<impl IntoResponse, AppError> {
+    user.require_role(Role::Host)?;
+    let Some(bot) = state.discord.configured() else {
+        return Err(AppError::Conflict("the Discord bot isn't set up"));
+    };
+    // Off in memory first, so nothing is queued after the queue is cleared.
+    let was = bot.active();
+    if !body.active {
+        bot.set_active(false);
+    }
+    if let Err(err) = db::discord::set_bot_active(&state.db, body.active).await {
+        bot.set_active(was);
+        return Err(err.into());
+    }
+    bot.set_active(body.active);
+    tracing::info!(by = %user.id, active = body.active, "discord bot switched");
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -229,7 +266,7 @@ pub async fn ping(
     // The match has to exist.
     load_match(&state, id).await?;
     let Some(bot) = state.discord.bot() else {
-        return Err(AppError::Conflict("the Discord bot isn't set up"));
+        return Err(AppError::Conflict("the Discord bot is off"));
     };
     let players = db::discord::match_players(&state.db, id).await?;
     let player = players

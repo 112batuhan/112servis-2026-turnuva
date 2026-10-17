@@ -6,6 +6,8 @@ export const fetchDiscord = () => get<DiscordView>("/api/discord");
 export const saveDiscordSettings = (settings: DiscordSettings) => put<void>("/api/discord/settings", settings);
 /** Rechecks who's in the server, everyone's roles and every match channel. */
 export const syncDiscord = () => post<void>("/api/discord/sync");
+/** Switches the bot off (disconnects, drops its waiting jobs) or back on (reconnects and syncs everything). */
+export const setDiscordActive = (active: boolean) => put<void>("/api/discord/active", { active });
 
 export const fetchSubscriptions = () => get<Subscriptions>("/api/me/subscriptions");
 /** Pings the signed-in user on Discord when the bracket match is about to start. */

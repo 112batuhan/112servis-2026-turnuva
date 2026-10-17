@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../api/client";
-import { fetchDiscord, saveDiscordSettings, syncDiscord } from "../../api/discord";
+import { fetchDiscord, saveDiscordSettings, setDiscordActive, syncDiscord } from "../../api/discord";
 import type { DiscordSettings, DiscordView, GuildChannel } from "../../api/types";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import "./DiscordAdminPage.css";
@@ -84,6 +84,7 @@ export function DiscordAdminPage() {
   const [draft, setDraft] = useState<DiscordSettings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -125,13 +126,43 @@ export function DiscordAdminPage() {
     }
   }
 
+  async function toggle() {
+    if (!view) return;
+    const active = !view.active;
+    if (
+      !active &&
+      !window.confirm(
+        "Bot kapatılsın mı? Discord bağlantısı kesilir, sırada bekleyen mesajlar silinir ve kapalıyken olanlar Discord'a gönderilmez.",
+      )
+    )
+      return;
+    setError(null);
+    setNote(null);
+    setSwitching(true);
+    try {
+      await setDiscordActive(active);
+      setView({ ...view, active, connected: active && view.connected });
+      setNote(
+        active
+          ? "Bot açıldı. Bağlanınca roller ve maç kanalları senkronize edilecek."
+          : "Bot kapatıldı. Ayarları yine de düzenleyebilirsin.",
+      );
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setSwitching(false);
+    }
+  }
+
   return (
     <section className="panel">
       <div className="page-header">
         <h1>Discord botu</h1>
         {view &&
           (!view.enabled ? (
-            <span className="badge">Kapalı</span>
+            <span className="badge">Kurulmadı</span>
+          ) : !view.active ? (
+            <span className="badge badge-danger">Kapalı</span>
           ) : view.connected ? (
             <span className="badge badge-success">Bağlı</span>
           ) : (
@@ -139,8 +170,18 @@ export function DiscordAdminPage() {
           ))}
         {view?.enabled && (
           <div className="page-header-aside">
-            <button type="button" className="btn btn-secondary btn-sm" onClick={sync}>
-              Şimdi senkronize et
+            {view.active && (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={sync}>
+                Şimdi senkronize et
+              </button>
+            )}
+            <button
+              type="button"
+              className={`btn btn-sm ${view.active ? "btn-danger" : "btn-primary"}`}
+              disabled={switching}
+              onClick={toggle}
+            >
+              {view.active ? "Botu kapat" : "Botu aç"}
             </button>
           </div>
         )}
@@ -152,8 +193,15 @@ export function DiscordAdminPage() {
 
       {view && !view.enabled && (
         <p className="status">
-          Bot kapalı. Açmak için sunucuda <code>DISCORD_BOT_TOKEN</code> ve <code>DISCORD_GUILD_ID</code> ayarlanmalı
+          Bot kurulmadı. Kurmak için sunucuda <code>DISCORD_BOT_TOKEN</code> ve <code>DISCORD_GUILD_ID</code> ayarlanmalı
           (ayrıntılar <code>.env.example</code> dosyasında).
+        </p>
+      )}
+      {view?.enabled && !view.active && (
+        <p className="status discord-note">
+          Bot kapalı: Discord'a bağlı değil, hiçbir şey göndermiyor ve kapalıyken olanları sıraya almıyor. Açınca
+          sunucudakileri, rolleri ve maç kanallarını baştan senkronize eder. Kapalıyken olanların mesajları
+          gönderilmez; saati henüz geçmemiş maç hatırlatmaları ve duyuruları gider.
         </p>
       )}
       {view?.enabled && !view.guild && (

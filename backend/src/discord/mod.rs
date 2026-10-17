@@ -97,6 +97,9 @@ pub struct Bot {
     pings: Mutex<HashMap<Uuid, Instant>>,
     // Whether the gateway is connected, for the admin page.
     connected: AtomicBool,
+    // Whether hosts have it switched on (`discord_settings.bot_active`). While it's off
+    // the gateway is closed, the worker and the scheduler wait and nothing is queued.
+    active: tokio::sync::watch::Sender<bool>,
 }
 
 impl Bot {
@@ -109,6 +112,21 @@ impl Bot {
 
     pub fn connected(&self) -> bool {
         self.connected.load(Ordering::Relaxed)
+    }
+
+    pub fn active(&self) -> bool {
+        *self.active.borrow()
+    }
+
+    pub fn set_active(&self, active: bool) {
+        self.active.send_replace(active);
+    }
+
+    // Returns once the bot is switched on (`true`) or off (`false`).
+    async fn until_active(&self, active: bool) {
+        let mut rx = self.active.subscribe();
+        // The sender lives as long as the bot, so this can't fail.
+        let _ = rx.wait_for(|a| *a == active).await;
     }
 
     // Allows a ping unless the player was pinged within the cooldown.
@@ -140,19 +158,28 @@ impl Discord {
             user_id: tokio::sync::OnceCell::new(),
             pings: Mutex::new(HashMap::new()),
             connected: AtomicBool::new(false),
+            // Read from the database in `spawn`, before any request is served.
+            active: tokio::sync::watch::Sender::new(false),
         })))
     }
 
+    // The bot while it runs: configured and switched on.
     pub fn bot(&self) -> Option<&Arc<Bot>> {
+        self.0.as_ref().filter(|bot| bot.active())
+    }
+
+    // The bot when it's configured, switched on or not.
+    pub fn configured(&self) -> Option<&Arc<Bot>> {
         self.0.as_ref()
     }
 
     pub fn enabled(&self) -> bool {
-        self.0.is_some()
+        self.bot().is_some()
     }
 
-    // Queues jobs for the worker, in order. Nothing is queued while the bot is off, so
-    // turning it on later doesn't replay the past; a full sync catches it up instead.
+    // Queues jobs for the worker, in order. Nothing is queued while the bot is off
+    // (unconfigured or switched off), so turning it on later doesn't replay the past; a
+    // full sync catches it up instead.
     pub async fn enqueue(&self, ex: impl PgExecutor<'_>, jobs: &[Job]) -> sqlx::Result<()> {
         if !self.enabled() || jobs.is_empty() {
             return Ok(());
@@ -201,12 +228,21 @@ impl BotError {
 
 pub type BotResult<T = ()> = Result<T, BotError>;
 
-// Starts the gateway connection, the job worker and the scheduler.
-pub fn spawn(state: &AppState) {
-    let Some(bot) = state.discord.bot().cloned() else {
+// Reads whether hosts left the bot switched on, then starts the gateway connection, the
+// job worker and the scheduler. Each of them waits while the bot is switched off.
+pub async fn spawn(state: &AppState) {
+    let Some(bot) = state.discord.configured().cloned() else {
         tracing::info!("discord bot is off (DISCORD_BOT_TOKEN / DISCORD_GUILD_ID unset)");
         return;
     };
+    let active = db::discord::bot_active(&state.db).await.unwrap_or_else(|err| {
+        tracing::error!(error = %err, "could not read whether the discord bot is on");
+        true
+    });
+    bot.set_active(active);
+    if !active {
+        tracing::info!("discord bot is switched off on /admin/discord");
+    }
     tokio::spawn(jobs::run_worker(state.clone(), bot.clone()));
     tokio::spawn(scheduler::run(state.clone()));
     let state = state.clone();
@@ -214,6 +250,7 @@ pub fn spawn(state: &AppState) {
         // GUILD_MEMBERS is privileged: it has to be enabled on the bot's page.
         let intents = GatewayIntents::GUILDS | GatewayIntents::GUILD_MEMBERS;
         loop {
+            bot.until_active(true).await;
             let handler = events::Handler {
                 state: state.clone(),
                 bot: bot.clone(),
@@ -223,14 +260,32 @@ pub fn spawn(state: &AppState) {
                 .await;
             match client {
                 Ok(mut client) => {
+                    // Switching the bot off closes the connection, which ends `start`.
+                    let shards = client.shard_manager.clone();
+                    let closer = tokio::spawn({
+                        let bot = bot.clone();
+                        async move {
+                            bot.until_active(false).await;
+                            shards.shutdown_all().await;
+                        }
+                    });
                     if let Err(err) = client.start().await {
                         tracing::error!(error = %err, "discord gateway stopped");
                     }
+                    closer.abort();
                     bot.connected.store(false, Ordering::Relaxed);
+                    if !bot.active() {
+                        tracing::info!("discord bot switched off");
+                        continue;
+                    }
                 }
                 Err(err) => tracing::error!(error = %err, "could not start the discord client"),
             }
-            tokio::time::sleep(Duration::from_secs(30)).await;
+            // Retry in a while, unless it's switched off meanwhile.
+            tokio::select! {
+                _ = tokio::time::sleep(Duration::from_secs(30)) => {}
+                _ = bot.until_active(false) => {}
+            }
         }
     });
 }

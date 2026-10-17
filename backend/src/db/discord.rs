@@ -79,6 +79,29 @@ pub async fn save_settings(pool: &PgPool, s: &Settings) -> sqlx::Result<()> {
     Ok(())
 }
 
+// Whether hosts have the bot switched on (it still needs its token and server set).
+pub async fn bot_active(pool: &PgPool) -> sqlx::Result<bool> {
+    sqlx::query_scalar("SELECT bot_active FROM discord_settings")
+        .fetch_one(pool)
+        .await
+}
+
+// Switching the bot off also drops the jobs still waiting: nothing is queued while it's
+// off, and the full sync it runs when it connects again catches up on both.
+pub async fn set_bot_active(pool: &PgPool, active: bool) -> sqlx::Result<()> {
+    let mut tx = pool.begin().await?;
+    sqlx::query("UPDATE discord_settings SET bot_active = $1")
+        .bind(active)
+        .execute(&mut *tx)
+        .await?;
+    if !active {
+        sqlx::query("DELETE FROM discord_outbox")
+            .execute(&mut *tx)
+            .await?;
+    }
+    tx.commit().await
+}
+
 // The categories the bot created when `base_id` filled up, oldest first.
 pub async fn overflow_categories(pool: &PgPool, base_id: i64) -> sqlx::Result<Vec<i64>> {
     sqlx::query_scalar(

@@ -99,7 +99,7 @@ async fn main() {
         discord: discord::Discord::new(&config.discord_bot),
     };
     rank_refresh::spawn_daily_refresh(state.clone());
-    discord::spawn(&state);
+    discord::spawn(&state).await;
 
     let cors = CorsLayer::new()
         .allow_origin(

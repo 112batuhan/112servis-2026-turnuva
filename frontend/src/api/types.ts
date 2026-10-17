@@ -668,8 +668,10 @@ export interface GuildChannel {
 export interface DiscordView {
   /** DISCORD_BOT_TOKEN and DISCORD_GUILD_ID are set. */
   enabled: boolean;
+  /** Hosts have it switched on (PUT /api/discord/active); while off it's disconnected and queues nothing. */
+  active: boolean;
   connected: boolean;
-  /** null when the bot is off or Discord couldn't be reached. */
+  /** null when the bot isn't set up or Discord couldn't be reached. */
   guild: { roles: GuildRole[]; text_channels: GuildChannel[]; categories: GuildChannel[] } | null;
   settings: DiscordSettings;
 }
@@ -677,7 +679,7 @@ export interface DiscordView {
 /** The bracket matches the signed-in user is pinged for on Discord. */
 export interface Subscriptions {
   match_ids: string[];
-  /** The Discord bot is on; without it there's nothing to subscribe to. */
+  /** The Discord bot is set up and switched on; without it there's nothing to subscribe to. */
   enabled: boolean;
   /** Subscribing needs a linked Discord account. */
   discord_linked: boolean;
