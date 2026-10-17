@@ -6,6 +6,8 @@ import { DiscordMention } from "../../components/DiscordMention";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { RanksUpdated } from "../../components/RanksUpdated";
 import { TeamCard } from "../../components/TeamCard";
+import { TeamRow, TeamRows } from "../../components/TeamRow";
+import { TeamViewTabs, useTeamView } from "../../components/TeamViewTabs";
 
 export function TeamsAdminPage() {
   const [teams, setTeams] = useState<Team<AdminTeamPlayer>[] | null>(null);
@@ -15,6 +17,7 @@ export function TeamsAdminPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [frozen, setFrozen] = useState(false);
   const [freezing, setFreezing] = useState(false);
+  const [view, setView] = useTeamView("admin");
   const flagged = teams?.filter((t) => t.rank_warning).length ?? 0;
 
   const load = useCallback(async () => {
@@ -96,6 +99,48 @@ export function TeamsAdminPage() {
     }
   }
 
+  // The same team, its controls and its players' Discords, for a card or a row.
+  const teamProps = (team: Team<AdminTeamPlayer>, i: number) => ({
+    team,
+    position: i + 1,
+    onRename: (name: string) => rename(team, name),
+    renderPlayerExtra: (p: AdminTeamPlayer) => (
+      <span className="muted">
+        <DiscordMention player={p} fallback="Discord bağlı değil" />
+        {p.discord_in_guild === false && (
+          <>
+            {" "}
+            <span className="badge badge-warning" title="Turnuvanın Discord sunucusundan ayrıldı">
+              Sunucuda değil
+            </span>
+          </>
+        )}
+      </span>
+    ),
+    actions: (
+      <>
+        {team.banner_url && (
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={busyId === team.id}
+            onClick={() => removeBanner(team)}
+          >
+            Banner'ı kaldır
+          </button>
+        )}
+        <button
+          type="button"
+          className="btn btn-danger btn-sm"
+          disabled={busyId === team.id}
+          onClick={() => disband(team)}
+        >
+          Dağıt
+        </button>
+      </>
+    ),
+  });
+
   return (
     <section className="panel">
       <div className="page-header">
@@ -114,6 +159,7 @@ export function TeamsAdminPage() {
         {teams && (
           <div className="page-header-aside">
             <RanksUpdated at={ranksUpdatedAt} />
+            <TeamViewTabs view={view} onChange={setView} />
             <button
               type="button"
               className="btn btn-secondary btn-sm"
@@ -137,52 +183,19 @@ export function TeamsAdminPage() {
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
       {!teams && !error && <p className="status">Yükleniyor…</p>}
       {teams?.length === 0 && <p className="status">Henüz takım yok.</p>}
-      {teams && teams.length > 0 && (
+      {teams && teams.length > 0 && view === "cards" && (
         <div className="team-grid is-ruled">
           {teams.map((team, i) => (
-            <TeamCard
-              key={team.id}
-              team={team}
-              position={i + 1}
-              onRename={(name) => rename(team, name)}
-              renderPlayerExtra={(p) => (
-                <span className="muted">
-                  <DiscordMention player={p} fallback="Discord bağlı değil" />
-                  {p.discord_in_guild === false && (
-                    <>
-                      {" "}
-                      <span className="badge badge-warning" title="Turnuvanın Discord sunucusundan ayrıldı">
-                        Sunucuda değil
-                      </span>
-                    </>
-                  )}
-                </span>
-              )}
-              actions={
-                <>
-                  {team.banner_url && (
-                    <button
-                      type="button"
-                      className="btn btn-secondary btn-sm"
-                      disabled={busyId === team.id}
-                      onClick={() => removeBanner(team)}
-                    >
-                      Banner'ı kaldır
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    className="btn btn-danger btn-sm"
-                    disabled={busyId === team.id}
-                    onClick={() => disband(team)}
-                  >
-                    Dağıt
-                  </button>
-                </>
-              }
-            />
+            <TeamCard key={team.id} {...teamProps(team, i)} />
           ))}
         </div>
+      )}
+      {teams && teams.length > 0 && view === "rows" && (
+        <TeamRows numbered>
+          {teams.map((team, i) => (
+            <TeamRow key={team.id} {...teamProps(team, i)} />
+          ))}
+        </TeamRows>
       )}
     </section>
   );

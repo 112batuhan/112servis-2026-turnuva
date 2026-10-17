@@ -6,12 +6,15 @@ import type { TeamList } from "../api/types";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { RanksUpdated } from "../components/RanksUpdated";
 import { TeamCard } from "../components/TeamCard";
+import { TeamRow, TeamRows } from "../components/TeamRow";
+import { TeamViewTabs, useTeamView } from "../components/TeamViewTabs";
 import { teamAnchorId } from "../lib/teamLink";
 
 export function TeamsPage() {
   const [list, setList] = useState<TeamList | null>(null);
   const teams = list?.teams;
   const [error, setError] = useState<string | null>(null);
+  const [view, setView] = useTeamView("public");
   // Set when another page linked to a team (/teams#team-<id>).
   const target = useLocation().hash.slice(1);
 
@@ -38,18 +41,26 @@ export function TeamsPage() {
         {list && (
           <div className="page-header-aside">
             <RanksUpdated at={list.ranks_updated_at} />
+            <TeamViewTabs view={view} onChange={setView} />
           </div>
         )}
       </div>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
       {!teams && !error && <p className="status">Yükleniyor…</p>}
       {teams?.length === 0 && <p className="status">Henüz takım yok.</p>}
-      {teams && teams.length > 0 && (
+      {teams && teams.length > 0 && view === "cards" && (
         <div className="team-grid is-ruled">
           {teams.map((team) => (
             <TeamCard key={team.id} team={team} highlight={teamAnchorId(team.id) === target} />
           ))}
         </div>
+      )}
+      {teams && teams.length > 0 && view === "rows" && (
+        <TeamRows>
+          {teams.map((team) => (
+            <TeamRow key={team.id} team={team} highlight={teamAnchorId(team.id) === target} />
+          ))}
+        </TeamRows>
       )}
     </div>
   );

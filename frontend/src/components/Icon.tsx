@@ -12,6 +12,14 @@ const ICONS = {
       <path d="M16 3v4M8 3v4M3 10h18" />
     </>
   ),
+  cards: (
+    <>
+      <rect x="3" y="3" width="7.5" height="7.5" rx="1.5" />
+      <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" />
+      <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" />
+      <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" />
+    </>
+  ),
   check: <path d="M20 6 9 17l-5-5" />,
   chevronLeft: <path d="M15 18l-6-6 6-6" />,
   chevronRight: <path d="M9 18l6-6-6-6" />,
@@ -66,6 +74,12 @@ const ICONS = {
   ),
   pencil: <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />,
   plus: <path d="M12 5v14M5 12h14" />,
+  rows: (
+    <>
+      <rect x="3" y="4" width="18" height="6.5" rx="1.5" />
+      <rect x="3" y="13.5" width="18" height="6.5" rx="1.5" />
+    </>
+  ),
   refresh: <path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" />,
   recenter: (
     <>
