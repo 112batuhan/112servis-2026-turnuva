@@ -3,6 +3,7 @@
 //! Add a submodule per category (e.g. `pub mod user;`) as new tables appear; query
 //! functions take `&PgPool` and return typed rows, surfacing failures as `sqlx::Error`.
 pub mod admin;
+pub mod arg;
 pub mod bancho;
 pub mod bracket;
 pub mod chat;

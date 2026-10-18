@@ -122,6 +122,7 @@ async fn main() {
     let mut api = Router::new()
         .merge(handlers::user::routes())
         .merge(handlers::admin::routes())
+        .merge(handlers::arg::routes())
         .merge(handlers::mappool::routes())
         .merge(handlers::matches::routes())
         .merge(handlers::bracket::routes())

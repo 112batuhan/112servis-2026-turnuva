@@ -47,6 +47,9 @@ pub enum AppError {
     #[error("{0}")]
     Conflict(&'static str),
 
+    #[error("{0}")]
+    TooManyRequests(&'static str),
+
     #[error("beatmap {0} not found")]
     BeatmapNotFound(i64),
 
@@ -84,6 +87,7 @@ impl IntoResponse for AppError {
             AppError::NotFound => (StatusCode::NOT_FOUND, "not found"),
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
             AppError::Conflict(msg) => (StatusCode::CONFLICT, msg),
+            AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg),
             AppError::BeatmapNotFound(_) => (StatusCode::NOT_FOUND, "beatmap not found"),
             AppError::OsuApiRequest(_) => (StatusCode::BAD_GATEWAY, "could not reach osu! API"),
             AppError::OsuApiDecode(_) => {

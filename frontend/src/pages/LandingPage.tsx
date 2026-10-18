@@ -130,6 +130,9 @@ export function LandingPage() {
               fetchPriority="high"
             />
           </picture>
+          {/* A small spot in the banner's centre is the hidden ARG page's door, with nothing to
+              give it away. */}
+          <Link to="/kupa" className="landing-hero-link" aria-label="Kupa" />
         </figure>
         <div className="landing-title-block">
           <h1 id="landing-title" className="landing-title">

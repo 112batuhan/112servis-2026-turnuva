@@ -15,6 +15,7 @@ import { RulesAdminPage } from "./pages/admin/RulesAdminPage";
 import { StagesAdminPage } from "./pages/admin/StagesAdminPage";
 import { TeamsAdminPage } from "./pages/admin/TeamsAdminPage";
 import { UsersPage } from "./pages/admin/UsersPage";
+import { ArgPage } from "./pages/ArgPage";
 import { BracketPage } from "./pages/BracketPage";
 import { LandingPage } from "./pages/LandingPage";
 import { LinkDiscordPage } from "./pages/LinkDiscordPage";
@@ -70,6 +71,7 @@ export function App() {
           <Route path="/bracket" element={<BracketPage />} />
           <Route path="/match/:matchId" element={<MatchPage />} />
           <Route path="/staff" element={<StaffPage />} />
+          <Route path="/kupa" element={<ArgPage />} />
 
           <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
           <Route path="/discord" element={<RequireAuth><LinkDiscordPage /></RequireAuth>} />

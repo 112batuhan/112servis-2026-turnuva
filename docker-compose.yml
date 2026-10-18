@@ -38,6 +38,13 @@ services:
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:?set DISCORD_CLIENT_SECRET in .env}
       DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI:-http://localhost:8080/auth/discord/callback}
       DEV_LOGIN: ${DEV_LOGIN:-false}
+      ARG_ANSWER_1: ${ARG_ANSWER_1:-}
+      ARG_REPLY_1: ${ARG_REPLY_1:-}
+      ARG_ANSWER_2: ${ARG_ANSWER_2:-}
+      ARG_REPLY_2: ${ARG_REPLY_2:-}
+      ARG_ANSWER_3: ${ARG_ANSWER_3:-}
+      ARG_REPLY_3: ${ARG_REPLY_3:-}
+      ARG_RESULTS_TOKEN: ${ARG_RESULTS_TOKEN:-}
     ports:
       - "8080:8080"
 

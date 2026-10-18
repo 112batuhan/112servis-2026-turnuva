@@ -43,6 +43,9 @@ pub struct Config {
     #[command(flatten)]
     pub discord_bot: DiscordBotConfig,
 
+    #[command(flatten)]
+    pub arg: ArgConfig,
+
     /// Bancho's IRC server, which the bots and the referee page's chat relay connect to.
     /// cho.ppy.sh:6667 is an alternative if irc.ppy.sh doesn't work.
     #[arg(long, env = "BANCHO_IRC_ADDR", default_value = "irc.ppy.sh:6667")]
@@ -71,6 +74,63 @@ pub struct DiscordBotConfig {
 impl DiscordBotConfig {
     pub fn bot(&self) -> Option<(&str, u64)> {
         Some((self.discord_bot_token.as_deref()?, self.discord_guild_id?))
+    }
+}
+
+/// The hidden puzzle behind the navbar's trophy (handlers/arg.rs): three secret messages,
+/// each answered by its reply, entered in any order; the first to enter the third wins.
+/// Off unless every answer and reply is set. Answers are matched ignoring case and extra
+/// spaces; a reply's `{place}` becomes the player's place among that message's finders.
+/// Changing them needs a restart.
+#[derive(clap::Args, Debug, Clone)]
+pub struct ArgConfig {
+    #[arg(long, env = "ARG_ANSWER_1")]
+    pub arg_answer_1: Option<String>,
+    #[arg(long, env = "ARG_REPLY_1")]
+    pub arg_reply_1: Option<String>,
+    #[arg(long, env = "ARG_ANSWER_2")]
+    pub arg_answer_2: Option<String>,
+    #[arg(long, env = "ARG_REPLY_2")]
+    pub arg_reply_2: Option<String>,
+    #[arg(long, env = "ARG_ANSWER_3")]
+    pub arg_answer_3: Option<String>,
+    #[arg(long, env = "ARG_REPLY_3")]
+    pub arg_reply_3: Option<String>,
+
+    /// Opens the results page at /api/kupa/results/<token>. Unset, there's no results page.
+    #[arg(long, env = "ARG_RESULTS_TOKEN")]
+    pub arg_results_token: Option<String>,
+}
+
+/// One message of the puzzle: what to enter and what it answers.
+pub struct ArgMessage<'a> {
+    pub answer: &'a str,
+    pub reply: &'a str,
+}
+
+// An empty variable (as docker-compose passes an unset one) counts as unset.
+fn set(value: &Option<String>) -> Option<&str> {
+    value.as_deref().filter(|v| !v.trim().is_empty())
+}
+
+impl ArgConfig {
+    /// The three messages, the winning one last, or None unless all of them are set.
+    pub fn messages(&self) -> Option<[ArgMessage<'_>; 3]> {
+        let message = |answer, reply| {
+            Some(ArgMessage {
+                answer: set(answer)?,
+                reply: set(reply)?,
+            })
+        };
+        Some([
+            message(&self.arg_answer_1, &self.arg_reply_1)?,
+            message(&self.arg_answer_2, &self.arg_reply_2)?,
+            message(&self.arg_answer_3, &self.arg_reply_3)?,
+        ])
+    }
+
+    pub fn results_token(&self) -> Option<&str> {
+        set(&self.arg_results_token)
     }
 }
 

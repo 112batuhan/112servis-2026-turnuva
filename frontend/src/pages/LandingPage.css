@@ -16,7 +16,20 @@
 }
 
 .landing-hero {
+  position: relative;
   margin: calc(-1 * var(--space-5)) 0 calc(-1 * var(--space-3));
+}
+
+/* Over the snowflake's centre, where its strokes cross. The image is centred in the figure and
+   fills its height, so these percentages are the image's: the crest's here, the banner's below. */
+.landing-hero-link {
+  position: absolute;
+  top: 52.1%;
+  left: 50%;
+  width: 72px;
+  height: 72px;
+  transform: translate(-50%, -50%);
+  cursor: default;
 }
 
 .landing-hero img {
@@ -52,6 +65,10 @@
       linear-gradient(to right, transparent, #000 14%, #000 86%, transparent),
       linear-gradient(to bottom, transparent, #000 12%, #000 82%, transparent);
     mask-composite: intersect;
+  }
+
+  .landing-hero-link {
+    top: 56.3%;
   }
 
   .landing-title-block {

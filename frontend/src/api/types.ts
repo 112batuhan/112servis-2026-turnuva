@@ -853,3 +853,9 @@ export interface Subscriptions {
   /** Subscribing needs a linked Discord account. */
   discord_linked: boolean;
 }
+
+/** POST /api/kupa: `reply` is the reply of the message this guess entered. */
+export interface ArgGuessResult {
+  correct: boolean;
+  reply: string | null;
+}
