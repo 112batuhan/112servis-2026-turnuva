@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { fetchBracket } from "../../api/bracket";
+import { fetchPickem, setStagePickemMode } from "../../api/pickem";
 import { errorMessage } from "../../api/client";
 import {
   createStage,
@@ -11,16 +12,18 @@ import {
   setQualifierStage,
   setStageBestOf,
 } from "../../api/mappool";
-import type { Stage } from "../../api/types";
+import type { PickemMode, PickemStage, Stage } from "../../api/types";
 import { useSignedInUser } from "../../auth/AuthContext";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { Icon } from "../../components/Icon";
 import { IconButton } from "../../components/IconButton";
 import { InlineEdit } from "../../components/InlineEdit";
 import { BEST_OF_CHOICES, bestOfLabel, firstTo } from "../../lib/bestOf";
+import { STATUS_LABELS } from "../../lib/pickem";
 import { useDragReorder } from "../../lib/dragAndDrop";
 import { moveBy, moveToTarget, sortByIds } from "../../lib/reorder";
 import { rememberStage } from "./mappool/useStageEditor";
+import "../../components/bracket/BracketViewTabs.css";
 import "./StagesAdminPage.css";
 
 /**
@@ -32,17 +35,20 @@ export function StagesAdminPage() {
   const [stages, setStages] = useState<Stage[] | null>(null);
   // Bracket matches per stage id.
   const [matchCounts, setMatchCounts] = useState(new Map<string, number>());
+  // Each stage's pick'em as it stands, for the stages that have one.
+  const [pickem, setPickem] = useState(new Map<string, PickemStage>());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
-    const [list, bracket] = await Promise.all([fetchStages(), fetchBracket()]);
+    const [list, bracket, picks] = await Promise.all([fetchStages(), fetchBracket(), fetchPickem()]);
     const counts = new Map<string, number>();
     for (const m of bracket.matches) {
       if (m.stage) counts.set(m.stage.id, (counts.get(m.stage.id) ?? 0) + 1);
     }
     setStages(list);
     setMatchCounts(counts);
+    setPickem(new Map(picks.stages.map((s) => [s.id, s])));
   }, []);
 
   useEffect(() => {
@@ -87,6 +93,17 @@ export function StagesAdminPage() {
     });
   }
 
+  // Saves, then reloads to show what the stage's pick'em is now.
+  function applyPickemMode(stage: Stage, mode: PickemMode) {
+    setPickem((m) => {
+      const current = m.get(stage.id);
+      return current ? new Map(m).set(stage.id, { ...current, mode }) : m;
+    });
+    setStagePickemMode(stage.id, mode)
+      .catch((e) => setError(errorMessage(e)))
+      .finally(() => load().catch(() => {}));
+  }
+
   function remove(stage: Stage) {
     const count = matchCounts.get(stage.id) ?? 0;
     const matches = count > 0 ? ` ${count} bracket maçı stage'siz kalır.` : "";
@@ -110,7 +127,8 @@ export function StagesAdminPage() {
         kategorilerini ve map'lerini <Link to="/admin/mappool">Mappool</Link> sekmesinde, maçların stage'ini{" "}
         <Link to="/admin/bracket">Bracket</Link> sekmesindeki maç panelinden ayarla. Bo, stage'in maçlarının kaç map
         üzerinden oynandığı: hakem sayfası skoru buna göre takip eder, beraberlikte tiebreaker'ı açar, maç sayfası ve
-        Discord da gösterir.
+        Discord da gösterir. Pick'em, bir önceki stage'in bütün maçları bitince açılır ve stage'in ilk maçıyla kilitlenir;
+        gerekirse "Aç" ile erken açabilir (ilk maç başlayınca yine kilitlenir) ya da "Kapat" ile hemen kilitleyebilirsin.
       </p>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
 
@@ -179,6 +197,9 @@ export function StagesAdminPage() {
                     <option value={stage.best_of}>{bestOfLabel(stage.best_of)}</option>
                   )}
                 </select>
+                {pickem.has(stage.id) && (
+                  <PickemControl stage={stage} pickem={pickem.get(stage.id)!} onChange={(mode) => applyPickemMode(stage, mode)} />
+                )}
                 <span className="stage-row-meta">{count} maç</span>
                 <Link
                   to="/admin/mappool"
@@ -212,6 +233,45 @@ export function StagesAdminPage() {
         </ol>
       )}
     </section>
+  );
+}
+
+const PICKEM_MODES: { mode: PickemMode; label: string; hint: string }[] = [
+  { mode: "auto", label: "Otomatik", hint: "Önceki stage bitince açılır, ilk maçla kilitlenir" },
+  { mode: "open", label: "Aç", hint: "Şimdi açık; ilk maç başlayınca yine kilitlenir" },
+  { mode: "closed", label: "Kapat", hint: "Şimdi kilitli; tahminlerin dağılımı açıklanır" },
+];
+
+/** A stage's pick'em: what it is now, and the host's override. */
+function PickemControl({
+  stage,
+  pickem,
+  onChange,
+}: {
+  stage: Stage;
+  pickem: PickemStage;
+  onChange: (mode: PickemMode) => void;
+}) {
+  return (
+    <span className="stage-row-pickem">
+      <span className={`stage-row-pickem-status is-${pickem.status}`} title={`Pick'em: ${STATUS_LABELS[pickem.status]}`}>
+        {STATUS_LABELS[pickem.status]}
+      </span>
+      <span className="bracket-view-tabs" role="group" aria-label={`${stage.name} pick'em`}>
+        {PICKEM_MODES.map((m) => (
+          <button
+            key={m.mode}
+            type="button"
+            className="bracket-view-tab"
+            aria-pressed={pickem.mode === m.mode}
+            title={m.hint}
+            onClick={() => pickem.mode !== m.mode && onChange(m.mode)}
+          >
+            {m.label}
+          </button>
+        ))}
+      </span>
+    </span>
   );
 }
 

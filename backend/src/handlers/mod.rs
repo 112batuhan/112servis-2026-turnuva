@@ -14,6 +14,7 @@ pub mod live;
 pub mod mappool;
 pub mod matches;
 pub mod notifications;
+pub mod pickem;
 pub mod referee;
 pub mod reschedule;
 pub mod rules;

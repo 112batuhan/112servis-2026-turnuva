@@ -8,6 +8,7 @@ mod error;
 mod handlers;
 mod mods;
 mod osu_api;
+mod pickem;
 mod rank_refresh;
 mod role;
 mod team_rank;
@@ -130,6 +131,7 @@ async fn main() {
         .merge(handlers::reschedule::routes())
         .merge(handlers::rules::routes())
         .merge(handlers::notifications::routes())
+        .merge(handlers::pickem::routes())
         .merge(handlers::irc::routes())
         .merge(handlers::bancho::routes())
         .merge(handlers::live::routes())

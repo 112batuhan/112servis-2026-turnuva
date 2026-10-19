@@ -859,3 +859,108 @@ export interface ArgGuessResult {
   correct: boolean;
   reply: string | null;
 }
+
+// ---- pick'em (handlers/pickem.rs) ----
+
+/** How a stage's pick'em opens and locks: by the rule, or as a host set it. */
+export type PickemMode = "auto" | "open" | "closed";
+
+/**
+ * upcoming: waiting for the stage before it to be played; open: taking predictions; locked: no more
+ * predictions, the split is public and results come in; finished: locked with every match over.
+ */
+export type PickemStatus = "upcoming" | "open" | "locked" | "finished";
+
+/** Whether the viewer can predict, and if not, what's missing. */
+export type CanPredict = "yes" | "sign_in" | "discord";
+
+export interface PickemStage {
+  id: string;
+  name: string;
+  position: number;
+  best_of: number | null;
+  mode: PickemMode;
+  status: PickemStatus;
+  /** When the stage before it was played out; null while it isn't, or without one. */
+  opens_at: string | null;
+  /** When its first match starts, if any is scheduled. */
+  closes_at: string | null;
+  /** The stage it waits for. */
+  previous: string | null;
+  /** How many people have predicted at least one of its matches. */
+  pickers: number;
+}
+
+export interface MyPrediction {
+  match_id: string;
+  team_id: string;
+  /** The winner's maps, then the loser's. */
+  winner_score: number;
+  loser_score: number;
+  /** What it scored, once the match has a result. */
+  points: number | null;
+  /** The team it's on has been taken out of the match, so it can't score. */
+  void: boolean;
+}
+
+export interface PickemScoreCount {
+  /** The team picked to win. */
+  slot: 1 | 2;
+  winner_score: number;
+  loser_score: number;
+  count: number;
+}
+
+/** How a locked match was predicted. */
+export interface PickemSplit {
+  match_id: string;
+  total: number;
+  team1: number;
+  team2: number;
+  scores: PickemScoreCount[];
+}
+
+export interface PickemTally {
+  points: number;
+  /** Predictions that got both the winner and the score. */
+  exact: number;
+  /** Predictions that got the winner. */
+  winners: number;
+  /** Predictions on matches that have a result. */
+  scored: number;
+  /** Every prediction made. */
+  picks: number;
+}
+
+export interface PickemStanding extends PickemTally {
+  /** Shared by everyone level on points and exact predictions. */
+  rank: number;
+  player: Player;
+  stages: (PickemTally & { stage_id: string })[];
+}
+
+/** GET /api/public/pickem. Matches and teams come from the public bracket. */
+export interface PickemOverview {
+  stages: PickemStage[];
+  can_predict: CanPredict;
+  mine: MyPrediction[];
+  /** Every match of a locked stage with both teams. */
+  splits: PickemSplit[];
+  standings: PickemStanding[];
+}
+
+/** GET /api/public/pickem/matches/:id; null for a match outside every stage's pick'em. */
+export interface MatchPickem {
+  stage_id: string;
+  stage_name: string;
+  status: PickemStatus;
+  closes_at: string | null;
+  /** Whether it can be predicted now (the viewer's account aside). */
+  predictable: boolean;
+  can_predict: CanPredict;
+  /** How many have predicted it so far. */
+  total: number;
+  /** How they predicted it, once the stage is locked. */
+  split: PickemSplit | null;
+  mine: MyPrediction | null;
+}

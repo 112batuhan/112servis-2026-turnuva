@@ -48,6 +48,10 @@ WHERE id IN (
     SELECT m.team_id FROM team_members m JOIN osu_users u ON u.id = m.user_id WHERE u.osu_id < 0
 );
 DELETE FROM osu_users WHERE osu_id < 0;
+-- seed.sql opens the Semifinals' pick'em by hand; hand it back to the rule.
+UPDATE stages SET pickem_mode = 'auto'
+WHERE name IN ('Qualifiers', 'Round of 32', 'Round of 16', 'Quarterfinals', 'Semifinals',
+               'Winners Final', 'Losers Final', 'Grand Final');
 -- The stages seed.sql adds, while they're still empty: one with categories is
 -- someone's work, so it stays. Keep the names in step with seed.sql.
 DELETE FROM stages s

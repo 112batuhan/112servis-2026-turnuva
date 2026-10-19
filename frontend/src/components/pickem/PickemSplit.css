@@ -1,0 +1,308 @@
+/* The winner split: two shares at the ends of one bar in the sides' colours, a surface gap between
+   the two fills. The figures stay in ink; the fills carry the side. */
+.pickem-split {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.pickem-split-line {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.pickem-split-track {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  min-width: 0;
+}
+
+.pickem-split-fill {
+  min-width: 4px;
+  border-radius: 2px;
+}
+
+.pickem-split-fill:first-child {
+  border-radius: 4px 2px 2px 4px;
+}
+
+.pickem-split-fill:last-child {
+  border-radius: 2px 4px 4px 2px;
+}
+
+.pickem-split-fill:only-child {
+  border-radius: 4px;
+}
+
+.pickem-split-fill.is-team-blue {
+  background: var(--color-team-blue);
+}
+
+.pickem-split-fill.is-team-red {
+  background: var(--color-team-red);
+}
+
+.pickem-split-share {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 3.25rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.pickem-split-share.is-slot-1 {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+}
+
+.pickem-split-share.is-slot-2 {
+  justify-content: flex-start;
+}
+
+.pickem-split-pct {
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.pickem-split-share.is-lead .pickem-split-pct {
+  color: var(--color-text);
+  font-weight: 800;
+}
+
+.pickem-split-unit {
+  margin-right: 1px;
+  font-size: var(--text-sm);
+}
+
+.pickem-split-count {
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+}
+
+/* The viewer's side, in frost: it's theirs. */
+.pickem-split-mine {
+  color: var(--color-primary);
+  font-size: var(--text-xs);
+  font-weight: 700;
+}
+
+.pickem-split-names {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.pickem-split-names > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickem-split-names > .is-slot-2 {
+  text-align: right;
+}
+
+.pickem-split.is-named .pickem-split-track {
+  height: 12px;
+}
+
+.pickem-split.is-named .pickem-split-pct {
+  font-size: var(--text-2xl);
+}
+
+.pickem-split-total {
+  align-self: center;
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+}
+
+.pickem-split-empty {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+/* The score histogram: one column per result on the ballot's axis, team 1's wins on the left. */
+.pickem-chart {
+  margin: 0;
+}
+
+.pickem-chart-columns {
+  display: grid;
+  grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
+  column-gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The two sides' halves stand apart, so the closest results meet in the middle. */
+.pickem-chart-col.is-slot-2:nth-child(1 of .is-slot-2) {
+  margin-left: var(--space-2);
+}
+
+.pickem-chart-col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  border-radius: var(--radius-sm);
+  outline-offset: 2px;
+}
+
+.pickem-chart-plot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+  /* Headroom for the label over the tallest bar, so every bar's height is its share alone. */
+  height: calc(96px + 18px);
+  padding-top: 18px;
+  border-bottom: var(--rule);
+}
+
+.pickem-chart-bar {
+  position: relative;
+  width: min(24px, 80%);
+  min-height: 0;
+  border-radius: 4px 4px 0 0;
+  transition: opacity var(--duration-fast) ease;
+}
+
+.pickem-chart-bar.is-team-blue {
+  background: var(--color-team-blue);
+}
+
+.pickem-chart-bar.is-team-red {
+  background: var(--color-team-red);
+}
+
+.pickem-chart-columns:hover .pickem-chart-col:not(:hover) .pickem-chart-bar,
+.pickem-chart-columns:focus-within .pickem-chart-col:not(:focus) .pickem-chart-bar {
+  opacity: 0.45;
+}
+
+/* The tallest column, the result and the viewer's pick say their share over the bar, outside its
+   height; the others say it on hover. */
+.pickem-chart-value {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pickem-chart-label {
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pickem-chart-col.is-result .pickem-chart-label {
+  color: var(--color-text);
+  font-weight: 800;
+}
+
+.pickem-chart-tags {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-height: 14px;
+  line-height: 1.1;
+}
+
+.pickem-chart-tag {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pickem-chart-tag.is-result {
+  color: var(--color-text);
+}
+
+.pickem-chart-tag.is-mine {
+  color: var(--color-primary);
+}
+
+/* The figure behind each column, on hover or focus. */
+.pickem-chart-col[data-tip]:is(:hover, :focus-visible)::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + var(--space-1));
+  left: 50%;
+  z-index: 2;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-popover);
+  color: var(--color-text);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.pickem-chart-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.pickem-chart-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.pickem-chart-swatch {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.pickem-chart-swatch.is-team-blue {
+  background: var(--color-team-blue);
+}
+
+.pickem-chart-swatch.is-team-red {
+  background: var(--color-team-red);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pickem-chart-bar {
+    transition: none;
+  }
+}

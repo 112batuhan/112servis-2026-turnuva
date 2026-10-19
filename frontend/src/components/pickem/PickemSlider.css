@@ -1,0 +1,255 @@
+/* The ballot's tug of war: a track with team 1's half on the left and team 2's on the right, the
+   pull from the middle to the thumb in the winning side's colour, and the score on the thumb. A
+   transparent range input over the track takes the pointer and the keys; its thumb is as wide as
+   the drawn one, so both travel the same stops. */
+.pickem-slider {
+  --thumb-w: 48px;
+  --thumb-h: 28px;
+  --side: var(--color-text-subtle);
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pickem-slider.is-blue {
+  --side: var(--color-team-blue);
+}
+
+.pickem-slider.is-red {
+  --side: var(--color-team-red);
+}
+
+.pickem-slider-rail {
+  position: relative;
+  height: 36px;
+  cursor: grab;
+  /* Horizontal drags are the slider's; a vertical one still scrolls the page (and cancels). */
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.pickem-slider-rail:active {
+  cursor: grabbing;
+}
+
+.pickem-slider-track {
+  position: absolute;
+  inset: 0 calc(var(--thumb-w) / 2);
+}
+
+.pickem-slider-half,
+.pickem-slider-pull {
+  position: absolute;
+  top: 50%;
+  height: 6px;
+  transform: translateY(-50%);
+}
+
+.pickem-slider-half.is-slot-1 {
+  left: 0;
+  right: 50%;
+  border-radius: 3px 0 0 3px;
+  background: color-mix(in srgb, var(--color-team-blue) 22%, transparent);
+}
+
+.pickem-slider-half.is-slot-2 {
+  left: 50%;
+  right: 0;
+  border-radius: 0 3px 3px 0;
+  background: color-mix(in srgb, var(--color-team-red) 22%, transparent);
+}
+
+.pickem-slider-pull {
+  left: min(50%, var(--at));
+  right: calc(100% - max(50%, var(--at)));
+  background: var(--side);
+  transition:
+    left var(--duration-fast) var(--ease-out),
+    right var(--duration-fast) var(--ease-out);
+}
+
+.pickem-slider-stop {
+  position: absolute;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: var(--radius-full);
+  background: var(--color-text-subtle);
+  transform: translate(-50%, -50%);
+}
+
+/* The middle, where no prediction sits: a notch across the track. */
+.pickem-slider-stop.is-middle {
+  width: 2px;
+  height: 16px;
+  border-radius: 1px;
+  background: var(--color-border-strong);
+}
+
+.pickem-slider-thumb {
+  position: absolute;
+  top: 50%;
+  left: var(--at);
+  display: grid;
+  place-items: center;
+  width: var(--thumb-w);
+  height: var(--thumb-h);
+  border-radius: var(--radius-full);
+  background: var(--side);
+  box-shadow: 0 0 0 2px var(--color-bg);
+  color: var(--color-on-primary);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-base);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  transition:
+    left var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+  pointer-events: none;
+}
+
+/* Nothing picked: a hollow thumb in the middle asking to be pulled. */
+.pickem-slider.is-none .pickem-slider-thumb {
+  border: 1px dashed var(--color-border-strong);
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+}
+
+.pickem-slider.is-saving .pickem-slider-thumb {
+  opacity: 0.7;
+}
+
+/* The range input sits under the drawn track for the keyboard and screen readers only; the rail
+   handles the pointer. */
+.pickem-slider-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  pointer-events: none;
+  appearance: none;
+}
+
+.pickem-slider-input:focus-visible + .pickem-slider-track .pickem-slider-thumb {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
+}
+
+.pickem-slider.is-blocked .pickem-slider-rail {
+  cursor: not-allowed;
+}
+
+.pickem-slider.is-blocked .pickem-slider-track {
+  opacity: 0.55;
+}
+
+/* The stops' scores under the track, each at its stop; a click picks it. */
+.pickem-slider-labels {
+  position: relative;
+  height: 20px;
+  margin: 0 calc(var(--thumb-w) / 2);
+}
+
+.pickem-slider-label {
+  position: absolute;
+  -webkit-tap-highlight-color: transparent;
+  top: 0;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: var(--color-text-subtle);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 20px;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.pickem-slider-label:hover:not(:disabled) {
+  color: var(--color-text);
+}
+
+.pickem-slider-label.is-current {
+  color: var(--color-text);
+  font-weight: 800;
+}
+
+.pickem-slider-label.is-middle {
+  color: var(--color-border-strong);
+}
+
+.pickem-slider-label:disabled {
+  cursor: not-allowed;
+}
+
+/* The match page names the sides over their ends, each underlined in its colour. */
+.pickem-slider-names {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.pickem-slider-names > span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  overflow: hidden;
+  padding-bottom: 2px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickem-slider-names > .is-slot-2 {
+  justify-content: flex-end;
+}
+
+/* A name that opens the team's card ends in an ellipsis inside its trigger. */
+.pickem-slider-names .team-popover-trigger {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pickem-slider-names .pickem-slider-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pickem-slider-names > .is-slot-1 {
+  border-bottom: 2px solid var(--color-team-blue);
+}
+
+.pickem-slider-names > .is-slot-2 {
+  border-bottom: 2px solid var(--color-team-red);
+  text-align: right;
+}
+
+/* Narrow tracks drop the labels between the ends and the picked one; the thumb says the rest. */
+@container (max-width: 420px) {
+  .pickem-slider-label:not(.is-current):not(:first-child):not(:last-child):not(.is-middle) {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pickem-slider-pull,
+  .pickem-slider-thumb {
+    transition: none;
+  }
+
+}

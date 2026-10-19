@@ -1,0 +1,161 @@
+/* The match page's pick'em panel, under the score sheet in the match column: headed like the sheet
+   (a title over a heavy rule), then the ballot or the revealed split. */
+.match-pickem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+
+.match-pickem-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding-bottom: var(--space-2);
+  border-bottom: var(--rule-heavy);
+}
+
+.match-pickem-head-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.match-pickem-title {
+  margin: 0;
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+
+.match-pickem-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.match-pickem-status .is-open {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+.match-pickem-countdown {
+  word-spacing: 0.15em;
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.match-pickem-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.match-pickem-link:hover {
+  color: var(--color-text);
+}
+
+.match-pickem-note {
+  margin: 0;
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.match-pickem-ballot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.match-pickem-ask {
+  margin: 0;
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.match-pickem-ballot .pickem-chip {
+  height: var(--control-height);
+}
+
+.match-pickem-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.match-pickem-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-success);
+  font-weight: 600;
+}
+
+.match-pickem-error {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.match-pickem-count {
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+}
+
+.match-pickem-reveal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.match-pickem-mine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  margin: 0;
+  padding-top: var(--space-2);
+  border-top: var(--rule);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.match-pickem-mine strong {
+  color: var(--color-primary);
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+.match-pickem-points {
+  color: var(--color-text-muted);
+}
+
+.match-pickem-points .num {
+  color: var(--color-text);
+  font-size: var(--text-xl);
+  font-weight: 800;
+}
+
+.match-pickem-points.is-zero .num {
+  color: var(--color-text-subtle);
+}

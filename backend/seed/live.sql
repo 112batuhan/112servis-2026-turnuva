@@ -1,8 +1,9 @@
 -- Live test, run after seed.sql: the signed-in real account (`dev.live_user`, set by
 -- db/dev.rs) teamed with a dummy, against a dummy team, in a bracket match that starts
 -- now and has no room yet, so a referee can make a real osu! room for it and the real
--- player can join it from the game. DevReferee referees it and it's played in Round of
--- 16's pool. The dummies make clear.sql remove all of it, freeing the real account.
+-- player can join it from the game. DevReferee referees it and it's played in the
+-- Quarterfinals' pool, the stage being played. The dummies make clear.sql remove all
+-- of it, freeing the real account.
 DO $$
 DECLARE
     me uuid := current_setting('dev.live_user')::uuid;
@@ -37,6 +38,6 @@ BEGIN
         (SELECT COALESCE(min(pos_y), 0) FROM bracket_matches),
         home,
         away,
-        (SELECT id FROM stages WHERE name = 'Round of 16' ORDER BY position LIMIT 1)
+        (SELECT id FROM stages WHERE name = 'Quarterfinals' ORDER BY position LIMIT 1)
     );
 END $$;

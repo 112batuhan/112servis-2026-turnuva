@@ -1,0 +1,29 @@
+.pickem-clear {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* A 44px target around the 20px mark, outside the layout. */
+.pickem-clear::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+}
+
+.pickem-clear:hover:not(:disabled) {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.pickem-clear:disabled {
+  opacity: 0.5;
+}

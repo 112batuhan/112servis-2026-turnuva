@@ -162,11 +162,12 @@ FROM (VALUES
 JOIN osu_users a ON a.osu_id < 0 AND a.username = v.inviter
 JOIN osu_users b ON b.osu_id < 0 AND b.username = v.invitee;
 
--- Qualifier lobbies around now: one concluded (full, seven teams, its chat further
--- down), one being played, and upcoming ones with and without a referee. Every lobby
--- has a dummy referee or dummy teams, so clear.sql removes it. 'Kayıp Rank' is left
--- without a lobby. Teams sign up a minute apart in the order listed. Each lobby takes
--- the letter after the last one, after any real lobbies.
+-- Qualifier lobbies, all played the week before the bracket so only one stage has
+-- matches going on (the pick'em of the first bracket stage waited for them): the first
+-- full, seven teams, its chat further down, the rest smaller. Every lobby has a dummy
+-- referee or dummy teams, so clear.sql removes it. 'Kayıp Rank' is left without a
+-- lobby. Teams sign up a minute apart in the order listed. Each lobby takes the letter
+-- after the last one, after any real lobbies.
 DO $$
 DECLARE
     lobby record;
@@ -174,15 +175,14 @@ DECLARE
 BEGIN
     FOR lobby IN
         SELECT * FROM (VALUES
-            (interval '-2 days',  'DevReferee', 112233441::bigint, true,
+            (interval '-9 days',           'DevReferee', 112233441::bigint,
              'Simitçiler 10 dakika geç geldi, ilk map yeniden oynandı.',
              ARRAY['Sokak Kedileri', 'Simitçiler', 'Kahvaltı Sofrası', 'Karadeniz Fırtınası',
                    'Meze Masası', 'Kayseri Ekspres', 'Sarma Dolma']),
-            (interval '-1 hour',  'DevReferee', 112233442, false, '', ARRAY['Tatlı Krizi']),
-            (interval '1 day',    'DevHakem',   NULL, false, '', ARRAY['Fırın Ekibi', 'Çay Ocağı']),
-            (interval '2 days',   NULL,         NULL, false, '', ARRAY['Rank Uçtu']),
-            (interval '3 days',   'DevHakem',   NULL, false, '', ARRAY[]::text[])
-        ) AS v (offset_by, referee, mp_id, concluded, notes, teams)
+            (interval '-8 days -22 hours', 'DevReferee', 112233442, '', ARRAY['Tatlı Krizi']),
+            (interval '-8 days -20 hours', 'DevHakem',   112233443, '', ARRAY['Fırın Ekibi', 'Çay Ocağı']),
+            (interval '-8 days -18 hours', 'DevHakem',   112233444, '', ARRAY['Rank Uçtu'])
+        ) AS v (offset_by, referee, mp_id, notes, teams)
     LOOP
         INSERT INTO matches (kind, starts_at, referee_id, referee_notes, concluded_at, lobby_index)
         VALUES (
@@ -190,7 +190,7 @@ BEGIN
             date_trunc('hour', now()) + lobby.offset_by,
             (SELECT id FROM osu_users WHERE osu_id < 0 AND username = lobby.referee),
             lobby.notes,
-            CASE WHEN lobby.concluded THEN now() - interval '1 day' END,
+            date_trunc('hour', now()) + lobby.offset_by + interval '1 hour',
             (SELECT COALESCE(max(lobby_index), 0) + 1 FROM matches)
         )
         RETURNING id INTO new_match;
@@ -390,9 +390,10 @@ JOIN targets t ON t.name = p.stage
 JOIN categories c ON c.stage_id = t.id AND c.name = p.category
 JOIN slots s ON s.category_id = c.id AND s.position = p.slot_pos;
 
--- A 32-team double-elimination bracket, partway through: winners round 1 and losers
--- round 1 are over, winners round 2 and losers round 2 are being played (one match
--- of each is live), the first winners round 3 match is done, and the rest is
+-- A 32-team double-elimination bracket, partway through: the Round of 32 and the
+-- Round of 16 are over, and the Quarterfinals (winners round 3 and losers round 2) are
+-- the one stage being played: three of each side's matches are done, the next one of
+-- each is live and the last losers one is still to come. Everything after it is
 -- upcoming, the last rounds still unscheduled. Teams are seeded by their
 -- players' combined rank in the standard order (1v32, 16v17, ...). Losers rounds
 -- alternate between pairing up the survivors and taking the teams that drop from
@@ -400,8 +401,8 @@ JOIN slots s ON s.category_id = c.id AND s.position = p.slot_pos;
 -- bracket reset.
 --
 -- Each round is played in the stage of its week: losers rounds share the stage of the
--- winners round they run alongside, and the last two losers rounds make up the losers
--- final.
+-- winners round they run alongside (losers round 3 opens the Semifinals week, after the
+-- Quarterfinals' last match), and the last two losers rounds make up the losers final.
 -- Every match has a dummy referee or dummy teams, so clear.sql removes it. Numbers
 -- continue after any bracket that's already there, and it's placed to its right.
 -- Positions are in board units (20px); a card is 12x5, rounds are 15 apart and the
@@ -443,15 +444,15 @@ BEGIN
     -- first `done` are concluded, and with `live` the next one has a room but no result.
     FOR rnd IN
         SELECT * FROM (VALUES
-            ('w1', 'winners'::bracket_side, 16, 0,   0,   6,  interval '-3 days',  interval '1 hour',  16, false, 'Round of 32'),
-            ('w2', 'winners', 8,  15,  3,   12, interval '-7 hours',   interval '1 hour',  6,  true,  'Round of 16'),
-            ('w3', 'winners', 4,  30,  9,   24, interval '-2 hours',   interval '3 hours', 1,  false, 'Quarterfinals'),
+            ('w1', 'winners'::bracket_side, 16, 0,   0,   6,  interval '-6 days',  interval '1 hour',  16, false, 'Round of 32'),
+            ('w2', 'winners', 8,  15,  3,   12, interval '-4 days',    interval '1 hour',  8,  false, 'Round of 16'),
+            ('w3', 'winners', 4,  30,  9,   24, interval '-3 hours',   interval '1 hour',  3,  true,  'Quarterfinals'),
             ('w4', 'winners', 2,  45,  21,  48, interval '2 days',     interval '2 hours', 0,  false, 'Semifinals'),
             ('w5', 'winners', 1,  60,  45,  0,  interval '3 days 4 hours', interval '0', 0, false, 'Winners Final'),
             ('gf', 'winners', 1,  135, 84,  0,  NULL,                  NULL,               0,  false, 'Grand Final'),
-            ('l1', 'losers',  8,  15,  102, 6,  interval '-2 days',    interval '1 hour',  8,  false, 'Round of 16'),
-            ('l2', 'losers',  8,  30,  102, 6,  interval '-4 hours',   interval '1 hour',  3,  true,  'Quarterfinals'),
-            ('l3', 'losers',  4,  45,  105, 12, interval '1 day',      interval '1 hour',  0,  false, 'Quarterfinals'),
+            ('l1', 'losers',  8,  15,  102, 6,  interval '-3 days',    interval '1 hour',  8,  false, 'Round of 16'),
+            ('l2', 'losers',  8,  30,  102, 6,  interval '-6 hours',   interval '1 hour',  6,  true,  'Quarterfinals'),
+            ('l3', 'losers',  4,  45,  105, 12, interval '1 day',      interval '1 hour',  0,  false, 'Semifinals'),
             ('l4', 'losers',  4,  60,  105, 12, interval '1 day 6 hours', interval '1 hour', 0, false, 'Semifinals'),
             ('l5', 'losers',  2,  75,  111, 24, interval '2 days 6 hours', interval '1 hour', 0, false, 'Semifinals'),
             ('l6', 'losers',  2,  90,  111, 24, interval '3 days',     interval '1 hour',  0,  false, 'Winners Final'),
@@ -1138,3 +1139,69 @@ INSERT INTO room_chat_messages (mp_id, sent_at, sender, text)
 SELECT lobby.mp_id, lobby.t0 + l.at, l.sender, l.text
 FROM lobby, lines l
 ORDER BY l.at;
+
+-- Pick'em. The Semifinals' pick'em is opened by hand (the Quarterfinals are still being
+-- played, so the rule alone would keep it waiting), so its ballot can be tried; the
+-- stages before it are locked, with the split of their predictions public and the
+-- played matches scored.
+UPDATE stages SET pickem_mode = 'open' WHERE name = 'Semifinals' AND NOT is_qualifier;
+
+-- 45 dummies predict every seeded match of the first four bracket stages that has both
+-- teams (the Semifinals only where nothing has started, and about 60% of them there).
+-- Each has a skill: how often they pick the winner of a match that was then played,
+-- 45-84%. A played match's exact score is hit 30% of the time; otherwise the score
+-- leans close (the loser one map short most often). Unplayed matches lean 62% to the
+-- better seed, team 1. Predictions are made before the stage's first match.
+WITH pickers AS (
+    SELECT u.id, 45 + abs(hashtext(u.username)) % 40 AS skill
+    FROM osu_users u
+    WHERE u.osu_id BETWEEN -240 AND -201 OR u.osu_id IN (-1, -3, -5, -101, -103)
+),
+games AS (
+    SELECT m.id, st.name AS stage, (st.best_of + 1) / 2 AS need, b.team1_id, b.team2_id,
+           m.concluded_at IS NOT NULL AS done,
+           CASE WHEN b.forfeit_slot = 1 OR (b.forfeit_slot IS NULL AND b.team2_score > b.team1_score)
+                THEN b.team2_id ELSE b.team1_id END AS winner,
+           CASE WHEN b.forfeit_slot = 1 OR (b.forfeit_slot IS NULL AND b.team2_score > b.team1_score)
+                THEN b.team1_id ELSE b.team2_id END AS loser,
+           CASE WHEN b.forfeit_slot IS NULL AND greatest(b.team1_score, b.team2_score) = (st.best_of + 1) / 2
+                THEN least(b.team1_score, b.team2_score) END AS lost_by,
+           (SELECT min(m2.starts_at) FROM bracket_matches b2 JOIN matches m2 ON m2.id = b2.match_id
+            WHERE b2.stage_id = st.id) AS first_start
+    FROM bracket_matches b
+    JOIN matches m ON m.id = b.match_id
+    JOIN stages st ON st.id = b.stage_id
+    WHERE st.name IN ('Round of 32', 'Round of 16', 'Quarterfinals', 'Semifinals')
+      AND st.best_of IS NOT NULL
+      AND b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL
+      AND EXISTS (
+          SELECT 1 FROM team_members tm JOIN osu_users u ON u.id = tm.user_id
+          WHERE tm.team_id = b.team1_id AND u.osu_id < 0
+      )
+      AND (st.name <> 'Semifinals' OR (
+          m.concluded_at IS NULL AND m.starts_at > now()
+          AND NOT EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id)
+      ))
+),
+rolls AS (
+    SELECT p.id AS user_id, p.skill, g.*,
+           abs(hashtext(p.id::text || g.id::text)) % 100 AS r1,
+           abs(hashtext(g.id::text || p.id::text)) % 100 AS r2,
+           abs(hashtext(p.id::text || 'score' || g.id::text)) % 20 AS r3
+    FROM pickers p
+    CROSS JOIN games g
+)
+INSERT INTO pickem_predictions (user_id, match_id, team_id, winner_score, loser_score,
+                                created_at, updated_at)
+SELECT user_id, id,
+       CASE WHEN done THEN CASE WHEN r1 < skill THEN winner ELSE loser END
+            ELSE CASE WHEN r1 < 62 THEN team1_id ELSE team2_id END END,
+       need,
+       CASE WHEN done AND lost_by IS NOT NULL AND r2 < 30 THEN lost_by
+            ELSE greatest(0, need - 1 - CASE WHEN r3 < 4 THEN 0 WHEN r3 < 11 THEN 1
+                                             WHEN r3 < 16 THEN 2 WHEN r3 < 19 THEN 3 ELSE 4 END)
+       END,
+       least(first_start, now()) - interval '2 hours' - r1 * interval '7 minutes',
+       least(first_start, now()) - interval '2 hours' - r1 * interval '7 minutes'
+FROM rolls
+WHERE stage <> 'Semifinals' OR r2 % 10 < 6;

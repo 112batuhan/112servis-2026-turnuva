@@ -18,6 +18,7 @@ import { PlayersView } from "../admin/referee/RoomPlayers";
 import { staffRole, useRoomStaff } from "../admin/referee/roomStaff";
 import { roomLabel } from "../admin/referee/liveRoom";
 import { MatchChat } from "./MatchChat";
+import { MatchPickem } from "./MatchPickem";
 import { MatchSpectators } from "./MatchSpectators";
 import { useMatchPage, type MatchPageState } from "./useMatchPage";
 import "../admin/referee/RefereeRoomPage.css";
@@ -248,6 +249,7 @@ function MatchColumn({ page }: { page: MatchPageState }) {
           roster={roster}
           status={<SheetStatus page={page} />}
         />
+        <MatchPickem match={match} />
       </div>
     </section>
   );

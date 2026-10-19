@@ -1,0 +1,419 @@
+/* A pick'em match as a line of the fixture sheet (FixtureRow's grid), with the score chips or the
+   revealed split on a second line under the teams. Put rows in a .pickem-list, which they size
+   themselves to. */
+.pickem-list {
+  container: pickem-list / inline-size;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pickem-row {
+  --team-banner-w: 54px;
+  --team-banner-h: 18px;
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) auto minmax(0, 1fr) 10rem;
+  grid-template-areas: "when t1 score t2 result";
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-2);
+  border-bottom: var(--rule);
+}
+
+.pickem-row.has-extra {
+  grid-template-areas:
+    "when t1 score t2 result"
+    ". extra extra extra .";
+}
+
+/* An open stage's match is its ballot: the slider (the teams named at its ends) where the teams and
+   score would be. */
+.pickem-row.is-ballot {
+  grid-template-areas: "when extra extra extra result";
+}
+
+.pickem-row-when {
+  grid-area: when;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pickem-row-code {
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.pickem-row-code.is-losers {
+  color: var(--color-text-muted);
+}
+
+.pickem-row-code:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pickem-row-time {
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-md);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pickem-team {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.pickem-team.is-slot-1 {
+  grid-area: t1;
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.pickem-team.is-slot-2 {
+  grid-area: t2;
+}
+
+.pickem-team .team-banner:empty {
+  display: none;
+}
+
+.pickem-team-name {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickem-team-name.is-empty {
+  color: var(--color-text-subtle);
+  font-weight: 400;
+}
+
+.pickem-team.is-loser .pickem-team-name {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.pickem-team.is-own .pickem-team-name {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+/* The score between the teams, tinted and underlined in the sides' colours like a fixture row's.
+   The viewer's own pick is ringed in frost: it's theirs, not a result. */
+.pickem-score {
+  --score-size: var(--text-xl);
+  grid-area: score;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+  /* One height whether it says "vs" or a score, so a pick doesn't move the row. */
+  height: calc(var(--score-size) + 2 * var(--space-2));
+  min-width: 68px;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background-image:
+    linear-gradient(90deg, var(--color-team-blue) 50%, var(--color-team-red) 50%),
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-team-blue) 30%, transparent) 50%,
+      color-mix(in srgb, var(--color-team-red) 30%, transparent) 50%
+    );
+  background-size:
+    100% 3px,
+    100% 100%;
+  background-position:
+    bottom,
+    center;
+  background-repeat: no-repeat;
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.pickem-score > span {
+  padding: 0 var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--score-size);
+  font-weight: 600;
+  text-align: center;
+}
+
+.pickem-score > .is-winner {
+  color: var(--color-text);
+  font-weight: 800;
+}
+
+.pickem-score > .pickem-score-vs {
+  grid-column: 1 / -1;
+  font-size: var(--text-base);
+  font-weight: 700;
+}
+
+.pickem-row-result {
+  grid-area: result;
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+  text-align: right;
+}
+
+.pickem-result-note {
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.pickem-result-error {
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.pickem-result-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.pickem-result-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-success);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* What the prediction scored: the points as the figure, what they were for under it. */
+.pickem-points {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pickem-points-figure {
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.pickem-points.is-zero .pickem-points-figure {
+  color: var(--color-text-subtle);
+}
+
+.pickem-points.is-pending .pickem-points-label {
+  color: var(--color-text-subtle);
+}
+
+/* "Senin tahminin 5–3" beside a match's real score. */
+.pickem-points-mine {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.pickem-points-mine-score {
+  color: var(--color-primary);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-md);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.pickem-points-label {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.pickem-row .pickem-slider,
+.pickem-row-split {
+  grid-area: extra;
+  min-width: 0;
+}
+
+/* Narrow: the code and time on a line above the teams, the chips or split under them. */
+@container (max-width: 720px) {
+  .pickem-row {
+    --team-banner-w: 36px;
+    --team-banner-h: 14px;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-areas:
+      "when when result"
+      "t1 score t2";
+    gap: var(--space-2) var(--space-3);
+  }
+
+  .pickem-row.has-extra {
+    grid-template-areas:
+      "when when result"
+      "t1 score t2"
+      "extra extra extra";
+  }
+
+  .pickem-row.is-ballot {
+    grid-template-areas:
+      "when when result"
+      "extra extra extra";
+  }
+
+  .pickem-row-when {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--space-2);
+  }
+
+  /* The points beside the code and time, and the pick on a line of its own under them, so the
+     right end never runs into the time. */
+  .pickem-points {
+    flex-direction: row-reverse;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px var(--space-2);
+  }
+
+  .pickem-points-mine {
+    flex-basis: 100%;
+    text-align: right;
+  }
+
+  .pickem-result-note {
+    text-align: right;
+  }
+
+  .pickem-points-figure {
+    font-size: var(--text-lg);
+  }
+
+  .pickem-team .team-banner {
+    display: none;
+  }
+
+
+  .pickem-team-name {
+    font-size: var(--text-md);
+  }
+
+  .pickem-score {
+    min-width: 60px;
+  }
+
+  .pickem-score {
+    --score-size: var(--text-lg);
+  }
+
+}
+
+.pickem-row.has-extra .pickem-slider {
+  padding-top: var(--space-1);
+}
+
+/* Under the split: how many predicted, and the way to the score distribution. */
+.pickem-row-split-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-1);
+}
+
+.pickem-row-total {
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+}
+
+.pickem-row-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.pickem-row-toggle:hover {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
+.pickem-row-toggle svg {
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+
+.pickem-row-toggle[aria-expanded="true"] {
+  color: var(--color-text);
+}
+
+.pickem-row-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+
+.pickem-row-chart {
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+/* A row opened from the match page is lit once so the eye finds it. */
+.pickem-row.is-linked {
+  animation: pickem-row-linked 1600ms var(--ease-out);
+}
+
+@keyframes pickem-row-linked {
+  from {
+    background: var(--color-primary-soft);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pickem-row-toggle svg {
+    transition: none;
+  }
+
+  .pickem-row.is-linked {
+    animation: none;
+  }
+}
+
+/* The ballot's team names: the viewer's own in frost. */
+.pickem-slider-names .team-popover-trigger.is-own .pickem-slider-name {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+/* The ballot's banners go where the other rows' do: narrow lists drop them. The query names the
+   list, since the slider is a container of its own. */
+@container pickem-list (max-width: 720px) {
+  .pickem-slider-names .team-banner {
+    display: none;
+  }
+}
