@@ -4,10 +4,12 @@ use uuid::Uuid;
 
 use super::{bracket::Side, team::Player};
 
-// An unconcluded bracket match a team plays in, once its opponent is known.
+// An unconcluded bracket match a team plays in, once its opponent is known, or a
+// potential match it may play (`potential`), coded like its bracket match.
 #[derive(Debug, sqlx::FromRow)]
 pub struct TeamMatchRow {
     pub id: Uuid,
+    pub potential: bool,
     pub side: Side,
     pub number: i32,
     pub starts_at: Option<OffsetDateTime>,
@@ -36,19 +38,30 @@ pub struct ProposalLock {
     pub starts_at: OffsetDateTime,
 }
 
-// The team's unconcluded matches with both teams set, soonest first.
+// The team's unconcluded matches with both teams set and its potential matches,
+// soonest first.
 pub async fn list_team_matches(pool: &PgPool, team_id: Uuid) -> sqlx::Result<Vec<TeamMatchRow>> {
     sqlx::query_as::<_, TeamMatchRow>(
         r#"
-        SELECT m.id, b.side, b.number, m.starts_at, st.name AS stage_name,
-               o.id AS opponent_id, o.name AS opponent_name,
-               EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id) AS has_room
-        FROM bracket_matches b
-        JOIN matches m ON m.id = b.match_id
-        JOIN teams o ON o.id = CASE WHEN b.team1_id = $1 THEN b.team2_id ELSE b.team1_id END
-        LEFT JOIN stages st ON st.id = b.stage_id
-        WHERE $1 IN (b.team1_id, b.team2_id) AND m.concluded_at IS NULL
-        ORDER BY m.starts_at NULLS LAST, b.side, b.number
+        SELECT * FROM (
+            SELECT m.id, false AS potential, b.side, b.number, m.starts_at,
+                   st.name AS stage_name, o.id AS opponent_id, o.name AS opponent_name,
+                   EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id) AS has_room
+            FROM bracket_matches b
+            JOIN matches m ON m.id = b.match_id
+            JOIN teams o ON o.id = CASE WHEN b.team1_id = $1 THEN b.team2_id ELSE b.team1_id END
+            LEFT JOIN stages st ON st.id = b.stage_id
+            WHERE $1 IN (b.team1_id, b.team2_id) AND m.concluded_at IS NULL
+            UNION ALL
+            SELECT m.id, true, b.side, b.number, m.starts_at, st.name, o.id, o.name, false
+            FROM potential_matches p
+            JOIN matches m ON m.id = p.match_id
+            JOIN bracket_matches b ON b.match_id = p.bracket_match_id
+            JOIN teams o ON o.id = CASE WHEN p.team1_id = $1 THEN p.team2_id ELSE p.team1_id END
+            LEFT JOIN stages st ON st.id = b.stage_id
+            WHERE $1 IN (p.team1_id, p.team2_id) AND p.removed_at IS NULL
+        ) AS t
+        ORDER BY starts_at NULLS LAST, side, number, potential, opponent_name
         "#,
     )
     .bind(team_id)
@@ -64,7 +77,11 @@ pub async fn list_team_proposals(pool: &PgPool, team_id: Uuid) -> sqlx::Result<V
         SELECT p.id AS proposal_id, p.match_id, p.team_id, p.starts_at, p.created_at,
                u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank
         FROM match_reschedules p
-        JOIN bracket_matches b ON b.match_id = p.match_id
+        JOIN (
+            SELECT match_id, team1_id, team2_id FROM bracket_matches
+            UNION ALL
+            SELECT match_id, team1_id, team2_id FROM potential_matches WHERE removed_at IS NULL
+        ) AS b ON b.match_id = p.match_id
         JOIN matches m ON m.id = p.match_id
         JOIN osu_users u ON u.id = p.proposed_by
         WHERE $1 IN (b.team1_id, b.team2_id)
@@ -155,7 +172,11 @@ pub async fn delete_proposal(pool: &PgPool, id: Uuid, team_id: Uuid) -> sqlx::Re
     let result = sqlx::query(
         r#"
         DELETE FROM match_reschedules p
-        USING bracket_matches b
+        USING (
+            SELECT match_id, team1_id, team2_id FROM bracket_matches
+            UNION ALL
+            SELECT match_id, team1_id, team2_id FROM potential_matches WHERE removed_at IS NULL
+        ) AS b
         WHERE p.id = $1 AND b.match_id = p.match_id AND $2 IN (b.team1_id, b.team2_id)
         "#,
     )
@@ -164,6 +185,20 @@ pub async fn delete_proposal(pool: &PgPool, id: Uuid, team_id: Uuid) -> sqlx::Re
     .execute(pool)
     .await?;
     Ok(result.rows_affected() > 0)
+}
+
+// Sets a match's time, without touching its proposals.
+pub async fn set_time(
+    conn: &mut PgConnection,
+    match_id: Uuid,
+    starts_at: Option<OffsetDateTime>,
+) -> sqlx::Result<()> {
+    sqlx::query("UPDATE matches SET starts_at = $2 WHERE id = $1")
+        .bind(match_id)
+        .bind(starts_at)
+        .execute(conn)
+        .await?;
+    Ok(())
 }
 
 // Moves the match to the accepted time and drops every proposal for it.

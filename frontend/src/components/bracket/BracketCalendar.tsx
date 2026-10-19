@@ -7,8 +7,10 @@ import {
   hasMatchPage,
   isLive,
   matchCode,
+  rowMatchId,
   scoreHalves,
   winningSlot,
+  withPotentials,
 } from "../../lib/bracket";
 import { LiveMark } from "../LiveMark";
 import { stageLabel } from "../../lib/bestOf";
@@ -111,7 +113,8 @@ function layoutDay(matches: BracketMatch[]): Placed[] {
 }
 
 /** A month at a time, Monday first, or one day's timeline; plus, when asked, the matches
-    that have no time yet. */
+    that have no time yet. A match still waiting on its week's results is drawn as its
+    potential matches, each at its own time. */
 export function BracketCalendar({
   matches: allMatches,
   teams,
@@ -124,7 +127,10 @@ export function BracketCalendar({
   showUnscheduled,
   hits,
 }: Props) {
-  const matches = useMemo(() => (hits ? allMatches.filter((m) => hits.has(m.id)) : allMatches), [allMatches, hits]);
+  const matches = useMemo(() => {
+    const rows = withPotentials(allMatches);
+    return hits ? rows.filter((m) => hits.has(m.id)) : rows;
+  }, [allMatches, hits]);
   const [focusAt] = useState(() => {
     const at = matches.find((m) => m.id === focusId)?.starts_at;
     return at ? new Date(at) : null;
@@ -184,12 +190,14 @@ export function BracketCalendar({
       { id: m.team1_id, score: halves?.[0] ?? m.team1_score },
       { id: m.team2_id, score: halves?.[1] ?? m.team2_score },
     ];
+    const potential = m.potential_of !== undefined;
     const classes = [
       "cal-match",
       `is-${m.side}`,
       m.concluded_at && "is-done",
       isMine(m) && "is-mine",
-      m.id === selectedId && "is-selected",
+      rowMatchId(m) === selectedId && "is-selected",
+      potential && "is-potential",
     ]
       .filter(Boolean)
       .join(" ");
@@ -198,10 +206,11 @@ export function BracketCalendar({
         <span className="cal-match-head">
           {m.starts_at && <span className="cal-match-time">{formatClock(m.starts_at)}</span>}
           <strong>{matchCode(m)}</strong>
+          {potential && <span className="cal-match-potential">olası</span>}
           {isLive(m) && <LiveMark compact />}
           {m.stage && <span className="cal-match-stage">{stageLabel(m.stage)}</span>}
           {hasMatchPage(m) && <MatchPageLink matchId={m.id} live={isLive(m)} variant="card" />}
-          {showRefereeRoom && <RefereeRoomLink matchId={m.id} variant="card" />}
+          {showRefereeRoom && !potential && <RefereeRoomLink matchId={m.id} variant="card" />}
         </span>
         {slots.map((slot, i) => {
           const team = slot.id ? teams.get(slot.id) : undefined;
@@ -233,17 +242,23 @@ export function BracketCalendar({
         tabIndex={0}
         className={classes}
         style={style}
-        onClick={() => onSelect(m.id)}
+        title={potential ? `${matchCode(m)} bu eşleşme olursa: iki takım da gelirse oynanır` : undefined}
+        onClick={() => onSelect(rowMatchId(m))}
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
           e.preventDefault();
-          onSelect(m.id);
+          onSelect(rowMatchId(m));
         }}
       >
         {content}
       </div>
     ) : (
-      <div key={m.id} className={classes} style={style}>
+      <div
+        key={m.id}
+        className={classes}
+        style={style}
+        title={potential ? `${matchCode(m)} bu eşleşme olursa: iki takım da gelirse oynanır` : undefined}
+      >
         {content}
       </div>
     );

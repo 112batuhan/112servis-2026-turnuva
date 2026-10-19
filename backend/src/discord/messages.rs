@@ -37,7 +37,7 @@ pub const COLOR_DONE: u32 = 0x747f8d;
 // "W1", "L3" or "Lobi B".
 pub fn code(info: &MatchInfo) -> String {
     match (info.kind, info.side, info.number) {
-        (MatchKind::Bracket, Some(side), Some(n)) => side_code(side, n),
+        (MatchKind::Bracket | MatchKind::Potential, Some(side), Some(n)) => side_code(side, n),
         _ => format!("Lobi {}", lobby_name(info.lobby_index.unwrap_or_default())),
     }
 }
@@ -49,11 +49,18 @@ pub fn side_code(side: Side, number: i32) -> String {
     }
 }
 
-// "W1: Sokak Kedileri vs Tatlı Krizi" or "Eleme lobi B".
+// "W1: Sokak Kedileri vs Tatlı Krizi", "L20 (olası): Sarma Dolma vs Simitçiler" or
+// "Eleme lobi B".
 pub fn title(info: &MatchInfo) -> String {
     match info.kind {
         MatchKind::Bracket => format!(
             "{}: {} vs {}",
+            code(info),
+            info.team1_name.as_deref().unwrap_or("?"),
+            info.team2_name.as_deref().unwrap_or("?"),
+        ),
+        MatchKind::Potential => format!(
+            "{} (olası): {} vs {}",
             code(info),
             info.team1_name.as_deref().unwrap_or("?"),
             info.team2_name.as_deref().unwrap_or("?"),
@@ -144,14 +151,20 @@ pub fn match_page_url(state: &AppState, match_id: Uuid) -> String {
     site_url(state, &format!("/match/{match_id}"))
 }
 
+// A potential match has no page of its own: its bracket match on the bracket.
 fn match_url(state: &AppState, info: &MatchInfo) -> String {
-    match_page_url(state, info.id)
+    match (info.kind, info.parent_id) {
+        (MatchKind::Potential, Some(parent)) => {
+            site_url(state, &format!("/bracket?match={parent}"))
+        }
+        _ => match_page_url(state, info.id),
+    }
 }
 
 // Where staff take the match.
 fn admin_url(state: &AppState, info: &MatchInfo) -> String {
     match info.kind {
-        MatchKind::Bracket => site_url(state, "/admin/bracket"),
+        MatchKind::Bracket | MatchKind::Potential => site_url(state, "/admin/bracket"),
         MatchKind::Qualifier => site_url(state, "/admin/qualifiers"),
     }
 }
@@ -322,7 +335,7 @@ impl Ctx<'_> {
 pub fn stage_label(info: &MatchInfo) -> Option<String> {
     let stage = info.stage_name.as_deref()?;
     Some(match (info.kind, info.stage_best_of) {
-        (MatchKind::Bracket, Some(n)) => format!("{stage} · Bo{n}"),
+        (MatchKind::Bracket | MatchKind::Potential, Some(n)) => format!("{stage} · Bo{n}"),
         _ => stage.to_string(),
     })
 }
@@ -351,7 +364,7 @@ fn match_fields(
 
     for team in players.chunk_by(|a, b| a.team_id == b.team_id) {
         // Bracket teams in their osu! room colours: team 1 blue (slots 1-2), team 2 red.
-        let side = if info.kind != MatchKind::Bracket {
+        let side = if !info.kind.versus() {
             ""
         } else if Some(team[0].team_id) == info.team1_id {
             "🔵 "
@@ -377,7 +390,7 @@ fn match_fields(
         p.referee(info).unwrap_or_else(|| "Henüz yok".into()),
         true,
     );
-    if info.kind == MatchKind::Bracket {
+    if info.kind.versus() {
         embed = embed.field(
             "🎥 Yayıncı",
             p.streamer(info).unwrap_or_else(|| "Henüz yok".into()),
@@ -398,16 +411,19 @@ fn match_fields(
         }
         embed = embed.field("🎮 Maç linki", rooms, false);
     }
-    let page = if concluded {
-        "Skor, map sonuçları ve oda sohbeti"
-    } else {
-        "Skor, pick'ler ve oda sohbeti, canlı"
-    };
-    embed = embed.field(
-        "📺 Maç sayfası",
-        format!("[{page}]({})", match_url(state, info)),
-        false,
-    );
+    // A potential match has no page until it's decided; its title links to the bracket.
+    if info.kind != MatchKind::Potential {
+        let page = if concluded {
+            "Skor, map sonuçları ve oda sohbeti"
+        } else {
+            "Skor, pick'ler ve oda sohbeti, canlı"
+        };
+        embed = embed.field(
+            "📺 Maç sayfası",
+            format!("[{page}]({})", match_url(state, info)),
+            false,
+        );
+    }
     // While it's being played, the running score as the referee page saves it: every
     // change queues a sync, which edits the card and the announcement.
     if info.kind == MatchKind::Bracket && !concluded && !info.mp_ids.is_empty() {
@@ -428,7 +444,15 @@ pub fn match_card(state: &AppState, info: &MatchInfo, players: &[MatchPlayer]) -
         "Maçla ilgili bildirimler bu kanala gelir; bu mesaj maç değiştikçe güncellenir."
             .to_string(),
     ];
-    if info.kind == MatchKind::Bracket && !concluded {
+    if info.kind == MatchKind::Potential {
+        about.push(
+            "Bu eşleşme henüz kesinleşmedi: bu hafta oynanan maçların sonucuna bağlı. Saatini \
+             şimdiden ayarlayın; iki takım da bu maça gelirse maç burada anlaştığınız saatte \
+             oynanır ve maçın kendi kanalı açılır. Eşleşme kesinleşince bu kanal kapanır."
+                .to_string(),
+        );
+    }
+    if info.kind.versus() && !concluded {
         about.push(format!(
             "Maçın saatini değiştirmek için takım sayfasından yeni saat önerebilirsiniz: {}",
             site_url(state, "/team")
@@ -451,7 +475,7 @@ pub fn match_card(state: &AppState, info: &MatchInfo, players: &[MatchPlayer]) -
         };
         embed = embed.field("🏁 Sonuç", result, false);
     }
-    let (embed, gallery) = if info.kind == MatchKind::Bracket {
+    let (embed, gallery) = if info.kind.versus() {
         with_banners(state, info, embed)
     } else {
         (embed, Vec::new())
@@ -1079,6 +1103,7 @@ mod tests {
         MatchInfo {
             id: Uuid::nil(),
             kind: MatchKind::Bracket,
+            parent_id: None,
             starts_at: Some(datetime!(2026-10-20 18:00 UTC)),
             concluded_at: None,
             archived: false,

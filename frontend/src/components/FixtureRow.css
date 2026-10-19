@@ -179,6 +179,28 @@
   font-weight: 700;
 }
 
+/* A potential match: the sides' bars stay, but the fill gives way to a dashed outline, since it may never
+   be played. */
+.fixture-row.is-potential .fixture-score {
+  background-size:
+    100% 3px,
+    0 0;
+  outline: 1px dashed var(--color-border-strong);
+  outline-offset: -1px;
+}
+
+.fixture-code-line {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.fixture-potential {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-style: italic;
+}
+
 .fixture-meta {
   grid-area: meta;
   display: flex;

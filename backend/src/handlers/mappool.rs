@@ -110,7 +110,7 @@ pub async fn get_stage(
 }
 
 // DELETE /api/stages/:id — host-only. Its maps go back to the generic pool and its
-// bracket matches are left without a stage.
+// bracket matches are left without a stage, so without potential matches.
 pub async fn delete_stage(
     State(state): State<AppState>,
     user: AuthUser,
@@ -118,6 +118,8 @@ pub async fn delete_stage(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     db::mappool::delete_stage(&state.db, id).await?;
+    crate::handlers::bracket::resync_potentials(&state).await?;
+    state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -212,7 +214,9 @@ pub async fn set_stage_best_of(
     user.require_role(Role::Host)?;
     if let Some(n) = body.best_of {
         if !(1..=MAX_BEST_OF).contains(&n) || n % 2 == 0 {
-            return Err(AppError::BadRequest("best of must be an odd number from 1 to 25"));
+            return Err(AppError::BadRequest(
+                "best of must be an odd number from 1 to 25",
+            ));
         }
     }
     let matches = db::mappool::set_stage_best_of(&state.db, id, body.best_of)

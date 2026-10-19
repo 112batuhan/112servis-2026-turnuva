@@ -75,6 +75,26 @@ pub async fn list_matches(pool: &PgPool) -> sqlx::Result<Vec<MatchRow>> {
     .await
 }
 
+// Every potential match that can still happen as the pick'em reads it: in its bracket
+// match's stage, with no result. Predictions on one only count if the match turns out
+// to be that pairing, when they move to it (db::potential::sync); a set-aside one keeps
+// its predictions, unseen, for if it comes back.
+pub async fn list_potentials(pool: &PgPool) -> sqlx::Result<Vec<MatchRow>> {
+    sqlx::query_as::<_, MatchRow>(
+        r#"
+        SELECT p.match_id AS id, b.stage_id, m.starts_at, p.team1_id, p.team2_id,
+               NULL::int AS team1_score, NULL::int AS team2_score,
+               NULL::smallint AS forfeit_slot, m.concluded_at, false AS has_room
+        FROM potential_matches p
+        JOIN matches m ON m.id = p.match_id
+        JOIN bracket_matches b ON b.match_id = p.bracket_match_id
+        WHERE p.removed_at IS NULL
+        "#,
+    )
+    .fetch_all(pool)
+    .await
+}
+
 // When each qualifier lobby was concluded (null while it isn't): the qualifier stage's
 // matches, which the first bracket stage's pick'em waits for.
 pub async fn list_lobby_conclusions(pool: &PgPool) -> sqlx::Result<Vec<Option<OffsetDateTime>>> {
@@ -104,13 +124,19 @@ pub async fn list_match_predictions(
     .await
 }
 
-// Everyone who has predicted anything, for the standings.
+// Everyone who has predicted anything (other than set-aside potential matches), for the
+// standings.
 pub async fn list_pickers(pool: &PgPool) -> sqlx::Result<Vec<Player>> {
     sqlx::query_as::<_, Player>(
         r#"
         SELECT u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank
         FROM osu_users u
-        WHERE EXISTS (SELECT 1 FROM pickem_predictions p WHERE p.user_id = u.id)
+        WHERE EXISTS (
+            SELECT 1 FROM pickem_predictions p
+            WHERE p.user_id = u.id
+              AND NOT EXISTS (SELECT 1 FROM potential_matches x
+                              WHERE x.match_id = p.match_id AND x.removed_at IS NOT NULL)
+        )
         "#,
     )
     .fetch_all(pool)

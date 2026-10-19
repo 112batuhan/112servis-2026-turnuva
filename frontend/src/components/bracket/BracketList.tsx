@@ -5,7 +5,11 @@ import {
   groupByStage,
   hasMatchPage,
   incomingSources,
+  isUndecided,
   matchCode,
+  potentialRows,
+  rowMatchId,
+  UNDECIDED_TIME,
   SIDE_LABELS,
   sourceLabel,
   isLive,
@@ -67,7 +71,8 @@ interface Props<M extends BracketMatch> {
 }
 
 /**
- * Every match grouped by stage, in stage order; each stage in time order, unscheduled ones last.
+ * Every match grouped by stage, in stage order; each stage in time order, unscheduled ones last. A match still
+ * waiting on its week's results is followed by its potential matches, each with its own time and staff.
  * Stages can be collapsed and the list narrowed to one side (both remembered per browser) or to the search's hits.
  */
 export function BracketList<M extends BracketMatch>({
@@ -164,8 +169,13 @@ export function BracketList<M extends BracketMatch>({
                     </th>
                   </tr>
                   {!collapsed &&
-                    group.matches.map((m) => {
-                      const [s1, s2] = sources.get(m.id) ?? [null, null];
+                    group.matches.flatMap((m) => [
+                      m,
+                      ...potentialRows(m).filter((p) => !hits || hits.has(p.id)),
+                    ]).map((m) => {
+                      const potential = m.potential_of !== undefined;
+                      const undecided = isUndecided(m);
+                      const [s1, s2] = potential ? [null, null] : (sources.get(m.id) ?? [null, null]);
                       const winner = winningSlot(m);
                       const halves = scoreHalves(m);
                       const mine =
@@ -175,9 +185,13 @@ export function BracketList<M extends BracketMatch>({
                         m.id === selectedId && "is-selected",
                         (mine || playing) && "is-mine",
                         onSelect && "is-selectable",
+                        potential && "is-potential",
+                        undecided && "has-potentials",
                       ]
                         .filter(Boolean)
                         .join(" ");
+                      // A potential match selects its bracket match, which the grid and the panel know.
+                      const select = () => onSelect?.(rowMatchId(m));
                       return (
                         <tr
                           key={m.id}
@@ -189,17 +203,18 @@ export function BracketList<M extends BracketMatch>({
                             ((e) => {
                               if ((e.target as Element).closest(ROW_CONTROLS)) return;
                               if (window.getSelection()?.toString()) return;
-                              onSelect(m.id);
+                              select();
                             })
                           }
                         >
                           <th scope="row">
-                            {onSelect ? (
-                              <button
-                                type="button"
-                                className={`bracket-list-code is-${m.side}`}
-                                onClick={() => onSelect(m.id)}
-                              >
+                            {potential ? (
+                              <span className="bracket-list-branch">
+                                <span className={`bracket-list-branch-code is-${m.side}`}>{matchCode(m)}</span>
+                                olası
+                              </span>
+                            ) : onSelect ? (
+                              <button type="button" className={`bracket-list-code is-${m.side}`} onClick={select}>
                                 {matchCode(m)}
                               </button>
                             ) : (
@@ -207,7 +222,9 @@ export function BracketList<M extends BracketMatch>({
                             )}
                           </th>
                           <td className="bracket-list-time" data-label="Zaman">
-                            {!m.starts_at ? (
+                            {undecided ? (
+                              <span className="bracket-list-undecided">{UNDECIDED_TIME}</span>
+                            ) : !m.starts_at ? (
                               <span className="muted">—</span>
                             ) : onShowInCalendar ? (
                               <MatchTimeLink
@@ -253,15 +270,24 @@ export function BracketList<M extends BracketMatch>({
                           </td>
                           <td className="bracket-list-status-cell">
                             <span className="bracket-list-status">
-                              <MatchStatus match={m} now={now} />
+                              {potential ? (
+                                <span className="badge badge-potential" title="İki takım da gelirse oynanır">
+                                  Olası
+                                </span>
+                              ) : undecided ? (
+                                <span className="badge">{m.potentials.length} olası eşleşme</span>
+                              ) : (
+                                <MatchStatus match={m} now={now} />
+                              )}
                               {hasMatchPage(m) && <MatchPageLink matchId={m.id} live={isLive(m)} variant="text" />}
                               <RoomLinks rooms={m.rooms} />
-                              <RefereeWatchers viewers={presence?.get(m.id)} />
+                              {!potential && <RefereeWatchers viewers={presence?.get(m.id)} />}
                             </span>
                           </td>
                           {renderActions && (
                             <td className="bracket-list-actions-cell">
-                              <div className="bracket-list-actions">{renderActions(m)}</div>
+                              {/* A potential match has no room or referee page yet. */}
+                              {!potential && <div className="bracket-list-actions">{renderActions(m)}</div>}
                             </td>
                           )}
                         </tr>

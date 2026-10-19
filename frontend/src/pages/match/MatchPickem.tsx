@@ -122,7 +122,7 @@ export function MatchPickem({ match }: { match: PublicMatch }) {
                 <span>Kazanacak takıma doğru çek: ne kadar uzağa, o kadar farklı. Maç başlayana kadar değiştirebilirsin.</span>
               )}
               <span className="match-pickem-count">
-                <span className="num">{data.total}</span> kişi tahmin etti · dağılım ilk maçla açıklanır
+                <span className="num">{data.total}</span> kişi tahmin etti · dağılım kilitlenince açıklanır
               </span>
             </div>
           </div>

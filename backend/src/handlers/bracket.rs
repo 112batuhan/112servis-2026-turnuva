@@ -18,6 +18,7 @@ use crate::{
         bracket::{BracketLock, BracketRow, LinkRow, MapResultRow, MatchUpdate, Outcome, Side},
         matches::MatchKind,
         notifications::StaffRole,
+        potential::{Before, PotentialRow},
         team::{Player, TeamMemberRow},
     },
     discord::jobs::Job,
@@ -110,6 +111,38 @@ pub struct MatchStage {
     best_of: Option<i32>,
 }
 
+// A pairing an undecided bracket match may turn out to be (crate::potentials): its
+// teams can agree on a time and its staff sign up, but it has no room, score or page of
+// its own until it's decided.
+#[derive(Debug, Serialize)]
+pub struct Potential {
+    id: Uuid,
+    team1_id: Uuid,
+    team2_id: Uuid,
+    #[serde(with = "time::serde::rfc3339::option")]
+    starts_at: Option<OffsetDateTime>,
+    referee: Option<Referee>,
+    streamer: Option<Streamer>,
+}
+
+impl Potential {
+    fn from_row(row: PotentialRow) -> Self {
+        Potential {
+            id: row.id,
+            team1_id: row.team1_id,
+            team2_id: row.team2_id,
+            starts_at: row.starts_at,
+            referee: Referee::from_columns(row.referee),
+            streamer: Streamer::from_columns(
+                row.streamer_id,
+                row.streamer_osu_id,
+                row.streamer_username,
+                row.streamer_avatar_url,
+            ),
+        }
+    }
+}
+
 #[derive(Debug, Serialize)]
 pub struct BracketMatch {
     id: Uuid,
@@ -137,10 +170,17 @@ pub struct BracketMatch {
     rooms: Vec<MatchRoom>,
     #[serde(with = "time::serde::rfc3339::option")]
     concluded_at: Option<OffsetDateTime>,
+    // The pairings it may still turn out to be, soonest first; empty once it's decided
+    // (or when nothing of its week decides it).
+    potentials: Vec<Potential>,
 }
 
 // Splits off the staff-only notes so the public view can drop them.
-fn to_match(row: BracketRow, links: &[LinkRow]) -> (BracketMatch, String) {
+fn to_match(
+    row: BracketRow,
+    links: &[LinkRow],
+    potentials: &mut HashMap<Uuid, Vec<Potential>>,
+) -> (BracketMatch, String) {
     let next = |outcome| {
         links
             .iter()
@@ -190,6 +230,7 @@ fn to_match(row: BracketRow, links: &[LinkRow]) -> (BracketMatch, String) {
         streamer,
         rooms: match_rooms(row.mp_ids),
         concluded_at: row.concluded_at,
+        potentials: potentials.remove(&row.id).unwrap_or_default(),
     };
     (m, row.referee_notes)
 }
@@ -202,7 +243,17 @@ async fn load_bracket<P>(
     let rows = db::bracket::list_matches(&state.db).await?;
     let links = db::bracket::list_links(&state.db).await?;
     let members = db::team::list_team_members(&state.db, None).await?;
-    let matches = rows.into_iter().map(|row| to_match(row, &links)).collect();
+    let mut potentials: HashMap<Uuid, Vec<Potential>> = HashMap::new();
+    for row in db::potential::list(&state.db).await? {
+        potentials
+            .entry(row.bracket_match_id)
+            .or_default()
+            .push(Potential::from_row(row));
+    }
+    let matches = rows
+        .into_iter()
+        .map(|row| to_match(row, &links, &mut potentials))
+        .collect();
     Ok((matches, group_teams(members, to_player)))
 }
 
@@ -347,7 +398,8 @@ fn leads_back(links: &[LinkRow], id: Uuid, targets: &[Uuid]) -> bool {
 // PUT /api/bracket/:id — host-only. Saves everything the match editor edits. A
 // concluded match's teams and links are what moved its teams on, so those need the
 // match reopened first; its time, code and stage can still change. A team taken out
-// of the match loses its proposed times for it.
+// of the match loses its proposed times for it. The potential matches are worked out
+// again, and the ones still on the match's old time follow it to the new one.
 pub async fn update_match(
     State(state): State<AppState>,
     user: AuthUser,
@@ -382,6 +434,7 @@ pub async fn update_match(
     }
 
     let mut tx = state.db.begin().await?;
+    db::potential::lock(&mut tx).await?;
     let current = db::bracket::lock_match(&mut tx, id)
         .await?
         .ok_or(AppError::NotFound)?;
@@ -431,6 +484,23 @@ pub async fn update_match(
     // A match that already has a channel hears about its new time there; one that
     // gets its channel now has the time on its card.
     let mut jobs = vec![Job::SyncMatch { match_id: id }];
+    if current.starts_at != body.starts_at {
+        for match_id in
+            db::potential::follow_time(&mut tx, id, current.starts_at, body.starts_at).await?
+        {
+            jobs.extend([Job::SyncMatch { match_id }, Job::TimeSet { match_id }]);
+        }
+    }
+    let before = Before {
+        match_id: id,
+        team1_id: current.team1_id,
+        team2_id: current.team2_id,
+    };
+    jobs.extend(db::potential::sync(&mut tx, &[before]).await?);
+    // Taking over a pairing brings its agreed time; the one the host just set wins.
+    if current.starts_at != body.starts_at {
+        db::reschedule::set_time(&mut tx, id, body.starts_at).await?;
+    }
     if current.starts_at != body.starts_at && db::discord::channel_of(&mut *tx, id).await?.is_some()
     {
         jobs.push(Job::TimeSet { match_id: id });
@@ -484,6 +554,7 @@ pub async fn move_match(
 }
 
 // DELETE /api/bracket/:id — host-only. Teams it already sent on stay where they are.
+// Its potential matches go with it, and the ones it decided are worked out again.
 pub async fn delete_match(
     State(state): State<AppState>,
     user: AuthUser,
@@ -494,11 +565,14 @@ pub async fn delete_match(
     // Its public announcement, if it had one, stays and says it was cancelled.
     let stored = db::discord::match_discord(&state.db, id).await?;
     let info = db::discord::match_info(&state.db, id).await?;
+    let mut tx = state.db.begin().await?;
+    db::potential::lock(&mut tx).await?;
+    let mut jobs = db::potential::remove_of_match(&mut tx, id).await?;
     // Its rooms go with it; the bot closes the ones it made (crate::bancho).
-    if !db::bracket::delete_match(&state.db, id).await? {
+    if !db::bracket::delete_match(&mut *tx, id).await? {
         return Err(AppError::NotFound);
     }
-    let mut jobs = Vec::new();
+    jobs.extend(db::potential::sync(&mut tx, &[]).await?);
     if let Some(channel_id) = channel {
         jobs.push(Job::ArchiveChannel {
             channel_id,
@@ -514,7 +588,8 @@ pub async fn delete_match(
             title: crate::discord::announcement_title(&info),
         });
     }
-    state.discord.enqueue(&state.db, &jobs).await?;
+    state.discord.enqueue(&mut *tx, &jobs).await?;
+    tx.commit().await?;
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }
@@ -754,6 +829,7 @@ fn outcome(m: &BracketLock) -> Option<(Uuid, Uuid)> {
 // `forfeit` with the slot that forfeited, which needs neither a room nor a score.
 pub async fn conclude(state: &AppState, id: Uuid, forfeit: Option<i16>) -> Result<(), AppError> {
     let mut tx = state.db.begin().await?;
+    db::potential::lock(&mut tx).await?;
     let mut m = db::bracket::lock_match(&mut tx, id)
         .await?
         .ok_or(AppError::NotFound)?;
@@ -805,6 +881,9 @@ pub async fn conclude(state: &AppState, id: Uuid, forfeit: Option<i16>) -> Resul
             "this match changed, reload and try again",
         ));
     }
+    // The pairings its teams were in narrow down: the loser's go, and a match that now
+    // has both teams takes over its own.
+    jobs.extend(db::potential::sync(&mut tx, &[]).await?);
     state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await?;
     Ok(())
@@ -814,6 +893,7 @@ pub async fn conclude(state: &AppState, id: Uuid, forfeit: Option<i16>) -> Resul
 // unless a host has put another team there since.
 pub async fn reopen(state: &AppState, id: Uuid) -> Result<(), AppError> {
     let mut tx = state.db.begin().await?;
+    db::potential::lock(&mut tx).await?;
     let m = db::bracket::lock_match(&mut tx, id)
         .await?
         .ok_or(AppError::NotFound)?;
@@ -826,6 +906,7 @@ pub async fn reopen(state: &AppState, id: Uuid) -> Result<(), AppError> {
         Job::Reopened { match_id: id },
         Job::DeleteResults { match_id: id },
     ];
+    let mut before = Vec::new();
     for target in db::bracket::lock_targets(&mut tx, id).await? {
         if target.concluded_at.is_some() {
             return Err(AppError::Conflict(
@@ -845,6 +926,11 @@ pub async fn reopen(state: &AppState, id: Uuid) -> Result<(), AppError> {
             target.team2_id
         };
         if current == Some(team) {
+            before.push(Before {
+                match_id: target.target_id,
+                team1_id: target.team1_id,
+                team2_id: target.team2_id,
+            });
             db::bracket::set_slot(&mut tx, target.target_id, target.slot, None).await?;
             jobs.push(Job::SyncMatch {
                 match_id: target.target_id,
@@ -853,6 +939,8 @@ pub async fn reopen(state: &AppState, id: Uuid) -> Result<(), AppError> {
     }
     db::bracket::set_forfeit(&mut tx, id, None).await?;
     db::matches::reopen(&mut *tx, id).await?;
+    // The matches it decided go back to their pairings.
+    jobs.extend(db::potential::sync(&mut tx, &before).await?);
     state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await?;
     Ok(())
@@ -965,7 +1053,9 @@ pub struct StreamerBody {
 
 // PUT /api/bracket/:id/streamer — a streamer takes a free match (their own id) or
 // gives up theirs (null), but can't stream a match their own team plays in. Hosts
-// can give any match to any streamer, or clear it.
+// can give any match to any streamer, or clear it. A potential match is streamed the
+// same way, and a bracket match's potential matches still on its old streamer follow
+// it to the new one.
 pub async fn set_streamer(
     State(state): State<AppState>,
     user: AuthUser,
@@ -973,9 +1063,15 @@ pub async fn set_streamer(
     Json(body): Json<StreamerBody>,
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Streamer)?;
-    let m = db::bracket::find_match(&state.db, id)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let (m, potential) = match db::bracket::find_match(&state.db, id).await? {
+        Some(m) => (m, false),
+        None => (
+            db::potential::find(&state.db, id)
+                .await?
+                .ok_or(AppError::NotFound)?,
+            true,
+        ),
+    };
 
     if is_host(&user) {
         if let Some(streamer_id) = body.streamer_id {
@@ -983,8 +1079,20 @@ pub async fn set_streamer(
                 return Err(AppError::BadRequest("only streamers can stream"));
             }
         }
-        db::bracket::set_streamer(&state.db, id, body.streamer_id).await?;
-        streamer_changed(&state, &user, id, m.streamer_id, body.streamer_id).await?;
+        if potential {
+            db::potential::set_streamer(&state.db, id, body.streamer_id).await?;
+        } else {
+            db::bracket::set_streamer(&state.db, id, body.streamer_id).await?;
+        }
+        streamer_changed(
+            &state,
+            &user,
+            id,
+            potential,
+            m.streamer_id,
+            body.streamer_id,
+        )
+        .await?;
         state.live.bracket_changed();
         return Ok(StatusCode::NO_CONTENT);
     }
@@ -1006,48 +1114,83 @@ pub async fn set_streamer(
                     return Err(AppError::BadRequest("you can't stream a match you play in"));
                 }
             }
-            if !db::bracket::claim_stream(&state.db, id, user.id).await? {
+            let claimed = if potential {
+                db::potential::claim_stream(&state.db, id, user.id).await?
+            } else {
+                db::bracket::claim_stream(&state.db, id, user.id).await?
+            };
+            if !claimed {
                 return Err(AppError::Conflict("this match already has a streamer"));
             }
         }
         None => {
-            if !db::bracket::release_stream(&state.db, id, user.id).await? {
+            let released = if potential {
+                db::potential::release_stream(&state.db, id, user.id).await?
+            } else {
+                db::bracket::release_stream(&state.db, id, user.id).await?
+            };
+            if !released {
                 return Err(AppError::Forbidden);
             }
         }
         Some(_) => return Err(AppError::Forbidden),
     }
-    streamer_changed(&state, &user, id, m.streamer_id, body.streamer_id).await?;
+    streamer_changed(
+        &state,
+        &user,
+        id,
+        potential,
+        m.streamer_id,
+        body.streamer_id,
+    )
+    .await?;
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }
 
-// The streamer joins (or leaves) the match's channel, which says so.
+// The streamer joins (or leaves) the match's channel, which says so, and so do the
+// channels of the potential matches that follow a bracket match's streamer.
 async fn streamer_changed(
     state: &AppState,
     user: &AuthUser,
     id: Uuid,
+    potential: bool,
     before: Option<Uuid>,
     after: Option<Uuid>,
 ) -> Result<(), AppError> {
     if before == after {
         return Ok(());
     }
-    state
-        .discord
-        .enqueue(
-            &state.db,
-            &[
-                Job::SyncMatch { match_id: id },
+    let mut changed = vec![id];
+    if !potential {
+        changed.extend(db::potential::follow_streamer(&state.db, id, before, after).await?);
+    }
+    let jobs: Vec<Job> = changed
+        .into_iter()
+        .flat_map(|match_id| {
+            [
+                Job::SyncMatch { match_id },
                 Job::StaffChanged {
-                    match_id: id,
+                    match_id,
                     role: StaffRole::Streamer,
                     user_id: after,
                     by: user.id,
                 },
-            ],
-        )
-        .await?;
+            ]
+        })
+        .collect();
+    state.discord.enqueue(&state.db, &jobs).await?;
+    Ok(())
+}
+
+// Works the potential matches out again after a change that doesn't go through the
+// bracket's own routes (a stage deleted, a dev reseed) and at startup.
+pub async fn resync_potentials(state: &AppState) -> Result<(), AppError> {
+    let mut tx = state.db.begin().await?;
+    db::potential::lock(&mut tx).await?;
+    let jobs = db::potential::sync(&mut tx, &[]).await?;
+    state.discord.enqueue(&mut *tx, &jobs).await?;
+    tx.commit().await?;
     Ok(())
 }
 

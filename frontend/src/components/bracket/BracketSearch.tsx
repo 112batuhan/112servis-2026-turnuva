@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { BracketMatch, Team } from "../../api/types";
-import { matchCode } from "../../lib/bracket";
+import { matchCode, potentialRows } from "../../lib/bracket";
 import "./BracketSearch.css";
 
 /** Everything the search matches against, lowercased: the code, both teams and their players, and the referee. */
@@ -13,13 +13,24 @@ function searchText(match: BracketMatch, teams: Map<string, Team>): string {
   return parts.join("\n").toLowerCase();
 }
 
-/** The search shared by the bracket's views; `hits` is the ids of the matching matches, or null while it's empty. */
+/**
+ * The search shared by the bracket's views; `hits` is the ids of the matching matches, or null while it's empty.
+ * A potential match is found by its own teams and referee or by its bracket match's code, and finding one
+ * finds its bracket match too (the grid shows only that).
+ */
 export function useBracketSearch(matches: BracketMatch[], teams: Map<string, Team>) {
   const [query, setQuery] = useState("");
   const hits = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return null;
-    return new Set(matches.filter((m) => searchText(m, teams).includes(needle)).map((m) => m.id));
+    const found = new Set<string>();
+    for (const m of matches) {
+      const own = searchText(m, teams).includes(needle);
+      const pairings = potentialRows(m).filter((p) => own || searchText(p, teams).includes(needle));
+      if (own || pairings.length > 0) found.add(m.id);
+      for (const p of pairings) found.add(p.id);
+    }
+    return found;
   }, [matches, teams, query]);
   return { query, setQuery, hits };
 }

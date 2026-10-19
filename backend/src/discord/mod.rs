@@ -235,10 +235,12 @@ pub async fn spawn(state: &AppState) {
         tracing::info!("discord bot is off (DISCORD_BOT_TOKEN / DISCORD_GUILD_ID unset)");
         return;
     };
-    let active = db::discord::bot_active(&state.db).await.unwrap_or_else(|err| {
-        tracing::error!(error = %err, "could not read whether the discord bot is on");
-        true
-    });
+    let active = db::discord::bot_active(&state.db)
+        .await
+        .unwrap_or_else(|err| {
+            tracing::error!(error = %err, "could not read whether the discord bot is on");
+            true
+        });
     bot.set_active(active);
     if !active {
         tracing::info!("discord bot is switched off on /admin/discord");

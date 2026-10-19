@@ -150,10 +150,10 @@ pub async fn create_match(pool: &PgPool, side: Side, pos_x: i32, pos_y: i32) -> 
     .await
 }
 
-pub async fn delete_match(pool: &PgPool, id: Uuid) -> sqlx::Result<bool> {
+pub async fn delete_match(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<bool> {
     let result = sqlx::query("DELETE FROM matches WHERE id = $1 AND kind = 'bracket'")
         .bind(id)
-        .execute(pool)
+        .execute(ex)
         .await?;
     Ok(result.rows_affected() > 0)
 }

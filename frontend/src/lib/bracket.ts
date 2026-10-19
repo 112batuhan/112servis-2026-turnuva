@@ -15,14 +15,65 @@ export function matchPagePath(matchId: string): string {
   return `/match/${matchId}`;
 }
 
-/** Whether a bracket match is linked to its public page: once both its teams are known. */
-export function hasMatchPage(m: Pick<BracketMatch, "team1_id" | "team2_id">): boolean {
-  return m.team1_id !== null && m.team2_id !== null;
+/**
+ * Whether a bracket match is linked to its public page: once both its teams are known. A potential match
+ * has none until it's decided.
+ */
+export function hasMatchPage(m: Pick<BracketMatch, "team1_id" | "team2_id" | "potential_of">): boolean {
+  return m.potential_of === undefined && m.team1_id !== null && m.team2_id !== null;
 }
 
-/** Where a fixture row leads: the match's own page, or the bracket while it's still waiting for a team. */
-export function fixturePath(m: Pick<BracketMatch, "id" | "team1_id" | "team2_id">): string {
+/**
+ * Where a fixture row leads: the match's own page, or the bracket while it's still waiting for a team (its
+ * bracket match, for a potential match).
+ */
+export function fixturePath(m: Pick<BracketMatch, "id" | "team1_id" | "team2_id" | "potential_of">): string {
+  if (m.potential_of !== undefined) return bracketMatchPath(m.potential_of, false);
   return hasMatchPage(m) ? matchPagePath(m.id) : bracketMatchPath(m.id, false);
+}
+
+/** What a match still waiting on its pairings shows in place of its time. */
+export const UNDECIDED_TIME = "Daha kesinleşmedi";
+
+/** Whether a match is waiting to find out which of its potential matches it will be. */
+export function isUndecided(m: BracketMatch): boolean {
+  return m.potentials.length > 0;
+}
+
+/**
+ * A bracket match's potential matches as matches of their own, for the views that list what's to be played
+ * (the list, the calendar, the fixture rows): the bracket match's code, side and stage with each pairing's
+ * id, teams, time and staff, and `potential_of` pointing back at it. They have no room, score or links.
+ */
+export function potentialRows<M extends BracketMatch>(m: M): M[] {
+  return m.potentials.map((p) => ({
+    ...m,
+    id: p.id,
+    team1_id: p.team1_id,
+    team2_id: p.team2_id,
+    starts_at: p.starts_at,
+    referee: p.referee,
+    streamer: p.streamer,
+    team1_score: null,
+    team2_score: null,
+    forfeit_slot: null,
+    rooms: [],
+    concluded_at: null,
+    winner_to: null,
+    loser_to: null,
+    potentials: [],
+    potential_of: m.id,
+  }));
+}
+
+/** The matches with each undecided one replaced by its potential matches. */
+export function withPotentials<M extends BracketMatch>(matches: M[]): M[] {
+  return matches.flatMap((m) => (isUndecided(m) ? potentialRows(m) : [m]));
+}
+
+/** The match a row stands for: a potential match's bracket match, otherwise itself. */
+export function rowMatchId(m: Pick<BracketMatch, "id" | "potential_of">): string {
+  return m.potential_of ?? m.id;
 }
 
 export const SIDE_LABELS: Record<BracketSide, string> = {

@@ -451,9 +451,12 @@ pub async fn list_referees(
 
 // ---------- running a match ----------
 
+// A match that can be run: a potential match has no room, notes or result of its own,
+// so the routes that run a match don't know it.
 pub async fn load_match(state: &AppState, id: Uuid) -> Result<MatchState, AppError> {
     db::matches::find_match(&state.db, id)
         .await?
+        .filter(|m| m.kind != MatchKind::Potential)
         .ok_or(AppError::NotFound)
 }
 
@@ -478,7 +481,8 @@ pub struct RefereeBody {
 
 // PUT /api/matches/:id/referee — a referee takes a free match (their own id) or
 // gives up theirs (null). Hosts can give any match to anyone holding the referee role
-// (themselves too, if they hold it), or clear it.
+// (themselves too, if they hold it), or clear it. Potential matches are taken the same
+// way, and a bracket match's potential matches still on its old referee follow it.
 pub async fn set_referee(
     State(state): State<AppState>,
     user: AuthUser,
@@ -486,7 +490,9 @@ pub async fn set_referee(
     Json(body): Json<RefereeBody>,
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Referee)?;
-    let m = load_match(&state, id).await?;
+    let m = db::matches::find_match(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     if is_host(&user) {
         if let Some(referee_id) = body.referee_id {
@@ -517,21 +523,27 @@ pub async fn set_referee(
         }
     }
     if m.referee_id != body.referee_id {
-        state
-            .discord
-            .enqueue(
-                &state.db,
-                &[
-                    Job::SyncMatch { match_id: id },
+        let mut changed = vec![id];
+        if m.kind == MatchKind::Bracket {
+            changed.extend(
+                db::potential::follow_referee(&state.db, id, m.referee_id, body.referee_id).await?,
+            );
+        }
+        let jobs: Vec<Job> = changed
+            .into_iter()
+            .flat_map(|match_id| {
+                [
+                    Job::SyncMatch { match_id },
                     Job::StaffChanged {
-                        match_id: id,
+                        match_id,
                         role: StaffRole::Referee,
                         user_id: body.referee_id,
                         by: user.id,
                     },
-                ],
-            )
-            .await?;
+                ]
+            })
+            .collect();
+        state.discord.enqueue(&state.db, &jobs).await?;
     }
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)

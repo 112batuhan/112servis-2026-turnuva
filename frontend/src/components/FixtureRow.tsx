@@ -24,6 +24,8 @@ interface Props {
 /**
  * One match as a line of a fixture sheet: the time, the red team, the score (or "vs"), the blue
  * team, then the match code and stage. Team 1 plays blue and team 2 red, as in the osu! room.
+ * A potential match (`potential_of`) reads as one that may never be played: "olası" by its code
+ * and the score's fill given way to a dashed outline.
  */
 export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Props) {
   const winner = winningSlot(match);
@@ -39,6 +41,7 @@ export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Prop
         : 2
       : null;
   const ahead = winner ?? leading;
+  const potential = match.potential_of !== undefined;
 
   const side = (slot: 1 | 2) => {
     const team = slot === 1 ? team1 : team2;
@@ -62,7 +65,11 @@ export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Prop
   };
 
   return (
-    <Link to={to} className={live ? "fixture-row is-live" : "fixture-row"}>
+    <Link
+      to={to}
+      className={["fixture-row", live && "is-live", potential && "is-potential"].filter(Boolean).join(" ")}
+      title={potential ? "İki takım da bu maça gelirse oynanır" : undefined}
+    >
       <span className="fixture-when">
         {live ? (
           <LiveMark />
@@ -103,7 +110,10 @@ export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Prop
       </span>
       {side(2)}
       <span className="fixture-meta">
-        <span className={`fixture-code is-${match.side}`}>{matchCode(match)}</span>
+        <span className="fixture-code-line">
+          {potential && <span className="fixture-potential">olası</span>}
+          <span className={`fixture-code is-${match.side}`}>{matchCode(match)}</span>
+        </span>
         {live ? (
           // A live row opens the match's page: say so where the stage would be.
           <span className="fixture-watch">

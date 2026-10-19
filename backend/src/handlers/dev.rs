@@ -40,6 +40,7 @@ pub async fn login_as(
 
 pub async fn seed(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     db::dev::seed(&state.db).await?;
+    crate::handlers::bracket::resync_potentials(&state).await?;
     // The bots read the seeded rooms; the open pages reload.
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
@@ -53,6 +54,7 @@ pub async fn seed_live(
 ) -> Result<impl IntoResponse, AppError> {
     match db::dev::seed_live(&state.db, user.id).await? {
         db::dev::LiveSeed::Done => {
+            crate::handlers::bracket::resync_potentials(&state).await?;
             state.live.bracket_changed();
             Ok(StatusCode::NO_CONTENT)
         }
@@ -67,6 +69,7 @@ pub async fn seed_live(
 
 pub async fn clear(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     db::dev::clear(&state.db).await?;
+    crate::handlers::bracket::resync_potentials(&state).await?;
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }

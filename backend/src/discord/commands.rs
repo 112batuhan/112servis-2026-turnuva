@@ -307,6 +307,12 @@ fn match_line(info: &MatchInfo) -> String {
             info.team1_name.as_deref().unwrap_or("?"),
             info.team2_name.as_deref().unwrap_or("?"),
         ),
+        MatchKind::Potential => format!(
+            "`{}` **{}** vs **{}** _(olası)_{at}",
+            messages::code(info),
+            info.team1_name.as_deref().unwrap_or("?"),
+            info.team2_name.as_deref().unwrap_or("?"),
+        ),
         MatchKind::Qualifier => format!("`{}` {} takım{at}", messages::code(info), info.entries),
     }
 }

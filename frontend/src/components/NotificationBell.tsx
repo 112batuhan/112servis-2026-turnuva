@@ -232,8 +232,12 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
         </span>
       </div>
       {n.match_id && n.side && n.number !== null ? (
-        <Link to={forPlayers ? teamPath : bracketMatchPath(n.match_id, true)} className="notif-match">
+        <Link
+          to={forPlayers ? teamPath : bracketMatchPath(n.bracket_match_id ?? n.match_id, true)}
+          className="notif-match"
+        >
           <span className={`notif-code is-${n.side}`}>{matchCode({ side: n.side, number: n.number })}</span>
+          {n.potential && <span className="badge badge-potential">Olası</span>}
           <span className="notif-teams">
             {n.team1_name ?? "?"} <span className="muted">vs</span> {n.team2_name ?? "?"}
           </span>

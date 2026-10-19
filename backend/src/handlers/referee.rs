@@ -136,7 +136,9 @@ async fn room_teams<P>(
     let members = db::team::list_team_members(&state.db, None).await?;
     let mut all = group_teams(members, to_player);
     let order: Vec<Uuid> = match row.kind {
-        MatchKind::Bracket => [row.team1_id, row.team2_id].into_iter().flatten().collect(),
+        MatchKind::Bracket | MatchKind::Potential => {
+            [row.team1_id, row.team2_id].into_iter().flatten().collect()
+        }
         MatchKind::Qualifier => db::matches::list_entries(&state.db)
             .await?
             .into_iter()
@@ -193,7 +195,7 @@ impl RoomMarks {
                 manual_results: db::bracket::list_manual_results(&state.db, row.id).await?,
                 map_results: db::bracket::list_map_results(&state.db, row.id).await?,
             },
-            MatchKind::Qualifier => RoomMarks {
+            MatchKind::Qualifier | MatchKind::Potential => RoomMarks {
                 bans: Vec::new(),
                 picks: Vec::new(),
                 manual_results: Vec::new(),

@@ -4,7 +4,7 @@ import { errorMessage } from "../../api/client";
 import type { BracketMatch, CanPredict, MyPrediction, PickemSplit, PickemStage, Team } from "../../api/types";
 import { fixturePath, isLive, matchCode, scoreHalves, sourceLabel, winningSlot, type Source } from "../../lib/bracket";
 import { formatShortMatchTime } from "../../lib/format";
-import { canPredictMatch, isLocked, pointsLabel, predictionScore, predictionSlot } from "../../lib/pickem";
+import { canPredictMatch, isMatchLocked, pointsLabel, predictionScore, predictionSlot } from "../../lib/pickem";
 import { Icon } from "../Icon";
 import { LiveMark } from "../LiveMark";
 import { TeamBanner } from "../bracket/TeamBanner";
@@ -40,7 +40,8 @@ interface Props {
  * win), so one gesture picks the winner and the score and the thumb is the only place the pick
  * shows. Once it locks, the teams and the score are back, the pick is said in words at the end,
  * and the split of everyone's winner picks sits under them, with the score distribution a click
- * away.
+ * away. A potential match is predicted like a match, but only counts if the match turns out to be
+ * that pairing.
  */
 export function PickemRow({
   match,
@@ -60,7 +61,7 @@ export function PickemRow({
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const open = canPredictMatch(stage, match);
-  const locked = isLocked(stage.status);
+  const locked = isMatchLocked(stage, match);
   const live = isLive(match);
   const slot = prediction ? predictionSlot(match, prediction) : null;
   const picked = prediction && slot ? predictionScore(slot, prediction) : null;
@@ -131,12 +132,17 @@ export function PickemRow({
   return (
     <li
       id={`pickem-${match.id}`}
-      className={`pickem-row${ballot ? " is-ballot" : locked && split ? " has-extra" : ""}${live ? " is-live" : ""}`}
+      className={`pickem-row${ballot ? " is-ballot" : locked && split ? " has-extra" : ""}${live ? " is-live" : ""}${match.potential_of !== undefined ? " is-potential" : ""}`}
     >
       <span className="pickem-row-when">
         <Link to={fixturePath(match)} className={`pickem-row-code is-${match.side}`}>
           {matchCode(match)}
         </Link>
+        {match.potential_of !== undefined && (
+          <span className="pickem-row-potential" title="Yalnız maç bu eşleşme olursa puan getirir">
+            olası
+          </span>
+        )}
         {live ? (
           <LiveMark compact />
         ) : (

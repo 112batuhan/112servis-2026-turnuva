@@ -19,7 +19,8 @@ use crate::{
 
 // Routes under the `/api` nest. The two teams of a bracket match move it themselves:
 // either one proposes times, and a player of the other team accepts one. Like team
-// invites, but between teams, and `teams_frozen` doesn't affect it.
+// invites, but between teams, and `teams_frozen` doesn't affect it. The teams of a
+// potential match agree on its time the same way, before they know they'll play it.
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/me/reschedules", get(list_my_reschedules))
@@ -89,6 +90,9 @@ pub struct Opponent {
 #[derive(Debug, Serialize)]
 pub struct RescheduleMatch {
     id: Uuid,
+    // A pairing its bracket match may still turn out to be (side and number are that
+    // match's): played only if both teams get there.
+    potential: bool,
     side: Side,
     number: i32,
     stage_name: Option<String>,
@@ -135,6 +139,7 @@ pub async fn list_my_reschedules(
                 mine.into_iter().partition(|p| p.team_id == team_id);
             RescheduleMatch {
                 id: row.id,
+                potential: row.potential,
                 side: row.side,
                 number: row.number,
                 stage_name: row.stage_name,
@@ -176,7 +181,7 @@ pub async fn propose(
     }
 
     let mut tx = state.db.begin().await?;
-    let m = db::bracket::lock_match(&mut tx, body.match_id)
+    let m = db::potential::lock_schedulable(&mut tx, body.match_id)
         .await?
         .ok_or(AppError::NotFound)?;
     if !plays(&m, team_id) {
@@ -256,7 +261,7 @@ pub async fn accept(
         .match_id;
 
     let mut tx = state.db.begin().await?;
-    let m = db::bracket::lock_match(&mut tx, match_id)
+    let m = db::potential::lock_schedulable(&mut tx, match_id)
         .await?
         .ok_or(AppError::NotFound)?;
     let proposal = db::reschedule::find_proposal(&mut *tx, id)

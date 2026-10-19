@@ -34,10 +34,12 @@ pub fn routes() -> Router<AppState> {
         .route("/stages/:id/pickem", put(set_mode))
 }
 
-// Everything the pick'em is worked out from, read at once.
+// Everything the pick'em is worked out from, read at once. The windows follow the
+// bracket matches alone; potential matches are predicted while their stage is open.
 struct Snapshot {
     stages: Vec<StageRow>,
     matches: Vec<MatchRow>,
+    potentials: Vec<MatchRow>,
     windows: Vec<Window>,
 }
 
@@ -45,13 +47,20 @@ impl Snapshot {
     async fn load(state: &AppState) -> Result<Self, AppError> {
         let stages = db::pickem::list_stages(&state.db).await?;
         let matches = db::pickem::list_matches(&state.db).await?;
+        let potentials = db::pickem::list_potentials(&state.db).await?;
         let lobbies = db::pickem::list_lobby_conclusions(&state.db).await?;
         let windows = pickem::windows(&stages, &matches, &lobbies, OffsetDateTime::now_utc());
         Ok(Snapshot {
             stages,
             matches,
+            potentials,
             windows,
         })
+    }
+
+    // Bracket matches and potential matches, for whatever reads them alike.
+    fn every_match(&self) -> impl Iterator<Item = &MatchRow> {
+        self.matches.iter().chain(&self.potentials)
     }
 
     fn window(&self, stage_id: Option<Uuid>) -> Option<&Window> {
@@ -242,9 +251,10 @@ fn standings(
 pub struct Overview {
     stages: Vec<PickemStage>,
     can_predict: CanPredict,
-    // The viewer's own predictions, whatever the stage.
+    // The viewer's own predictions, whatever the stage, potential matches included.
     mine: Vec<MyPrediction>,
-    // Every match of a locked stage with both teams.
+    // Every match with both teams whose predictions are past changing (its stage is locked,
+    // or it has started in a stage a host opened), potential matches included.
     splits: Vec<Split>,
     standings: Vec<Standing>,
 }
@@ -256,9 +266,12 @@ async fn overview(
     user: Option<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
     let snap = Snapshot::load(&state).await?;
+    let now = OffsetDateTime::now_utc();
     let predictions = db::pickem::list_predictions(&state.db).await?;
     let players = db::pickem::list_pickers(&state.db).await?;
     let matches: HashMap<Uuid, &MatchRow> = snap.matches.iter().map(|m| (m.id, m)).collect();
+    // With the potential matches, which take predictions but never score.
+    let every: HashMap<Uuid, &MatchRow> = snap.every_match().map(|m| (m.id, m)).collect();
 
     let mut by_match: HashMap<Uuid, Vec<&PredictionRow>> = HashMap::new();
     for p in &predictions {
@@ -272,7 +285,7 @@ async fn overview(
             let stage = snap.stage(w.stage_id)?;
             let pickers: HashSet<Uuid> = predictions
                 .iter()
-                .filter(|p| matches.get(&p.match_id).and_then(|m| m.stage_id) == Some(stage.id))
+                .filter(|p| every.get(&p.match_id).and_then(|m| m.stage_id) == Some(stage.id))
                 .map(|p| p.user_id)
                 .collect();
             Some(PickemStage {
@@ -297,16 +310,18 @@ async fn overview(
         Some(user) => predictions
             .iter()
             .filter(|p| p.user_id == user.id)
-            .filter_map(|p| Some(my_prediction(p, matches.get(&p.match_id)?)))
+            .filter_map(|p| Some(my_prediction(p, every.get(&p.match_id)?)))
             .collect(),
         None => Vec::new(),
     };
 
     let splits = snap
-        .matches
-        .iter()
+        .every_match()
         .filter(|m| m.team1_id.is_some() && m.team2_id.is_some())
-        .filter(|m| snap.window(m.stage_id).is_some_and(|w| w.status.locked()))
+        .filter(|m| {
+            snap.window(m.stage_id)
+                .is_some_and(|w| pickem::revealed(w.status, m, now))
+        })
         .map(|m| {
             split(
                 m,
@@ -328,7 +343,10 @@ async fn overview(
 pub struct MatchPickem {
     stage_id: Uuid,
     stage_name: String,
+    // The stage's, except that a match that has started in a stage a host opened is
+    // locked on its own.
     status: Status,
+    // When predictions on this match lock.
     #[serde(with = "time::serde::rfc3339::option")]
     closes_at: Option<OffsetDateTime>,
     // Whether the viewer could predict it now (their account aside).
@@ -336,7 +354,7 @@ pub struct MatchPickem {
     can_predict: CanPredict,
     // How many have predicted it so far.
     total: usize,
-    // How they predicted it, once the stage is locked.
+    // How they predicted it, once it's locked.
     split: Option<Split>,
     mine: Option<MyPrediction>,
 }
@@ -365,25 +383,35 @@ async fn match_pickem(
         .and_then(|u| predictions.iter().find(|p| p.user_id == u.id))
         .map(|p| my_prediction(p, m));
     let has_teams = m.team1_id.is_some() && m.team2_id.is_some();
+    let now = OffsetDateTime::now_utc();
+    let status = if w.status == Status::Open && pickem::started(m, now) {
+        Status::Locked
+    } else {
+        w.status
+    };
     Ok(Json(Some(MatchPickem {
         stage_id: stage.id,
         stage_name: stage.name.clone(),
-        status: w.status,
-        closes_at: w.closes_at,
-        predictable: w.status == Status::Open
-            && pickem::predictable(m, stage.best_of, OffsetDateTime::now_utc()),
+        status,
+        // Opened by hand, each match locks as it starts.
+        closes_at: if stage.pickem_mode == Mode::Open {
+            m.starts_at
+        } else {
+            w.closes_at
+        },
+        predictable: status == Status::Open && pickem::predictable(m, stage.best_of, now),
         can_predict: can_predict(user.as_ref()),
         total: refs.iter().filter(|p| pickem::counts(p, m)).count(),
-        split: (has_teams && w.status.locked()).then(|| split(m, &refs)),
+        split: (has_teams && pickem::revealed(status, m, now)).then(|| split(m, &refs)),
         mine,
     })))
 }
 
-// The match, its stage's best of, if it can be predicted right now.
+// The match (or potential match), its stage's best of, if it can be predicted right
+// now.
 fn open_match(snap: &Snapshot, match_id: Uuid) -> Result<(&MatchRow, i32), AppError> {
     let m = snap
-        .matches
-        .iter()
+        .every_match()
         .find(|m| m.id == match_id)
         .ok_or(AppError::NotFound)?;
     let w = snap.window(m.stage_id).ok_or(AppError::NotFound)?;

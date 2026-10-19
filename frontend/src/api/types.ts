@@ -232,6 +232,8 @@ export interface RescheduleProposal {
 /** One of the caller's team's unconcluded bracket matches with both teams set. */
 export interface RescheduleMatch {
   id: string;
+  /** A pairing its bracket match (side, number) may still turn out to be: played only if both teams get there. */
+  potential: boolean;
   side: BracketSide;
   number: number;
   stage_name: string | null;
@@ -333,6 +335,21 @@ export interface MatchStage {
   best_of: number | null;
 }
 
+/**
+ * A pairing an undecided bracket match may turn out to be: when a slot waits on another match of the same
+ * stage whose teams are both known, every combination of the teams that can reach it gets one. Its teams
+ * agree on its time and its referee and streamer sign up, but it has no room, score or page of its own.
+ * Once the match is decided, the matching one hands it its time and staff and the rest go.
+ */
+export interface PotentialMatch {
+  id: string;
+  team1_id: string;
+  team2_id: string;
+  starts_at: string | null;
+  referee: MatchReferee | null;
+  streamer: MatchStreamer | null;
+}
+
 export interface BracketMatch {
   id: string;
   side: BracketSide;
@@ -358,6 +375,13 @@ export interface BracketMatch {
   /** Oldest first. */
   rooms: MatchRoom[];
   concluded_at: string | null;
+  /** The pairings it may still turn out to be, soonest first; empty once it's decided. */
+  potentials: PotentialMatch[];
+  /**
+   * Only on the stand-ins `potentialRows` (lib/bracket.ts) makes for the list, the calendar and the
+   * fixture rows: the bracket match this potential match is a pairing of. Its id is the potential match's.
+   */
+  potential_of?: string;
 }
 
 export interface StaffBracketMatch extends BracketMatch {
@@ -402,6 +426,10 @@ export interface AppNotification {
   kind: NotificationKind;
   /** null for rank_over_limit. */
   match_id: string | null;
+  /** The match is a pairing its bracket match (side, number) may still turn out to be. */
+  potential: boolean;
+  /** The bracket match to open for it: the match itself, or the one a potential match is a pairing of. */
+  bracket_match_id: string | null;
   side: BracketSide | null;
   number: number | null;
   team1_name: string | null;
@@ -883,7 +911,7 @@ export interface PickemStage {
   status: PickemStatus;
   /** When the stage before it was played out; null while it isn't, or without one. */
   opens_at: string | null;
-  /** When its first match starts, if any is scheduled. */
+  /** When predictions next lock: its first match's time, or with `mode` "open" the next match's still to start. */
   closes_at: string | null;
   /** The stage it waits for. */
   previous: string | null;
@@ -953,14 +981,16 @@ export interface PickemOverview {
 export interface MatchPickem {
   stage_id: string;
   stage_name: string;
+  /** The stage's, except that a match that has started in a stage a host opened is locked on its own. */
   status: PickemStatus;
+  /** When predictions on this match lock. */
   closes_at: string | null;
   /** Whether it can be predicted now (the viewer's account aside). */
   predictable: boolean;
   can_predict: CanPredict;
   /** How many have predicted it so far. */
   total: number;
-  /** How they predicted it, once the stage is locked. */
+  /** How they predicted it, once it's locked. */
   split: PickemSplit | null;
   mine: MyPrediction | null;
 }

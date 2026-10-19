@@ -10,7 +10,7 @@ import { useAuth } from "../auth/AuthContext";
 import { canPlay } from "../auth/roles";
 import { Countdown } from "../components/Countdown";
 import { FixtureRow } from "../components/FixtureRow";
-import { compareByTime, fixturePath, incomingSources, withScore } from "../lib/bracket";
+import { compareByTime, fixturePath, incomingSources, withPotentials, withScore } from "../lib/bracket";
 import { formatMatchTime } from "../lib/format";
 import { useLiveRefresh } from "../lib/useLiveRefresh";
 import { useLiveBracket } from "../live/LiveContext";
@@ -84,7 +84,8 @@ export function LandingPage() {
   const sources = useMemo(() => incomingSources(matches), [matches]);
   const track = useMemo(() => (data ? stageTrack(data) : []), [data]);
 
-  const upcoming = matches
+  // Potential matches are played too, if their teams get there: they're listed in their bracket match's place.
+  const upcoming = withPotentials(matches)
     .filter((m) => !m.concluded_at && m.starts_at)
     .sort(compareByTime)
     .slice(0, UPCOMING_LIMIT);
@@ -261,7 +262,7 @@ function MyTeamSection({ data, myTeamId }: { data: PublicBracket; myTeamId: stri
     );
   }
 
-  const next = data.matches
+  const next = withPotentials(data.matches)
     .filter((m) => !m.concluded_at && (m.team1_id === team.id || m.team2_id === team.id))
     .sort(compareByTime)[0];
   const teamOf = (id: string | null) => (id ? data.teams.find((t) => t.id === id) : undefined);

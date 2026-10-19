@@ -19,6 +19,11 @@
   border-bottom: var(--rule);
 }
 
+/* A potential match's card is ruled dashed, like every other "may not happen" mark. */
+.reschedule-card.is-potential {
+  border-bottom-style: dashed;
+}
+
 .reschedule-head {
   display: flex;
   flex-wrap: wrap;

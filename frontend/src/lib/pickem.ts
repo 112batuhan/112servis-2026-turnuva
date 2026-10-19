@@ -80,17 +80,22 @@ export function countsByOutcome(scores: PickemScoreCount[]): Map<string, number>
   return new Map(scores.map((s) => [outcomeKey({ slot: s.slot, loser: s.loser_score }), s.count]));
 }
 
+/** Whether a match has begun: its time has come, it has a room or it's over (pickem::started). */
+export function matchStarted(m: BracketMatch, now = Date.now()): boolean {
+  return !!m.concluded_at || m.rooms.length > 0 || (m.starts_at !== null && new Date(m.starts_at).getTime() <= now);
+}
+
+/**
+ * Whether a match's predictions are past changing, so its split is public: its stage is locked, or
+ * it has started in a stage a host opened (each of its matches then locks on its own).
+ */
+export function isMatchLocked(stage: Pick<PickemStage, "status">, m: BracketMatch, now = Date.now()): boolean {
+  return isLocked(stage.status) || (stage.status === "open" && matchStarted(m, now));
+}
+
 /** Whether a match can be predicted now: the server checks the same. */
 export function canPredictMatch(stage: Pick<PickemStage, "status" | "best_of">, m: BracketMatch, now = Date.now()): boolean {
-  return (
-    stage.status === "open" &&
-    stage.best_of !== null &&
-    m.team1_id !== null &&
-    m.team2_id !== null &&
-    !m.concluded_at &&
-    m.rooms.length === 0 &&
-    (m.starts_at === null || new Date(m.starts_at).getTime() > now)
-  );
+  return stage.status === "open" && stage.best_of !== null && m.team1_id !== null && m.team2_id !== null && !matchStarted(m, now);
 }
 
 /** The stage the page opens on: the open one, else the last that locked, else the first. */

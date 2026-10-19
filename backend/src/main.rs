@@ -9,6 +9,7 @@ mod handlers;
 mod mods;
 mod osu_api;
 mod pickem;
+mod potentials;
 mod rank_refresh;
 mod role;
 mod team_rank;
@@ -99,6 +100,11 @@ async fn main() {
         live: handlers::live::Live::default(),
         discord: discord::Discord::new(&config.discord_bot),
     };
+    // Seeds loaded straight into the database, and bracket changes from before potential
+    // matches existed, get theirs now.
+    if let Err(err) = handlers::bracket::resync_potentials(&state).await {
+        tracing::error!(error = ?err, "could not work out the potential matches");
+    }
     rank_refresh::spawn_daily_refresh(state.clone());
     discord::spawn(&state).await;
     bancho::spawn(&state, bancho_inbox);

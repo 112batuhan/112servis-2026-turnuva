@@ -13,6 +13,7 @@ pub mod mappool;
 pub mod matches;
 pub mod notifications;
 pub mod pickem;
+pub mod potential;
 pub mod ranks;
 pub mod referee;
 pub mod reschedule;

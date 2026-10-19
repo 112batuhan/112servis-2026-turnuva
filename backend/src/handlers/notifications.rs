@@ -42,6 +42,11 @@ pub struct Notification {
     kind: NotificationKind,
     // The match it's about; null for rank_over_limit.
     match_id: Option<Uuid>,
+    // The match is a pairing its bracket match may turn out to be (side and number are
+    // that match's).
+    potential: bool,
+    // The bracket match to open for it: the match, or the one it's a pairing of.
+    bracket_match_id: Option<Uuid>,
     side: Option<Side>,
     number: Option<i32>,
     team1_name: Option<String>,
@@ -83,6 +88,8 @@ impl Notification {
             id: row.id,
             kind: row.kind,
             match_id: row.match_id,
+            potential: row.potential,
+            bracket_match_id: row.bracket_match_id,
             side: row.side,
             number: row.number,
             team1_name: row.team1_name,
@@ -192,7 +199,7 @@ pub async fn answer_as(
         .ok_or(GONE)?;
 
     let mut tx = state.db.begin().await?;
-    let m = db::bracket::lock_match(&mut tx, match_id)
+    let m = db::potential::lock_schedulable(&mut tx, match_id)
         .await?
         .ok_or(AppError::NotFound)?;
     let n = db::notifications::lock_confirm(&mut tx, id, user_id)

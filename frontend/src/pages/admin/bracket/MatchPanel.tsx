@@ -15,13 +15,15 @@ import {
   compareByCode,
   hasMatchPage,
   isLive,
+  isUndecided,
   matchCode,
   nextNumber,
+  potentialRows,
   SIDE_LABELS,
   sourceLabel,
   type Source,
 } from "../../../lib/bracket";
-import { fromDateTimeLocal, toDateTimeLocal } from "../../../lib/format";
+import { formatShortMatchTime, fromDateTimeLocal, toDateTimeLocal } from "../../../lib/format";
 import { RoomsEditor } from "../MatchControls";
 import { RefereeControl, StreamerControl } from "./StaffControls";
 import type { BracketEditor, EditorMatch, EditorTeam } from "./useBracketEditor";
@@ -125,7 +127,11 @@ export function MatchPanel({
       >
         <header className="match-panel-header">
           <h2 className={`match-panel-code is-${match.side}`}>{code}</h2>
-          <MatchStatus match={match} now={new Date().toISOString()} />
+          {isUndecided(match) ? (
+            <span className="badge">Kesinleşmedi</span>
+          ) : (
+            <MatchStatus match={match} now={new Date().toISOString()} />
+          )}
           <RefereeWatchers viewers={watchers} />
           {hasMatchPage(match) && <MatchPageLink matchId={match.id} live={isLive(match)} variant="row" />}
           <IconButton icon="close" label="Paneli kapat" onClick={onClose} className="match-panel-close" />
@@ -159,6 +165,17 @@ export function MatchPanel({
             );
           })}
         </div>
+
+        {isUndecided(match) && (
+          <PotentialList
+            match={match}
+            team={team}
+            editor={editor}
+            referees={referees}
+            streamers={streamers}
+            myTeamId={myTeamId}
+          />
+        )}
 
         <dl className="match-panel-rows">
           <div>
@@ -314,6 +331,62 @@ export function MatchPanel({
         )}
       </aside>
     </>
+  );
+}
+
+interface PotentialListProps {
+  match: EditorMatch;
+  team: (id: string | null) => EditorTeam | undefined;
+  editor: BracketEditor;
+  referees: Player[];
+  streamers: Player[];
+  myTeamId: string | null;
+}
+
+/**
+ * The pairings an undecided match may turn out to be, each with the time its teams agreed on and its own
+ * referee and streamer, which are taken like a match's.
+ */
+function PotentialList({ match, team, editor, referees, streamers, myTeamId }: PotentialListProps) {
+  const rows = potentialRows(match);
+  return (
+    <section className="match-panel-potentials" aria-labelledby="match-panel-potentials">
+      <h3 id="match-panel-potentials">
+        Olası eşleşmeler <span className="num">{rows.length}</span>
+      </h3>
+      <p className="muted match-panel-hint">
+        Bu haftaki maçlar bitince biri bu maç olur ve saatiyle hakemini ona taşır; diğerleri kalkar. Maçın saati,
+        hakemi ve yayıncısı, değiştirilmemiş eşleşmelere de geçer.
+      </p>
+      <ul className="match-panel-potential-list">
+        {rows.map((p) => (
+          <li key={p.id} className="match-panel-potential">
+            <div className="match-panel-potential-head">
+              <span className="match-panel-potential-teams">
+                {team(p.team1_id)?.name ?? "?"} <span className="muted">vs</span> {team(p.team2_id)?.name ?? "?"}
+              </span>
+              <span className="match-panel-potential-time">
+                {p.starts_at ? formatShortMatchTime(p.starts_at) : <span className="muted">Saat yok</span>}
+              </span>
+            </div>
+            <dl className="match-panel-rows">
+              <div>
+                <dt>Hakem</dt>
+                <dd>
+                  <RefereeControl match={p} editor={editor} options={referees} />
+                </dd>
+              </div>
+              <div>
+                <dt>Yayıncı</dt>
+                <dd>
+                  <StreamerControl match={p} editor={editor} options={streamers} myTeamId={myTeamId} />
+                </dd>
+              </div>
+            </dl>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

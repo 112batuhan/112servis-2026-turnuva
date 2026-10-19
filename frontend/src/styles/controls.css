@@ -238,3 +238,11 @@
   background: var(--color-info-soft);
   color: var(--color-info);
 }
+
+/* Not decided yet (a potential match): hollow on a dashed outline, like the site's other "still to come"
+   marks. */
+.badge-potential {
+  padding: 1px 9px;
+  border: 1px dashed var(--color-border-strong);
+  background: none;
+}

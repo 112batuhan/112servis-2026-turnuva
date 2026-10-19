@@ -10,6 +10,15 @@ use super::{bracket::Side, team::Player};
 pub enum MatchKind {
     Qualifier,
     Bracket,
+    // A pairing a bracket match may turn out to be (db::potential).
+    Potential,
+}
+
+impl MatchKind {
+    // Played between two teams, blue and red: a bracket match or one of its pairings.
+    pub fn versus(self) -> bool {
+        matches!(self, MatchKind::Bracket | MatchKind::Potential)
+    }
 }
 
 // A match's referee, selected as referee_* columns. All null when nobody has taken
@@ -254,6 +263,8 @@ pub async fn find_match(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchSta
                      ORDER BY r.added_at, r.mp_id) AS mp_ids
         FROM matches m
         WHERE m.id = $1
+          AND NOT EXISTS (SELECT 1 FROM potential_matches p
+                          WHERE p.match_id = m.id AND p.removed_at IS NOT NULL)
         "#,
     )
     .bind(id)
@@ -261,7 +272,8 @@ pub async fn find_match(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchSta
     .await
 }
 
-// Lobbies are numbered in the order list_lobbies returns them.
+// Lobbies are numbered in the order list_lobbies returns them. Potential matches have
+// no room, so no referee page.
 pub async fn find_room(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<RoomRow>> {
     sqlx::query_as::<_, RoomRow>(
         r#"
@@ -287,7 +299,7 @@ pub async fn find_room(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<RoomRow>>
             WHEN m.kind = 'qualifier' THEN (SELECT s.id FROM stages s WHERE s.is_qualifier)
             ELSE b.stage_id
         END
-        WHERE m.id = $1
+        WHERE m.id = $1 AND m.kind <> 'potential'
         "#,
     )
     .bind(id)

@@ -39,6 +39,9 @@ pub struct NotificationRow {
     pub id: Uuid,
     pub kind: NotificationKind,
     pub match_id: Option<Uuid>,
+    // The bracket match it is, or for a potential match the one it's a pairing of.
+    pub bracket_match_id: Option<Uuid>,
+    pub potential: bool,
     pub side: Option<Side>,
     pub number: Option<i32>,
     pub team1_name: Option<String>,
@@ -68,7 +71,9 @@ pub struct NotificationRow {
 pub async fn list(pool: &PgPool, user_id: Uuid, limit: i64) -> sqlx::Result<Vec<NotificationRow>> {
     sqlx::query_as::<_, NotificationRow>(
         r#"
-        SELECT n.id, n.kind, n.match_id, b.side, b.number,
+        SELECT n.id, n.kind, n.match_id, b.bracket_match_id,
+               COALESCE(b.potential, false) AS potential,
+               b.side, b.number,
                t1.name AS team1_name, t2.name AS team2_name, a.username AS actor_username,
                COALESCE('host' = ANY(a.roles), false) AS actor_is_host, n.staff_role, n.old_starts_at, n.new_starts_at, n.response, n.responded_at,
                n.read_at, n.created_at,
@@ -86,12 +91,24 @@ pub async fn list(pool: &PgPool, user_id: Uuid, limit: i64) -> sqlx::Result<Vec<
                ) AS actionable
         FROM notifications n
         LEFT JOIN matches m ON m.id = n.match_id
-        LEFT JOIN bracket_matches b ON b.match_id = n.match_id
+        LEFT JOIN (
+            SELECT match_id, match_id AS bracket_match_id, false AS potential, side, number,
+                   team1_id, team2_id, streamer_id
+            FROM bracket_matches
+            UNION ALL
+            SELECT p.match_id, p.bracket_match_id, true, pb.side, pb.number,
+                   p.team1_id, p.team2_id, p.streamer_id
+            FROM potential_matches p
+            JOIN bracket_matches pb ON pb.match_id = p.bracket_match_id
+        ) AS b ON b.match_id = n.match_id
         LEFT JOIN teams t1 ON t1.id = b.team1_id
         LEFT JOIN teams t2 ON t2.id = b.team2_id
         LEFT JOIN teams tn ON tn.id = n.team_id
         LEFT JOIN osu_users a ON a.id = n.actor_id
         WHERE n.user_id = $1
+          -- A set-aside potential match's wait until it comes back.
+          AND NOT EXISTS (SELECT 1 FROM potential_matches x
+                          WHERE x.match_id = n.match_id AND x.removed_at IS NOT NULL)
         ORDER BY n.created_at DESC, n.id
         LIMIT $2
         "#,
@@ -110,8 +127,19 @@ pub async fn attention_count(pool: &PgPool, user_id: Uuid) -> sqlx::Result<i64> 
         SELECT count(*)
         FROM notifications n
         LEFT JOIN matches m ON m.id = n.match_id
-        LEFT JOIN bracket_matches b ON b.match_id = n.match_id
+        LEFT JOIN (
+            SELECT match_id, match_id AS bracket_match_id, false AS potential, side, number,
+                   team1_id, team2_id, streamer_id
+            FROM bracket_matches
+            UNION ALL
+            SELECT p.match_id, p.bracket_match_id, true, pb.side, pb.number,
+                   p.team1_id, p.team2_id, p.streamer_id
+            FROM potential_matches p
+            JOIN bracket_matches pb ON pb.match_id = p.bracket_match_id
+        ) AS b ON b.match_id = n.match_id
         WHERE n.user_id = $1
+          AND NOT EXISTS (SELECT 1 FROM potential_matches x
+                          WHERE x.match_id = n.match_id AND x.removed_at IS NOT NULL)
           AND (n.read_at IS NULL
                OR COALESCE(
                       n.kind = 'confirm_time' AND n.response IS NULL
@@ -269,17 +297,25 @@ pub async fn respond(conn: &mut PgConnection, id: Uuid, response: Response) -> s
     Ok(())
 }
 
-// Takes whoever holds the slot off the match.
+// Takes whoever holds the slot off the match (a bracket or a potential match).
 pub async fn clear_staff(
     conn: &mut PgConnection,
     match_id: Uuid,
     role: StaffRole,
 ) -> sqlx::Result<()> {
-    let query = match role {
-        StaffRole::Referee => "UPDATE matches SET referee_id = NULL WHERE id = $1",
-        StaffRole::Streamer => "UPDATE bracket_matches SET streamer_id = NULL WHERE match_id = $1",
+    let queries: &[&str] = match role {
+        StaffRole::Referee => &["UPDATE matches SET referee_id = NULL WHERE id = $1"],
+        StaffRole::Streamer => &[
+            "UPDATE bracket_matches SET streamer_id = NULL WHERE match_id = $1",
+            "UPDATE potential_matches SET streamer_id = NULL WHERE match_id = $1",
+        ],
     };
-    sqlx::query(query).bind(match_id).execute(conn).await?;
+    for query in queries {
+        sqlx::query(query)
+            .bind(match_id)
+            .execute(&mut *conn)
+            .await?;
+    }
     Ok(())
 }
 
@@ -305,7 +341,11 @@ pub async fn notify_declined(
                   WHEN 'referee'::match_staff_role THEN 'referee' = ANY(u.roles)
                   ELSE 'streamer' = ANY(u.roles) AND NOT EXISTS (
                       SELECT 1 FROM team_members tm
-                      JOIN bracket_matches b ON tm.team_id IN (b.team1_id, b.team2_id)
+                      JOIN (
+                          SELECT match_id, team1_id, team2_id FROM bracket_matches
+                          UNION ALL
+                          SELECT match_id, team1_id, team2_id FROM potential_matches
+                      ) AS b ON tm.team_id IN (b.team1_id, b.team2_id)
                       WHERE b.match_id = $1 AND tm.user_id = u.id
                   )
               END

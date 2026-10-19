@@ -40,6 +40,11 @@
   text-overflow: ellipsis;
 }
 
+/* Not a time yet: the matches of its week decide which pairing it is. */
+.bm-card-undecided {
+  font-style: italic;
+}
+
 .bm-card-icon {
   display: inline-flex;
   color: var(--color-text-muted);

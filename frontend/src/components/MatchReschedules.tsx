@@ -17,7 +17,8 @@ type Run = (action: () => Promise<void>, rescheduled?: boolean) => Promise<boole
 /**
  * The team's upcoming bracket matches with the times both teams have proposed for them. Either
  * player proposes; one player of the other team accepting a time moves the match there and
- * drops every other proposal for it.
+ * drops every other proposal for it. Potential matches are here too, so a team's second match of
+ * the week can be set before they know who it's against.
  */
 export function MatchReschedules({ onRescheduled, onError }: Props) {
   const [data, setData] = useState<MyReschedules | null>(null);
@@ -101,14 +102,21 @@ function MatchCard({ match, limit, busy, run }: CardProps) {
   }
 
   return (
-    <li className="reschedule-card">
+    <li className={match.potential ? "reschedule-card is-potential" : "reschedule-card"}>
       <div className="reschedule-head">
         <span className={`reschedule-code is-${match.side}`}>{matchCode(match)}</span>
+        {match.potential && <span className="badge badge-potential">Olası</span>}
         {match.stage_name && <span className="muted">{match.stage_name}</span>}
         <span className="reschedule-opponent">
           <span className="muted">vs</span> {match.opponent.name}
         </span>
       </div>
+      {match.potential && (
+        <p className="muted reschedule-note">
+          Bu eşleşme bu haftaki maçların sonucuna bağlı. Saatini şimdiden ayarlayın: iki takım da {matchCode(match)}{" "}
+          maçına gelirse maç burada anlaştığınız saatte oynanır, gelmezse eşleşme kendiliğinden kalkar.
+        </p>
+      )}
       <p className="reschedule-current">
         <span className="reschedule-label">Şu anki saat</span>
         {match.starts_at ? formatMatchTime(match.starts_at) : "Belirlenmedi"}

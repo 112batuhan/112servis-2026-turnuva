@@ -254,6 +254,18 @@
   opacity: 0.6;
 }
 
+/* A potential match: the same side colour on a dashed outline over the plain surface, since it may never be
+   played. */
+.cal-match.is-potential {
+  border-style: dashed;
+  background: var(--color-surface);
+}
+
+.cal-match-potential {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
 .cal-match.is-mine {
   background: var(--color-primary-soft);
 }

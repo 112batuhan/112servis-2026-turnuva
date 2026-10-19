@@ -9,7 +9,7 @@ import { ErrorAlert } from "../../components/ErrorAlert";
 import { IconButton } from "../../components/IconButton";
 import { PickemRow } from "../../components/pickem/PickemRow";
 import { bestOfLabel } from "../../lib/bestOf";
-import { compareByTime, incomingSources } from "../../lib/bracket";
+import { compareByTime, incomingSources, withPotentials } from "../../lib/bracket";
 import { formatMatchTime } from "../../lib/format";
 import { canPredictMatch, defaultStage, isLocked, POINTS, STATUS_LABELS } from "../../lib/pickem";
 import { PickemStandings } from "./PickemStandings";
@@ -61,7 +61,8 @@ export function PickemPage() {
   const stage = stages.find((s) => s.id === picked) ?? defaultStage(stages);
   const sources = useMemo(() => incomingSources(matches), [matches]);
   const rows = useMemo(
-    () => (stage ? matches.filter((m) => m.stage?.id === stage.id).sort(compareByTime) : []),
+    // A match still waiting on its week is predicted as each pairing it may be.
+    () => (stage ? withPotentials(matches.filter((m) => m.stage?.id === stage.id)).sort(compareByTime) : []),
     [matches, stage],
   );
   const viewer = overview?.standings.find((s) => s.player.id === user?.id);
@@ -322,6 +323,16 @@ function WideTrack({ stages, selectedId, onSelect, viewer }: TrackProps) {
 function StageWhen({ stage, onElapsed }: { stage: PickemStage; onElapsed: () => void }) {
   switch (stage.status) {
     case "open":
+      if (stage.mode === "open") {
+        // Opened by hand: each match locks as it starts, closes_at being the next one's time.
+        if (!stage.closes_at) return <>Her maç kendi saatinde kilitlenir.</>;
+        return (
+          <>
+            Her maç kendi saatinde kilitlenir. Sıradaki: <time dateTime={stage.closes_at}>{formatMatchTime(stage.closes_at)}</time>
+            <Countdown to={stage.closes_at} suffix="kaldı" className="pickem-stage-countdown" onElapsed={onElapsed} />
+          </>
+        );
+      }
       if (!stage.closes_at) return <>Kilit, stage'in ilk maçının saati belli olunca belli olur.</>;
       return (
         <>

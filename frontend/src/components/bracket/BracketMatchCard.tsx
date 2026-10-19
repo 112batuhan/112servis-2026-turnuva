@@ -1,5 +1,15 @@
 import type { BracketMatch, RefereeViewer, Team } from "../../api/types";
-import { hasMatchPage, isLive, matchCode, scoreHalves, sourceLabel, winningSlot, type Source } from "../../lib/bracket";
+import {
+  hasMatchPage,
+  isLive,
+  isUndecided,
+  matchCode,
+  scoreHalves,
+  sourceLabel,
+  UNDECIDED_TIME,
+  winningSlot,
+  type Source,
+} from "../../lib/bracket";
 import { Icon } from "../Icon";
 import { LiveMark } from "../LiveMark";
 import { MatchPageLink } from "../MatchPageLink";
@@ -52,7 +62,12 @@ export function BracketMatchCard({
         <span className={`bm-card-code is-${match.side}`}>{matchCode(match)}</span>
         {live && <LiveMark compact />}
         <span className="bm-card-time">
-          {!match.starts_at ? (
+          {isUndecided(match) ? (
+            // Its time is whichever its potential matches' teams agree on; the list and the calendar show them.
+            <span className="bm-card-undecided" title={`${match.potentials.length} olası eşleşme`}>
+              {UNDECIDED_TIME}
+            </span>
+          ) : !match.starts_at ? (
             <span className="muted">Zaman yok</span>
           ) : onShowInCalendar ? (
             <MatchTimeLink

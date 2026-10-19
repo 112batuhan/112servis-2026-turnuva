@@ -1,6 +1,9 @@
 //! Each match's private channel: its players, referee and streamer can see it. A bracket
 //! match gets one once it has both teams and a time, a qualifier lobby once a team signs
-//! up; an unconcluded match that loses a team (or a lobby every team) loses its channel. An hour after a match is concluded its channel turns read-only and moves to the
+//! up, a potential match as soon as it exists (its teams use it to agree on a time); an
+//! unconcluded match that loses a team (or a lobby every team) loses its channel, and a
+//! potential match's channel is archived when the pairing is decided either way
+//! (db::potential::sync queues it). An hour after a match is concluded its channel turns read-only and moves to the
 //! archive category; until then the players can still talk there.
 
 use serenity::all::{
@@ -116,6 +119,12 @@ fn channel_name(info: &MatchInfo) -> String {
             info.team1_name.as_deref().unwrap_or("tbd"),
             info.team2_name.as_deref().unwrap_or("tbd"),
         ),
+        MatchKind::Potential => format!(
+            "{} olası {} vs {}",
+            messages::code(info),
+            info.team1_name.as_deref().unwrap_or("tbd"),
+            info.team2_name.as_deref().unwrap_or("tbd"),
+        ),
         MatchKind::Qualifier => messages::code(info),
     };
     let mut name = String::new();
@@ -133,8 +142,8 @@ fn channel_name(info: &MatchInfo) -> String {
 // Where the channel belongs: the open or the archive category of its kind.
 fn base_category(settings: &Settings, kind: MatchKind, archived: bool) -> Option<i64> {
     match (kind, archived) {
-        (MatchKind::Bracket, false) => settings.bracket_category_id,
-        (MatchKind::Bracket, true) => settings.bracket_archive_category_id,
+        (MatchKind::Bracket | MatchKind::Potential, false) => settings.bracket_category_id,
+        (MatchKind::Bracket | MatchKind::Potential, true) => settings.bracket_archive_category_id,
         (MatchKind::Qualifier, false) => settings.qualifier_category_id,
         (MatchKind::Qualifier, true) => settings.qualifier_archive_category_id,
     }
@@ -151,6 +160,8 @@ fn should_close(info: &MatchInfo) -> bool {
     match info.kind {
         MatchKind::Bracket => info.team1_id.is_none() || info.team2_id.is_none(),
         MatchKind::Qualifier => info.entries == 0,
+        // Its pairing never changes; it's archived while set aside.
+        MatchKind::Potential => false,
     }
 }
 
@@ -163,6 +174,7 @@ fn should_open(info: &MatchInfo) -> bool {
             info.team1_id.is_some() && info.team2_id.is_some() && info.starts_at.is_some()
         }
         MatchKind::Qualifier => info.entries > 0,
+        MatchKind::Potential => !info.archived,
     }
 }
 
@@ -215,7 +227,7 @@ async fn sync_channel(
         return Ok(None);
     }
     // An hour after it was concluded (db::discord::ARCHIVE_AFTER_SECS); until then
-    // the players can still talk there.
+    // the players can still talk there. A potential match's while it's set aside.
     let archived = info.archived;
     let settings = db::discord::settings(&state.db).await?;
     let base = base_category(&settings, info.kind, archived);

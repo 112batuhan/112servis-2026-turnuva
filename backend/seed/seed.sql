@@ -218,15 +218,15 @@ SELECT v.name, COALESCE((SELECT max(position) FROM stages), -1) + v.ord, v.ord <
        v.best_of
 FROM unnest(
     ARRAY['Qualifiers', 'Round of 32', 'Round of 16', 'Quarterfinals', 'Semifinals',
-          'Winners Final', 'Losers Final', 'Grand Final'],
-    ARRAY[NULL, 9, 9, 9, 11, 11, 11, 13]::int[]
+          'Finals', 'Grand Final'],
+    ARRAY[NULL, 9, 9, 9, 11, 11, 13]::int[]
 ) WITH ORDINALITY AS v (name, best_of, ord)
 WHERE NOT EXISTS (SELECT 1 FROM stages s WHERE s.name = v.name);
 
 UPDATE stages s
 SET best_of = v.best_of
 FROM (VALUES ('Round of 32', 9), ('Round of 16', 9), ('Quarterfinals', 9), ('Semifinals', 11),
-             ('Winners Final', 11), ('Losers Final', 11), ('Grand Final', 13)) AS v (name, best_of)
+             ('Finals', 11), ('Grand Final', 13)) AS v (name, best_of)
 WHERE s.name = v.name AND s.best_of IS NULL AND NOT s.is_qualifier;
 
 -- Map pools for the seeded stages, from real ranked maps: for each stage and mod, the
@@ -305,34 +305,20 @@ WITH pool (stage, category, color, cat_pos, slot_pos, mods, beatmap_id, beatmaps
     ('Semifinals', 'FM', '#5fd38d', 4, 0, '', 2166311, 1035167, 'ONE OK ROCK', 'Start Again', 'Onlybiscuit''s Extra', 'A r M i N', 'https://assets.ppy.sh/beatmaps/1035167/covers/cover.jpg?1650685496', 5.4977, 9.2, 9, 3.8, 174, 122),
     ('Semifinals', 'FM', '#5fd38d', 4, 1, '', 928868, 416153, 'Remo Prototype[CV: Hanamori Yumiri]', 'Sendan Life', 'Pho''s Insane', 'Lami', 'https://assets.ppy.sh/beatmaps/416153/covers/cover.jpg?1650639459', 5.4971, 9.3, 8, 4, 227, 232),
     ('Semifinals', 'TB', '#ff66ab', 5, 0, '', 1088292, 478405, 'Omoi', 'Snow Drive(01.23)', 'Rumi''s Expert', 'Kroytz', 'https://assets.ppy.sh/beatmaps/478405/covers/cover.jpg?1650647231', 6.014, 9.2, 8, 4, 224, 240),
-    ('Winners Final', 'NM', '#5b8def', 0, 0, '', 553131, 158023, 'UNDEAD CORPORATION', 'Everything will freeze', 'Lunatic', 'Ekoro', 'https://assets.ppy.sh/beatmaps/158023/covers/cover.jpg?1645787427', 5.8872, 9, 8, 4, 240, 194),
-    ('Winners Final', 'NM', '#5b8def', 0, 1, '', 759056, 185250, 'ALiCE''S EMOTiON', 'Dark Flight Dreamer', 'Shawajoy''s Lunatic', 'Sakaue Nachi', 'https://assets.ppy.sh/beatmaps/185250/covers/cover.jpg?1650631939', 5.8103, 9.2, 8, 4, 189, 189),
-    ('Winners Final', 'NM', '#5b8def', 0, 2, '', 1040942, 488238, 'cYsmix', 'Classic Pursuit', 'Expert', '-kevincela-', 'https://assets.ppy.sh/beatmaps/488238/covers/cover.jpg?1631509747', 5.8283, 9.3, 8, 4.3, 140, 139),
-    ('Winners Final', 'NM', '#5b8def', 0, 3, '', 2064221, 985788, 'Loki', 'Wizard''s Tower', 'Daycore''s Extra', 'Taeyang', 'https://assets.ppy.sh/beatmaps/985788/covers/cover.jpg?1650681317', 5.7848, 9.2, 8.7, 4.5, 175, 160),
-    ('Winners Final', 'HD', '#e8b84a', 1, 0, 'HD', 1501684, 671199, 'DECO*27', 'HIBANA feat. Hatsune Miku', 'neonat''s Extra', 'Pho', 'https://assets.ppy.sh/beatmaps/671199/covers/cover.jpg?1650657296', 5.9782, 9.2, 8, 4, 200, 203),
-    ('Winners Final', 'HD', '#e8b84a', 1, 1, 'HD', 895077, 410998, 'Stonebank', 'All Night', 'Hi-Speed Extra', 'Monstrata', 'https://assets.ppy.sh/beatmaps/410998/covers/cover.jpg?1650636926', 5.6817, 9.6, 7, 3, 170, 113),
-    ('Winners Final', 'HR', '#f3877e', 2, 0, 'HR', 69405, 19789, 'Hatsune Miku & Megpoid Gumi', 'MATRYOSHKA', 'Insane', 'gowww', 'https://assets.ppy.sh/beatmaps/19789/covers/cover.jpg?1645778675', 5.5548, 9, 8, 5.2, 205, 198),
-    ('Winners Final', 'HR', '#f3877e', 2, 1, 'HR', 848345, 380545, 'Primary', 'Sweets Weekend', 'Sweet Neko', 'CaffeAmericano', 'https://assets.ppy.sh/beatmaps/380545/covers/cover.jpg?1622096656', 5.8056, 9.3, 9, 5.2, 180, 93),
-    ('Winners Final', 'DT', '#b48cf2', 3, 0, 'DT', 1555610, 737128, 'ONE OK ROCK', 'Bombs away', 'Another', 'A r M i N', 'https://assets.ppy.sh/beatmaps/737128/covers/cover.jpg?1650659486', 6.4815, 9, 8.1, 4, 240, 69),
-    ('Winners Final', 'DT', '#b48cf2', 3, 1, 'DT', 846261, 387784, 'Shawn Wasabi', 'Marble Soda', 'Narcissu''s Insane', 'Len', 'https://assets.ppy.sh/beatmaps/387784/covers/cover.jpg?1650635195', 6.2735, 9, 7.5, 4, 252, 107),
-    ('Winners Final', 'DT', '#b48cf2', 3, 2, 'DT', 519080, 221954, 'Tsunamaru', 'Daidai Genome', 'Insane', 'Lust', 'https://assets.ppy.sh/beatmaps/221954/covers/cover.jpg?1650625685', 6.2782, 8, 8, 4, 202.5, 121),
-    ('Winners Final', 'FM', '#5fd38d', 4, 0, '', 487589, 186318, 'Warak', 'REANIMATE', 'xsrs''s Extra', 'iyasine', 'https://assets.ppy.sh/beatmaps/186318/covers/cover.jpg?1650623687', 5.6651, 9.5, 8, 4, 174, 151),
-    ('Winners Final', 'FM', '#5fd38d', 4, 1, '', 2144226, 1025171, 'LiSA', 'Gurenge', 'Extra', 'Crissa', 'https://assets.ppy.sh/beatmaps/1025171/covers/cover.jpg?1650684543', 5.7738, 9.3, 9, 4.8, 135, 232),
-    ('Winners Final', 'TB', '#ff66ab', 5, 0, '', 1351114, 636839, 'KASAI HARCORES', 'Cycle Hit', 'Home Run', 'Worminators', 'https://assets.ppy.sh/beatmaps/636839/covers/cover.jpg?1641132312', 6.2375, 9.5, 8.7, 3.8, 175, 307),
-    ('Losers Final', 'NM', '#5b8def', 0, 0, '', 539909, 206750, 'Hige Driver join. SELEN', 'Dadadadadadadadadada', 'EXTREME', 'spboxer3', 'https://assets.ppy.sh/beatmaps/206750/covers/cover.jpg?1645788401', 5.8447, 9.3, 8, 4, 156, 102),
-    ('Losers Final', 'NM', '#5b8def', 0, 1, '', 2022718, 966339, 'umu.', 'Ai no Sukima', 'Emotions', 'Sotarks', 'https://assets.ppy.sh/beatmaps/966339/covers/cover.jpg?1650679952', 5.8983, 9.2, 9, 3.8, 204, 105),
-    ('Losers Final', 'NM', '#5b8def', 0, 2, '', 1582621, 751785, 'Cranky', 'Chandelier - King', 'Royal', 'Mao', 'https://assets.ppy.sh/beatmaps/751785/covers/cover.jpg?1650660791', 5.8945, 9.2, 8.2, 4.2, 170, 239),
-    ('Losers Final', 'NM', '#5b8def', 0, 3, '', 2860521, 1384619, 'HO-KAGO TEA TIME', 'Kira Kira Days (Cut Ver.)', 'Shiawase!', 'Sotarks', 'https://assets.ppy.sh/beatmaps/1384619/covers/cover.jpg?1650707631', 5.8561, 9.4, 9.3, 3.8, 200, 90),
-    ('Losers Final', 'HD', '#e8b84a', 1, 0, 'HD', 2480904, 1190710, 'Suzuki Konomi', 'Realize (TV Size)', 'Reform''s Expert', 'Sotarks', 'https://assets.ppy.sh/beatmaps/1190710/covers/cover.jpg?1650697013', 5.7852, 9.3, 9, 3.8, 206, 91),
-    ('Losers Final', 'HD', '#e8b84a', 1, 1, 'HD', 896480, 413117, 'DECO*27', 'Ghost Rule', 'Extra', 'Awaken', 'https://assets.ppy.sh/beatmaps/413117/covers/cover.jpg?1650685850', 5.8597, 9, 8, 4, 210, 197),
-    ('Losers Final', 'HR', '#f3877e', 2, 0, 'HR', 786980, 355573, 'O2i3', 'Ooi [Game Edit]', 'Expert', 'Fort', 'https://assets.ppy.sh/beatmaps/355573/covers/cover.jpg?1631509644', 5.7033, 9.2, 8, 5.2, 216, 114),
-    ('Losers Final', 'HR', '#f3877e', 2, 1, 'HR', 1027542, 481451, 'S3RL feat Krystal', 'R4V3 B0Y', '3XTR4', 'DeRandom Otaku', 'https://assets.ppy.sh/beatmaps/481451/covers/cover.jpg?1650642294', 5.9429, 9.3, 8.3, 5.59, 175, 177),
-    ('Losers Final', 'DT', '#b48cf2', 3, 0, 'DT', 1053243, 476691, 'DJ OKAWARI', 'Flower Dance', 'Little''s Insane', 'Narcissu', 'https://assets.ppy.sh/beatmaps/476691/covers/cover.jpg?1650642192', 6.284, 8.7, 7, 3.9, 150, 161),
-    ('Losers Final', 'DT', '#b48cf2', 3, 1, 'DT', 186721, 63112, 'ONE OK ROCK', 'Answer is Near', 'Insane', 'Kuria', 'https://assets.ppy.sh/beatmaps/63112/covers/cover.jpg?1650614282', 6.6887, 9, 7, 4, 282, 141),
-    ('Losers Final', 'DT', '#b48cf2', 3, 2, 'DT', 63499, 17852, 'Baracuda', 'La Di Da (Nightcore Mix)', 'La Di Da', 'ztrot', 'https://assets.ppy.sh/beatmaps/17852/covers/cover.jpg?1650605049', 6.3077, 8, 8, 4, 243.75, 101),
-    ('Losers Final', 'FM', '#5fd38d', 4, 0, '', 351993, 100049, 'Himeringo', 'Yotsuya-san ni Yoroshiku', 'Insane', 'RLC', 'https://assets.ppy.sh/beatmaps/100049/covers/cover.jpg?1650620890', 5.5744, 9, 8, 4, 220, 172),
-    ('Losers Final', 'FM', '#5fd38d', 4, 1, '', 176960, 58951, 'UNDEAD CORPORATION', 'Yoru Naku Usagi wa Yume o Miru', 'Lunatic', 'Smoothie', 'https://assets.ppy.sh/beatmaps/58951/covers/cover.jpg?1650616586', 5.7236, 9, 7, 4, 200, 218),
-    ('Losers Final', 'TB', '#ff66ab', 5, 0, '', 657509, 292077, 'Reol', 'Asymmetry', 'Extra', 'Gaia', 'https://assets.ppy.sh/beatmaps/292077/covers/cover.jpg?1650629132', 6.1061, 9.4, 8.5, 4.1, 184, 251),
+    ('Finals', 'NM', '#5b8def', 0, 0, '', 553131, 158023, 'UNDEAD CORPORATION', 'Everything will freeze', 'Lunatic', 'Ekoro', 'https://assets.ppy.sh/beatmaps/158023/covers/cover.jpg?1645787427', 5.8872, 9, 8, 4, 240, 194),
+    ('Finals', 'NM', '#5b8def', 0, 1, '', 759056, 185250, 'ALiCE''S EMOTiON', 'Dark Flight Dreamer', 'Shawajoy''s Lunatic', 'Sakaue Nachi', 'https://assets.ppy.sh/beatmaps/185250/covers/cover.jpg?1650631939', 5.8103, 9.2, 8, 4, 189, 189),
+    ('Finals', 'NM', '#5b8def', 0, 2, '', 1040942, 488238, 'cYsmix', 'Classic Pursuit', 'Expert', '-kevincela-', 'https://assets.ppy.sh/beatmaps/488238/covers/cover.jpg?1631509747', 5.8283, 9.3, 8, 4.3, 140, 139),
+    ('Finals', 'NM', '#5b8def', 0, 3, '', 2064221, 985788, 'Loki', 'Wizard''s Tower', 'Daycore''s Extra', 'Taeyang', 'https://assets.ppy.sh/beatmaps/985788/covers/cover.jpg?1650681317', 5.7848, 9.2, 8.7, 4.5, 175, 160),
+    ('Finals', 'HD', '#e8b84a', 1, 0, 'HD', 1501684, 671199, 'DECO*27', 'HIBANA feat. Hatsune Miku', 'neonat''s Extra', 'Pho', 'https://assets.ppy.sh/beatmaps/671199/covers/cover.jpg?1650657296', 5.9782, 9.2, 8, 4, 200, 203),
+    ('Finals', 'HD', '#e8b84a', 1, 1, 'HD', 895077, 410998, 'Stonebank', 'All Night', 'Hi-Speed Extra', 'Monstrata', 'https://assets.ppy.sh/beatmaps/410998/covers/cover.jpg?1650636926', 5.6817, 9.6, 7, 3, 170, 113),
+    ('Finals', 'HR', '#f3877e', 2, 0, 'HR', 69405, 19789, 'Hatsune Miku & Megpoid Gumi', 'MATRYOSHKA', 'Insane', 'gowww', 'https://assets.ppy.sh/beatmaps/19789/covers/cover.jpg?1645778675', 5.5548, 9, 8, 5.2, 205, 198),
+    ('Finals', 'HR', '#f3877e', 2, 1, 'HR', 848345, 380545, 'Primary', 'Sweets Weekend', 'Sweet Neko', 'CaffeAmericano', 'https://assets.ppy.sh/beatmaps/380545/covers/cover.jpg?1622096656', 5.8056, 9.3, 9, 5.2, 180, 93),
+    ('Finals', 'DT', '#b48cf2', 3, 0, 'DT', 1555610, 737128, 'ONE OK ROCK', 'Bombs away', 'Another', 'A r M i N', 'https://assets.ppy.sh/beatmaps/737128/covers/cover.jpg?1650659486', 6.4815, 9, 8.1, 4, 240, 69),
+    ('Finals', 'DT', '#b48cf2', 3, 1, 'DT', 846261, 387784, 'Shawn Wasabi', 'Marble Soda', 'Narcissu''s Insane', 'Len', 'https://assets.ppy.sh/beatmaps/387784/covers/cover.jpg?1650635195', 6.2735, 9, 7.5, 4, 252, 107),
+    ('Finals', 'DT', '#b48cf2', 3, 2, 'DT', 519080, 221954, 'Tsunamaru', 'Daidai Genome', 'Insane', 'Lust', 'https://assets.ppy.sh/beatmaps/221954/covers/cover.jpg?1650625685', 6.2782, 8, 8, 4, 202.5, 121),
+    ('Finals', 'FM', '#5fd38d', 4, 0, '', 487589, 186318, 'Warak', 'REANIMATE', 'xsrs''s Extra', 'iyasine', 'https://assets.ppy.sh/beatmaps/186318/covers/cover.jpg?1650623687', 5.6651, 9.5, 8, 4, 174, 151),
+    ('Finals', 'FM', '#5fd38d', 4, 1, '', 2144226, 1025171, 'LiSA', 'Gurenge', 'Extra', 'Crissa', 'https://assets.ppy.sh/beatmaps/1025171/covers/cover.jpg?1650684543', 5.7738, 9.3, 9, 4.8, 135, 232),
+    ('Finals', 'TB', '#ff66ab', 5, 0, '', 1351114, 636839, 'KASAI HARCORES', 'Cycle Hit', 'Home Run', 'Worminators', 'https://assets.ppy.sh/beatmaps/636839/covers/cover.jpg?1641132312', 6.2375, 9.5, 8.7, 3.8, 175, 307),
     ('Grand Final', 'NM', '#5b8def', 0, 0, '', 366140, 147962, 'UPLIFT SPICE', 'Omega Rhythm', 'Extra', 'Jemmmmy', 'https://assets.ppy.sh/beatmaps/147962/covers/cover.jpg?1650620437', 5.9806, 9.2, 8.5, 4, 173, 178),
     ('Grand Final', 'NM', '#5b8def', 0, 1, '', 1569034, 732994, 'Team.NEKOKAN', 'Airman ga Taosenai', 'Ger M i N''s Extra', 'Sotarks', 'https://assets.ppy.sh/beatmaps/732994/covers/cover.jpg?1650660274', 5.9696, 9.4, 8, 3.5, 200, 221),
     ('Grand Final', 'NM', '#5b8def', 0, 2, '', 1650477, 785858, 'THE ORAL CIGARETTES', 'ReI', 'Nevo''s Expert', 'Sotarks', 'https://assets.ppy.sh/beatmaps/785858/covers/cover.jpg?1650664560', 5.9257, 9.3, 9, 3.8, 186, 115),
@@ -391,18 +377,21 @@ JOIN categories c ON c.stage_id = t.id AND c.name = p.category
 JOIN slots s ON s.category_id = c.id AND s.position = p.slot_pos;
 
 -- A 32-team double-elimination bracket, partway through: the Round of 32 and the
--- Round of 16 are over, and the Quarterfinals (winners round 3 and losers round 2) are
--- the one stage being played: three of each side's matches are done, the next one of
--- each is live and the last losers one is still to come. Everything after it is
--- upcoming, the last rounds still unscheduled. Teams are seeded by their
+-- Round of 16 are over, and the Quarterfinals (winners round 3 and losers rounds 2 and
+-- 3) are the one stage being played: three of winners round 3 and six of losers round 2
+-- are done, the next one of each is live and the rest are still to come. Everything
+-- after it is upcoming, the last rounds still unscheduled. Teams are seeded by their
 -- players' combined rank in the standard order (1v32, 16v17, ...). Losers rounds
 -- alternate between pairing up the survivors and taking the teams that drop from
--- winners round r + 1, uncrossed. The grand final is the last winners match, with no
--- bracket reset.
+-- winners round r + 1, uncrossed. The grand final is the last winners match, followed
+-- by its bracket reset, which the same two teams play.
 --
--- Each round is played in the stage of its week: losers rounds share the stage of the
--- winners round they run alongside (losers round 3 opens the Semifinals week, after the
--- Quarterfinals' last match), and the last two losers rounds make up the losers final.
+-- Each stage is a week, and no team plays more than two matches in one: winners round
+-- 3 and losers rounds 2-3 make the Quarterfinals, winners round 4 and losers rounds 4-5
+-- the Semifinals, the winners final and losers rounds 6-7 the Finals, and the losers
+-- final, the grand final and its reset the Grand Final. A team's second match of the
+-- week waits on another match of the same week, so the site gives it potential
+-- matches (see below).
 -- Every match has a dummy referee or dummy teams, so clear.sql removes it. Numbers
 -- continue after any bracket that's already there, and it's placed to its right.
 -- Positions are in board units (20px); a card is 12x5, rounds are 15 apart and the
@@ -427,6 +416,7 @@ DECLARE
     -- Match ids by round and index: 'w1-0', 'l3-2', 'gf-0'.
     ids jsonb := '{}';
     rnd record;
+    pair record;
     idx int;
     num int;
     starts timestamptz;
@@ -448,16 +438,17 @@ BEGIN
             ('w2', 'winners', 8,  15,  3,   12, interval '-4 days',    interval '1 hour',  8,  false, 'Round of 16'),
             ('w3', 'winners', 4,  30,  9,   24, interval '-3 hours',   interval '1 hour',  3,  true,  'Quarterfinals'),
             ('w4', 'winners', 2,  45,  21,  48, interval '2 days',     interval '2 hours', 0,  false, 'Semifinals'),
-            ('w5', 'winners', 1,  60,  45,  0,  interval '3 days 4 hours', interval '0', 0, false, 'Winners Final'),
+            ('w5', 'winners', 1,  60,  45,  0,  interval '3 days 4 hours', interval '0', 0, false, 'Finals'),
             ('gf', 'winners', 1,  135, 84,  0,  NULL,                  NULL,               0,  false, 'Grand Final'),
+            ('gr', 'winners', 1,  151, 84,  0,  NULL,                  NULL,               0,  false, 'Grand Final'),
             ('l1', 'losers',  8,  15,  102, 6,  interval '-3 days',    interval '1 hour',  8,  false, 'Round of 16'),
             ('l2', 'losers',  8,  30,  102, 6,  interval '-6 hours',   interval '1 hour',  6,  true,  'Quarterfinals'),
-            ('l3', 'losers',  4,  45,  105, 12, interval '1 day',      interval '1 hour',  0,  false, 'Semifinals'),
+            ('l3', 'losers',  4,  45,  105, 12, interval '1 day',      interval '1 hour',  0,  false, 'Quarterfinals'),
             ('l4', 'losers',  4,  60,  105, 12, interval '1 day 6 hours', interval '1 hour', 0, false, 'Semifinals'),
             ('l5', 'losers',  2,  75,  111, 24, interval '2 days 6 hours', interval '1 hour', 0, false, 'Semifinals'),
-            ('l6', 'losers',  2,  90,  111, 24, interval '3 days',     interval '1 hour',  0,  false, 'Winners Final'),
-            ('l7', 'losers',  1,  105, 123, 0,  NULL,                  NULL,               0,  false, 'Losers Final'),
-            ('l8', 'losers',  1,  120, 123, 0,  NULL,                  NULL,               0,  false, 'Losers Final')
+            ('l6', 'losers',  2,  90,  111, 24, interval '3 days',     interval '1 hour',  0,  false, 'Finals'),
+            ('l7', 'losers',  1,  105, 123, 0,  NULL,                  NULL,               0,  false, 'Finals'),
+            ('l8', 'losers',  1,  120, 123, 0,  NULL,                  NULL,               0,  false, 'Grand Final')
         ) AS v (key, side, matches, x, y, pitch, starts, step, done, live, stage)
     LOOP
         FOR idx IN 0 .. rnd.matches - 1 LOOP
@@ -525,6 +516,11 @@ BEGIN
         FROM generate_series(2, 6, 2) k, generate_series(0, (8 >> ((k - 1) / 2)) - 1) i
         UNION ALL
         SELECT 'l8-0', 'winner', 'gf-0', 2
+        -- The reset: the grand final's loser in slot 1, its winner in slot 2.
+        UNION ALL
+        SELECT 'gf-0', 'loser', 'gr-0', 1
+        UNION ALL
+        SELECT 'gf-0', 'winner', 'gr-0', 2
     ) AS v (source, outcome, target, slot);
 
     -- Play the concluded matches in order, moving their teams on like concluding does.
@@ -578,6 +574,58 @@ BEGIN
           SELECT 1 FROM team_members tm
           WHERE tm.user_id = s.id AND tm.team_id IN (b.team1_id, b.team2_id)
       );
+
+    -- L20 waits on L15 (being played) and L16 (still to come), both of its week, so the
+    -- site gives it a potential match for each pairing of their teams (crate::potentials).
+    -- They're made here so they can have times, staff, proposals and predictions; the
+    -- backend keeps them as they are. Like the site's, they start on L20's time, referee
+    -- and streamer, and then: the two better seeds' pairing agreed on two hours earlier,
+    -- the next one's referee gave it up, DevHakem and DevYayinci took the third, and in
+    -- the last one team 2 has offered an hour later, which team 1 hasn't read yet.
+    FOR pair IN
+        SELECT a.team AS team1_id, c.team AS team2_id, a.n * 10 + c.n AS key
+        FROM bracket_matches s1
+        CROSS JOIN bracket_matches s2
+        CROSS JOIN LATERAL (VALUES (s1.team1_id, 1), (s1.team2_id, 2)) AS a (team, n)
+        CROSS JOIN LATERAL (VALUES (s2.team1_id, 1), (s2.team2_id, 2)) AS c (team, n)
+        WHERE s1.match_id = (ids ->> 'l2-6')::uuid AND s2.match_id = (ids ->> 'l2-7')::uuid
+        ORDER BY a.n, c.n
+    LOOP
+        INSERT INTO matches (kind, starts_at, referee_id)
+        SELECT 'potential',
+               m.starts_at - CASE WHEN pair.key = 11 THEN interval '2 hours' ELSE interval '0' END,
+               CASE pair.key
+                   WHEN 12 THEN NULL
+                   WHEN 21 THEN (SELECT id FROM osu_users WHERE osu_id = -4)
+                   ELSE m.referee_id
+               END
+        FROM matches m
+        WHERE m.id = (ids ->> 'l3-3')::uuid
+        RETURNING id INTO new_match;
+        INSERT INTO potential_matches (match_id, bracket_match_id, team1_id, team2_id, streamer_id)
+        SELECT new_match, b.match_id, pair.team1_id, pair.team2_id,
+               CASE WHEN pair.key = 21 THEN (SELECT id FROM osu_users WHERE osu_id = -5)
+                    ELSE b.streamer_id END
+        FROM bracket_matches b
+        WHERE b.match_id = (ids ->> 'l3-3')::uuid;
+        IF pair.key = 22 THEN
+            INSERT INTO match_reschedules (match_id, team_id, proposed_by, starts_at, created_at)
+            SELECT new_match, pair.team2_id, tm.user_id, m.starts_at + interval '1 hour',
+                   now() - interval '40 minutes'
+            FROM matches m
+            CROSS JOIN LATERAL (
+                SELECT user_id FROM team_members WHERE team_id = pair.team2_id
+                ORDER BY joined_at, user_id LIMIT 1
+            ) AS tm
+            WHERE m.id = new_match;
+            INSERT INTO notifications (user_id, kind, match_id, team_id, actor_id, created_at)
+            SELECT tm.user_id, 'reschedule_proposed', new_match, pair.team1_id, r.proposed_by,
+                   r.created_at
+            FROM team_members tm
+            JOIN match_reschedules r ON r.match_id = new_match
+            WHERE tm.team_id = pair.team1_id;
+        END IF;
+    END LOOP;
 END $$;
 
 -- W1's rooms and their chat, so the referee page has a concluded match to show them
@@ -1147,7 +1195,9 @@ ORDER BY l.at;
 UPDATE stages SET pickem_mode = 'open' WHERE name = 'Semifinals' AND NOT is_qualifier;
 
 -- 45 dummies predict every seeded match of the first four bracket stages that has both
--- teams (the Semifinals only where nothing has started, and about 60% of them there).
+-- teams (the Semifinals only where nothing has started, and about 60% of them there),
+-- and every potential match there: those only count if the match turns out to be that
+-- pairing (the site moves them to it then).
 -- Each has a skill: how often they pick the winner of a match that was then played,
 -- 45-84%. A played match's exact score is hit 30% of the time; otherwise the score
 -- leans close (the loser one map short most often). Unplayed matches lean 62% to the
@@ -1182,6 +1232,20 @@ games AS (
           m.concluded_at IS NULL AND m.starts_at > now()
           AND NOT EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id)
       ))
+    UNION ALL
+    SELECT p.match_id, st.name, (st.best_of + 1) / 2, p.team1_id, p.team2_id, false,
+           NULL, NULL, NULL,
+           (SELECT min(m2.starts_at) FROM bracket_matches b2 JOIN matches m2 ON m2.id = b2.match_id
+            WHERE b2.stage_id = st.id)
+    FROM potential_matches p
+    JOIN bracket_matches b ON b.match_id = p.bracket_match_id
+    JOIN stages st ON st.id = b.stage_id
+    WHERE st.name IN ('Round of 32', 'Round of 16', 'Quarterfinals', 'Semifinals')
+      AND st.best_of IS NOT NULL
+      AND EXISTS (
+          SELECT 1 FROM team_members tm JOIN osu_users u ON u.id = tm.user_id
+          WHERE tm.team_id = p.team1_id AND u.osu_id < 0
+      )
 ),
 rolls AS (
     SELECT p.id AS user_id, p.skill, g.*,

@@ -2,7 +2,9 @@
 //!
 //! A stage's pick'em opens once every match of the stage before it (the qualifier lobbies,
 //! for the first bracket stage) is concluded and locks as its first match starts, unless a
-//! host has opened or locked it by hand. A prediction is a winner and a score, and scores
+//! host has opened or locked it by hand. A stage a host has opened stays open while any of
+//! its matches is still to start, each match locking on its own as it starts, so a stage
+//! already under way can be opened again for the rest of its matches. A prediction is a winner and a score, and scores
 //! 3 with both right, 2 with only the winner right, 1 with only the score right (the
 //! figures, whoever won), else 0. A forfeit has no score, so only its winner can score.
 
@@ -40,7 +42,8 @@ pub struct Window {
     pub status: Status,
     // When the stage before it was played out; None while it isn't, or without one.
     pub opens_at: Option<OffsetDateTime>,
-    // When its first match starts, if any is scheduled.
+    // When predictions next lock: its first match's time, or for a stage a host has opened,
+    // the next match's still to start (each locks on its own). None while none is scheduled.
     pub closes_at: Option<OffsetDateTime>,
     // The stage it waits for.
     pub previous: Option<Uuid>,
@@ -48,7 +51,7 @@ pub struct Window {
 
 // Whether a match has begun in a way that locks its stage: its time has come, a room is
 // open for it or it's over.
-fn started(m: &MatchRow, now: OffsetDateTime) -> bool {
+pub fn started(m: &MatchRow, now: OffsetDateTime) -> bool {
     m.concluded_at.is_some() || m.has_room || m.starts_at.is_some_and(|t| t <= now)
 }
 
@@ -103,9 +106,23 @@ pub fn windows(
             }
             None => (true, None),
         };
-        let closes_at = own.iter().filter_map(|m| m.starts_at).min();
         let begun = own.iter().any(|m| started(m, now));
-        let status = if begun || stage.pickem_mode == Mode::Closed {
+        let pending = own.iter().any(|m| !started(m, now));
+        // Opened by hand, it only locks once every match has started.
+        let locked = match stage.pickem_mode {
+            Mode::Closed => true,
+            Mode::Open => !pending,
+            Mode::Auto => begun,
+        };
+        let closes_at = if stage.pickem_mode == Mode::Open && !locked {
+            own.iter()
+                .filter(|m| !started(m, now))
+                .filter_map(|m| m.starts_at)
+                .min()
+        } else {
+            own.iter().filter_map(|m| m.starts_at).min()
+        };
+        let status = if locked {
             if own.iter().all(|m| m.concluded_at.is_some()) {
                 Status::Finished
             } else {
@@ -125,6 +142,12 @@ pub fn windows(
         });
     }
     out
+}
+
+// Whether how a match was predicted can be shown: its stage is locked, or it has started
+// in a stage a host opened, so its predictions can't change any more.
+pub fn revealed(status: Status, m: &MatchRow, now: OffsetDateTime) -> bool {
+    status.locked() || started(m, now)
 }
 
 // Whether a match of an open stage can be predicted: both teams known, not begun, and a
@@ -373,7 +396,7 @@ mod tests {
     }
 
     #[test]
-    fn hosts_override_the_rule_but_a_started_stage_stays_locked() {
+    fn hosts_override_the_rule() {
         let now = OffsetDateTime::now_utc();
         let stages = [
             stage(1, 0, Mode::Auto),
@@ -388,10 +411,47 @@ mod tests {
         let w = windows(&stages, &matches, &[], now);
         assert_eq!(w[1].status, Status::Open);
         assert_eq!(w[2].status, Status::Locked);
+    }
 
-        let stages = [stage(1, 0, Mode::Open)];
-        let w = windows(&stages, &matches[..1], &[], now);
-        assert_eq!(w[0].status, Status::Locked);
+    #[test]
+    fn a_stage_opened_by_hand_stays_open_for_the_matches_still_to_start() {
+        let now = OffsetDateTime::now_utc();
+        let stages = [stage(1, 0, Mode::Auto), stage(2, 1, Mode::Open)];
+        let mut matches = vec![
+            game(1, Some(-30), true, now),
+            game(2, Some(-2), true, now),
+            game(2, Some(-1), false, now),
+            game(2, Some(3), false, now),
+            game(2, Some(6), false, now),
+        ];
+        let w = windows(&stages, &matches, &[], now);
+        assert_eq!(w[1].status, Status::Open);
+        assert_eq!(w[1].closes_at, matches[3].starts_at);
+        assert!(revealed(w[1].status, &matches[2], now));
+        assert!(!revealed(w[1].status, &matches[3], now));
+        assert!(!predictable(&matches[1], Some(9), now));
+        assert!(predictable(&matches[3], Some(9), now));
+
+        // Once every match has started it locks, and finishes once they're all played.
+        matches[3].has_room = true;
+        matches[4].has_room = true;
+        let w = windows(&stages, &matches, &[], now);
+        assert_eq!(w[1].status, Status::Locked);
+        for m in &mut matches[2..] {
+            m.concluded_at = Some(now);
+        }
+        let w = windows(&stages, &matches, &[], now);
+        assert_eq!(w[1].status, Status::Finished);
+
+        // Handed back to the rule, a stage under way locks.
+        let stages = [stage(1, 0, Mode::Auto), stage(2, 1, Mode::Auto)];
+        let matches = [
+            game(1, Some(-30), true, now),
+            game(2, Some(-1), false, now),
+            game(2, Some(3), false, now),
+        ];
+        let w = windows(&stages, &matches, &[], now);
+        assert_eq!(w[1].status, Status::Locked);
     }
 
     #[test]

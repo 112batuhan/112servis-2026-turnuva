@@ -498,9 +498,13 @@ async fn rename(state: &AppState, team_id: Uuid, raw_name: &str) -> Result<Statu
 }
 
 // Deletes a team. Its players lose the Player role and its matches' channels lose them.
+// Its potential matches go (their channels archived), and so do the ones it would have
+// decided.
 async fn disband(state: &AppState, team_id: Uuid, by_host: bool) -> Result<bool, AppError> {
     let mut tx = state.db.begin().await?;
+    db::potential::lock(&mut tx).await?;
     let players = db::discord::team_players(&mut *tx, team_id).await?;
+    let potentials = db::potential::remove_of_team(&mut tx, team_id).await?;
     let matches = db::discord::open_matches_of_team(&mut *tx, team_id).await?;
     if !db::team::delete_team(&mut *tx, team_id).await? {
         return Ok(false);
@@ -509,11 +513,13 @@ async fn disband(state: &AppState, team_id: Uuid, by_host: bool) -> Result<bool,
         .iter()
         .map(|p| Job::SyncUser { user_id: p.user_id })
         .collect();
+    jobs.extend(potentials);
     jobs.extend(
         matches
             .into_iter()
             .map(|match_id| Job::SyncMatch { match_id }),
     );
+    jobs.extend(db::potential::sync(&mut tx, &[]).await?);
     if let Some(first) = players.first() {
         jobs.push(Job::TeamDisbanded {
             name: first.team_name.clone(),

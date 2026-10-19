@@ -291,10 +291,12 @@ pub async fn open_matches_of(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Vec<U
         r#"
         SELECT m.id FROM matches m
         LEFT JOIN bracket_matches b ON b.match_id = m.id
-        WHERE m.concluded_at IS NULL AND (
-            m.referee_id = $1 OR b.streamer_id = $1
+        LEFT JOIN potential_matches p ON p.match_id = m.id
+        WHERE m.concluded_at IS NULL AND p.removed_at IS NULL AND (
+            m.referee_id = $1 OR b.streamer_id = $1 OR p.streamer_id = $1
             OR EXISTS (SELECT 1 FROM team_members tm
-                       WHERE tm.user_id = $1 AND tm.team_id IN (b.team1_id, b.team2_id))
+                       WHERE tm.user_id = $1
+                         AND tm.team_id IN (b.team1_id, b.team2_id, p.team1_id, p.team2_id))
             OR EXISTS (SELECT 1 FROM team_members tm
                        JOIN qualifier_entries e ON e.team_id = tm.team_id
                        WHERE tm.user_id = $1 AND e.match_id = m.id)
@@ -306,7 +308,7 @@ pub async fn open_matches_of(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Vec<U
     .await
 }
 
-// Every match a team plays or is signed up for that isn't concluded.
+// Every match a team plays (or may play) or is signed up for that isn't concluded.
 pub async fn open_matches_of_team(
     ex: impl PgExecutor<'_>,
     team_id: Uuid,
@@ -315,8 +317,9 @@ pub async fn open_matches_of_team(
         r#"
         SELECT m.id FROM matches m
         LEFT JOIN bracket_matches b ON b.match_id = m.id
-        WHERE m.concluded_at IS NULL
-          AND ($1 IN (b.team1_id, b.team2_id)
+        LEFT JOIN potential_matches p ON p.match_id = m.id
+        WHERE m.concluded_at IS NULL AND p.removed_at IS NULL
+          AND ($1 IN (b.team1_id, b.team2_id, p.team1_id, p.team2_id)
                OR EXISTS (SELECT 1 FROM qualifier_entries e
                           WHERE e.team_id = $1 AND e.match_id = m.id))
         "#,
@@ -338,9 +341,12 @@ pub const ARCHIVE_AFTER_SECS: f64 = 60.0 * 60.0;
 pub struct MatchInfo {
     pub id: Uuid,
     pub kind: MatchKind,
+    // A potential match's bracket match.
+    pub parent_id: Option<Uuid>,
     pub starts_at: Option<OffsetDateTime>,
     pub concluded_at: Option<OffsetDateTime>,
-    // Concluded at least ARCHIVE_AFTER_SECS ago: its channel belongs in the archive.
+    // Concluded at least ARCHIVE_AFTER_SECS ago, or a potential match set aside: its
+    // channel belongs in the archive.
     pub archived: bool,
     pub side: Option<Side>,
     pub number: Option<i32>,
@@ -374,16 +380,17 @@ pub struct MatchInfo {
 pub async fn match_info(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Option<MatchInfo>> {
     sqlx::query_as::<_, MatchInfo>(
         r#"
-        SELECT m.id, m.kind, m.starts_at, m.concluded_at,
-               COALESCE(m.concluded_at <= now() - make_interval(secs => $2), false) AS archived,
-               b.side, b.number,
+        SELECT m.id, m.kind, p.bracket_match_id AS parent_id, m.starts_at, m.concluded_at,
+               COALESCE(m.concluded_at <= now() - make_interval(secs => $2), false)
+                   OR p.removed_at IS NOT NULL AS archived,
+               COALESCE(b.side, pb.side) AS side, COALESCE(b.number, pb.number) AS number,
                m.lobby_index,
-               b.team1_id, b.team2_id, t1.name AS team1_name, t2.name AS team2_name,
+               t1.id AS team1_id, t2.id AS team2_id, t1.name AS team1_name, t2.name AS team2_name,
                b.team1_score, b.team2_score, b.forfeit_slot,
                tb1.updated_at AS team1_banner_at, tb2.updated_at AS team2_banner_at,
                m.referee_id, r.username AS referee_username,
                rd.discord_id AS referee_discord_id, rd.in_guild AS referee_in_guild,
-               b.streamer_id, s.username AS streamer_username,
+               s.id AS streamer_id, s.username AS streamer_username,
                sd.discord_id AS streamer_discord_id, sd.in_guild AS streamer_in_guild,
                st.id AS stage_id, st.name AS stage_name, st.best_of AS stage_best_of,
                ARRAY(SELECT mr.mp_id FROM match_rooms mr WHERE mr.match_id = m.id
@@ -391,16 +398,19 @@ pub async fn match_info(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Optio
                (SELECT count(*) FROM qualifier_entries e WHERE e.match_id = m.id) AS entries
         FROM matches m
         LEFT JOIN bracket_matches b ON b.match_id = m.id
-        LEFT JOIN teams t1 ON t1.id = b.team1_id
-        LEFT JOIN teams t2 ON t2.id = b.team2_id
-        LEFT JOIN team_banners tb1 ON tb1.team_id = b.team1_id
-        LEFT JOIN team_banners tb2 ON tb2.team_id = b.team2_id
+        LEFT JOIN potential_matches p ON p.match_id = m.id
+        LEFT JOIN bracket_matches pb ON pb.match_id = p.bracket_match_id
+        LEFT JOIN teams t1 ON t1.id = COALESCE(b.team1_id, p.team1_id)
+        LEFT JOIN teams t2 ON t2.id = COALESCE(b.team2_id, p.team2_id)
+        LEFT JOIN team_banners tb1 ON tb1.team_id = t1.id
+        LEFT JOIN team_banners tb2 ON tb2.team_id = t2.id
         LEFT JOIN osu_users r ON r.id = m.referee_id
         LEFT JOIN discord_accounts rd ON rd.osu_user_id = r.id
-        LEFT JOIN osu_users s ON s.id = b.streamer_id
+        LEFT JOIN osu_users s ON s.id = COALESCE(b.streamer_id, p.streamer_id)
         LEFT JOIN discord_accounts sd ON sd.osu_user_id = s.id
         LEFT JOIN stages st ON st.id = CASE
             WHEN m.kind = 'qualifier' THEN (SELECT x.id FROM stages x WHERE x.is_qualifier)
+            WHEN m.kind = 'potential' THEN pb.stage_id
             ELSE b.stage_id
         END
         WHERE m.id = $1
@@ -412,7 +422,8 @@ pub async fn match_info(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Optio
     .await
 }
 
-// A player of a match: a bracket match's two teams or a lobby's signed-up ones.
+// A player of a match: a bracket (or potential) match's two teams or a lobby's
+// signed-up ones.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct MatchPlayer {
     pub team_id: Uuid,
@@ -438,6 +449,10 @@ pub async fn match_players(
             SELECT b.team1_id AS team_id, 1 AS n, now() AS joined FROM bracket_matches b WHERE b.match_id = $1
             UNION ALL
             SELECT b.team2_id, 2, now() FROM bracket_matches b WHERE b.match_id = $1
+            UNION ALL
+            SELECT p.team1_id, 1, now() FROM potential_matches p WHERE p.match_id = $1
+            UNION ALL
+            SELECT p.team2_id, 2, now() FROM potential_matches p WHERE p.match_id = $1
             UNION ALL
             SELECT e.team_id, 3, e.joined_at FROM qualifier_entries e WHERE e.match_id = $1
         ) AS mt
@@ -545,6 +560,9 @@ pub async fn syncable_matches(pool: &PgPool) -> sqlx::Result<Vec<Uuid>> {
                AND b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL AND m.starts_at IS NOT NULL)
            OR (m.concluded_at IS NULL AND m.kind = 'qualifier'
                AND EXISTS (SELECT 1 FROM qualifier_entries e WHERE e.match_id = m.id))
+           OR (m.concluded_at IS NULL AND m.kind = 'potential'
+               AND EXISTS (SELECT 1 FROM potential_matches p
+                           WHERE p.match_id = m.id AND p.removed_at IS NULL))
         ORDER BY m.starts_at NULLS LAST
         "#,
     )
@@ -569,7 +587,9 @@ pub async fn take_due_reminders(
           AND md.reminded_for IS DISTINCT FROM m.starts_at
           AND CASE m.kind
                   WHEN 'bracket' THEN b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL
-                  ELSE EXISTS (SELECT 1 FROM qualifier_entries e WHERE e.match_id = m.id)
+                  WHEN 'qualifier' THEN EXISTS (SELECT 1 FROM qualifier_entries e
+                                                WHERE e.match_id = m.id)
+                  ELSE false
               END
         ON CONFLICT (match_id) DO UPDATE SET reminded_for = EXCLUDED.reminded_for
         RETURNING match_id
@@ -828,8 +848,8 @@ pub async fn team_of_discord(pool: &PgPool, discord_id: &str) -> sqlx::Result<Op
     .await
 }
 
-// Unconcluded matches still to come, soonest first: bracket matches with both teams
-// and lobbies, or only the team's when one is given.
+// Unconcluded matches still to come, soonest first: bracket matches with both teams,
+// potential matches and lobbies, or only the team's when one is given.
 pub async fn upcoming_matches(
     pool: &PgPool,
     team_id: Option<Uuid>,
@@ -839,10 +859,13 @@ pub async fn upcoming_matches(
         r#"
         SELECT m.id FROM matches m
         LEFT JOIN bracket_matches b ON b.match_id = m.id
+        LEFT JOIN potential_matches p ON p.match_id = m.id
         WHERE m.concluded_at IS NULL AND m.starts_at > now() - interval '3 hours'
           AND CASE m.kind
                   WHEN 'bracket' THEN b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL
                        AND ($1::uuid IS NULL OR $1 IN (b.team1_id, b.team2_id))
+                  WHEN 'potential' THEN p.removed_at IS NULL
+                       AND ($1::uuid IS NULL OR $1 IN (p.team1_id, p.team2_id))
                   ELSE $1::uuid IS NULL OR EXISTS (
                        SELECT 1 FROM qualifier_entries e WHERE e.match_id = m.id AND e.team_id = $1)
               END

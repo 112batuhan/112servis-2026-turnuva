@@ -1,7 +1,8 @@
 -- Removes every dummy account (negative osu_id) and anything hanging off it.
 -- Teams are deleted whole, so a real account teamed with a dummy is freed too, and
 -- so are matches a dummy refereed, streamed or played in. Seeded map pools go too, and
--- seeded stages once they're empty. A deleted match's room chat goes with it.
+-- seeded stages once they're empty. A deleted match's room chat goes with it, and its
+-- potential matches with it (or with their teams).
 WITH gone AS (
     DELETE FROM matches m
     WHERE EXISTS (SELECT 1 FROM osu_users u WHERE u.id = m.referee_id AND u.osu_id < 0)
@@ -51,10 +52,11 @@ DELETE FROM osu_users WHERE osu_id < 0;
 -- seed.sql opens the Semifinals' pick'em by hand; hand it back to the rule.
 UPDATE stages SET pickem_mode = 'auto'
 WHERE name IN ('Qualifiers', 'Round of 32', 'Round of 16', 'Quarterfinals', 'Semifinals',
-               'Winners Final', 'Losers Final', 'Grand Final');
+               'Finals', 'Grand Final');
 -- The stages seed.sql adds, while they're still empty: one with categories is
--- someone's work, so it stays. Keep the names in step with seed.sql.
+-- someone's work, so it stays. Keep the names in step with seed.sql (Winners Final and
+-- Losers Final are from earlier seeds).
 DELETE FROM stages s
 WHERE s.name IN ('Qualifiers', 'Round of 32', 'Round of 16', 'Quarterfinals', 'Semifinals',
-                 'Winners Final', 'Losers Final', 'Grand Final')
+                 'Finals', 'Winners Final', 'Losers Final', 'Grand Final')
   AND NOT EXISTS (SELECT 1 FROM stage_categories c WHERE c.stage_id = s.id);
