@@ -342,6 +342,22 @@
   white-space: nowrap;
 }
 
+.pickem-stage-mine-detail {
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+  text-align: right;
+}
+
+/* One clause per line under the figure, so the column stays narrow beside the title. */
+.pickem-stage-mine-detail > span {
+  display: block;
+}
+
+/* Each clause stays whole, so the line only ever breaks at the comma. */
+.pickem-standing-meta > span {
+  white-space: nowrap;
+}
+
 /* How points are earned, said once as figures and words. */
 .pickem-legend {
   grid-area: legend;

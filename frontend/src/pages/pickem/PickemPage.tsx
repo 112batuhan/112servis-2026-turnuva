@@ -379,8 +379,9 @@ function StageSummary({
   return (
     <p className="pickem-stage-mine">
       <span className="pickem-stage-mine-figure">{tally.points}</span>
-      <span className="pickem-stage-mine-label">
-        puan · {tally.exact} tam, {tally.winners} kazanan
+      <span className="pickem-stage-mine-label">puan</span>
+      <span className="pickem-stage-mine-detail">
+        <span>{tally.exact} maçta skoru,</span> <span>{tally.winners} maçta kazananı tutturdun</span>
       </span>
     </p>
   );

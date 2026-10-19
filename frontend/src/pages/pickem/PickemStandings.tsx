@@ -131,7 +131,7 @@ function StandingRow({ row, own, tied }: { row: Row; own: boolean; tied: boolean
         </a>
         {own && <span className="pickem-standing-you">sen</span>}
         <span className="pickem-standing-meta">
-          {row.exact} tam · {row.winners} kazanan
+          <span>{row.exact} maçta skoru,</span> <span>{row.winners} maçta kazananı tutturdu</span>
         </span>
       </span>
       <span className="pickem-standing-points" aria-label={`${row.points} puan`}>
