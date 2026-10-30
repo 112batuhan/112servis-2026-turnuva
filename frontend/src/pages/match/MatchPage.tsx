@@ -11,8 +11,8 @@ import { bracketMatchPath } from "../../lib/bracket";
 import { formatMatchTime } from "../../lib/format";
 import { MapClock } from "../admin/referee/LobbyPanel";
 import { ScoreSheet } from "../admin/referee/MatchHistory";
-import { BAN_LIMIT, poolEntries } from "../admin/referee/pool";
-import { draftPhase, PoolView } from "../admin/referee/PoolPanel";
+import { poolEntries } from "../admin/referee/pool";
+import { draftPhase, PoolView, TurnStatus } from "../admin/referee/PoolPanel";
 import { CockpitTabs, panelProps, TABS, useCockpit } from "../admin/referee/RefereeRoomPage";
 import { PlayersView } from "../admin/referee/RoomPlayers";
 import { staffRole, useRoomStaff } from "../admin/referee/roomStaff";
@@ -156,7 +156,8 @@ function MatchView({ matchId }: { matchId: string }) {
                 room={match}
                 currentEntry={match.concluded_at ? undefined : page.currentEntry}
                 played={page.played}
-                phase={page.live && page.teams.length === 2 ? draftPhase(match.bans.length < BAN_LIMIT, page.race) : null}
+                draft={page.draft}
+                phase={page.live && page.teams.length === 2 ? draftPhase(page.turn, page.race) : null}
               />
             )}
             {id === "room" && <MatchColumn page={page} />}
@@ -323,22 +324,15 @@ function SheetStatus({ page }: { page: MatchPageState }) {
   return <>Henüz başlamadı</>;
 }
 
-/** The phone's pool tab: the bans so far, then whose pick it is by the rules. */
+/** The phone's pool tab: the next ban or pick by the stage's order, its team in their colour. */
 function PoolStatus({ page }: { page: MatchPageState }) {
-  const { match, teams, nextPick, live, race } = page;
+  const { match, teams, turn, live, race } = page;
   if (!match) return null;
   const maps = poolEntries(match).length;
   if (!live || teams.length !== 2 || maps === 0 || race?.kind === "won") return <span className="num">{maps} map</span>;
   if (race?.kind === "tiebreaker") return <span>Tiebreaker</span>;
-  if (match.bans.length < BAN_LIMIT) {
-    return (
-      <span>
-        Ban <span className="num">{match.bans.length}/{BAN_LIMIT}</span>
-      </span>
-    );
-  }
-  if (!nextPick) return <span>Pick sırası</span>;
-  return <span className={`referee-tab-team is-team-${nextPick.color}`}>{nextPick.name}</span>;
+  if (!turn) return <span className="num">{maps} map</span>;
+  return <TurnStatus turn={turn} />;
 }
 
 /** The phone's match tab: the score in the sides' colours, lit while a map plays. */

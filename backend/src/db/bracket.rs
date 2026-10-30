@@ -403,13 +403,15 @@ pub async fn can_stream(pool: &PgPool, user_id: Uuid) -> sqlx::Result<bool> {
 pub struct BanRow {
     pub map_id: Uuid,
     pub team_id: Uuid,
+    #[serde(with = "time::serde::rfc3339")]
+    pub created_at: OffsetDateTime,
 }
 
 // A match's bans, in the order they were made.
 pub async fn list_bans(pool: &PgPool, match_id: Uuid) -> sqlx::Result<Vec<BanRow>> {
     sqlx::query_as::<_, BanRow>(
         r#"
-        SELECT pool_map_id AS map_id, team_id
+        SELECT pool_map_id AS map_id, team_id, created_at
         FROM match_bans
         WHERE match_id = $1
         ORDER BY created_at, pool_map_id
@@ -479,13 +481,15 @@ pub async fn delete_ban(pool: &PgPool, match_id: Uuid, map_id: Uuid) -> sqlx::Re
 pub struct PickRow {
     pub map_id: Uuid,
     pub team_id: Uuid,
+    #[serde(with = "time::serde::rfc3339")]
+    pub created_at: OffsetDateTime,
 }
 
 // A match's picks, in the order they were made.
 pub async fn list_picks(pool: &PgPool, match_id: Uuid) -> sqlx::Result<Vec<PickRow>> {
     sqlx::query_as::<_, PickRow>(
         r#"
-        SELECT pool_map_id AS map_id, team_id
+        SELECT pool_map_id AS map_id, team_id, created_at
         FROM match_picks
         WHERE match_id = $1
         ORDER BY created_at, pool_map_id

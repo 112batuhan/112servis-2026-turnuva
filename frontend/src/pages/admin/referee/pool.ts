@@ -1,5 +1,6 @@
 import type { PublicMatch, PublicPoolMap, RefereeRoom } from "../../../api/types";
 import { isFreemodCategory, SIDE_COLOR, type SlotTeam } from "../../../lib/bancho";
+import { draftOf, stageDraftOrder, stepLabel, type Draft, type StepKind } from "../../../lib/draftOrder";
 
 // The match's pool as the referee page shows it, shared by the pool panel and the
 // results, and by the public match page, which shows the same match.
@@ -26,9 +27,6 @@ export type MatchData = Pick<
   | "stage"
 > & { teams: { id: string; name: string }[] };
 
-/** How many bans a bracket match has; the ban buttons give way to the pick buttons after them. */
-export const BAN_LIMIT = 2;
-
 export interface PoolEntry {
   /** "NM1", "HD2", "TB". */
   label: string;
@@ -44,6 +42,12 @@ export interface MatchTeam {
   id: string;
   name: string;
   color: SlotTeam;
+}
+
+/** The next ban or pick and the team it falls to (null until the first mark says who 1 is). */
+export interface DraftTurn {
+  kind: StepKind;
+  team: MatchTeam | null;
 }
 
 /** The pool in category and slot order. A category with one slot is just its name. */
@@ -78,10 +82,29 @@ export function matchTeams(room: Pick<MatchData, "kind" | "teams" | "team1_id" |
 }
 
 /**
- * The line the room's bot sends for "Skoru odaya yaz": "Skor: Team A 2 - 1 Team B | Sıradaki pick: Team B". The
- * server builds the one it sends the same way (bancho::tally::score_message); this is its preview.
+ * A bracket match's draft by its stage's order, once both teams are known. `chosen` is the team
+ * the referee said goes next; `open` while there's a ban or pick to make (not at the tiebreaker,
+ * nor once a team has won or the match is over).
  */
-export function scoreMessage(teams: MatchTeam[], score: [number, number], next: MatchTeam | null): string {
+export function matchDraft(room: MatchData, chosen: string | null, open: boolean): Draft | null {
+  const teams = matchTeams(room);
+  if (teams.length !== 2) return null;
+  const order = stageDraftOrder(room.stage?.draft_order);
+  return draftOf(order, room.bans, room.picks, [teams[0].id, teams[1].id], chosen, open);
+}
+
+/** The draft's next ban or pick with its team, for the pages that name it. */
+export function draftTurn(draft: Draft | null, teams: MatchTeam[]): DraftTurn | null {
+  const next = draft?.next;
+  return next ? { kind: next.kind, team: teams.find((t) => t.id === next.teamId) ?? null } : null;
+}
+
+/**
+ * The line the room's bot sends for "Skoru odaya yaz": "Skor: Team A 2 - 1 Team B | Sıradaki pick: Team B"
+ * (or "Sıradaki ban"). The server builds the one it sends the same way (bancho::tally::score_message);
+ * this is its preview.
+ */
+export function scoreMessage(teams: MatchTeam[], score: [number, number], next: DraftTurn | null): string {
   const line = `Skor: ${teams[0].name} ${score[0]} - ${score[1]} ${teams[1].name}`;
-  return next ? `${line} | Sıradaki pick: ${next.name}` : line;
+  return next?.team ? `${line} | Sıradaki ${stepLabel(next.kind).toLowerCase()}: ${next.team.name}` : line;
 }

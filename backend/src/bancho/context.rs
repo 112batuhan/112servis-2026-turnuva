@@ -19,6 +19,7 @@ use crate::{
         matches::MatchKind,
         referee::RoomSettings,
     },
+    draft::DraftOrder,
     handlers::matches::lobby_name,
 };
 
@@ -42,6 +43,8 @@ pub struct MatchContext {
     pub sides: Option<[MatchTeam; 2]>,
     pub roster: Vec<RosterPlayer>,
     pub best_of: Option<i32>,
+    // The stage's pick and ban order (the default when it has none).
+    pub draft_order: DraftOrder,
     pub entries: Vec<PoolEntry>,
     pub bans: Vec<BanRow>,
     pub picks: Vec<PickRow>,
@@ -169,6 +172,7 @@ pub async fn load(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchContext>>
         sides,
         roster,
         best_of: row.stage_best_of,
+        draft_order: DraftOrder::of_stage(row.stage_draft_order.as_deref()),
         entries,
         bans,
         picks,

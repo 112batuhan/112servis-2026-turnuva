@@ -20,8 +20,8 @@ import { formatMatchTime } from "../../../lib/format";
 import { ChatPanel } from "./ChatPanel";
 import { IrcLogin } from "./IrcLogin";
 import { LobbyPanel } from "./LobbyPanel";
-import { BAN_LIMIT, poolEntries } from "./pool";
-import { PoolPanel } from "./PoolPanel";
+import { poolEntries } from "./pool";
+import { PoolPanel, TurnStatus } from "./PoolPanel";
 import { roomLabel } from "./liveRoom";
 import { botBlocker, useRefereeRoom, type RefereeRoomState } from "./useRefereeRoom";
 import "./RefereeRoomPage.css";
@@ -248,24 +248,17 @@ export function CockpitTabs({ tabsRef, label: listLabel, active, onSelect, statu
   );
 }
 
-/** The draft's phase: bans so far, then whose pick is next in their team's colour. */
+/** The draft's phase: the next ban or pick by the stage's order, its team in their colour. */
 function PoolStatus({ referee }: { referee: RefereeRoomState }) {
-  const { room, teams, nextPick, race } = referee;
+  const { room, teams, turn, race } = referee;
   if (!room) return null;
   const maps = poolEntries(room).length;
   if (room.kind !== "bracket" || teams.length !== 2 || maps === 0 || room.concluded_at || race?.kind === "won") {
     return <span className="num">{maps} map</span>;
   }
   if (race?.kind === "tiebreaker") return <span>Tiebreaker</span>;
-  if (room.bans.length < BAN_LIMIT) {
-    return (
-      <span>
-        Ban <span className="num">{room.bans.length}/{BAN_LIMIT}</span>
-      </span>
-    );
-  }
-  if (!nextPick) return <span>Pick sırası</span>;
-  return <span className={`referee-tab-team is-team-${nextPick.color}`}>{nextPick.name}</span>;
+  if (!turn) return <span className="num">{maps} map</span>;
+  return <TurnStatus turn={turn} />;
 }
 
 /** The running score in the sides' colours (a qualifier: who's in the room), lit while a map plays. */

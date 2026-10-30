@@ -229,6 +229,17 @@ FROM (VALUES ('Round of 32', 9), ('Round of 16', 9), ('Quarterfinals', 9), ('Sem
              ('Finals', 11), ('Grand Final', 13)) AS v (name, best_of)
 WHERE s.name = v.name AND s.best_of IS NULL AND NOT s.is_qualifier;
 
+-- Their pick and ban order: each team picks a map before the bans, one ban each up to
+-- the quarterfinals and two from the semifinals, then picks in turn. A reused stage
+-- keeps an order a host gave it.
+UPDATE stages s
+SET draft_order = v.draft_order
+FROM (VALUES ('Round of 32', 'p1-p2-b2-b1-p1-*'), ('Round of 16', 'p1-p2-b2-b1-p1-*'),
+             ('Quarterfinals', 'p1-p2-b2-b1-p1-*'), ('Semifinals', 'p1-p2-b2-b1-b2-b1-p1-*'),
+             ('Finals', 'p1-p2-b2-b1-b2-b1-p1-*'), ('Grand Final', 'p1-p2-b2-b1-b2-b1-p1-*'))
+    AS v (name, draft_order)
+WHERE s.name = v.name AND s.draft_order IS NULL AND NOT s.is_qualifier;
+
 -- Map pools for the seeded stages, from real ranked maps: for each stage and mod, the
 -- most played map whose star rating fits that stage's band (rising from 5.0* in the
 -- qualifiers to 5.9* in the grand final, with HR, DT and TB picked lower or higher to
@@ -762,13 +773,14 @@ FROM w1, lines l
 WHERE w1.rooms[l.room] IS NOT NULL
 ORDER BY l.at;
 
--- W1's bans, from maps it didn't play: blue (team 1) took out NM4 and red DT3.
+-- W1's bans, from maps it didn't play, made after the first two picks as its stage's
+-- order (p1-p2-b2-b1-p1-*) has them: red (team 2) took out DT3, then blue NM4.
 INSERT INTO match_bans (match_id, pool_map_id, team_id, created_at)
 SELECT b.match_id, pm.id, CASE WHEN v.team1 THEN b.team1_id ELSE b.team2_id END, m.starts_at + v.at
 FROM bracket_matches b
 JOIN matches m ON m.id = b.match_id
-CROSS JOIN (VALUES (true, 'NM', 3, interval '1 minute'),
-                   (false, 'DT', 2, interval '90 seconds')) AS v (team1, category, slot, at)
+CROSS JOIN (VALUES (false, 'DT', 2, interval '19 minutes 20 seconds'),
+                   (true, 'NM', 3, interval '19 minutes 40 seconds')) AS v (team1, category, slot, at)
 JOIN stage_categories c ON c.stage_id = b.stage_id AND c.name = v.category
 JOIN category_slots s ON s.category_id = c.id AND s.position = v.slot
 JOIN pool_maps pm ON pm.slot_id = s.id
@@ -776,7 +788,7 @@ WHERE b.side = 'winners' AND b.number = 1
   AND b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL;
 
 -- W1's picks: the maps its chat plays, in the same order, the teams taking turns
--- from blue (team 1).
+-- from blue (team 1, which picked first and so is 1 in the order).
 INSERT INTO match_picks (match_id, pool_map_id, team_id, created_at)
 SELECT b.match_id, pm.id, CASE WHEN v.k % 2 = 1 THEN b.team1_id ELSE b.team2_id END,
        m.starts_at + interval '2 minutes' + v.k * interval '6 minutes'
@@ -791,11 +803,11 @@ WHERE b.side = 'winners' AND b.number = 1
   AND b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL;
 
 -- Two matches being played right now, each the first live one of its side. The winners
--- one is mid-match: blue (team 1) took NM1, red HD1, and FM1 is being played, with
--- everyone's mods read from !mp settings as it started. The losers one is at the
--- tiebreaker: its eight picks (W1's order) went to the teams in turn, 4-4 under its
--- stage's Bo9, and the room still has the last of them on, so the referee page's room
--- automation would put TB on next. Their scores and finished maps are saved as the
+-- one is mid-match: blue (team 1) took NM1, red HD1, the two banned, and FM1 (blue's
+-- pick) is being played, with everyone's mods read from !mp settings as it started.
+-- The losers one is at the tiebreaker: its eight picks (W1's order) went to the teams
+-- in turn, 4-4 under its stage's Bo9, and the room still has the last of them on, so
+-- the referee page's room automation would put TB on next. Their scores and finished maps are saved as the
 -- referee page saves them, so the pages show them live on the site.
 WITH live AS (
     SELECT DISTINCT ON (b.side)
@@ -939,18 +951,18 @@ score AS (
     ) AS w
     WHERE b.match_id = w.match_id
 ),
--- The tiebreaker match's draft: blue (team 1) banned NM4 and red DT3, then the teams
--- picked the eight maps in turn from blue.
+-- Both matches' drafts, as the Quarterfinals' order (p1-p2-b2-b1-p1-*) has them: the
+-- teams picked their maps in turn from blue (team 1), each a minute before it was
+-- played, and after the second map red (team 2) banned DT3 and then blue NM4.
 bans AS (
     INSERT INTO match_bans (match_id, pool_map_id, team_id, created_at)
     SELECT live.id, pm.id, CASE WHEN v.team1 THEN live.team1_id ELSE live.team2_id END, live.t0 + v.at
     FROM live
-    CROSS JOIN (VALUES (true, 'NM', 3, interval '1 minute'),
-                       (false, 'DT', 2, interval '90 seconds')) AS v (team1, category, slot, at)
+    CROSS JOIN (VALUES (false, 'DT', 2, interval '13 minutes 20 seconds'),
+                       (true, 'NM', 3, interval '13 minutes 40 seconds')) AS v (team1, category, slot, at)
     JOIN stage_categories c ON c.stage_id = live.stage_id AND c.name = v.category
     JOIN category_slots s ON s.category_id = c.id AND s.position = v.slot
     JOIN pool_maps pm ON pm.slot_id = s.id
-    WHERE live.side = 'losers'
 ),
 picks AS (
     INSERT INTO match_picks (match_id, pool_map_id, team_id, created_at)
@@ -958,7 +970,7 @@ picks AS (
            live.t0 + m.at - interval '1 minute'
     FROM live
     JOIN maps m ON m.match_id = live.id
-    WHERE live.side = 'losers' AND m.map_id IS NOT NULL
+    WHERE m.map_id IS NOT NULL
 ),
 results AS (
     INSERT INTO match_map_results (match_id, position, pool_map_id, team1_score, team2_score)

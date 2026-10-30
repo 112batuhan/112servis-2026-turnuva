@@ -10,11 +10,11 @@ use super::{
     context::MatchContext,
     room::{MapScore, RoomState},
     tally::{
-        entry_of, pick_turn, race_of, room_results, row_of, tally, Finished, Race, TallyInput,
+        entry_of, race_of, room_results, row_of, tally, turn_of, Finished, Race, TallyInput,
         TeamTotal,
     },
 };
-use crate::osu_api::matches::MatchGame;
+use crate::{draft::Turn, osu_api::matches::MatchGame};
 
 // Where a room's bot stands with it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -83,8 +83,11 @@ pub struct LiveRoom {
     pub tally: Option<TallyView>,
     // Whether the site has that score and the maps behind it.
     pub score_saved: bool,
-    // Bracket matches: whose pick is next, while there's a pick to make.
-    pub next_pick_team_id: Option<Uuid>,
+    // Bracket matches: the next ban or pick by the stage's order, while there's one to
+    // make. The pages read it from the bans and picks themselves (lib/draftOrder.ts);
+    // the bot says it with the score.
+    #[serde(skip)]
+    pub next_turn: Option<Turn>,
     // Whether the results come from osu!'s record of the rooms up to its last map.
     pub osu_synced: bool,
 }
@@ -158,12 +161,13 @@ pub fn build(
         ),
         _ => true,
     };
-    let next_pick_team_id = ctx
+    let next_turn = ctx
         .sides
         .as_ref()
-        .filter(|_| drafting && ctx.bans.len() >= super::tally::BAN_LIMIT && !ctx.concluded())
+        .filter(|_| drafting && !ctx.concluded())
         .and_then(|[a, b]| {
-            pick_turn(
+            turn_of(
+                &ctx.draft_order,
                 &ctx.bans,
                 &ctx.picks,
                 [a.id, b.id],
@@ -212,7 +216,7 @@ pub fn build(
             team2: t.team2,
         }),
         score_saved,
-        next_pick_team_id,
+        next_turn,
         osu_synced: games.is_some(),
     }
 }

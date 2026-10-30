@@ -1,25 +1,25 @@
 import { Icon } from "../../../components/Icon";
+import { stepLabel } from "../../../lib/draftOrder";
 import { scoreMessage } from "./pool";
 import { botBlocker, type RefereeRoomState } from "./useRefereeRoom";
 import "./MatchScore.css";
 
 /**
- * Tells the room the running score and whose pick is next, in the match column's console. The
- * pick follows the rules (the bots read it from the bans and picks) until the referee chooses the
+ * Tells the room the running score and whose ban or pick is next, in the match column's console.
+ * The turn follows the stage's order (read from the bans and picks) until the referee chooses the
  * other team.
  */
 export function AnnounceScore({ referee }: { referee: RefereeRoomState }) {
-  const { room, teams, tally, nextPick, botReady, canRun, actions, race } = referee;
+  const { room, teams, tally, turn, botReady, canRun, actions } = referee;
   if (!room || !tally || teams.length !== 2) return null;
-  const message = scoreMessage(teams, [tally.team1, tally.team2], nextPick);
-  // Nobody picks the tiebreaker, nor after a team has won.
-  const drafting = race?.kind !== "tiebreaker" && race?.kind !== "won";
+  const message = scoreMessage(teams, [tally.team1, tally.team2], turn);
   return (
     <div className="announce" role="group" aria-label="Skoru odaya yaz">
-      {drafting && (
+      {/* Nobody bans or picks at the tiebreaker, after a team has won, or once the order has run out. */}
+      {turn && (
         <>
           <span className="announce-label" id="announce-next">
-            Sıradaki pick
+            Sıradaki {stepLabel(turn.kind).toLowerCase()}
           </span>
           <span className="announce-teams" role="group" aria-labelledby="announce-next">
             {teams.map((team) => (
@@ -27,7 +27,7 @@ export function AnnounceScore({ referee }: { referee: RefereeRoomState }) {
                 key={team.id}
                 type="button"
                 className={`announce-team is-team-${team.color}`}
-                aria-pressed={nextPick?.id === team.id}
+                aria-pressed={turn.team?.id === team.id}
                 disabled={!canRun || room.concluded_at !== null}
                 onClick={() => actions.setNextPick(team.id)}
               >

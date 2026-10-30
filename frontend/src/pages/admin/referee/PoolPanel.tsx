@@ -2,25 +2,30 @@ import type { ReactNode } from "react";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { stageLabel, type Race } from "../../../lib/bestOf";
+import { stepLabel, type Draft, type DraftStep } from "../../../lib/draftOrder";
 import { formatLength } from "../../../lib/format";
-import { BAN_LIMIT, matchTeams, poolEntries, type MatchData, type MatchTeam, type PoolEntry } from "./pool";
+import { matchTeams, poolEntries, type DraftTurn, type MatchData, type MatchTeam, type PoolEntry } from "./pool";
 import { botBlocker, type RefereeRoomState } from "./useRefereeRoom";
 import "./PoolPanel.css";
 
 /**
  * The match's map pool. Clicking a map has the room's bot set it and its mods in the room. In a
- * bracket match the referee also marks bans (until there are BAN_LIMIT of them) and then which team
- * picked which map; a pick sets the map too. Banned maps can't be picked.
+ * bracket match the referee also marks the bans and picks as the stage's order has them: each map
+ * offers the next step's buttons (ban or pick) for both teams, the one whose turn it is first; a
+ * pick sets the map too. Banned maps can't be picked.
  */
 export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
-  const { room, currentEntry, finished, botReady, canRun, busy, actions, race } = referee;
+  const { room, currentEntry, finished, botReady, canRun, busy, actions, race, draft, turn } = referee;
   if (!room) return null;
   // The server tells apart a beatmap that's in the pool twice by the mods it was played with.
   const played = new Set<string | undefined>(finished.map((f) => f.mapId ?? undefined));
   const blocker = botBlocker(referee);
   const teams = matchTeams(room);
   const canMark = teams.length === 2 && canRun && room.concluded_at === null;
-  const banning = room.bans.length < BAN_LIMIT;
+  // Once the order has run out (or at the tiebreaker) only picks are left to record.
+  const banning = turn?.kind === "ban";
+  // The team whose turn it is leads; the other's button stays, quieter, for a roll the order didn't foresee.
+  const offTurn = (team: MatchTeam) => (turn?.team && turn.team.id !== team.id ? " is-off-turn" : "");
 
   // A ban or pick to take back, or the buttons for whichever phase the match is in.
   function markActions(entry: PoolEntry, banned: MatchTeam | undefined, picked: MatchTeam | undefined) {
@@ -36,7 +41,7 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
         <IconButton
           key={team.id}
           icon="ban"
-          className={`pool-mark-button is-team-${team.color}`}
+          className={`pool-mark-button is-team-${team.color}${offTurn(team)}`}
           label={`${label}: ${team.name} yasakladı`}
           disabled={busy || played.has(map.id)}
           onClick={() => actions.ban(map.id, team.id)}
@@ -49,7 +54,7 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
       <IconButton
         key={team.id}
         icon="target"
-        className={`pool-mark-button is-team-${team.color}`}
+        className={`pool-mark-button is-team-${team.color}${offTurn(team)}`}
         label={`${label}: ${team.name} seçti`}
         disabled={busy}
         onClick={() => actions.pick(map, team.id)}
@@ -62,7 +67,8 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
       room={room}
       currentEntry={currentEntry}
       played={played}
-      phase={canMark ? draftPhase(banning, race) : null}
+      draft={draft}
+      phase={canMark ? draftPhase(turn, race) : null}
       pick={{
         disabled: (_entry, banned) => !botReady || banned !== undefined,
         title: (entry, banned) =>
@@ -78,11 +84,28 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
   );
 }
 
-/** Where the draft stands: bans, picks, then the tiebreaker; nothing once a team has won. */
-export function draftPhase(banning: boolean, race: Race | null): string | null {
+/** Where the draft stands: a ban or a pick to make, then the tiebreaker; nothing once a team has won. */
+export function draftPhase(turn: DraftTurn | null, race: Race | null): string | null {
   if (race?.kind === "won") return null;
   if (race?.kind === "tiebreaker") return "Tiebreaker";
-  return banning ? "Ban sırası" : "Pick sırası";
+  return turn ? `${stepLabel(turn.kind)} sırası` : null;
+}
+
+/** The next ban or pick in a phone tab's status: the step, and the team in its colour once known. */
+export function TurnStatus({ turn }: { turn: DraftTurn }) {
+  return (
+    <span>
+      {stepLabel(turn.kind)}
+      {turn.team ? (
+        <>
+          {" · "}
+          <span className={`referee-tab-team is-team-${turn.team.color}`}>{turn.team.name}</span>
+        </>
+      ) : (
+        " sırası"
+      )}
+    </span>
+  );
 }
 
 interface PoolViewProps {
@@ -91,6 +114,8 @@ interface PoolViewProps {
   currentEntry: PoolEntry | undefined;
   /** The pool maps (PublicPoolMap.id) played so far. */
   played: Set<string | undefined>;
+  /** The bans and picks against the stage's order (a bracket match with both teams). */
+  draft?: Draft | null;
   /** Where the draft stands, beside the title. */
   phase?: string | null;
   /**
@@ -111,7 +136,7 @@ interface PoolViewProps {
  * map with what happened to it (banned, picked, on in the room, played). Shared by the referee
  * page and the public match page.
  */
-export function PoolView({ room, currentEntry, played, phase, pick, renderActions }: PoolViewProps) {
+export function PoolView({ room, currentEntry, played, draft, phase, pick, renderActions }: PoolViewProps) {
   const entries = poolEntries(room);
   const teams = matchTeams(room);
   const teamOf = (id: string) => teams.find((t) => t.id === id);
@@ -135,34 +160,8 @@ export function PoolView({ room, currentEntry, played, phase, pick, renderAction
         </p>
       )}
 
-      {teams.length === 2 && entries.length > 0 && (
-        <dl className="pool-draft" aria-label="Yasaklar ve seçimler">
-          {[
-            { kind: "Yasak", marks: room.bans, limit: `${room.bans.length}/${BAN_LIMIT}` },
-            { kind: "Seçim", marks: room.picks, limit: String(room.picks.length) },
-          ].map(({ kind, marks, limit }) => (
-            <div key={kind} className="pool-draft-row">
-              <dt>
-                {kind} <span className="pool-draft-count">{limit}</span>
-              </dt>
-              <dd>
-                {marks.length === 0 && <span className="pool-draft-none">Henüz yok</span>}
-                {marks.map((m) => {
-                  const team = teamOf(m.team_id);
-                  return (
-                    <span
-                      key={m.map_id}
-                      className={`pool-draft-chip is-team-${team?.color ?? "none"}${kind === "Yasak" ? " is-ban" : ""}`}
-                      title={`${team?.name ?? "?"} ${kind === "Yasak" ? "yasakladı" : "seçti"}`}
-                    >
-                      {labelOf.get(m.map_id) ?? "?"}
-                    </span>
-                  );
-                })}
-              </dd>
-            </div>
-          ))}
-        </dl>
+      {draft && draft.steps.length > 0 && entries.length > 0 && (
+        <DraftStrip draft={draft} teamOf={teamOf} labelOf={labelOf} />
       )}
 
       <ul className="pool-panel-list">
@@ -240,5 +239,76 @@ export function PoolView({ room, currentEntry, played, phase, pick, renderAction
         })}
       </ul>
     </section>
+  );
+}
+
+/**
+ * The draft as the stage's order lays it out, one chip per step: the bans and picks made (their
+ * pool label in the colour of the team that made it, bans struck through), the one whose turn it
+ * is ringed, and the ones to come, coloured once the first mark has said who 1 is. A closing
+ * "sırayla" says picks take turns from there.
+ */
+function DraftStrip({
+  draft,
+  teamOf,
+  labelOf,
+}: {
+  draft: Draft;
+  teamOf: (id: string) => MatchTeam | undefined;
+  labelOf: Map<string, string>;
+}) {
+  const open = draft.next !== null;
+  const describe = (step: DraftStep, team: MatchTeam | undefined) => {
+    const who = team?.name ?? (step.number ? `${step.number}. takım` : "sıradaki takım");
+    const kind = stepLabel(step.kind);
+    if (step.state === "done") {
+      const map = (step.mapId && labelOf.get(step.mapId)) ?? "?";
+      const off = step.offOrder ? " (sırada bu adım yoktu)" : "";
+      return `${kind}: ${who}, ${map}${off}`;
+    }
+    return `${step.state === "next" ? "Sıradaki" : "Sonra"}: ${kind}, ${who}`;
+  };
+  // A step made shows its map; the next one its team (or what it is, before the roll is known); one
+  // to come only its icon in its team's colour, or the order's figure until the colours are known.
+  const content = (step: DraftStep, team: MatchTeam | undefined) => {
+    if (step.state === "done") return (step.mapId && labelOf.get(step.mapId)) ?? "?";
+    if (step.state === "next") return team?.name ?? stepLabel(step.kind);
+    return team ? null : step.number;
+  };
+  return (
+    <div className="pool-draft">
+      <ol className="pool-draft-steps" aria-label="Pick-ban sırası">
+        {draft.steps.map((step, i) => {
+          const team = step.teamId ? teamOf(step.teamId) : undefined;
+          const text = describe(step, team);
+          return (
+            <li
+              key={i}
+              className={[
+                "pool-draft-step",
+                `is-${step.state}`,
+                `is-${step.kind}`,
+                `is-team-${team?.color ?? "none"}`,
+                step.offOrder && "is-off-order",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+              title={text}
+              aria-current={step.state === "next" ? "step" : undefined}
+            >
+              <Icon name={step.kind === "ban" ? "ban" : "target"} size={12} className="pool-draft-icon" />
+              {content(step, team) && <span aria-hidden="true">{content(step, team)}</span>}
+              <span className="sr-only">{text}</span>
+            </li>
+          );
+        })}
+        {draft.alternate && open && (
+          <li className="pool-draft-step is-alternate" title="Sonrası sırayla pick">
+            <Icon name="swap" size={12} className="pool-draft-icon" />
+            <span>sırayla</span>
+          </li>
+        )}
+      </ol>
+    </div>
   );
 }

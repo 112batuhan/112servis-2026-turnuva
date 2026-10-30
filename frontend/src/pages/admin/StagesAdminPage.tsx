@@ -11,6 +11,7 @@ import {
   reorderStages,
   setQualifierStage,
   setStageBestOf,
+  setStageDraftOrder,
 } from "../../api/mappool";
 import type { PickemMode, PickemStage, Stage } from "../../api/types";
 import { useSignedInUser } from "../../auth/AuthContext";
@@ -19,6 +20,14 @@ import { Icon } from "../../components/Icon";
 import { IconButton } from "../../components/IconButton";
 import { InlineEdit } from "../../components/InlineEdit";
 import { BEST_OF_CHOICES, bestOfLabel, firstTo } from "../../lib/bestOf";
+import {
+  DEFAULT_DRAFT_ORDER,
+  EXAMPLE_DRAFT_ORDER,
+  formatDraftOrder,
+  parseDraftOrder,
+  stepLabel,
+  type DraftOrder,
+} from "../../lib/draftOrder";
 import { STATUS_LABELS } from "../../lib/pickem";
 import { useDragReorder } from "../../lib/dragAndDrop";
 import { moveBy, moveToTarget, sortByIds } from "../../lib/reorder";
@@ -93,6 +102,15 @@ export function StagesAdminPage() {
     });
   }
 
+  // Applies right away and saves in the background; null goes back to the default order.
+  function applyDraftOrder(stage: Stage, order: string | null) {
+    setStages((list) => list && list.map((s) => (s.id === stage.id ? { ...s, draft_order: order } : s)));
+    setStageDraftOrder(stage.id, order).catch((e) => {
+      setError(errorMessage(e));
+      load().catch(() => {});
+    });
+  }
+
   // Saves, then reloads to show what the stage's pick'em is now.
   function applyPickemMode(stage: Stage, mode: PickemMode) {
     setPickem((m) => {
@@ -127,8 +145,12 @@ export function StagesAdminPage() {
         kategorilerini ve map'lerini <Link to="/admin/mappool">Mappool</Link> sekmesinde, maçların stage'ini{" "}
         <Link to="/admin/bracket">Bracket</Link> sekmesindeki maç panelinden ayarla. Bo, stage'in maçlarının kaç map
         üzerinden oynandığı: hakem sayfası skoru buna göre takip eder, beraberlikte tiebreaker'ı açar, maç sayfası ve
-        Discord da gösterir. Pick'em, bir önceki stage'in bütün maçları bitince açılır ve stage'in ilk maçıyla kilitlenir;
-        gerekirse "Aç" ile erken açabilir (ilk maç başlayınca yine kilitlenir) ya da "Kapat" ile hemen kilitleyebilirsin.
+        Discord da gösterir. Pick-ban sırası maçların ban ve pick'lerini sırayla yazar: <code>p</code> seçilip oynanan
+        map, <code>b</code> ban; <code>1</code> hakem sayfasında ilk pick'i ya da ban'ı işaretlenen takım (roll'u
+        kazanan taraf), <code>2</code> diğeri; sondaki <code>*</code> sonrasında pick'lerin sırayla gittiğini söyler
+        (ör. <code>{EXAMPLE_DRAFT_ORDER}</code>). Boş bırakılan stage <code>{DEFAULT_DRAFT_ORDER}</code> ile oynanır.
+        Pick'em, bir önceki stage'in bütün maçları bitince açılır ve stage'in ilk maçıyla kilitlenir; gerekirse "Aç" ile
+        erken açabilir (ilk maç başlayınca yine kilitlenir) ya da "Kapat" ile hemen kilitleyebilirsin.
       </p>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
 
@@ -197,6 +219,9 @@ export function StagesAdminPage() {
                     <option value={stage.best_of}>{bestOfLabel(stage.best_of)}</option>
                   )}
                 </select>
+                {!stage.is_qualifier && (
+                  <DraftOrderField stage={stage} onSave={(order) => applyDraftOrder(stage, order)} />
+                )}
                 {pickem.has(stage.id) && (
                   <PickemControl stage={stage} pickem={pickem.get(stage.id)!} onChange={(mode) => applyPickemMode(stage, mode)} />
                 )}
@@ -233,6 +258,106 @@ export function StagesAdminPage() {
         </ol>
       )}
     </section>
+  );
+}
+
+/**
+ * A stage's pick and ban order as text. While it's being typed a popover under it reads it back
+ * (each step's icon and team, then "sırayla"), or says what's wrong with it, which stays until it's
+ * fixed. Enter or leaving the field saves it written the stored way; Escape puts back the saved one;
+ * emptied, the stage goes back to the default.
+ */
+function DraftOrderField({ stage, onSave }: { stage: Stage; onSave: (order: string | null) => void }) {
+  const saved = stage.draft_order ?? "";
+  const [text, setText] = useState(saved);
+  const [editing, setEditing] = useState(false);
+  useEffect(() => setText(saved), [saved]);
+  const parsed = text.trim() ? parseDraftOrder(text) : parseDraftOrder(DEFAULT_DRAFT_ORDER);
+  const error = "error" in parsed ? parsed.error : null;
+  const errorId = `stage-order-error-${stage.id}`;
+  const shown = text || DEFAULT_DRAFT_ORDER;
+
+  function commit() {
+    setEditing(false);
+    if (!text.trim()) {
+      if (saved) onSave(null);
+      return;
+    }
+    if ("order" in parsed) {
+      const next = formatDraftOrder(parsed.order);
+      setText(next);
+      if (next !== saved) onSave(next);
+    }
+  }
+
+  return (
+    <span className="stage-row-order">
+      <input
+        className={`input input-sm stage-row-order-input${error ? " is-invalid" : ""}`}
+        value={text}
+        placeholder={DEFAULT_DRAFT_ORDER}
+        size={shown.length + 1}
+        spellCheck={false}
+        autoCapitalize="off"
+        autoComplete="off"
+        aria-label={`${stage.name}: pick-ban sırası`}
+        aria-invalid={error !== null}
+        aria-describedby={error ? errorId : undefined}
+        title={`Pick-ban sırası, ör. ${EXAMPLE_DRAFT_ORDER}`}
+        onChange={(e) => setText(e.target.value)}
+        onFocus={() => setEditing(true)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+          if (e.key === "Escape") {
+            setText(saved);
+            e.currentTarget.blur();
+          }
+        }}
+      />
+      {error ? (
+        <span className="stage-row-order-pop is-error" id={errorId} role="alert">
+          {error}
+        </span>
+      ) : (
+        editing && (
+          <span className="stage-row-order-pop">
+            <OrderPreview order={(parsed as { order: DraftOrder }).order} fallback={!text.trim()} />
+          </span>
+        )
+      )}
+    </span>
+  );
+}
+
+/** An order read back step by step: a ban or pick icon with its team's figure, then "sırayla". */
+function OrderPreview({ order, fallback }: { order: DraftOrder; fallback: boolean }) {
+  const bans = order.steps.filter((s) => s.kind === "ban").length;
+  const picks = order.steps.length - bans;
+  const summary = `${picks} pick, ${bans} ban${order.alternate ? ", sonra sırayla pick" : ""}${fallback ? " (varsayılan)" : ""}`;
+  return (
+    <>
+      <ol className={`stage-order-preview${fallback ? " is-default" : ""}`} aria-label={summary}>
+        {order.steps.map((step, i) => (
+          <li
+            key={i}
+            className={`stage-order-step is-${step.kind}`}
+            aria-label={`${stepLabel(step.kind)} ${step.team}`}
+          >
+            <Icon name={step.kind === "ban" ? "ban" : "target"} size={11} />
+            {step.team}
+          </li>
+        ))}
+        {order.alternate && (
+          <li className="stage-order-step is-alternate" aria-label="sonra sırayla pick">
+            <Icon name="swap" size={11} />
+          </li>
+        )}
+      </ol>
+      <span className="stage-order-summary" aria-hidden="true">
+        {summary}
+      </span>
+    </>
   );
 }
 

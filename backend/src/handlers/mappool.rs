@@ -9,7 +9,8 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::{
-    auth::AuthUser, db, discord::jobs::Job, error::AppError, osu_api, role::Role, AppState,
+    auth::AuthUser, db, discord::jobs::Job, draft::DraftOrder, error::AppError, osu_api,
+    role::Role, AppState,
 };
 
 // Routes under the `/api` nest. The authed endpoints require map_pooler+, except that
@@ -27,6 +28,7 @@ pub fn routes() -> Router<AppState> {
             get(get_stage).delete(delete_stage).patch(update_stage),
         )
         .route("/stages/:id/best-of", put(set_stage_best_of))
+        .route("/stages/:id/draft-order", put(set_stage_draft_order))
         .route("/stages/:id/categories", post(create_category))
         .route("/categories/reorder", post(reorder_categories))
         .route(
@@ -227,6 +229,37 @@ pub async fn set_stage_best_of(
         .map(|match_id| Job::SyncMatch { match_id })
         .collect();
     state.discord.enqueue(&state.db, &jobs).await?;
+    state.live.bracket_changed();
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DraftOrderBody {
+    draft_order: Option<String>,
+}
+
+// PUT /api/stages/:id/draft-order — host-only. The order the stage's bracket matches
+// ban and pick in ("p1-p2-b2-b1-p1-*", crate::draft), stored as it reads; empty or
+// null goes back to the default. The referee page, the match page and the room's bot
+// follow it.
+pub async fn set_stage_draft_order(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<DraftOrderBody>,
+) -> Result<impl IntoResponse, AppError> {
+    user.require_role(Role::Host)?;
+    let order = match body.draft_order.as_deref().map(str::trim) {
+        None | Some("") => None,
+        Some(text) => Some(
+            DraftOrder::parse(text)
+                .map_err(AppError::BadRequest)?
+                .format(),
+        ),
+    };
+    if !db::mappool::set_stage_draft_order(&state.db, id, order.as_deref()).await? {
+        return Err(AppError::NotFound);
+    }
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }

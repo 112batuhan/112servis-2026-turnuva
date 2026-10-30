@@ -15,7 +15,7 @@ import {
   type RosterPlayer,
   type Tally,
 } from "../admin/referee/liveRoom";
-import { matchTeams, poolEntries, type MatchTeam } from "../admin/referee/pool";
+import { draftTurn, matchDraft, matchTeams, poolEntries, type MatchTeam } from "../admin/referee/pool";
 import { appendLine, mergeFetched, toChatLine, type StoredLine } from "../admin/referee/roomChat";
 import { useLive } from "../../live/LiveContext";
 
@@ -194,7 +194,14 @@ export function useMatchPage(matchId: string) {
 
   // Who is watching with this tab, only while the match is live (that's when it's watched).
   const spectators = isLive && watchers?.match_id === matchId ? watchers : null;
-  const nextPick = isLive ? (teams.find((t) => t.id === live?.next_pick_team_id) ?? null) : null;
+  // The bans and picks against the stage's order; the next one only while the match is live and
+  // there's one to make.
+  const drafting = isLive && race?.kind !== "tiebreaker" && race?.kind !== "won";
+  const draft = useMemo(
+    () => (match ? matchDraft(match, match.next_pick_team_id, drafting) : null),
+    [match, drafting],
+  );
+  const turn = draftTurn(draft, teams);
 
   return {
     match,
@@ -212,7 +219,8 @@ export function useMatchPage(matchId: string) {
     tally,
     played,
     live: isLive,
-    nextPick,
+    draft,
+    turn,
     race,
     spectators,
   };

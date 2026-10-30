@@ -15,6 +15,8 @@ pub struct Stage {
     pub is_qualifier: bool,
     // How many maps its bracket matches are played to (odd); null until the hosts set it.
     pub best_of: Option<i32>,
+    // The order its bracket matches ban and pick in (crate::draft); null: the default.
+    pub draft_order: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -233,6 +235,21 @@ pub async fn set_qualifier_stage(pool: &PgPool, id: Option<Uuid>) -> sqlx::Resul
     }
     tx.commit().await?;
     Ok(true)
+}
+
+// Sets the order a stage's bracket matches ban and pick in (None: the default). False
+// when there's no such stage.
+pub async fn set_stage_draft_order(
+    pool: &PgPool,
+    id: Uuid,
+    order: Option<&str>,
+) -> sqlx::Result<bool> {
+    let found = sqlx::query("UPDATE stages SET draft_order = $2, updated_at = now() WHERE id = $1")
+        .bind(id)
+        .bind(order)
+        .execute(pool)
+        .await?;
+    Ok(found.rows_affected() > 0)
 }
 
 // Sets how many maps a stage's bracket matches are played to (None: not set). Returns

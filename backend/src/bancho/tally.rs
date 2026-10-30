@@ -18,11 +18,9 @@ use crate::{
         bracket::{BanRow, ManualResultRow, MapPlayerScore, MapResultRow, PickRow},
         mappool::{Category, PublicPoolMap, PublicSlot},
     },
+    draft::{next_turn, DraftOrder, StepKind, Turn},
     osu_api::matches::MatchGame,
 };
-
-// How many bans a bracket match has.
-pub const BAN_LIMIT: usize = 2;
 
 #[derive(Debug, Clone)]
 pub struct PoolEntry {
@@ -419,33 +417,35 @@ pub fn race_of(best_of: i32, team1: i32, team2: i32) -> Race {
     }
 }
 
-// The team whose turn it is to pick: the one the referee said (until the next ban or
-// pick), or by the rules: the roll's winner picks first and bans second, so the first
-// pick goes to the team that didn't ban first, and picks alternate after that.
-pub fn pick_turn(
+// Whose turn it is to ban or pick, and which: the stage's order read against the bans
+// and picks so far, in the order they were marked (draft::next_turn).
+pub fn turn_of(
+    order: &DraftOrder,
     bans: &[BanRow],
     picks: &[PickRow],
     teams: [Uuid; 2],
     chosen: Option<Uuid>,
-) -> Option<Uuid> {
-    if let Some(chosen) = chosen.filter(|c| teams.contains(c)) {
-        return Some(chosen);
-    }
-    let last = picks
-        .last()
-        .map(|p| p.team_id)
-        .or(bans.first().map(|b| b.team_id))?;
-    teams.into_iter().find(|&t| t != last)
+) -> Option<Turn> {
+    let mut marks: Vec<_> = bans
+        .iter()
+        .map(|b| (b.created_at, b.team_id))
+        .chain(picks.iter().map(|p| (p.created_at, p.team_id)))
+        .collect();
+    marks.sort_by_key(|m| m.0);
+    let marks: Vec<Uuid> = marks.into_iter().map(|(_, team)| team).collect();
+    next_turn(order, &marks, teams, chosen)
 }
 
-// The line sent to the room: "Skor: Team A 2 - 1 Team B | Sıradaki pick: Team B".
-pub fn score_message(names: [&str; 2], score: [i32; 2], next: Option<&str>) -> String {
+// The line sent to the room: "Skor: Team A 2 - 1 Team B | Sıradaki pick: Team B" (or
+// "Sıradaki ban").
+pub fn score_message(names: [&str; 2], score: [i32; 2], next: Option<(StepKind, &str)>) -> String {
     let line = format!(
         "Skor: {} {} - {} {}",
         names[0], score[0], score[1], names[1]
     );
     match next {
-        Some(next) => format!("{line} | Sıradaki pick: {next}"),
+        Some((StepKind::Pick, team)) => format!("{line} | Sıradaki pick: {team}"),
+        Some((StepKind::Ban, team)) => format!("{line} | Sıradaki ban: {team}"),
         None => line,
     }
 }
@@ -596,19 +596,35 @@ mod tests {
         assert_eq!(race_of(9, 4, 2), Race::MatchPoint);
         assert_eq!(race_of(9, 6, 0), Race::Over);
         let (a, b) = (Uuid::from_u128(1), Uuid::from_u128(2));
+        let at = |s: i64| time::OffsetDateTime::UNIX_EPOCH + time::Duration::seconds(s);
+        let order = DraftOrder::parse("p1-p2-b2-b1-p1-*").unwrap();
+        // Marked across both lists, in time order: b picked first, then a, then a banned.
+        let picks = [
+            PickRow {
+                map_id: Uuid::nil(),
+                team_id: b,
+                created_at: at(0),
+            },
+            PickRow {
+                map_id: Uuid::nil(),
+                team_id: a,
+                created_at: at(10),
+            },
+        ];
         let bans = [BanRow {
             map_id: Uuid::nil(),
             team_id: a,
+            created_at: at(20),
         }];
-        assert_eq!(pick_turn(&bans, &[], [a, b], None), Some(b));
-        let picks = [PickRow {
-            map_id: Uuid::nil(),
-            team_id: b,
-        }];
-        assert_eq!(pick_turn(&bans, &picks, [a, b], None), Some(a));
-        assert_eq!(pick_turn(&bans, &picks, [a, b], Some(b)), Some(b));
         assert_eq!(
-            score_message(["A", "B"], [2, 1], Some("B")),
+            turn_of(&order, &bans, &picks, [a, b], None),
+            Some(Turn {
+                kind: StepKind::Ban,
+                team_id: Some(b)
+            })
+        );
+        assert_eq!(
+            score_message(["A", "B"], [2, 1], Some((StepKind::Pick, "B"))),
             "Skor: A 2 - 1 B | Sıradaki pick: B"
         );
     }

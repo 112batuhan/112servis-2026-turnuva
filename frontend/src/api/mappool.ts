@@ -23,6 +23,9 @@ export const setQualifierStage = (stageId: string | null) =>
   put<void>("/api/stages/qualifier", { stage_id: stageId });
 export const setStageBestOf = (stageId: string, bestOf: number | null) =>
   put<void>(`/api/stages/${stageId}/best-of`, { best_of: bestOf });
+/** null (or empty) goes back to the default order. */
+export const setStageDraftOrder = (stageId: string, order: string | null) =>
+  put<void>(`/api/stages/${stageId}/draft-order`, { draft_order: order });
 
 // ---- categories ----
 export const createCategory = (stageId: string, name: string) =>

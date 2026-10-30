@@ -115,6 +115,7 @@ pub struct RoomRow {
     pub stage_name: Option<String>,
     pub stage_published: Option<bool>,
     pub stage_best_of: Option<i32>,
+    pub stage_draft_order: Option<String>,
 }
 
 // Every qualifier lobby, earliest first.
@@ -289,7 +290,7 @@ pub async fn find_room(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<RoomRow>>
                s.username AS streamer_username, s.avatar_url AS streamer_avatar_url,
                m.lobby_index,
                st.id AS stage_id, st.name AS stage_name, st.published AS stage_published,
-               st.best_of AS stage_best_of
+               st.best_of AS stage_best_of, st.draft_order AS stage_draft_order
         FROM matches m
         LEFT JOIN bracket_matches b ON b.match_id = m.id
         LEFT JOIN osu_users u ON u.id = m.referee_id

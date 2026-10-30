@@ -1837,10 +1837,12 @@ impl Manager {
                 let (Some([a, b]), Some(t)) = (&ctx.sides, view.tally) else {
                     return Err(AppError::BadRequest("this match needs both teams first"));
                 };
-                let next = view
-                    .next_pick_team_id
-                    .and_then(|id| [a, b].into_iter().find(|t| t.id == id))
-                    .map(|t| t.name.as_str());
+                let next = view.next_turn.and_then(|turn| {
+                    [a, b]
+                        .into_iter()
+                        .find(|t| Some(t.id) == turn.team_id)
+                        .map(|t| (turn.kind, t.name.as_str()))
+                });
                 vec![score_message([&a.name, &b.name], [t.team1, t.team2], next)]
             }
             RoomCommand::AddRef { username } => {

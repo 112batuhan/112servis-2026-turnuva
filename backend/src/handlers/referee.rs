@@ -21,6 +21,7 @@ use crate::{
         referee::RoomSettings,
         team::{Player, TeamMemberRow},
     },
+    draft::DraftOrder,
     error::AppError,
     handlers::{
         bracket::Streamer,
@@ -60,6 +61,9 @@ pub struct RoomStage {
     published: bool,
     // How many maps a bracket match in it is played to; null when not set.
     best_of: Option<i32>,
+    // The order its bracket matches ban and pick in (crate::draft), the default when
+    // the hosts haven't set one.
+    draft_order: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -212,6 +216,7 @@ fn room_stage(row: &RoomRow) -> Option<RoomStage> {
             name: name.clone(),
             published: row.stage_published.unwrap_or(false),
             best_of: row.stage_best_of,
+            draft_order: DraftOrder::of_stage(row.stage_draft_order.as_deref()).format(),
         }),
         _ => None,
     }

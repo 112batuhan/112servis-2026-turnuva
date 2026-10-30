@@ -4,6 +4,7 @@ mod config;
 mod db;
 mod discord;
 mod discord_api;
+mod draft;
 mod error;
 mod handlers;
 mod mods;

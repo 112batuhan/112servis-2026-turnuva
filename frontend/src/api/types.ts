@@ -61,6 +61,8 @@ export interface Stage {
   is_qualifier: boolean;
   /** How many maps its bracket matches are played to (odd); null until the hosts set it. */
   best_of: number | null;
+  /** The order its bracket matches ban and pick in ("p1-p2-b2-b1-p1-*", lib/draftOrder.ts); null: the default. */
+  draft_order: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -544,7 +546,7 @@ export interface RoomSettings {
   auto_kick: boolean;
   /** When the results were last synced from osu!'s record of the rooms, which replaces the chat's maps; null if never. */
   osu_synced_at: string | null;
-  /** The team the referee said picks next, overriding the rules until the next ban or pick. */
+  /** The team the referee said goes next, overriding the order until the next ban or pick. */
   next_pick_team_id: string | null;
 }
 
@@ -556,6 +558,8 @@ export interface RoomStage {
   published: boolean;
   /** How many maps a bracket match in it is played to; null when not set. */
   best_of: number | null;
+  /** The order its bracket matches ban and pick in, the default when the hosts set none (lib/draftOrder.ts). */
+  draft_order: string;
 }
 
 /**
@@ -590,7 +594,7 @@ export interface PublicMatch {
   picks: MapPick[];
   manual_results: ManualResult[];
   map_results: MapResultRow[];
-  /** The team the referee said picks next, overriding the rules until the next ban or pick. */
+  /** The team the referee said goes next, overriding the order until the next ban or pick. */
   next_pick_team_id: string | null;
   live: LiveRoom | null;
 }
@@ -700,8 +704,6 @@ export interface LiveRoom {
   tally: { team1: number; team2: number } | null;
   /** The site has that score and the maps behind it. */
   score_saved: boolean;
-  /** Whose pick is next, while there's a pick to make. */
-  next_pick_team_id: string | null;
   /** The results come from osu!'s record of the rooms, up to its last map. */
   osu_synced: boolean;
 }
@@ -805,12 +807,16 @@ export interface ManualResult {
 export interface MapBan {
   map_id: string;
   team_id: string;
+  /** When the referee marked it: bans and picks together give the draft's order. */
+  created_at: string;
 }
 
 /** A pool map (PublicPoolMap.id) picked in a match by one of its teams. */
 export interface MapPick {
   map_id: string;
   team_id: string;
+  /** When the referee marked it. */
+  created_at: string;
 }
 
 export interface RoomChatMessage {

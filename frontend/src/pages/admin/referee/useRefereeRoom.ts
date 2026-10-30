@@ -48,7 +48,7 @@ import {
   type RosterPlayer,
   type Tally,
 } from "./liveRoom";
-import { matchTeams, poolEntries, type MatchTeam } from "./pool";
+import { draftTurn, matchDraft, matchTeams, poolEntries, type MatchTeam } from "./pool";
 import { appendLine, mergeFetched, toChatLine, type StoredLine } from "./roomChat";
 import { useRoomStaff } from "./roomStaff";
 
@@ -294,8 +294,14 @@ export function useRefereeRoom(matchId: string) {
     [bestOf, tally, room?.forfeit_slot],
   );
   const teams = useMemo<MatchTeam[]>(() => (room ? matchTeams(room) : []), [room]);
-  // Whose pick is next, as the bots read it (the rules, or the referee's say until the next mark).
-  const nextPick = teams.find((t) => t.id === live?.next_pick_team_id) ?? null;
+  // The bans and picks against the stage's order, and the next one (the order's, or the referee's
+  // say until the next mark). Nobody bans or picks at the tiebreaker or once a team has won.
+  const drafting = room?.concluded_at === null && race?.kind !== "tiebreaker" && race?.kind !== "won";
+  const draft = useMemo(
+    () => (room ? matchDraft(room, room.settings.next_pick_team_id, drafting) : null),
+    [room, drafting],
+  );
+  const turn = draftTurn(draft, teams);
 
   const streamer = room?.streamer ?? null;
   const streamerIsRef = streamer !== null && isRoomRef(lobby, streamer.username);
@@ -410,7 +416,7 @@ export function useRefereeRoom(matchId: string) {
         await reload();
       }),
 
-    /** Says whose pick is next, overriding the rules until the next ban or pick. */
+    /** Says who goes next, overriding the stage's order until the next ban or pick. */
     setNextPick: (teamId: string) => {
       if (!room) return;
       keep(
@@ -419,7 +425,7 @@ export function useRefereeRoom(matchId: string) {
       );
     },
 
-    /** Tells the room the running score and whose pick is next. */
+    /** Tells the room the running score and whose ban or pick is next. */
     announceScore: () => command({ type: "announce_score" }),
     settings: () => command({ type: "settings" }),
     lock: (locked: boolean) => command({ type: "lock", locked }),
@@ -528,7 +534,8 @@ export function useRefereeRoom(matchId: string) {
     currentEntry,
     mapStartedAt: lobby.mapStartedAt,
     teams,
-    nextPick,
+    draft,
+    turn,
     roster,
     findRoster,
     staff,
