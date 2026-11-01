@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../api/client";
-import { fetchDiscord, saveDiscordSettings, setDiscordActive, syncDiscord } from "../../api/discord";
+import {
+  deleteDiscordChannels,
+  fetchDiscord,
+  saveDiscordSettings,
+  setDiscordActive,
+  setDiscordChannelsPaused,
+  syncDiscord,
+} from "../../api/discord";
 import type { DiscordSettings, DiscordView, GuildChannel } from "../../api/types";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import "./DiscordAdminPage.css";
@@ -85,6 +92,7 @@ export function DiscordAdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [switching, setSwitching] = useState(false);
+  const [channelsBusy, setChannelsBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -154,6 +162,50 @@ export function DiscordAdminPage() {
     }
   }
 
+  async function toggleChannels() {
+    if (!view) return;
+    const paused = !view.channels_paused;
+    setError(null);
+    setNote(null);
+    setChannelsBusy(true);
+    try {
+      await setDiscordChannelsPaused(paused);
+      setView({ ...view, channels_paused: paused });
+      setNote(
+        paused
+          ? "Yeni maç kanalı açılması duraklatıldı. Var olan kanallar güncellenmeye devam ediyor."
+          : "Maç kanalları yeniden açılıyor: kanalı olması gereken maçlar arka planda kanalını alacak.",
+      );
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setChannelsBusy(false);
+    }
+  }
+
+  async function deleteChannels() {
+    if (!view) return;
+    if (
+      !window.confirm(
+        view.channels_paused
+          ? "Bütün maç kanalları (arşivdekiler dahil) silinsin mi? İçlerindeki mesajlar geri gelmez."
+          : "Bütün maç kanalları (arşivdekiler dahil) silinsin mi? İçlerindeki mesajlar geri gelmez. Kanal açma duraklatılmadığı için kanalı olması gereken maçlara hemen yenileri açılır.",
+      )
+    )
+      return;
+    setError(null);
+    setNote(null);
+    setChannelsBusy(true);
+    try {
+      await deleteDiscordChannels();
+      setNote("Maç kanalları arka planda siliniyor. Çok kanal varsa birkaç dakika sürebilir.");
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setChannelsBusy(false);
+    }
+  }
+
   return (
     <section className="panel">
       <div className="page-header">
@@ -208,6 +260,34 @@ export function DiscordAdminPage() {
         <p className="status discord-note">
           Discord sunucusu okunamadı, ID'leri elle girebilirsin. Botun sunucuda olduğundan emin ol.
         </p>
+      )}
+
+      {view?.enabled && (
+        <div className="discord-channels">
+          <div className="discord-channels-text">
+            <span className="discord-label">Maç kanalları</span>
+            {view.channels_paused ? (
+              <span className="badge badge-warning">Açma duraklatıldı</span>
+            ) : (
+              <span className="badge badge-success">Açılıyor</span>
+            )}
+            <span className="muted">{view.channel_count} maçın kanalı var</span>
+          </div>
+          <div className="discord-actions">
+            <button type="button" className="btn btn-secondary btn-sm" disabled={channelsBusy} onClick={toggleChannels}>
+              {view.channels_paused ? "Kanal açmayı sürdür" : "Kanal açmayı duraklat"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger btn-sm"
+              disabled={channelsBusy || !view.active}
+              title={view.active ? undefined : "Bot kapalıyken kanallar silinemez"}
+              onClick={deleteChannels}
+            >
+              Tüm maç kanallarını sil
+            </button>
+          </div>
+        </div>
       )}
 
       {view?.enabled && draft && (

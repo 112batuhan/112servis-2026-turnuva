@@ -178,6 +178,19 @@ fn should_open(info: &MatchInfo) -> bool {
     }
 }
 
+// Deletes a channel, counting one that's already gone as deleted.
+async fn delete_channel(bot: &Bot, id: i64) -> BotResult {
+    match snowflake::channel(id)
+        .delete(&bot.http)
+        .await
+        .map_err(BotError::from)
+    {
+        Ok(_) => Ok(()),
+        Err(err) if err.not_found() => Ok(()),
+        Err(err) => Err(err),
+    }
+}
+
 // Brings a match's channel in line with the match, then its pinned card. What was
 // applied is remembered, so an unchanged match costs no API calls.
 pub async fn sync_match(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResult {
@@ -213,16 +226,13 @@ async fn sync_channel(
     if stored.channel_id.is_none() && !should_open(info) {
         return Ok(None);
     }
+    // While hosts have channels paused, no new one opens; the ones there still follow
+    // their match.
+    if stored.channel_id.is_none() && db::discord::channels_paused(&state.db).await? {
+        return Ok(None);
+    }
     if let (Some(id), true) = (stored.channel_id, should_close(info)) {
-        match snowflake::channel(id)
-            .delete(&bot.http)
-            .await
-            .map_err(BotError::from)
-        {
-            Ok(_) => {}
-            Err(err) if err.not_found() => {}
-            Err(err) => return Err(err),
-        }
+        delete_channel(bot, id).await?;
         db::discord::clear_channel(&state.db, match_id).await?;
         return Ok(None);
     }
@@ -301,7 +311,7 @@ async fn sync_channel(
                 }
                 // Deleted by hand: open a new one if the match still needs it.
                 db::discord::clear_channel(&state.db, match_id).await?;
-                if !should_open(info) {
+                if !should_open(info) || db::discord::channels_paused(&state.db).await? {
                     return Ok(None);
                 }
             }
@@ -475,5 +485,59 @@ pub async fn sync_all(state: &AppState) -> BotResult {
         .map(|match_id| Job::SyncMatch { match_id })
         .collect();
     state.discord.enqueue(&state.db, &jobs).await?;
+    Ok(())
+}
+
+// Deletes every match channel, archived ones included: the ones on record, then any
+// other the bot made in the match categories (a deleted match's), known by the overwrite
+// it gives itself on each, then the overflow categories left empty. Each one is
+// forgotten as it goes, so a retry carries on where this stopped. Unless channels are
+// paused, the matches that need one get a new one afterwards.
+pub async fn delete_all(state: &AppState, bot: &Bot) -> BotResult {
+    for (match_id, channel_id) in db::discord::match_channels(&state.db).await? {
+        delete_channel(bot, channel_id).await?;
+        db::discord::clear_channel(&state.db, match_id).await?;
+    }
+
+    let settings = db::discord::settings(&state.db).await?;
+    let overflows = db::discord::all_overflow_categories(&state.db).await?;
+    let categories: Vec<ChannelId> = [
+        settings.qualifier_category_id,
+        settings.qualifier_archive_category_id,
+        settings.bracket_category_id,
+        settings.bracket_archive_category_id,
+    ]
+    .into_iter()
+    .flatten()
+    .chain(overflows.iter().copied())
+    .map(snowflake::channel)
+    .collect();
+    let me = bot.user_id().await?;
+    for channel in bot.guild_id.channels(&bot.http).await?.values() {
+        let in_categories = channel.parent_id.is_some_and(|p| categories.contains(&p));
+        let made_by_bot = channel
+            .permission_overwrites
+            .iter()
+            .any(|o| matches!(o.kind, PermissionOverwriteType::Member(u) if u == me));
+        if channel.kind == ChannelType::Text && in_categories && made_by_bot {
+            delete_channel(bot, channel.id.get() as i64).await?;
+        }
+    }
+
+    let channels = bot.guild_id.channels(&bot.http).await?;
+    for id in overflows {
+        let category = snowflake::channel(id);
+        if channels.values().any(|c| c.parent_id == Some(category)) {
+            continue;
+        }
+        if channels.contains_key(&category) {
+            delete_channel(bot, id).await?;
+        }
+        db::discord::remove_overflow_category(&state.db, id).await?;
+    }
+
+    if !db::discord::channels_paused(&state.db).await? {
+        sync_all(state).await?;
+    }
     Ok(())
 }

@@ -27,6 +27,8 @@ pub fn routes() -> Router<AppState> {
         .route("/discord/settings", put(save_settings))
         .route("/discord/sync", post(sync))
         .route("/discord/active", put(set_active))
+        .route("/discord/channels/paused", put(set_channels_paused))
+        .route("/discord/channels/delete", post(delete_channels))
         .route("/me/subscriptions", get(my_subscriptions))
         .route(
             "/bracket/:id/subscription",
@@ -64,6 +66,10 @@ pub struct DiscordView {
     // Whether hosts have it switched on.
     active: bool,
     connected: bool,
+    // Whether hosts have stopped new match channels from opening.
+    channels_paused: bool,
+    // How many matches have a channel.
+    channel_count: i64,
     // The server's roles and channels to pick from; null when the bot is off or
     // Discord couldn't be reached.
     guild: Option<GuildView>,
@@ -77,12 +83,16 @@ pub async fn get_discord(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     let settings = db::discord::settings(&state.db).await?;
+    let channels_paused = db::discord::channels_paused(&state.db).await?;
+    let channel_count = db::discord::channel_count(&state.db).await?;
     // The server can be read while the bot is switched off, so it can be set up first.
     let Some(bot) = state.discord.configured() else {
         return Ok(Json(DiscordView {
             enabled: false,
             active: false,
             connected: false,
+            channels_paused,
+            channel_count,
             guild: None,
             settings,
         }));
@@ -137,6 +147,8 @@ pub async fn get_discord(
         enabled: true,
         active: bot.active(),
         connected: bot.connected(),
+        channels_paused,
+        channel_count,
         guild,
         settings,
     }))
@@ -197,6 +209,52 @@ pub async fn set_active(
     }
     bot.set_active(body.active);
     tracing::info!(by = %user.id, active = body.active, "discord bot switched");
+    Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PausedBody {
+    paused: bool,
+}
+
+// PUT /api/discord/channels/paused — host-only. Stops new match channels from opening
+// (the ones there are still kept up to date and archived), or lets them open again, in
+// which case every match that needs one gets it.
+pub async fn set_channels_paused(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(body): Json<PausedBody>,
+) -> Result<impl IntoResponse, AppError> {
+    user.require_role(Role::Host)?;
+    db::discord::set_channels_paused(&state.db, body.paused).await?;
+    if !body.paused {
+        let jobs: Vec<Job> = db::discord::syncable_matches(&state.db)
+            .await?
+            .into_iter()
+            .map(|match_id| Job::SyncMatch { match_id })
+            .collect();
+        state.discord.enqueue(&state.db, &jobs).await?;
+    }
+    tracing::info!(by = %user.id, paused = body.paused, "discord match channels switched");
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// POST /api/discord/channels/delete — host-only. Deletes every match channel, archived
+// ones included, in the background. Unless channels are paused, the matches that need
+// one get a new one afterwards.
+pub async fn delete_channels(
+    State(state): State<AppState>,
+    user: AuthUser,
+) -> Result<impl IntoResponse, AppError> {
+    user.require_role(Role::Host)?;
+    if !state.discord.enabled() {
+        return Err(AppError::Conflict("the Discord bot is off"));
+    }
+    state
+        .discord
+        .enqueue(&state.db, &[Job::DeleteMatchChannels])
+        .await?;
+    tracing::info!(by = %user.id, "deleting every discord match channel");
     Ok(StatusCode::NO_CONTENT)
 }
 

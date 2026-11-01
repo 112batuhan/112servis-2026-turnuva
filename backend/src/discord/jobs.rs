@@ -45,6 +45,8 @@ pub enum Job {
     SyncMatch {
         match_id: Uuid,
     },
+    // Deletes every match channel (hosts, from /admin/discord).
+    DeleteMatchChannels,
     // Archives the channel of a deleted match.
     ArchiveChannel {
         channel_id: i64,
@@ -395,8 +397,9 @@ async fn process(state: &AppState, bot: &Bot, row: db::discord::OutboxRow) {
             return;
         }
     };
-    // A full sync makes a call per member and channel, so it may take a while.
-    let result = if matches!(job, Job::SyncAll) {
+    // A full sync makes a call per member and channel, and deleting every channel one
+    // per channel, so they may take a while.
+    let result = if matches!(job, Job::SyncAll | Job::DeleteMatchChannels) {
         run(state, bot, &job).await
     } else {
         tokio::time::timeout(JOB_TIMEOUT, run(state, bot, &job))
@@ -439,6 +442,7 @@ async fn run(state: &AppState, bot: &Bot, job: &Job) -> BotResult {
             channels::sync_all(state).await
         }
         Job::SyncMatch { match_id } => channels::sync_match(state, bot, *match_id).await,
+        Job::DeleteMatchChannels => channels::delete_all(state, bot).await,
         Job::ArchiveChannel { channel_id, kind } => {
             channels::archive_orphan(state, bot, *channel_id, *kind).await
         }

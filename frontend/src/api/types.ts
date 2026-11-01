@@ -883,6 +883,10 @@ export interface DiscordView {
   /** Hosts have it switched on (PUT /api/discord/active); while off it's disconnected and queues nothing. */
   active: boolean;
   connected: boolean;
+  /** Hosts stopped new match channels from opening; the ones there are still kept up to date. */
+  channels_paused: boolean;
+  /** How many matches have a Discord channel. */
+  channel_count: number;
   /** null when the bot isn't set up or Discord couldn't be reached. */
   guild: { roles: GuildRole[]; text_channels: GuildChannel[]; categories: GuildChannel[] } | null;
   settings: DiscordSettings;

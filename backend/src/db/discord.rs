@@ -102,6 +102,50 @@ pub async fn set_bot_active(pool: &PgPool, active: bool) -> sqlx::Result<()> {
     tx.commit().await
 }
 
+// Whether hosts have stopped the bot from opening new match channels.
+pub async fn channels_paused(ex: impl PgExecutor<'_>) -> sqlx::Result<bool> {
+    sqlx::query_scalar("SELECT match_channels_paused FROM discord_settings")
+        .fetch_one(ex)
+        .await
+}
+
+pub async fn set_channels_paused(pool: &PgPool, paused: bool) -> sqlx::Result<()> {
+    sqlx::query("UPDATE discord_settings SET match_channels_paused = $1")
+        .bind(paused)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+// How many matches have a channel on record.
+pub async fn channel_count(pool: &PgPool) -> sqlx::Result<i64> {
+    sqlx::query_scalar("SELECT count(*) FROM match_discord WHERE channel_id IS NOT NULL")
+        .fetch_one(pool)
+        .await
+}
+
+// Every match channel on record, with its match.
+pub async fn match_channels(pool: &PgPool) -> sqlx::Result<Vec<(Uuid, i64)>> {
+    sqlx::query_as("SELECT match_id, channel_id FROM match_discord WHERE channel_id IS NOT NULL")
+        .fetch_all(pool)
+        .await
+}
+
+// Every category the bot made when one filled up.
+pub async fn all_overflow_categories(pool: &PgPool) -> sqlx::Result<Vec<i64>> {
+    sqlx::query_scalar("SELECT category_id FROM discord_overflow_categories")
+        .fetch_all(pool)
+        .await
+}
+
+pub async fn remove_overflow_category(pool: &PgPool, category_id: i64) -> sqlx::Result<()> {
+    sqlx::query("DELETE FROM discord_overflow_categories WHERE category_id = $1")
+        .bind(category_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
 // The categories the bot created when `base_id` filled up, oldest first.
 pub async fn overflow_categories(pool: &PgPool, base_id: i64) -> sqlx::Result<Vec<i64>> {
     sqlx::query_scalar(
