@@ -1013,3 +1013,128 @@ export interface MatchPickem {
   split: PickemSplit | null;
   mine: MyPrediction | null;
 }
+
+/** GET /api/public/stats: how far each published stage has got. */
+export interface StageActivity {
+  stage_id: string;
+  /** Matches with a saved map (the qualifier's: its lobbies). */
+  played: number;
+  /** Matches being played now (a room, not concluded). */
+  live: number;
+}
+
+/** The plays on a map: how many, their mean and their sample standard deviation. */
+export interface StatField {
+  count: number;
+  mean: number;
+  sd: number;
+}
+
+export interface StatPlayerPlay {
+  user_id: string;
+  score: number;
+  /** 0..1, from osu!'s record of the room; null until it's been read. */
+  accuracy: number | null;
+  mods: string | null;
+  passed: boolean;
+  z: number;
+  /** Among every player's play on the map; level scores share it. */
+  rank: number;
+}
+
+/** A team's play on a map: its players' scores summed. */
+export interface StatTeamPlay {
+  match_id: string;
+  map_id: string;
+  team_id: string;
+  score: number;
+  accuracy: number | null;
+  z: number;
+  rank: number;
+  /** Bracket matches: whether the team won the map; null for a tie (or a lobby). */
+  won: boolean | null;
+  picked: boolean;
+  /** Best first. */
+  players: StatPlayerPlay[];
+}
+
+export interface StatMap {
+  map_id: string;
+  teams: StatField;
+  players: StatField;
+  avg_accuracy: number | null;
+  picks: number;
+  bans: number;
+  picker_wins: number;
+  picker_plays: number;
+  best_team: { team_id: string; match_id: string; score: number; accuracy: number | null } | null;
+  best_player: {
+    user_id: string;
+    team_id: string;
+    match_id: string;
+    score: number;
+    accuracy: number | null;
+    mods: string | null;
+  } | null;
+}
+
+/** A team's or a player's standing on one map. */
+export interface StatCell {
+  map_id: string;
+  /** The play's Z (a bracket stage's plays averaged); a missing qualifier map's is the Z of a 0. */
+  z: number;
+  score: number | null;
+  accuracy: number | null;
+  rank: number | null;
+  plays: number;
+  missing: boolean;
+}
+
+export interface StatStanding {
+  /** The team's, or the player's. */
+  id: string;
+  team_id: string;
+  /** The seed in the qualifier; null until there's anything to rank. */
+  rank: number | null;
+  z_sum: number;
+  z_avg: number;
+  plays: number;
+  /** The maps counted in z_sum, missing ones included. */
+  maps_counted: number;
+  total_score: number;
+  avg_score: number;
+  avg_accuracy: number | null;
+  map_wins: number;
+  map_losses: number;
+  picks: number;
+  bans: number;
+  /** Players: the plays on which they outscored their teammate. */
+  team_best: number;
+  /** Qualifier: their lobby isn't over, so missing maps don't count yet. */
+  pending: boolean;
+  best: { map_id: string; match_id: string; z: number; score: number; rank: number; field: number } | null;
+  per_map: StatCell[];
+}
+
+export interface StatMatch {
+  id: string;
+  /** "W3", "L7", "Lobi B". */
+  code: string;
+  side: BracketSide | null;
+  concluded: boolean;
+  live: boolean;
+}
+
+/** GET /api/public/stats/:id — a published stage's statistics, from the scores the site saved. */
+export interface StageStats {
+  pool: PublicStageDetail;
+  matches: StatMatch[];
+  teams: Team[];
+  stats: {
+    matches_played: number;
+    plays: StatTeamPlay[];
+    maps: StatMap[];
+    teams: StatStanding[];
+    players: StatStanding[];
+  };
+}

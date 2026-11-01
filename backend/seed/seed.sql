@@ -1122,7 +1122,7 @@ WITH lobby AS (
     WHERE r.mp_id = 112233441 AND m.kind = 'qualifier'
 ),
 players AS (
-    SELECT u.username, u.osu_id, t.name = 'Simitçiler' AS late,
+    SELECT u.id AS user_id, u.username, u.osu_id, t.name = 'Simitçiler' AS late,
            row_number() OVER (ORDER BY e.joined_at, u.username) AS slot
     FROM lobby
     JOIN match_rooms r ON r.mp_id = lobby.mp_id
@@ -1133,7 +1133,8 @@ players AS (
 ),
 pool AS (
     SELECT row_number() OVER (ORDER BY c.position, s.position) AS n, c.name AS category,
-           pm.beatmap_id, pm.artist || ' - ' || pm.title || ' [' || pm.version || ']' AS name
+           pm.id AS map_id, pm.beatmap_id,
+           pm.artist || ' - ' || pm.title || ' [' || pm.version || ']' AS name
     FROM stages st
     JOIN stage_categories c ON c.stage_id = st.id
     JOIN category_slots s ON s.category_id = c.id
@@ -1159,6 +1160,26 @@ scores AS (
     FROM timed t
     JOIN players p ON NOT (t.k = 0 AND p.late)
     CROSS JOIN LATERAL (SELECT (p.slot * 3 + t.k * 5) % 23 = 0 AS failed) f
+),
+-- The lobby's saved maps, as its room's bot saved them from this chat (every attempt, the
+-- first map's included), with the accuracy osu!'s record of the room gave each score.
+results AS (
+    INSERT INTO match_map_results (match_id, position, pool_map_id)
+    SELECT r.match_id, t.k + 1, t.map_id
+    FROM lobby JOIN match_rooms r ON r.mp_id = lobby.mp_id
+    CROSS JOIN timed t
+),
+saved AS (
+    INSERT INTO match_map_scores (match_id, position, user_id, score, mods, passed, accuracy)
+    SELECT r.match_id, sc.k + 1, p.user_id, sc.score,
+           CASE t.category WHEN 'HD' THEN 'HDNF' WHEN 'HR' THEN 'HRNF' WHEN 'DT' THEN 'DTNF' ELSE 'NF' END,
+           NOT sc.failed,
+           round((0.86 + sc.score / 1000000.0 * 0.12
+                  + abs(hashtext(sc.username || '#' || sc.k)) % 150 / 10000.0)::numeric, 4)::float8
+    FROM lobby JOIN match_rooms r ON r.mp_id = lobby.mp_id
+    CROSS JOIN scores sc
+    JOIN timed t ON t.k = sc.k
+    JOIN players p ON p.username = sc.username
 ),
 lines (at, sender, text) AS (
     SELECT p.slot * interval '8 seconds' + CASE WHEN p.late THEN interval '9 minutes' ELSE interval '0' END,
@@ -1202,6 +1223,50 @@ INSERT INTO room_chat_messages (mp_id, sent_at, sender, text)
 SELECT lobby.mp_id, lobby.t0 + l.at, l.sender, l.text
 FROM lobby, lines l
 ORDER BY l.at;
+
+-- The other seeded lobbies' saved results (they have no chat): every map of the
+-- qualifier pool once, scored like the first lobby's, except that Rank Uçtu missed the
+-- pool's last two maps, so the statistics count them as a 0 for its seeding.
+WITH lobbies AS (
+    SELECT m.id AS match_id
+    FROM matches m
+    JOIN match_rooms r ON r.match_id = m.id
+    WHERE m.kind = 'qualifier' AND r.mp_id IN (112233442, 112233443, 112233444)
+      AND NOT EXISTS (SELECT 1 FROM match_map_results q WHERE q.match_id = m.id)
+),
+pool AS (
+    SELECT row_number() OVER (ORDER BY c.position, s.position)::int AS n, pm.id AS map_id,
+           c.name AS category
+    FROM stages st
+    JOIN stage_categories c ON c.stage_id = st.id
+    JOIN category_slots s ON s.category_id = c.id
+    JOIN pool_maps pm ON pm.slot_id = s.id
+    WHERE st.is_qualifier
+),
+results AS (
+    INSERT INTO match_map_results (match_id, position, pool_map_id)
+    SELECT l.match_id, p.n, p.map_id FROM lobbies l CROSS JOIN pool p
+)
+INSERT INTO match_map_scores (match_id, position, user_id, score, mods, passed)
+SELECT l.match_id, p.n, u.id,
+       (420000 + abs(hashtext(u.username || ':' || p.n)) % 300000)::int,
+       CASE p.category WHEN 'HD' THEN 'HDNF' WHEN 'HR' THEN 'HRNF' WHEN 'DT' THEN 'DTNF' ELSE 'NF' END,
+       true
+FROM lobbies l
+CROSS JOIN pool p
+JOIN qualifier_entries e ON e.match_id = l.match_id
+JOIN teams t ON t.id = e.team_id
+JOIN team_members tm ON tm.team_id = t.id
+JOIN osu_users u ON u.id = tm.user_id
+WHERE NOT (t.name = 'Rank Uçtu' AND p.n > (SELECT max(n) FROM pool) - 2);
+
+-- The accuracy of every other seeded saved score, as the bots would have read it from
+-- osu!'s record of the room after each map.
+UPDATE match_map_scores s
+SET accuracy = round((0.86 + LEAST(s.score, 1000000) / 1000000.0 * 0.12
+                      + abs(hashtext(u.username || '#' || s.position)) % 150 / 10000.0)::numeric, 4)::float8
+FROM osu_users u
+WHERE u.id = s.user_id AND u.osu_id < 0 AND s.accuracy IS NULL;
 
 -- Pick'em. The Semifinals' pick'em is opened by hand (the Quarterfinals are still being
 -- played, so the rule alone would keep it waiting), so its ballot can be tried; the

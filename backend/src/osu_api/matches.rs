@@ -38,6 +38,9 @@ pub struct GameScore {
     pub score: i64,
     #[serde(default = "passed_default")]
     pub passed: bool,
+    // 0..1; the chat doesn't say it, so the statistics take it from here.
+    #[serde(default)]
+    pub accuracy: Option<f64>,
     // The mods the player played with, as acronyms.
     #[serde(default, deserialize_with = "acronyms")]
     pub mods: Vec<String>,

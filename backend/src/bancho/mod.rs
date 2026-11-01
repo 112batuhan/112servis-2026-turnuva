@@ -337,7 +337,7 @@ impl Bancho {
     }
 }
 
-pub use manager::{read_osu_games, static_view};
+pub use manager::{backfill_lobbies, read_osu_games, static_view};
 
 pub struct BanchoInbox(mpsc::UnboundedReceiver<Request>);
 

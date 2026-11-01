@@ -23,18 +23,18 @@ use super::{
     room::{
         parse_created, parse_joined, parse_left, read_lobby, RoomSlot, RoomState, MATCH_STARTED,
     },
-    tally::{race_of, score_key, score_message, tally, Race, TallyInput},
+    tally::{lobby_key, lobby_rows, race_of, score_key, score_message, tally, Race, TallyInput},
     view::{self, finished_of, LiveRoom, RoomAccess, ViewRoom},
     BotRoom, BotState, BotStatus, Request, RoomCommand, SessionLink, SessionRequest, ROOM_LIMIT,
 };
 use crate::{
-    db::{self, bancho::BotLogin, matches::MatchKind, user::StaffMember},
+    db::{self, bancho::BotLogin, matches::MatchKind, stats::QualifierMapRow, user::StaffMember},
     error::AppError,
     handlers::{self, live::Change},
     osu_api,
     osu_api::matches::MatchGame,
     role::Role,
-    AppState,
+    room_scores, AppState,
 };
 
 // How often timers are checked and changed rooms pushed to the pages.
@@ -157,10 +157,19 @@ struct ChatWrite {
 
 struct SaveJob {
     match_id: Uuid,
-    team1: i32,
-    team2: i32,
-    maps: Vec<db::bracket::MapResultRow>,
+    save: Save,
     reply: Option<oneshot::Sender<Result<(), AppError>>>,
+}
+
+enum Save {
+    // A bracket match's score and the maps it was counted from.
+    Score {
+        team1: i32,
+        team2: i32,
+        maps: Vec<db::bracket::MapResultRow>,
+    },
+    // A qualifier lobby's finished pool maps.
+    Lobby(Vec<QualifierMapRow>),
 }
 
 pub(super) async fn run(app: AppState, mut inbox: mpsc::UnboundedReceiver<Request>) {
@@ -186,6 +195,12 @@ pub(super) async fn run(app: AppState, mut inbox: mpsc::UnboundedReceiver<Reques
     };
     manager.reload_bots().await;
     manager.resync().await;
+    let app = manager.app.clone();
+    tokio::spawn(async move {
+        if let Err(err) = backfill_lobbies(&app).await {
+            tracing::error!(error = ?err, "could not save the concluded lobbies' results");
+        }
+    });
 
     let mut tick = interval(TICK);
     tick.set_missed_tick_behavior(MissedTickBehavior::Delay);
@@ -226,21 +241,33 @@ fn spawn_chat_writer(app: AppState) -> mpsc::UnboundedSender<ChatWrite> {
     tx
 }
 
-// Saves scores one after the other, so an older one never lands after a newer one.
+// Saves scores one after the other, so an older one never lands after a newer one. Each
+// save has osu!'s record of the match's rooms read for its accuracy.
 fn spawn_saver(app: AppState) -> mpsc::UnboundedSender<SaveJob> {
     let (tx, mut rx) = mpsc::unbounded_channel::<SaveJob>();
+    let scores = room_scores::spawn(app.clone());
     tokio::spawn(async move {
         while let Some(job) = rx.recv().await {
-            let result = handlers::bracket::save_score(
-                &app,
-                job.match_id,
-                Some(job.team1),
-                Some(job.team2),
-                Some(&job.maps),
-            )
-            .await;
-            if let Err(err) = &result {
-                tracing::error!(error = ?err, match_id = %job.match_id, "could not save a match's score");
+            let result = match &job.save {
+                Save::Score { team1, team2, maps } => {
+                    handlers::bracket::save_score(
+                        &app,
+                        job.match_id,
+                        Some(*team1),
+                        Some(*team2),
+                        Some(maps),
+                    )
+                    .await
+                }
+                Save::Lobby(rows) => save_lobby(&app, job.match_id, rows).await,
+            };
+            match &result {
+                Ok(()) => {
+                    let _ = scores.send(job.match_id);
+                }
+                Err(err) => {
+                    tracing::error!(error = ?err, match_id = %job.match_id, "could not save a match's score")
+                }
             }
             if let Some(reply) = job.reply {
                 let _ = reply.send(result);
@@ -248,6 +275,70 @@ fn spawn_saver(app: AppState) -> mpsc::UnboundedSender<SaveJob> {
         }
     });
     tx
+}
+
+// Saves a qualifier lobby's finished pool maps; the pages showing it (the statistics
+// among them) hear of it.
+async fn save_lobby(
+    app: &AppState,
+    match_id: Uuid,
+    rows: &[QualifierMapRow],
+) -> Result<(), AppError> {
+    let mut tx = app.db.begin().await?;
+    db::stats::replace_qualifier_results(&mut tx, match_id, rows).await?;
+    tx.commit().await?;
+    app.live.match_changed(match_id);
+    Ok(())
+}
+
+// Saves the results of the concluded lobbies that have none, read from their saved chat:
+// the bots only save a lobby's maps while they run it. Run at startup and after a dev
+// reseed.
+pub async fn backfill_lobbies(app: &AppState) -> Result<(), AppError> {
+    for id in db::stats::lobbies_without_results(&app.db).await? {
+        let Some(ctx) = context::load(&app.db, id).await? else {
+            continue;
+        };
+        let Some(m) = db::matches::find_match(&app.db, id).await? else {
+            continue;
+        };
+        let states = chat_states(app, &m.mp_ids).await?;
+        let rooms: Vec<ViewRoom> = states
+            .iter()
+            .map(|(mp_id, state)| ViewRoom {
+                mp_id: *mp_id,
+                state,
+                bot: None,
+                access: RoomAccess::Closed,
+            })
+            .collect();
+        let rows = lobby_rows(
+            &finished_of(&rooms, None),
+            &ctx.entries,
+            &ctx.roster,
+            &ctx.ignored,
+        );
+        if !rows.is_empty() {
+            save_lobby(app, id, &rows).await?;
+        }
+    }
+    Ok(())
+}
+
+// Each room as its saved chat describes it.
+async fn chat_states(app: &AppState, mp_ids: &[i64]) -> Result<Vec<(i64, RoomState)>, AppError> {
+    let mut states = Vec::new();
+    for &mp_id in mp_ids {
+        let lines = db::chat::list_messages(&app.db, mp_id).await?;
+        let state = read_lobby(
+            lines
+                .iter()
+                .filter(|l| is_bancho_bot(&l.sender) && !l.action)
+                .map(|l| (l.text.as_str(), l.sent_at)),
+        );
+        states.push((mp_id, state));
+    }
+    Ok(states)
 }
 
 fn is_bancho_bot(name: &str) -> bool {
@@ -709,6 +800,9 @@ impl Manager {
             return;
         };
         let ctx = &run.ctx;
+        if ctx.kind == MatchKind::Qualifier {
+            return self.count_lobby(id);
+        }
         let Some([a, b]) = ctx
             .sides
             .clone()
@@ -766,14 +860,52 @@ impl Manager {
         if save {
             let _ = self.saver.send(SaveJob {
                 match_id: id,
-                team1: t.team1,
-                team2: t.team2,
-                maps: t.maps,
+                save: Save::Score {
+                    team1: t.team1,
+                    team2: t.team2,
+                    maps: t.maps,
+                },
                 reply: None,
             });
         }
         if let Some(cue) = tiebreaker {
             self.cue_tiebreaker(id, cue);
+        }
+    }
+
+    // A lobby's finished pool maps are saved whenever they differ from the site's, the
+    // first reading included: nobody enters them by hand.
+    fn count_lobby(&mut self, id: Uuid) {
+        let Some(run) = self.runs.get(&id) else {
+            return;
+        };
+        let rooms: Vec<ViewRoom> = self
+            .match_rooms(id)
+            .into_iter()
+            .map(|r| ViewRoom {
+                mp_id: r.mp_id,
+                state: &r.state,
+                bot: None,
+                access: RoomAccess::In,
+            })
+            .collect();
+        let finished = finished_of(&rooms, run.osu.as_ref().map(|(_, g)| g));
+        let rows = lobby_rows(
+            &finished,
+            &run.ctx.entries,
+            &run.ctx.roster,
+            &run.ctx.ignored,
+        );
+        let key = lobby_key(&rows);
+        let save = key != run.ctx.saved_key && run.last_key.as_deref() != Some(key.as_str());
+        let run = self.runs.get_mut(&id).expect("checked above");
+        run.last_key = Some(key);
+        if save {
+            let _ = self.saver.send(SaveJob {
+                match_id: id,
+                save: Save::Lobby(rows),
+                reply: None,
+            });
         }
     }
 
@@ -1700,9 +1832,11 @@ impl Manager {
         });
         let _ = self.saver.send(SaveJob {
             match_id,
-            team1: t.team1,
-            team2: t.team2,
-            maps: t.maps,
+            save: Save::Score {
+                team1: t.team1,
+                team2: t.team2,
+                maps: t.maps,
+            },
             reply: Some(reply),
         });
     }
@@ -2010,17 +2144,7 @@ pub async fn static_view(app: &AppState, match_id: Uuid) -> Result<Option<LiveRo
     if m.mp_ids.is_empty() {
         return Ok(None);
     }
-    let mut states = Vec::new();
-    for &mp_id in &m.mp_ids {
-        let lines = db::chat::list_messages(&app.db, mp_id).await?;
-        let state = read_lobby(
-            lines
-                .iter()
-                .filter(|l| is_bancho_bot(&l.sender) && !l.action)
-                .map(|l| (l.text.as_str(), l.sent_at)),
-        );
-        states.push((mp_id, state));
-    }
+    let states = chat_states(app, &m.mp_ids).await?;
     let rooms: Vec<ViewRoom> = states
         .iter()
         .map(|(mp_id, state)| ViewRoom {

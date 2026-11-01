@@ -117,6 +117,9 @@ export function NavBar() {
             <NavLink to="/bracket" className={linkClass}>
               Maçlar
             </NavLink>
+            <NavLink to="/stats" className={linkClass}>
+              İstatistik
+            </NavLink>
             <NavLink to="/pickem" className={linkClass}>
               Pick'em
             </NavLink>

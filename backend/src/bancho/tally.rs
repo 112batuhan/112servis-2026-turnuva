@@ -17,6 +17,7 @@ use crate::{
     db::{
         bracket::{BanRow, ManualResultRow, MapPlayerScore, MapResultRow, PickRow},
         mappool::{Category, PublicPoolMap, PublicSlot},
+        stats::QualifierMapRow,
     },
     draft::{next_turn, DraftOrder, StepKind, Turn},
     osu_api::matches::MatchGame,
@@ -351,24 +352,78 @@ pub fn tally(input: &TallyInput) -> Tally {
                 map_id: Some(r.map_id),
                 team1_score: total(r, input.team1_id),
                 team2_score: total(r, input.team2_id),
-                players: f
-                    .result
-                    .scores
-                    .iter()
-                    .filter_map(|s| {
-                        scorer(s, input.roster).map(|p| MapPlayerScore {
-                            user_id: p.user_id,
-                            score: s.score,
-                            mods: s.mods.clone(),
-                            passed: s.passed,
-                        })
-                    })
-                    .collect(),
+                players: player_scores(&f.result, input.roster),
             })
             .collect(),
         team1: wins(input.team1_id),
         team2: wins(input.team2_id),
     }
+}
+
+// The scores of a finished map by the match's players, one per player.
+pub fn player_scores(result: &MapResult, roster: &[RosterPlayer]) -> Vec<MapPlayerScore> {
+    let mut seen = HashSet::new();
+    result
+        .scores
+        .iter()
+        .filter_map(|s| {
+            scorer(s, roster)
+                .filter(|p| seen.insert(p.user_id))
+                .map(|p| MapPlayerScore {
+                    user_id: p.user_id,
+                    score: s.score,
+                    mods: s.mods.clone(),
+                    passed: s.passed,
+                })
+        })
+        .collect()
+}
+
+// A qualifier lobby's finished pool maps as the site saves them: every one the referee
+// didn't leave out ("Sayma"), in the order played, attempts at the same map included,
+// with the scores of the lobby's players.
+pub fn lobby_rows(
+    finished: &[Finished],
+    entries: &[PoolEntry],
+    roster: &[RosterPlayer],
+    ignored: &HashSet<String>,
+) -> Vec<QualifierMapRow> {
+    let none = HashSet::new();
+    finished
+        .iter()
+        .filter(|f| !ignored.contains(&f.key))
+        .filter_map(|f| {
+            let entry = entry_of(
+                entries,
+                f.result.beatmap_id,
+                &f.result.room_mods,
+                f.result.freemod,
+                &none,
+            )?;
+            let players = player_scores(&f.result, roster);
+            (!players.is_empty()).then_some(QualifierMapRow {
+                map_id: Some(entry.map_id),
+                players,
+            })
+        })
+        .collect()
+}
+
+// What a lobby's saved results are compared by.
+pub fn lobby_key(rows: &[QualifierMapRow]) -> String {
+    let rows: Vec<_> = rows
+        .iter()
+        .map(|r| {
+            let mut players: Vec<_> = r
+                .players
+                .iter()
+                .map(|p| (p.user_id, p.score, p.mods.clone(), p.passed))
+                .collect();
+            players.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+            (r.map_id, players)
+        })
+        .collect();
+    serde_json::to_string(&rows).unwrap_or_default()
 }
 
 // What a saved score and its map results are compared by.
@@ -508,6 +563,48 @@ mod tests {
     }
 
     #[test]
+    fn saves_a_lobbys_pool_maps_but_not_the_ones_left_out() {
+        let team = Uuid::from_u128(10);
+        let roster = [RosterPlayer {
+            user_id: Uuid::from_u128(1),
+            osu_id: 1,
+            username: "a".into(),
+            team_id: team,
+            color: None,
+            home: None,
+        }];
+        let finished: Vec<Finished> = [
+            result(5, vec![score("a", 100), score("stranger", 999)]),
+            result(9, vec![score("a", 200)]),
+            result(6, vec![score("a", 300)]),
+            result(5, vec![score("a", 400)]),
+        ]
+        .into_iter()
+        .enumerate()
+        .map(|(n, result)| Finished {
+            key: format!("chat:1:{n}"),
+            mp_id: 1,
+            result,
+        })
+        .collect();
+        let entries = [entry(1, 5, "", false), entry(2, 6, "", false)];
+        let ignored = HashSet::from(["chat:1:2".to_string()]);
+        let rows = lobby_rows(&finished, &entries, &roster, &ignored);
+        // The warmup (9) isn't in the pool and map 6 was left out; both attempts at 5 stay.
+        let saved: Vec<(Option<Uuid>, Vec<i64>)> = rows
+            .iter()
+            .map(|r| (r.map_id, r.players.iter().map(|p| p.score).collect()))
+            .collect();
+        assert_eq!(
+            saved,
+            vec![
+                (Some(Uuid::from_u128(1)), vec![100]),
+                (Some(Uuid::from_u128(1)), vec![400]),
+            ]
+        );
+    }
+
+    #[test]
     fn counts_the_score() {
         let (t1, t2) = (Uuid::from_u128(10), Uuid::from_u128(20));
         let roster = [
@@ -572,6 +669,7 @@ mod tests {
                 user_id: 1,
                 score: value,
                 passed: true,
+                accuracy: None,
                 mods: vec!["HD".into()],
             }],
         };

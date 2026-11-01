@@ -41,6 +41,8 @@ pub async fn login_as(
 pub async fn seed(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     db::dev::seed(&state.db).await?;
     crate::handlers::bracket::resync_potentials(&state).await?;
+    // The first lobby is seeded with only its chat.
+    crate::bancho::backfill_lobbies(&state).await?;
     // The bots read the seeded rooms; the open pages reload.
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
@@ -55,6 +57,7 @@ pub async fn seed_live(
     match db::dev::seed_live(&state.db, user.id).await? {
         db::dev::LiveSeed::Done => {
             crate::handlers::bracket::resync_potentials(&state).await?;
+            crate::bancho::backfill_lobbies(&state).await?;
             state.live.bracket_changed();
             Ok(StatusCode::NO_CONTENT)
         }

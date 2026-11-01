@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use super::{
     commands::{side_color, side_slots, ROOM_PREFIX},
-    tally::{pool_entries, score_key, PoolEntry, RosterPlayer},
+    tally::{lobby_key, pool_entries, score_key, PoolEntry, RosterPlayer},
 };
 use crate::{
     db::{
@@ -51,7 +51,8 @@ pub struct MatchContext {
     pub manual: Vec<ManualResultRow>,
     pub ignored: HashSet<String>,
     pub settings: RoomSettings,
-    // The score the site has, as tally::score_key reads it.
+    // The score the site has, as tally::score_key reads it; a lobby's saved results, as
+    // tally::lobby_key reads them.
     pub saved_key: String,
 }
 
@@ -182,6 +183,10 @@ pub async fn load(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchContext>>
             .into_iter()
             .collect(),
         settings: db::referee::find_settings(pool, id).await?,
-        saved_key: score_key(row.team1_score, row.team2_score, &map_results),
+        saved_key: if bracket {
+            score_key(row.team1_score, row.team2_score, &map_results)
+        } else {
+            lobby_key(&db::stats::list_qualifier_results(pool, id).await?)
+        },
     }))
 }

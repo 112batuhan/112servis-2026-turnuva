@@ -20,6 +20,7 @@ pub mod reschedule;
 pub mod rules;
 pub mod session;
 pub mod settings;
+pub mod stats;
 pub mod team;
 pub mod user;
 

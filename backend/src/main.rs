@@ -13,6 +13,8 @@ mod pickem;
 mod potentials;
 mod rank_refresh;
 mod role;
+mod room_scores;
+mod stats;
 mod team_rank;
 
 use axum::Router;
@@ -53,6 +55,8 @@ pub struct AppState {
     pub live: handlers::live::Live,
     // The tournament server's bot, when it's configured.
     pub discord: discord::Discord,
+    // The statistics last counted, until the site next changes.
+    pub stats_cache: handlers::stats::StatsCache,
 }
 
 #[tokio::main]
@@ -100,7 +104,9 @@ async fn main() {
         irc_users: handlers::irc::IrcUsers::default(),
         live: handlers::live::Live::default(),
         discord: discord::Discord::new(&config.discord_bot),
+        stats_cache: handlers::stats::StatsCache::default(),
     };
+    handlers::stats::spawn_invalidation(&state);
     // Seeds loaded straight into the database, and bracket changes from before potential
     // matches existed, get theirs now.
     if let Err(err) = handlers::bracket::resync_potentials(&state).await {
@@ -137,6 +143,7 @@ async fn main() {
         .merge(handlers::referee::routes())
         .merge(handlers::reschedule::routes())
         .merge(handlers::rules::routes())
+        .merge(handlers::stats::routes())
         .merge(handlers::notifications::routes())
         .merge(handlers::pickem::routes())
         .merge(handlers::irc::routes())

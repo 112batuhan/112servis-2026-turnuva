@@ -1,0 +1,177 @@
+/* A Z score: the figure, then a meter centred on the map's mean. Above it in ink, below it in
+   muted ink; a missing qualifier map (scored as a 0) in danger, since it's a penalty. */
+.zval {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.zval-num {
+  min-width: 3.4em;
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: 1;
+  text-align: right;
+}
+
+.zval.is-lg .zval-num {
+  font-size: var(--text-xl);
+  font-weight: 800;
+}
+
+.zval.is-down .zval-num {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.zval.is-missing .zval-num {
+  color: var(--color-danger);
+}
+
+.zval-bar {
+  position: relative;
+  flex: none;
+  width: 52px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-sunken);
+}
+
+/* The mean, where every bar starts. */
+.zval-bar::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  background: var(--color-border-strong);
+}
+
+.zval-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-text);
+}
+
+.zval.is-down .zval-fill {
+  background: var(--color-text-subtle);
+}
+
+.zval.is-missing .zval-fill {
+  background: var(--color-danger);
+}
+
+/* A pool map's label on its category's colour: the colour as a rule under the figure. */
+.stat-map-label {
+  display: inline-block;
+  padding-bottom: 2px;
+  border-bottom: 3px solid var(--category, var(--color-border-strong));
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+/* A player or a team: the picture, the name, a quiet line under it. */
+.stat-who {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.stat-who.is-unknown {
+  color: var(--color-text-subtle);
+}
+
+.stat-who.is-team {
+  --team-banner-w: 48px;
+  --team-banner-h: 28px;
+}
+
+.stat-avatar {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-sunken);
+  object-fit: cover;
+}
+
+.stat-who-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.stat-who-name,
+.stat-team-name {
+  overflow: hidden;
+  color: var(--color-text);
+  font-weight: 600;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stat-who-name:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* The viewer's own name, in frost at full weight (a wash alone never says "yours"). */
+.stat-who.is-own .stat-who-name,
+.stat-team-name.is-own:not(.is-quiet) {
+  color: var(--color-primary);
+  font-weight: 700;
+}
+
+.stat-team-name.is-quiet {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.stat-who-meta {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The match a play was in: its code as a display figure in its side's colour, linking to it. */
+.stat-match {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-md);
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.stat-match.is-winners {
+  color: var(--color-code-winners);
+}
+
+.stat-match.is-losers {
+  color: var(--color-code-losers);
+}
+
+.stat-match:hover {
+  text-decoration: underline;
+}

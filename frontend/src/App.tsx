@@ -21,6 +21,7 @@ import { LandingPage } from "./pages/LandingPage";
 import { LinkDiscordPage } from "./pages/LinkDiscordPage";
 import { MatchPage } from "./pages/match/MatchPage";
 import { PickemPage } from "./pages/pickem/PickemPage";
+import { StatsPage } from "./pages/stats/StatsPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { PublicPoolPage } from "./pages/PublicPoolPage";
 import { QualifiersPage } from "./pages/QualifiersPage";
@@ -71,6 +72,7 @@ export function App() {
           <Route path="/qualifiers" element={<QualifiersPage />} />
           <Route path="/bracket" element={<BracketPage />} />
           <Route path="/match/:matchId" element={<MatchPage />} />
+          <Route path="/stats" element={<StatsPage />} />
           <Route path="/pickem" element={<PickemPage />} />
           <Route path="/staff" element={<StaffPage />} />
           <Route path="/kupa" element={<ArgPage />} />

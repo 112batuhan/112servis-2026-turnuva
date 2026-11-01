@@ -61,6 +61,9 @@ pub enum AppError {
 
     #[error("database error")]
     Database(#[from] sqlx::Error),
+
+    #[error("could not serialize a response")]
+    Serialize(#[from] serde_json::Error),
 }
 
 impl IntoResponse for AppError {
@@ -93,7 +96,9 @@ impl IntoResponse for AppError {
             AppError::OsuApiDecode(_) => {
                 (StatusCode::BAD_GATEWAY, "could not read osu! API response")
             }
-            AppError::Database(_) => (StatusCode::INTERNAL_SERVER_ERROR, "internal server error"),
+            AppError::Database(_) | AppError::Serialize(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
+            }
         };
 
         // Client only sees the generic message above; the real cause goes to the logs.

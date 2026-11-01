@@ -661,20 +661,75 @@ pub async fn list_map_results(pool: &PgPool, match_id: Uuid) -> sqlx::Result<Vec
     Ok(rows)
 }
 
-// Replaces a match's map results and their players' scores with `rows`, in their order.
+// Replaces a bracket match's map results and their players' scores with `rows`, in
+// their order.
 pub async fn replace_map_results(
     conn: &mut PgConnection,
     match_id: Uuid,
     rows: &[MapResultRow],
 ) -> sqlx::Result<()> {
+    let rows: Vec<SavedMap> = rows
+        .iter()
+        .map(|r| SavedMap {
+            map_id: r.map_id,
+            totals: Some((r.team1_score, r.team2_score)),
+            players: &r.players,
+        })
+        .collect();
+    replace_saved_maps(conn, match_id, &rows).await
+}
+
+// A finished pool map as a match saves it: a bracket match's with each team's total, a
+// qualifier lobby's without.
+pub struct SavedMap<'a> {
+    pub map_id: Option<Uuid>,
+    pub totals: Option<(i64, i64)>,
+    pub players: &'a [MapPlayerScore],
+}
+
+#[derive(sqlx::FromRow)]
+struct KnownAccuracy {
+    user_id: Uuid,
+    map_id: Option<Uuid>,
+    score: i64,
+    accuracy: f64,
+}
+
+// Replaces any match's saved maps and their players' scores with `rows`, in their order.
+// The bots save them again from the chat as each map ends, and the chat has no accuracy:
+// a score that stays the same (player, map and score) keeps the accuracy osu!'s record
+// gave it (crate::room_scores).
+pub async fn replace_saved_maps(
+    conn: &mut PgConnection,
+    match_id: Uuid,
+    rows: &[SavedMap<'_>],
+) -> sqlx::Result<()> {
+    let known = sqlx::query_as::<_, KnownAccuracy>(
+        r#"
+        SELECT s.user_id, r.pool_map_id AS map_id, s.score, s.accuracy
+        FROM match_map_scores s
+        JOIN match_map_results r USING (match_id, position)
+        WHERE s.match_id = $1 AND s.accuracy IS NOT NULL
+        "#,
+    )
+    .bind(match_id)
+    .fetch_all(&mut *conn)
+    .await?;
+    let accuracy_of = |user_id: Uuid, map_id: Option<Uuid>, score: i64| {
+        known
+            .iter()
+            .find(|k| k.user_id == user_id && k.map_id == map_id && k.score == score)
+            .map(|k| k.accuracy)
+    };
+
     // The players' scores go with their rows (ON DELETE CASCADE).
     sqlx::query("DELETE FROM match_map_results WHERE match_id = $1")
         .bind(match_id)
         .execute(&mut *conn)
         .await?;
     let maps: Vec<Option<Uuid>> = rows.iter().map(|r| r.map_id).collect();
-    let team1: Vec<i64> = rows.iter().map(|r| r.team1_score).collect();
-    let team2: Vec<i64> = rows.iter().map(|r| r.team2_score).collect();
+    let team1: Vec<Option<i64>> = rows.iter().map(|r| r.totals.map(|t| t.0)).collect();
+    let team2: Vec<Option<i64>> = rows.iter().map(|r| r.totals.map(|t| t.1)).collect();
     sqlx::query(
         r#"
         INSERT INTO match_map_results (match_id, position, pool_map_id, team1_score, team2_score)
@@ -690,28 +745,28 @@ pub async fn replace_map_results(
     .execute(&mut *conn)
     .await?;
 
-    let players = rows
-        .iter()
-        .enumerate()
-        .flat_map(|(i, r)| r.players.iter().map(move |p| (i as i32 + 1, p)));
     let mut positions = Vec::new();
     let mut users = Vec::new();
     let mut scores = Vec::new();
     let mut mods = Vec::new();
     let mut passed = Vec::new();
-    for (position, p) in players {
-        positions.push(position);
-        users.push(p.user_id);
-        scores.push(p.score);
-        mods.push(p.mods.clone());
-        passed.push(p.passed);
+    let mut accuracy = Vec::new();
+    for (i, row) in rows.iter().enumerate() {
+        for p in row.players {
+            positions.push(i as i32 + 1);
+            users.push(p.user_id);
+            scores.push(p.score);
+            mods.push(p.mods.clone());
+            passed.push(p.passed);
+            accuracy.push(accuracy_of(p.user_id, row.map_id, p.score));
+        }
     }
     sqlx::query(
         r#"
-        INSERT INTO match_map_scores (match_id, position, user_id, score, mods, passed)
-        SELECT $1, s.position, s.user_id, s.score, s.mods, s.passed
-        FROM UNNEST($2::int[], $3::uuid[], $4::bigint[], $5::text[], $6::bool[])
-             AS s(position, user_id, score, mods, passed)
+        INSERT INTO match_map_scores (match_id, position, user_id, score, mods, passed, accuracy)
+        SELECT $1, s.position, s.user_id, s.score, s.mods, s.passed, s.accuracy
+        FROM UNNEST($2::int[], $3::uuid[], $4::bigint[], $5::text[], $6::bool[], $7::float8[])
+             AS s(position, user_id, score, mods, passed, accuracy)
         "#,
     )
     .bind(match_id)
@@ -720,6 +775,7 @@ pub async fn replace_map_results(
     .bind(&scores)
     .bind(&mods)
     .bind(&passed)
+    .bind(&accuracy)
     .execute(&mut *conn)
     .await?;
     Ok(())
