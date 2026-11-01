@@ -19,6 +19,8 @@ export interface MapCardEditor {
   onMove: (slotId: string | null) => void;
   /** Permanent delete; only offered while the map is in the generic pool. */
   onDelete: () => void;
+  /** Resolves the map's stats from osu! again. */
+  onRecompute: () => void;
   moveTargets: MoveTargetGroup[];
 }
 
@@ -29,9 +31,11 @@ interface Props {
   editor?: MapCardEditor;
   /** In the editor for those who may only look: shows both notes, without any controls. */
   viewOnly?: boolean;
+  /** In a freemod category where players may take HR (FM, not TB): adds the map's HR stats. */
+  showHr?: boolean;
 }
 
-export function MapCard({ map, editor, viewOnly }: Props) {
+export function MapCard({ map, editor, viewOnly, showHr }: Props) {
   const [noteOpen, setNoteOpen] = useState(false);
   const dragProps = editor && !noteOpen ? mapDragProps(map.id) : {};
   const editorNotes = "editor_notes" in map ? map.editor_notes : "";
@@ -42,7 +46,12 @@ export function MapCard({ map, editor, viewOnly }: Props) {
       <div className="map-card-main">
         <PreviewButton map={map} />
         {map.cover_url && <Cover url={map.cover_url} />}
-        <MapInfo map={map} note={editor || viewOnly ? undefined : map.public_notes} />
+        <MapInfo
+          map={map}
+          note={editor || viewOnly ? undefined : map.public_notes}
+          hr={showHr && !map.mods ? (hrStatsOf(map) ?? (editor ? "missing" : null)) : null}
+          onRecompute={editor?.onRecompute}
+        />
       </div>
 
       {showNotes && (
@@ -86,8 +95,33 @@ export function MapCard({ map, editor, viewOnly }: Props) {
   );
 }
 
-/** `note` is the public note, shown at the end of the stat row on public pages. */
-function MapInfo({ map, note }: { map: PublicPoolMap; note?: string }) {
+interface HrStats {
+  starRating: number;
+  cs: number;
+  ar: number;
+  od: number;
+}
+
+function hrStatsOf(map: PublicPoolMap): HrStats | null {
+  const { hr_star_rating, hr_cs, hr_ar, hr_od } = map;
+  if (hr_star_rating === null || hr_cs === null || hr_ar === null || hr_od === null) return null;
+  return { starRating: hr_star_rating, cs: hr_cs, ar: hr_ar, od: hr_od };
+}
+
+interface MapInfoProps {
+  map: PublicPoolMap;
+  /** The public note, shown at the end of the stat row on public pages. */
+  note?: string;
+  /** The HR stats under the nomod ones; "missing" in the editor for a map added before they
+   *  were stored. */
+  hr: HrStats | "missing" | null;
+  onRecompute?: () => void;
+}
+
+function MapInfo({ map, note, hr, onRecompute }: MapInfoProps) {
+  const stats = hr === "missing" ? null : hr;
+  const hrValue = (render: (stats: HrStats) => ReactNode) => (stats ? render(stats) : undefined);
+
   return (
     <div className="map-info">
       <div className="map-info-head">
@@ -110,25 +144,48 @@ function MapInfo({ map, note }: { map: PublicPoolMap; note?: string }) {
         )}
       </div>
       <div className="map-stats-row">
-        <dl className="map-stats">
-          {map.mods && <Stat label="Mods" value={map.mods} highlight />}
-          <Stat
-            label="Star rating"
-            value={
-              <>
-                <Icon name="star" size={12} className="map-stat-star" /> {map.star_rating.toFixed(2)}
-              </>
-            }
-          />
-          <Stat label="BPM" value={`${Math.round(map.bpm)} bpm`} />
-          <Stat label="Uzunluk" value={formatLength(map.total_length)} />
-          <Stat label="CS" value={`CS ${map.cs.toFixed(1)}`} />
-          <Stat label="AR" value={`AR ${map.ar.toFixed(1)}`} />
-          <Stat label="OD" value={`OD ${map.od.toFixed(1)}`} />
-        </dl>
+        <div className={`map-stats-table ${stats ? "has-hr" : ""}`}>
+          {stats && (
+            <div className="map-stats-modes" aria-hidden="true">
+              <span>NM</span>
+              <span>HR</span>
+            </div>
+          )}
+          <dl className="map-stats">
+            {map.mods && <Stat label="Mods" value={map.mods} highlight />}
+            <Stat
+              label="Star rating"
+              value={<StarRating value={map.star_rating} />}
+              hr={hrValue((s) => <StarRating value={s.starRating} />)}
+            />
+            <Stat label="BPM" value={`${Math.round(map.bpm)} bpm`} between={!!stats} />
+            <Stat label="Uzunluk" value={formatLength(map.total_length)} between={!!stats} />
+            <Stat label="CS" value={`CS ${map.cs.toFixed(1)}`} hr={hrValue((s) => `CS ${s.cs.toFixed(1)}`)} />
+            <Stat label="AR" value={`AR ${map.ar.toFixed(1)}`} hr={hrValue((s) => `AR ${s.ar.toFixed(1)}`)} />
+            <Stat label="OD" value={`OD ${map.od.toFixed(1)}`} hr={hrValue((s) => `OD ${s.od.toFixed(1)}`)} />
+          </dl>
+        </div>
+        {hr === "missing" && (
+          <p className="map-stats-missing">
+            HR değerleri kayıtlı değil.{" "}
+            {onRecompute && (
+              <button type="button" className="map-stats-recompute" onClick={onRecompute}>
+                Yeniden hesapla
+              </button>
+            )}
+          </p>
+        )}
         {note && <PublicNote note={note} />}
       </div>
     </div>
+  );
+}
+
+function StarRating({ value }: { value: number }) {
+  return (
+    <>
+      <Icon name="star" size={12} className="map-stat-star" /> {value.toFixed(2)}
+    </>
   );
 }
 
@@ -158,11 +215,27 @@ function PublicNote({ note }: { note: string }) {
   );
 }
 
-function Stat({ label, value, highlight }: { label: string; value: ReactNode; highlight?: boolean }) {
+interface StatProps {
+  label: string;
+  value: ReactNode;
+  /** The value under HR, on the HR line below. */
+  hr?: ReactNode;
+  /** On a two-line table, a stat HR doesn't change: it sits between the lines, for both. */
+  between?: boolean;
+  highlight?: boolean;
+}
+
+function Stat({ label, value, hr, between, highlight }: StatProps) {
   return (
-    <div className={`map-stat ${highlight ? "is-highlight" : ""}`}>
+    <div className={`map-stat ${highlight ? "is-highlight" : ""} ${between ? "is-between" : ""}`}>
       <dt className="sr-only">{label}</dt>
       <dd>{value}</dd>
+      {hr !== undefined && (
+        <dd className="map-stat-hr">
+          <span className="sr-only">HR ile: </span>
+          {hr}
+        </dd>
+      )}
     </div>
   );
 }
@@ -253,6 +326,7 @@ function EditorActions({ map, editor }: { map: PublicPoolMap; editor: MapCardEdi
           </optgroup>
         ))}
       </select>
+      <IconButton icon="refresh" label="İstatistikleri osu!'dan yeniden hesapla" onClick={editor.onRecompute} />
       {inSlot ? (
         <IconButton icon="undo" label="Ortak havuza geri gönder" onClick={() => editor.onMove(null)} />
       ) : (

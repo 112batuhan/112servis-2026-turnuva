@@ -63,6 +63,8 @@ export interface Stage {
   best_of: number | null;
   /** The order its bracket matches ban and pick in ("p1-p2-b2-b1-p1-*", lib/draftOrder.ts); null: the default. */
   draft_order: string | null;
+  /** Where its beatmap pack is downloaded from (hosted elsewhere); null: none yet. */
+  pack_url: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -103,6 +105,13 @@ export interface PublicPoolMap {
   cs: number;
   ar: number;
   od: number;
+  /** The map under HR, for freemod picks: only on nomod maps (null on maps added with mods,
+   *  and on ones added before HR stats were stored until they're recomputed). BPM and length
+   *  don't change. */
+  hr_star_rating: number | null;
+  hr_cs: number | null;
+  hr_ar: number | null;
+  hr_od: number | null;
   mode: string;
   cover_url: string | null;
   public_notes: string;

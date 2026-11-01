@@ -97,6 +97,13 @@ export function useStageEditor(userId: string) {
       await Promise.all([reloadDetail(), loadStages()]);
     });
 
+  const savePackUrl = (url: string) =>
+    run(async () => {
+      if (!detail) return;
+      await api.setStagePackUrl(detail.id, url.trim() || null);
+      await Promise.all([reloadDetail(), loadStages()]);
+    });
+
   // ---- categories ----
 
   const createCategory = (name: string) =>
@@ -170,6 +177,12 @@ export function useStageEditor(userId: string) {
       await reloadDetail();
     });
 
+  const recomputeMapStats = (mapId: string) =>
+    run(async () => {
+      await api.recomputeMapStats(mapId);
+      await reloadDetail();
+    });
+
   const deleteMap = (mapId: string) =>
     run(async () => {
       await api.deleteMap(mapId);
@@ -191,6 +204,7 @@ export function useStageEditor(userId: string) {
     busy,
     actions: {
       togglePublished,
+      savePackUrl,
       createCategory,
       renameCategory,
       deleteCategory,
@@ -203,6 +217,7 @@ export function useStageEditor(userId: string) {
       saveSlotNotes,
       addMap,
       moveMap,
+      recomputeMapStats,
       deleteMap,
       saveMapNote,
     },

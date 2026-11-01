@@ -5,6 +5,7 @@ import { IconButton } from "../../../components/IconButton";
 import { MapCard, type MapCardEditor } from "../../../components/MapCard";
 import { PoolSection } from "../../../components/PoolSection";
 import { EmptySlot, Slot } from "../../../components/Slot";
+import { showsHrStats } from "../../../lib/bancho";
 import { useMapDropZone } from "../../../lib/dragAndDrop";
 import type { StageEditorActions } from "./useStageEditor";
 
@@ -97,7 +98,7 @@ function EditorSlot({ slot, categoryName, number, map, actions, editorFor }: Edi
         </div>
       )}
       {map ? (
-        <MapCard map={map} editor={editorFor?.(map)} viewOnly={!editorFor} />
+        <MapCard map={map} editor={editorFor?.(map)} viewOnly={!editorFor} showHr={showsHrStats(categoryName)} />
       ) : (
         <EmptySlot>
           {editorFor ? `Buraya bir map sürükle ya da map üzerindeki "Taşı…" menüsünü kullan` : "Boş slot"}

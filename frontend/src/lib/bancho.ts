@@ -144,6 +144,12 @@ export function isFreemodCategory(name: string): boolean {
   return /^(FM|TB)/i.test(name.trim());
 }
 
+/** A freemod category whose maps show their HR stats too: FM, where players may take HR. The
+ *  tiebreaker is freemod as well but doesn't need them. */
+export function showsHrStats(categoryName: string): boolean {
+  return /^FM/i.test(categoryName.trim());
+}
+
 /** Whether someone was added as a referee of the room. */
 export const isRoomRef = (room: Pick<RoomState, "refs">, username: string) => room.refs.includes(normalizeName(username));
 

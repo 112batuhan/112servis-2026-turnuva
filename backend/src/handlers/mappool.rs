@@ -29,6 +29,7 @@ pub fn routes() -> Router<AppState> {
         )
         .route("/stages/:id/best-of", put(set_stage_best_of))
         .route("/stages/:id/draft-order", put(set_stage_draft_order))
+        .route("/stages/:id/pack", put(set_stage_pack_url))
         .route("/stages/:id/categories", post(create_category))
         .route("/categories/reorder", post(reorder_categories))
         .route(
@@ -40,6 +41,7 @@ pub fn routes() -> Router<AppState> {
         .route("/pool", post(add_map))
         .route("/maps/:id", patch(move_map).delete(delete_map))
         .route("/maps/:id/notes", patch(update_map_notes))
+        .route("/maps/:id/stats", post(recompute_map_stats))
         .route("/public/stages", get(list_public_stages))
         .route("/public/stages/:id", get(get_public_stage))
 }
@@ -264,6 +266,45 @@ pub async fn set_stage_draft_order(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[derive(Debug, Deserialize)]
+pub struct PackUrlBody {
+    pack_url: Option<String>,
+}
+
+// The longest pack link kept; the column allows the same.
+const MAX_PACK_URL: usize = 2048;
+
+// PUT /api/stages/:id/pack — map poolers. The link to the stage's beatmap pack, hosted
+// elsewhere; empty or null takes it off. The public mappool page offers it.
+pub async fn set_stage_pack_url(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<PackUrlBody>,
+) -> Result<impl IntoResponse, AppError> {
+    guard(&user)?;
+    let url = match body.pack_url.as_deref().map(str::trim) {
+        None | Some("") => None,
+        Some(text) => {
+            let parsed = reqwest::Url::parse(text)
+                .map_err(|_| AppError::BadRequest("the pack link isn't a valid address"))?;
+            if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
+                return Err(AppError::BadRequest(
+                    "the pack link must start with http:// or https://",
+                ));
+            }
+            if text.len() > MAX_PACK_URL {
+                return Err(AppError::BadRequest("the pack link is too long"));
+            }
+            Some(text)
+        }
+    };
+    if !db::mappool::set_stage_pack_url(&state.db, id, url).await? {
+        return Err(AppError::NotFound);
+    }
+    Ok(StatusCode::NO_CONTENT)
+}
+
 // ---------- categories ----------
 
 #[derive(Debug, Deserialize)]
@@ -387,34 +428,43 @@ async fn resolve_stats(
     bm: &osu_api::beatmap::Beatmap,
     mods: &str,
 ) -> Result<db::mappool::ModStats, AppError> {
+    use crate::mods::{modded_ar, modded_cs, modded_od};
+
     let parsed = crate::mods::parse(mods);
-
-    let cs = crate::mods::modded_cs(bm.cs, &parsed);
     let rate = crate::mods::rate(&parsed);
-    let bpm = bm.bpm.unwrap_or(0.0) * rate;
-    let total_length = (bm.total_length as f64 / rate).round() as i32;
 
-    // osu! names OD `accuracy`. SR/AR/OD come from the difficulty-attributes API under
-    // mods; nomod uses the values already on the beatmap response.
-    let (star_rating, ar, od) = if parsed.is_empty() {
-        (bm.difficulty_rating, bm.ar, bm.accuracy)
+    // Only the star rating needs osu!'s difficulty calculation (nomod uses the value on
+    // the beatmap response). A nomod map also gets its HR stats, for freemod picks.
+    // osu! names OD `accuracy`.
+    let token = osu_api::token::app_token(&state.osu_client, &state.osu_app_token).await?;
+    let star_rating = if parsed.is_empty() {
+        bm.difficulty_rating
     } else {
-        let token = osu_api::token::app_token(&state.osu_client, &state.osu_app_token).await?;
-        let attr = osu_api::attributes::fetch(&state.http_client, &token, bm.id, &parsed).await?;
-        (
-            attr.star_rating,
-            attr.approach_rate.unwrap_or(bm.ar),
-            attr.overall_difficulty.unwrap_or(bm.accuracy),
-        )
+        osu_api::attributes::fetch(&state.http_client, &token, bm.id, &parsed)
+            .await?
+            .star_rating
+    };
+    let hr = if parsed.is_empty() {
+        let hr = vec!["HR".to_string()];
+        let attr = osu_api::attributes::fetch(&state.http_client, &token, bm.id, &hr).await?;
+        Some(db::mappool::HrStats {
+            star_rating: attr.star_rating,
+            cs: modded_cs(bm.cs, &hr),
+            ar: modded_ar(bm.ar, &hr),
+            od: modded_od(bm.accuracy, &hr),
+        })
+    } else {
+        None
     };
 
     Ok(db::mappool::ModStats {
         star_rating,
-        ar,
-        od,
-        cs,
-        bpm,
-        total_length,
+        ar: modded_ar(bm.ar, &parsed),
+        od: modded_od(bm.accuracy, &parsed),
+        cs: modded_cs(bm.cs, &parsed),
+        bpm: bm.bpm.unwrap_or(0.0) * rate,
+        total_length: (bm.total_length as f64 / rate).round() as i32,
+        hr,
     })
 }
 
@@ -477,6 +527,28 @@ pub async fn move_map(
 ) -> Result<impl IntoResponse, AppError> {
     guard(&user)?;
     db::mappool::move_pool_map(&state.db, id, body.slot_id).await?;
+    let map = db::mappool::get_pool_map(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    Ok(Json(map))
+}
+
+// POST /api/maps/:id/stats — resolve the map's stats again from osu! and lock them in
+// anew: for maps added while AR/OD missed their mods or before HR stats were stored, or
+// a beatmap osu! has since changed. Mods, metadata, slot and notes stay.
+pub async fn recompute_map_stats(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<impl IntoResponse, AppError> {
+    guard(&user)?;
+    let map = db::mappool::get_pool_map(&state.db, id)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    let token = osu_api::token::app_token(&state.osu_client, &state.osu_app_token).await?;
+    let bm = osu_api::beatmap::fetch(&state.http_client, &token, map.beatmap_id).await?;
+    let stats = resolve_stats(&state, &bm, &map.mods).await?;
+    db::mappool::update_pool_map_stats(&state.db, id, &stats).await?;
     let map = db::mappool::get_pool_map(&state.db, id)
         .await?
         .ok_or(AppError::NotFound)?;

@@ -27,6 +27,7 @@ export function MapPoolEditorPage() {
     moveTargets,
     onSaveNote: (field, value) => actions.saveMapNote(map.id, field, value),
     onMove: (slotId) => actions.moveMap(map.id, slotId),
+    onRecompute: () => actions.recomputeMapStats(map.id),
     onDelete: () => {
       if (confirm(`"${map.artist} - ${map.title} [${map.version}]" kalıcı olarak silinsin mi?`)) actions.deleteMap(map.id);
     },

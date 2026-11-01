@@ -4,10 +4,12 @@ import { errorMessage } from "../api/client";
 import { fetchPublicStage, fetchPublicStages } from "../api/mappool";
 import type { Category, PublicStageDetail, Stage } from "../api/types";
 import { ErrorAlert } from "../components/ErrorAlert";
+import { Icon } from "../components/Icon";
 import { MapCard } from "../components/MapCard";
 import { PoolSection } from "../components/PoolSection";
 import { EmptySlot, Slot } from "../components/Slot";
 import { StageTabs } from "../components/StageTabs";
+import { showsHrStats } from "../lib/bancho";
 import { useStoredSet } from "../lib/useExpandedSet";
 
 export function PublicPoolPage() {
@@ -21,6 +23,7 @@ export function PublicPoolPage() {
   // The open stage lives in the URL (?stage=…) so links to a stage can be shared.
   const requested = searchParams.get("stage");
   const selectedId = stages?.some((s) => s.id === requested) ? requested : (stages?.[0]?.id ?? null);
+  const selected = stages?.find((s) => s.id === selectedId);
 
   useEffect(() => {
     fetchPublicStages()
@@ -50,7 +53,20 @@ export function PublicPoolPage() {
       {stages?.length === 0 && <p className="status">Henüz yayınlanmış bir stage yok.</p>}
 
       {stages && stages.length > 0 && (
-        <StageTabs stages={stages} selectedId={selectedId} onSelect={(id) => setSearchParams({ stage: id })} />
+        <StageTabs stages={stages} selectedId={selectedId} onSelect={(id) => setSearchParams({ stage: id })}>
+          {selected?.pack_url && (
+            <a
+              className="btn btn-primary"
+              href={selected.pack_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              title={`${selected.name} beatmap pack'ini indir`}
+            >
+              <Icon name="download" />
+              Toplu indir
+            </a>
+          )}
+        </StageTabs>
       )}
 
       {detail && detail.id === selectedId && (
@@ -94,7 +110,7 @@ function PublicCategory({ category, detail, expanded, onToggle }: PublicCategory
         const map = detail.maps.find((m) => m.slot_id === slot.id);
         return (
           <Slot key={slot.id} number={i + 1} label={`${category.name}${i + 1}`}>
-            {map ? <MapCard map={map} /> : <EmptySlot>Daha sonra açıklanacak</EmptySlot>}
+            {map ? <MapCard map={map} showHr={showsHrStats(category.name)} /> : <EmptySlot>Daha sonra açıklanacak</EmptySlot>}
           </Slot>
         );
       })}

@@ -17,6 +17,8 @@ pub struct Stage {
     pub best_of: Option<i32>,
     // The order its bracket matches ban and pick in (crate::draft); null: the default.
     pub draft_order: Option<String>,
+    // Where its beatmap pack is downloaded from (hosted elsewhere); null: none yet.
+    pub pack_url: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub created_at: OffsetDateTime,
     #[serde(with = "time::serde::rfc3339")]
@@ -73,6 +75,11 @@ pub struct PoolMap {
     pub cs: f64,
     pub ar: f64,
     pub od: f64,
+    // The map under HR (nomod maps only), for freemod picks.
+    pub hr_star_rating: Option<f64>,
+    pub hr_cs: Option<f64>,
+    pub hr_ar: Option<f64>,
+    pub hr_od: Option<f64>,
     pub mode: String,
     pub cover_url: Option<String>,
     pub public_notes: String,
@@ -98,6 +105,11 @@ pub struct PublicPoolMap {
     pub cs: f64,
     pub ar: f64,
     pub od: f64,
+    // The map under HR (nomod maps only), for freemod picks.
+    pub hr_star_rating: Option<f64>,
+    pub hr_cs: Option<f64>,
+    pub hr_ar: Option<f64>,
+    pub hr_od: Option<f64>,
     pub mode: String,
     pub cover_url: Option<String>,
     pub public_notes: String,
@@ -111,6 +123,16 @@ pub struct ModStats {
     pub cs: f64,
     pub bpm: f64,
     pub total_length: i32,
+    // Only for a nomod map: the same map under HR.
+    pub hr: Option<HrStats>,
+}
+
+// The stats HR changes; BPM and length stay the map's own.
+pub struct HrStats {
+    pub star_rating: f64,
+    pub cs: f64,
+    pub ar: f64,
+    pub od: f64,
 }
 
 // A new map to store in the pool: osu! metadata (from the API) + its locked mod stats.
@@ -247,6 +269,17 @@ pub async fn set_stage_draft_order(
     let found = sqlx::query("UPDATE stages SET draft_order = $2, updated_at = now() WHERE id = $1")
         .bind(id)
         .bind(order)
+        .execute(pool)
+        .await?;
+    Ok(found.rows_affected() > 0)
+}
+
+// Sets the link to a stage's beatmap pack (None: no pack). False when there's no such
+// stage.
+pub async fn set_stage_pack_url(pool: &PgPool, id: Uuid, url: Option<&str>) -> sqlx::Result<bool> {
+    let found = sqlx::query("UPDATE stages SET pack_url = $2, updated_at = now() WHERE id = $1")
+        .bind(id)
+        .bind(url)
         .execute(pool)
         .await?;
     Ok(found.rows_affected() > 0)
@@ -422,26 +455,19 @@ pub async fn delete_slot(pool: &PgPool, id: Uuid) -> sqlx::Result<()> {
 
 // ---------- pool maps ----------
 
-const POOL_MAP_COLS: &str = "pm.id, pm.slot_id, pm.position, pm.mods, \
-     pm.beatmap_id, pm.beatmapset_id, pm.artist, pm.title, pm.version, pm.creator, pm.mode, pm.cover_url, \
-     pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od, pm.public_notes, pm.editor_notes";
-
-// Public column list: same as above but without editor_notes.
-const PUBLIC_MAP_COLS: &str = "pm.id, pm.slot_id, pm.position, pm.mods, \
-     pm.beatmap_id, pm.beatmapset_id, pm.artist, pm.title, pm.version, pm.creator, pm.mode, pm.cover_url, \
-     pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od, pm.public_notes";
-
 // Adds a map (osu! metadata + mods with locked stats) to the generic pool. Returns its id.
 pub async fn add_pool_map(pool: &PgPool, m: &NewPoolMap, added_by: Uuid) -> sqlx::Result<Uuid> {
+    let hr = m.stats.hr.as_ref();
     sqlx::query_scalar::<_, Uuid>(
         r#"
         INSERT INTO pool_maps
             (beatmap_id, beatmapset_id, artist, title, version, creator, mode, cover_url,
              mods, added_by, position,
-             star_rating, ar, od, cs, bpm, total_length)
+             star_rating, ar, od, cs, bpm, total_length,
+             hr_star_rating, hr_cs, hr_ar, hr_od)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
                 (SELECT COALESCE(MAX(position), -1) + 1 FROM pool_maps WHERE slot_id IS NULL),
-                $11, $12, $13, $14, $15, $16)
+                $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
         RETURNING id
         "#,
     )
@@ -461,48 +487,103 @@ pub async fn add_pool_map(pool: &PgPool, m: &NewPoolMap, added_by: Uuid) -> sqlx
     .bind(m.stats.cs)
     .bind(m.stats.bpm)
     .bind(m.stats.total_length)
+    .bind(hr.map(|h| h.star_rating))
+    .bind(hr.map(|h| h.cs))
+    .bind(hr.map(|h| h.ar))
+    .bind(hr.map(|h| h.od))
     .fetch_one(pool)
     .await
 }
 
+// Replaces a map's locked stats with freshly resolved ones (the editor's "recompute").
+pub async fn update_pool_map_stats(pool: &PgPool, id: Uuid, stats: &ModStats) -> sqlx::Result<()> {
+    let hr = stats.hr.as_ref();
+    sqlx::query(
+        r#"
+        UPDATE pool_maps
+        SET star_rating = $2, ar = $3, od = $4, cs = $5, bpm = $6, total_length = $7,
+            hr_star_rating = $8, hr_cs = $9, hr_ar = $10, hr_od = $11
+        WHERE id = $1
+        "#,
+    )
+    .bind(id)
+    .bind(stats.star_rating)
+    .bind(stats.ar)
+    .bind(stats.od)
+    .bind(stats.cs)
+    .bind(stats.bpm)
+    .bind(stats.total_length)
+    .bind(hr.map(|h| h.star_rating))
+    .bind(hr.map(|h| h.cs))
+    .bind(hr.map(|h| h.ar))
+    .bind(hr.map(|h| h.od))
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
 pub async fn get_pool_map(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<PoolMap>> {
-    let sql = format!("SELECT {POOL_MAP_COLS} FROM pool_maps pm WHERE pm.id = $1");
-    sqlx::query_as::<_, PoolMap>(&sql)
-        .bind(id)
-        .fetch_optional(pool)
-        .await
+    sqlx::query_as::<_, PoolMap>(
+        r#"
+        SELECT pm.id, pm.slot_id, pm.position, pm.mods,
+               pm.beatmap_id, pm.beatmapset_id, pm.artist, pm.title, pm.version, pm.creator,
+               pm.mode, pm.cover_url,
+               pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od,
+               pm.hr_star_rating, pm.hr_cs, pm.hr_ar, pm.hr_od,
+               pm.public_notes, pm.editor_notes
+        FROM pool_maps pm
+        WHERE pm.id = $1
+        "#,
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await
 }
 
 // Maps the editor shows for a stage: the global generic pool (slot_id NULL) plus the
 // maps assigned to this stage's slots.
 pub async fn list_stage_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<PoolMap>> {
-    let sql = format!(
-        "SELECT {POOL_MAP_COLS} FROM pool_maps pm \
-         WHERE pm.slot_id IS NULL OR pm.slot_id IN ( \
-             SELECT s.id FROM category_slots s JOIN stage_categories c ON c.id = s.category_id \
-             WHERE c.stage_id = $1) \
-         ORDER BY pm.slot_id NULLS FIRST, pm.position, pm.created_at"
-    );
-    sqlx::query_as::<_, PoolMap>(&sql)
-        .bind(stage_id)
-        .fetch_all(pool)
-        .await
+    sqlx::query_as::<_, PoolMap>(
+        r#"
+        SELECT pm.id, pm.slot_id, pm.position, pm.mods,
+               pm.beatmap_id, pm.beatmapset_id, pm.artist, pm.title, pm.version, pm.creator,
+               pm.mode, pm.cover_url,
+               pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od,
+               pm.hr_star_rating, pm.hr_cs, pm.hr_ar, pm.hr_od,
+               pm.public_notes, pm.editor_notes
+        FROM pool_maps pm
+        WHERE pm.slot_id IS NULL OR pm.slot_id IN (
+            SELECT s.id FROM category_slots s JOIN stage_categories c ON c.id = s.category_id
+            WHERE c.stage_id = $1)
+        ORDER BY pm.slot_id NULLS FIRST, pm.position, pm.created_at
+        "#,
+    )
+    .bind(stage_id)
+    .fetch_all(pool)
+    .await
 }
 
 // Maps the public page shows for a (published) stage: only the ones assigned to slots,
 // and without editor notes.
 pub async fn list_public_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<PublicPoolMap>> {
-    let sql = format!(
-        "SELECT {PUBLIC_MAP_COLS} FROM pool_maps pm \
-         WHERE pm.slot_id IN ( \
-             SELECT s.id FROM category_slots s JOIN stage_categories c ON c.id = s.category_id \
-             WHERE c.stage_id = $1) \
-         ORDER BY pm.position, pm.created_at"
-    );
-    sqlx::query_as::<_, PublicPoolMap>(&sql)
-        .bind(stage_id)
-        .fetch_all(pool)
-        .await
+    sqlx::query_as::<_, PublicPoolMap>(
+        r#"
+        SELECT pm.id, pm.slot_id, pm.position, pm.mods,
+               pm.beatmap_id, pm.beatmapset_id, pm.artist, pm.title, pm.version, pm.creator,
+               pm.mode, pm.cover_url,
+               pm.star_rating, pm.bpm, pm.total_length, pm.cs, pm.ar, pm.od,
+               pm.hr_star_rating, pm.hr_cs, pm.hr_ar, pm.hr_od,
+               pm.public_notes
+        FROM pool_maps pm
+        WHERE pm.slot_id IN (
+            SELECT s.id FROM category_slots s JOIN stage_categories c ON c.id = s.category_id
+            WHERE c.stage_id = $1)
+        ORDER BY pm.position, pm.created_at
+        "#,
+    )
+    .bind(stage_id)
+    .fetch_all(pool)
+    .await
 }
 
 // Updates a map's notes; each field is only changed when Some(..) is passed.

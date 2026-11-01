@@ -24,6 +24,8 @@ export const setQualifierStage = (stageId: string | null) =>
 export const setStageBestOf = (stageId: string, bestOf: number | null) =>
   put<void>(`/api/stages/${stageId}/best-of`, { best_of: bestOf });
 /** null (or empty) goes back to the default order. */
+export const setStagePackUrl = (stageId: string, url: string | null) =>
+  put<void>(`/api/stages/${stageId}/pack`, { pack_url: url });
 export const setStageDraftOrder = (stageId: string, order: string | null) =>
   put<void>(`/api/stages/${stageId}/draft-order`, { draft_order: order });
 
@@ -52,6 +54,8 @@ export const moveMap = (mapId: string, slotId: string | null) =>
   patch<PoolMap>(`/api/maps/${mapId}`, { slot_id: slotId });
 export const updateMapNote = (mapId: string, field: MapNoteField, value: string) =>
   patch<PoolMap>(`/api/maps/${mapId}/notes`, { [field]: value });
+/** Resolves the map's stats from osu! again (HR stats included for a nomod map). */
+export const recomputeMapStats = (mapId: string) => post<PoolMap>(`/api/maps/${mapId}/stats`);
 export const deleteMap = (mapId: string) => del(`/api/maps/${mapId}`);
 
 // ---- public (published stages only, no auth) ----

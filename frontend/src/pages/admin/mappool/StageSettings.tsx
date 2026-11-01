@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { Category, StageDetail } from "../../../api/types";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
@@ -34,10 +34,90 @@ export function StageSettings({ detail, busy, actions }: Props) {
         </div>
       </div>
 
+      <h3 className="stage-settings-subtitle">Beatmap pack</h3>
+      <PackUrlForm detail={detail} busy={busy} onSave={actions.savePackUrl} />
+
       <h3 className="stage-settings-subtitle">Kategoriler</h3>
       <NewCategoryForm busy={busy} onCreate={actions.createCategory} />
       <CategoryList detail={detail} actions={actions} />
     </section>
+  );
+}
+
+/**
+ * The link to the stage's beatmap pack, which is uploaded elsewhere. Emptying the field turns "Kaydet"
+ * into "Kaldır"; the public mappool page shows "Toplu indir" while there's a link.
+ */
+function PackUrlForm({
+  detail,
+  busy,
+  onSave,
+}: {
+  detail: StageDetail;
+  busy: boolean;
+  onSave: (url: string) => Promise<boolean>;
+}) {
+  const saved = detail.pack_url ?? "";
+  const [url, setUrl] = useState(saved);
+  useEffect(() => setUrl(saved), [saved]);
+  const trimmed = url.trim();
+  const removing = !trimmed && saved !== "";
+  const hintId = `stage-pack-hint-${detail.id}`;
+
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    if (trimmed !== saved) onSave(trimmed);
+  }
+
+  return (
+    <div className="stage-pack">
+      <form className="inline-form stage-pack-form" onSubmit={submit}>
+        <label className="sr-only" htmlFor="stage-pack-url">
+          Beatmap pack linki
+        </label>
+        <input
+          id="stage-pack-url"
+          className="input"
+          type="url"
+          inputMode="url"
+          spellCheck={false}
+          autoComplete="off"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setUrl(saved);
+          }}
+          placeholder="https://…"
+          aria-describedby={hintId}
+        />
+        <button
+          type="submit"
+          className={`btn ${removing ? "btn-danger" : "btn-secondary"}`}
+          disabled={busy || trimmed === saved}
+        >
+          {removing ? "Kaldır" : "Kaydet"}
+        </button>
+        {saved && (
+          <a
+            className="icon-btn"
+            href={saved}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Kayıtlı pack linkini aç"
+            title="Kayıtlı pack linkini aç"
+          >
+            <Icon name="download" size={16} />
+          </a>
+        )}
+      </form>
+      <p className="stage-pack-hint" id={hintId}>
+        {!saved
+          ? "Pack'i yüklediğin yerin linkini yapıştır. Link olunca Mappool sayfasında “Toplu indir” butonu çıkar."
+          : detail.published
+            ? "Mappool sayfasındaki “Toplu indir” butonu bu linke gidiyor."
+            : "Stage yayınlanınca Mappool sayfasında “Toplu indir” butonu bu linke gidecek."}
+      </p>
+    </div>
   );
 }
 

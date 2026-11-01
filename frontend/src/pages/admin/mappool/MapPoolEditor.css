@@ -33,6 +33,26 @@
   text-transform: uppercase;
 }
 
+.stage-pack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-width: 640px;
+}
+
+.stage-pack-form {
+  align-items: center;
+}
+
+.stage-pack-form .input {
+  flex-basis: 280px;
+}
+
+.stage-pack-hint {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
 .new-category-form {
   max-width: 480px;
 }
@@ -118,4 +138,31 @@
 .slot-toolbar .note {
   flex: 1;
   min-width: 0;
+}
+
+/* Phones: the slot's number shares a line with its note instead of keeping a column of its own,
+   and the sections pad less, so the map card gets the screen's width. */
+@media (max-width: 560px) {
+  .mappool-editor .pool-section-body {
+    padding-inline: var(--space-2);
+  }
+
+  .mappool-editor .slot {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .mappool-editor .slot-body {
+    display: contents;
+  }
+
+  .mappool-editor .slot-body > :not(.slot-toolbar) {
+    grid-column: 1 / -1;
+  }
+
+  .mappool-editor .slot-number {
+    padding-top: 0;
+  }
 }
