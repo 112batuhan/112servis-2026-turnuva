@@ -20,8 +20,9 @@ interface Props {
 export function RefereeControl({ match, editor, options, discord }: Props & { discord?: boolean }) {
   const user = useSignedInUser();
   const concluded = match.concluded_at !== null;
-  // Players contact the referee there, so the list shows it next to the name.
-  const mention = discord && match.referee && <DiscordMention player={match.referee} fallback="" />;
+  // Players contact the referee there, so the list shows it next to the name, as a mark to keep the
+  // column narrow.
+  const mention = discord && match.referee && <DiscordMention player={match.referee} fallback="" compact />;
 
   if (hasRole(user, "host")) {
     return (

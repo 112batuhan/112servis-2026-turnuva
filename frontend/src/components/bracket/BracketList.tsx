@@ -253,7 +253,7 @@ export function BracketList<M extends BracketMatch>({
                             ) : m.referee ? (
                               <span className="bracket-list-person">
                                 {m.referee.username}
-                                <DiscordMention player={m.referee} fallback="" />
+                                <DiscordMention player={m.referee} fallback="" compact />
                               </span>
                             ) : (
                               <span className="muted">—</span>

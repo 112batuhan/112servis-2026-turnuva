@@ -20,3 +20,87 @@
   color: var(--color-info);
   text-decoration: underline;
 }
+
+/* The compact form: only Discord's mark, quiet in the row's ink until it's pointed at, when it
+   takes the info colour the text form hovers to. */
+.discord-mention-mark {
+  position: relative;
+  display: inline-grid;
+  flex-shrink: 0;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-subtle);
+  cursor: copy;
+  transition:
+    color var(--duration-fast) var(--ease-out),
+    background-color var(--duration-fast) var(--ease-out);
+}
+
+.discord-mention-mark:hover,
+.discord-mention-mark:focus-visible {
+  background: var(--color-info-soft);
+  color: var(--color-info);
+}
+
+.discord-mention-mark[aria-disabled="true"] {
+  cursor: default;
+}
+
+.discord-mention-mark.is-copied {
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: var(--color-success);
+}
+
+.discord-mention-mark.is-failed {
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+/* A bigger hit target on touch, without growing the mark in the row. */
+@media (pointer: coarse) {
+  .discord-mention-mark::after {
+    content: "";
+    position: absolute;
+    inset: -10px;
+  }
+}
+
+.discord-mention-tip {
+  position: fixed;
+  z-index: 230;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: min(320px, calc(100vw - 24px));
+  padding: var(--space-1) var(--space-2) 5px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  box-shadow: var(--shadow-popover);
+  pointer-events: none;
+}
+
+.discord-mention-tip-name {
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.discord-mention-tip-hint {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.discord-mention-tip-hint.is-copied {
+  color: var(--color-success);
+}
+
+.discord-mention-tip-hint.is-failed {
+  color: var(--color-danger);
+}
