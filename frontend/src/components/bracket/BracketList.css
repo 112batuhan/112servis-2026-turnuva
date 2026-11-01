@@ -165,15 +165,57 @@ button.bracket-list-code:hover {
   border-top: 1px dashed var(--color-border);
 }
 
+/* A step smaller and a step darker than a match row throughout (ink to muted, muted to subtle), so the
+   pairings read as asides under their match rather than matches of their own. */
+.bracket-list tbody tr.is-potential {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  --team-banner-w: 28px;
+  --team-banner-h: 16px;
+}
+
 .bracket-list tbody tr.is-potential > * {
-  padding-block: var(--space-1);
+  padding-block: 2px;
+}
+
+.bracket-list tbody tr.is-potential .bracket-list-time,
+.bracket-list tbody tr.is-potential .muted {
+  color: var(--color-text-subtle);
+}
+
+.bracket-list tbody tr.is-potential .bracket-list-team.is-own {
+  color: color-mix(in srgb, var(--color-primary) 75%, var(--color-bg));
+}
+
+/* No score to show, only the sides: a slimmer box, still as wide so the column lines up. */
+.bracket-list tbody tr.is-potential .bracket-list-score {
+  background-size:
+    100% 2px,
+    100% 100%;
+  font-size: var(--text-md);
+  opacity: 0.6;
+}
+
+.bracket-list tbody tr.is-potential .bracket-list-score > span {
+  padding: 2px var(--space-2) 3px;
+}
+
+.bracket-list tbody tr.is-potential .select {
+  height: calc(var(--control-height-sm) - 4px);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.bracket-list tbody tr.is-potential .badge {
+  padding-block: 0;
+  color: var(--color-text-subtle);
 }
 
 .bracket-list-branch {
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  color: var(--color-text-muted);
+  color: var(--color-text-subtle);
   font-size: var(--text-xs);
   font-weight: 600;
 }
@@ -193,18 +235,19 @@ button.bracket-list-code:hover {
 .bracket-list-branch-code {
   font-family: var(--font-display);
   font-stretch: var(--font-display-stretch);
-  font-size: var(--text-md);
+  font-size: var(--text-sm);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  color: var(--color-text);
+  color: var(--color-text-muted);
 }
 
+/* The side's colour, darkened towards the ground like the rest of the row. */
 .bracket-list-branch-code.is-winners {
-  color: var(--color-code-winners);
+  color: color-mix(in srgb, var(--color-code-winners) 70%, var(--color-bg));
 }
 
 .bracket-list-branch-code.is-losers {
-  color: var(--color-code-losers);
+  color: color-mix(in srgb, var(--color-code-losers) 70%, var(--color-bg));
 }
 
 .bracket-list-pairing {
@@ -374,6 +417,18 @@ button.bracket-list-code:hover {
 
   .bracket-list-branch::before {
     display: none;
+  }
+
+  /* Tighter than a match's block, and set in from it, as the elbow is on the table. */
+  .bracket-list tbody tr.is-potential:not(.bracket-list-group) {
+    gap: var(--space-1) var(--space-4);
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
+  }
+
+  .bracket-list tbody tr.is-potential .bracket-list-referee::before,
+  .bracket-list tbody tr.is-potential .bracket-list-streamer::before {
+    margin-bottom: 0;
+    color: var(--color-text-subtle);
   }
 
   /* The block is the hover target here, not its cells, which have gaps between them. */
