@@ -51,8 +51,12 @@
   text-decoration: none;
 }
 
+.pickem-row-code.is-winners {
+  color: var(--color-code-winners);
+}
+
 .pickem-row-code.is-losers {
-  color: var(--color-text-muted);
+  color: var(--color-code-losers);
 }
 
 .pickem-row-code:hover {

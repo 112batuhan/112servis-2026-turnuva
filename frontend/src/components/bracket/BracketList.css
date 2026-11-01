@@ -143,8 +143,12 @@ button.bracket-list-code:hover {
   text-decoration: underline;
 }
 
+.bracket-list-code.is-winners {
+  color: var(--color-code-winners);
+}
+
 .bracket-list-code.is-losers {
-  color: var(--color-text-muted);
+  color: var(--color-code-losers);
 }
 
 .bracket-list-time {
@@ -195,8 +199,12 @@ button.bracket-list-code:hover {
   color: var(--color-text);
 }
 
+.bracket-list-branch-code.is-winners {
+  color: var(--color-code-winners);
+}
+
 .bracket-list-branch-code.is-losers {
-  color: var(--color-text-muted);
+  color: var(--color-code-losers);
 }
 
 .bracket-list-pairing {

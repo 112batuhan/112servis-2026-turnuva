@@ -261,49 +261,57 @@
       },
       "team-red": {
         "role": "secondary",
-        "displayName": "Team Red",
-        "canonical": "#f06c74",
+        "displayName": "Team Red (Purple)",
+        "canonical": "#f3c7ff",
         "cssVar": "--color-team-red",
-        "oklch": "oklch(69.3% 0.163 19)",
-        "tonalRamp": [
-          "#2d0000",
-          "#4f000a",
-          "#721b26",
-          "#953c42",
-          "#ba5d61",
-          "#df7e81",
-          "#ffa4a6",
-          "#ffcecf"
-        ]
+        "oklch": "oklch(88.5% 0.089 319)"
       },
       "team-red-soft": {
         "role": "secondary",
         "displayName": "Team Red Wash",
-        "canonical": "rgba(240, 108, 116, 0.14)",
+        "canonical": "rgba(243, 199, 255, 0.14)",
         "cssVar": "--color-team-red-soft"
       },
       "team-blue": {
         "role": "secondary",
-        "displayName": "Team Blue",
-        "canonical": "#62acff",
+        "displayName": "Team Blue (Green)",
+        "canonical": "#c7ffce",
         "cssVar": "--color-team-blue",
-        "oklch": "oklch(73.2% 0.142 253)",
-        "tonalRamp": [
-          "#00003b",
-          "#00205b",
-          "#003f7c",
-          "#225f9f",
-          "#4480c2",
-          "#65a2e7",
-          "#8ac9ff",
-          "#b4f4ff"
-        ]
+        "oklch": "oklch(94.9% 0.087 148)"
       },
       "team-blue-soft": {
         "role": "secondary",
         "displayName": "Team Blue Wash",
-        "canonical": "rgba(98, 172, 255, 0.14)",
+        "canonical": "rgba(199, 255, 206, 0.14)",
         "cssVar": "--color-team-blue-soft"
+      },
+      "osu-red": {
+        "role": "secondary",
+        "displayName": "osu! Red (referee page)",
+        "canonical": "#f06c74",
+        "cssVar": "--color-osu-red",
+        "oklch": "oklch(69.3% 0.163 19)"
+      },
+      "osu-blue": {
+        "role": "secondary",
+        "displayName": "osu! Blue (referee page)",
+        "canonical": "#62acff",
+        "cssVar": "--color-osu-blue",
+        "oklch": "oklch(73.2% 0.142 253)"
+      },
+      "code-winners": {
+        "role": "secondary",
+        "displayName": "Winners Code (Cyan)",
+        "canonical": "#c7fff9",
+        "cssVar": "--color-code-winners",
+        "oklch": "oklch(96.0% 0.057 188)"
+      },
+      "code-losers": {
+        "role": "secondary",
+        "displayName": "Losers Code (Red)",
+        "canonical": "#ff7575",
+        "cssVar": "--color-code-losers",
+        "oklch": "oklch(72.7% 0.169 22)"
       },
       "success": {
         "role": "tertiary",

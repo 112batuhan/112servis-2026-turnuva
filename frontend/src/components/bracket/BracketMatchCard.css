@@ -27,8 +27,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.bm-card-code.is-winners {
+  color: var(--color-code-winners);
+}
+
 .bm-card-code.is-losers {
-  color: var(--color-text-muted);
+  color: var(--color-code-losers);
 }
 
 .bm-card-time {

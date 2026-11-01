@@ -127,11 +127,11 @@
 }
 
 .match-panel-code.is-winners {
-  color: var(--color-warning);
+  color: var(--color-code-winners);
 }
 
 .match-panel-code.is-losers {
-  color: var(--color-info);
+  color: var(--color-code-losers);
 }
 
 .match-panel-close {

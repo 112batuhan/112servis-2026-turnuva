@@ -75,7 +75,7 @@ function MatchView({ matchId }: { matchId: string }) {
             {bracket ? "← Bracket" : "← Elemeler"}
           </Link>
           <h1 className="referee-title">
-            {roomLabel(match)}{" "}
+            <span className={match.side ? `match-code is-${match.side}` : undefined}>{roomLabel(match)}</span>{" "}
             {bracket ? (
               <span className={named ? "sr-only" : "referee-title-teams"}>
                 {teamName(match.team1_id)} vs {teamName(match.team2_id)}

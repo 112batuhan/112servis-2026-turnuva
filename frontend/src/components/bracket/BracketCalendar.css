@@ -238,16 +238,24 @@
   flex-direction: column;
   min-width: 0;
   padding: 2px var(--space-2);
-  border: 1px solid color-mix(in srgb, var(--color-warning) 35%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-code-winners) 35%, transparent);
   border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--color-warning) 8%, var(--color-surface-raised));
+  background: color-mix(in srgb, var(--color-code-winners) 8%, var(--color-surface-raised));
   font-size: var(--text-xs);
   text-align: left;
 }
 
 .cal-match.is-losers {
-  border-color: color-mix(in srgb, var(--color-info) 35%, transparent);
-  background: color-mix(in srgb, var(--color-info) 8%, var(--color-surface-raised));
+  border-color: color-mix(in srgb, var(--color-code-losers) 35%, transparent);
+  background: color-mix(in srgb, var(--color-code-losers) 8%, var(--color-surface-raised));
+}
+
+.cal-match-head > strong {
+  color: var(--color-code-winners);
+}
+
+.cal-match.is-losers .cal-match-head > strong {
+  color: var(--color-code-losers);
 }
 
 .cal-match.is-done {

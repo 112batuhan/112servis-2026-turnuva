@@ -40,8 +40,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.reschedule-code.is-winners {
+  color: var(--color-code-winners);
+}
+
 .reschedule-code.is-losers {
-  color: var(--color-text-muted);
+  color: var(--color-code-losers);
 }
 
 .reschedule-opponent {

@@ -27,6 +27,15 @@
   line-height: 1;
 }
 
+/* The code in its bracket side's colour, as in every list; the referee page keeps it in ink. */
+.match-code.is-winners {
+  color: var(--color-code-winners);
+}
+
+.match-code.is-losers {
+  color: var(--color-code-losers);
+}
+
 /* When, which pool, who referees and streams: labels muted, the values in ink, set apart by dots. */
 .match-meta {
   grid-area: meta;

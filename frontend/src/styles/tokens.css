@@ -7,7 +7,9 @@
    values here and the whole site follows. Each colour is named for the job it does:
    - surfaces/text: the ground and its ink
    - brand: frost, the crystal's glow; only for "live", "yours" and the one primary action per view
-   - team red/blue: osu! multiplayer sides; the structure of every head-to-head
+   - team red/blue: osu! multiplayer sides; the structure of every head-to-head (purple/green on the
+     public site, osu!'s red/blue on the referee page)
+   - the tournament's own colours (purple, cyan, green, navy, red): consumed through roles only
    - status: success / warning / danger / info, never decoration */
 :root {
   color-scheme: dark;
@@ -51,11 +53,29 @@
   --color-admin-surface: #1f2438;
   --color-admin-border: #3b4470;
 
-  /* osu! multiplayer team colours */
-  --color-team-red: #f06c74;
-  --color-team-red-soft: rgba(240, 108, 116, 0.14);
-  --color-team-blue: #62acff;
-  --color-team-blue-soft: rgba(98, 172, 255, 0.14);
+  /* the tournament's own colours, beside the banner's palette. Use them through the role tokens
+     below, not directly. */
+  --color-purple: #f3c7ff;
+  --color-cyan: #c7fff9;
+  --color-green: #c7ffce;
+  --color-navy: #181f24;
+  --color-red: #ff7575;
+
+  /* osu!'s own multiplayer team colours, as the room and the tourney client show them */
+  --color-osu-red: #f06c74;
+  --color-osu-blue: #62acff;
+
+  /* the two sides of a head-to-head on the public site: team 1 ("blue", slots 1-2) is green and
+     team 2 ("red", slots 3-4) purple. The names keep osu!'s sides; the referee page sets them back
+     to osu!'s colours (.osu-team-colors, below) so a referee never has to translate. */
+  --color-team-blue: var(--color-green);
+  --color-team-blue-soft: rgba(199, 255, 206, 0.14);
+  --color-team-red: var(--color-purple);
+  --color-team-red-soft: rgba(243, 199, 255, 0.14);
+
+  /* match codes by side of the bracket: winners (W12) cyan, losers (L7) red */
+  --color-code-winners: var(--color-cyan);
+  --color-code-losers: var(--color-red);
 
   /* outlines text drawn over user images, which can be any colour */
   --color-text-outline: #000000;
@@ -140,4 +160,13 @@
     --control-height-sm: 40px;
     --icon-button-size: 44px;
   }
+}
+
+/* The referee page runs the osu! room beside the osu! client, so its sides wear osu!'s own blue and
+   red rather than the public site's green and purple. Everything inside derives from these. */
+.osu-team-colors {
+  --color-team-blue: var(--color-osu-blue);
+  --color-team-blue-soft: rgba(98, 172, 255, 0.14);
+  --color-team-red: var(--color-osu-red);
+  --color-team-red-soft: rgba(240, 108, 116, 0.14);
 }

@@ -119,11 +119,11 @@
 }
 
 .notif-code.is-winners {
-  color: var(--color-warning);
+  color: var(--color-code-winners);
 }
 
 .notif-code.is-losers {
-  color: var(--color-info);
+  color: var(--color-code-losers);
 }
 
 .notif-teams {

@@ -58,7 +58,7 @@ function RefereeRoom({ matchId }: { matchId: string }) {
 
   if (loadError && !room) {
     return (
-      <div className="referee-page">
+      <div className="referee-page osu-team-colors">
         <ErrorAlert message={loadError} />
         {/* Reopens the tab the referee came from. */}
         <Link to="/admin">← Geri dön</Link>
@@ -75,7 +75,7 @@ function RefereeRoom({ matchId }: { matchId: string }) {
   const strip = referee.tally !== null && referee.teams.length === 2;
 
   return (
-    <div className="referee-page" ref={pageRef}>
+    <div className="referee-page osu-team-colors" ref={pageRef}>
       <header className="referee-header">
         <Link to={room.kind === "bracket" ? "/admin/bracket" : "/admin/qualifiers"} className="referee-back">
           {room.kind === "bracket" ? "← Bracket" : "← Elemeler"}

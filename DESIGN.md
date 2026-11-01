@@ -18,10 +18,14 @@ colors:
   on-brand: "#0e171b"
   brand-soft: "rgba(163, 218, 228, 0.13)"
   focus: "#cdeef4"
-  team-red: "#f06c74"
-  team-red-soft: "rgba(240, 108, 116, 0.14)"
-  team-blue: "#62acff"
-  team-blue-soft: "rgba(98, 172, 255, 0.14)"
+  team-red: "#f3c7ff"
+  team-red-soft: "rgba(243, 199, 255, 0.14)"
+  team-blue: "#c7ffce"
+  team-blue-soft: "rgba(199, 255, 206, 0.14)"
+  osu-red: "#f06c74"
+  osu-blue: "#62acff"
+  code-winners: "#c7fff9"
+  code-losers: "#ff7575"
   success: "#5fd38d"
   warning: "#e8b84a"
   danger: "#f3877e"
@@ -206,14 +210,16 @@ Density is high and calm: a 16px body, a dense 4px-based spacing scale, rows of 
 
 A cold slate palette from the banner: a blue-grey ground and its frost ink, one frost accent from the crystal's glow, the two osu! team colours, and status colours.
 
-**The Banner Palette Rule.** The palette comes from the designers' test banner, and every colour is still consumed by role only: components reference role tokens (`--color-*`, `--rule*`, `--glow` in `frontend/src/styles/tokens.css`), and a raw colour value in a component stylesheet is a defect (mask gradients, which carry only alpha, are the exception). When the final banner arrives: (1) change the values in `tokens.css` only, keeping every role name; (2) keep `on-brand` legible on `brand` (frost is a light fill, so it takes slate ink); (3) keep team red and team blue distinguishable from each other and from `brand` and `danger`; (4) re-export the assets from the final banner as `frontend/src/assets/README.md` describes, keeping the file names; (5) re-run the document pass so this file and its sidecar record the new values. Soft variants (`brand-soft`, `team-*-soft`, `danger-soft`) are the base colour at 12–18% alpha, and several components derive tints with `color-mix()` from the base team and brand colours, so they follow automatically.
+**The Banner Palette Rule.** The palette comes from the designers' test banner, and every colour is still consumed by role only: components reference role tokens (`--color-*`, `--rule*`, `--glow` in `frontend/src/styles/tokens.css`), and a raw colour value in a component stylesheet is a defect (mask gradients, which carry only alpha, are the exception). When the final banner arrives: (1) change the values in `tokens.css` only, keeping every role name; (2) keep `on-brand` legible on `brand` (frost is a light fill, so it takes slate ink); (3) keep team red and team blue distinguishable from each other and from `brand` and `danger` (both are light fills on the public site, so a solid side fill takes slate ink); (4) re-export the assets from the final banner as `frontend/src/assets/README.md` describes, keeping the file names; (5) re-run the document pass so this file and its sidecar record the new values. Soft variants (`brand-soft`, `team-*-soft`, `danger-soft`) are the base colour at 12–18% alpha, and several components derive tints with `color-mix()` from the base team and brand colours, so they follow automatically.
 
 ### Primary
 - **Crystal Frost** (`brand`): the glow around the 112 crystal, the tournament's one accent. Used only for: live matches ("Canlı" with a dot), anything that is the viewer's own (own team name in a fixture row, bracket row and bracket card, own lobby, the "Takımın" strip), the current position (active nav link, the lit stage on the stage track), the one primary action per view, and the wordmark's year. `brand-hover` is its lighter hover step; `on-brand` is the slate ink on a frost fill. `focus` is a paler frost for focus outlines.
 - **Frost Wash** (`brand-soft`): the "yours" background wash (own bracket row and card row, own team strip, active nav link).
 
 ### Secondary
-- **Team Blue** and **Team Red**: osu! multiplayer sides, as the tournament room seats them: team 1 is always blue (slots 1-2), team 2 always red (slots 3-4), in every head-to-head: both halves of a fixture score, bracket card and list score cells, and the referee page's team columns. `team-*-soft` are their washes.
+- **Team Blue** and **Team Red**: osu! multiplayer sides, as the tournament room seats them: team 1 is always "blue" (slots 1-2), team 2 always "red" (slots 3-4), in every head-to-head: both halves of a fixture score, bracket card and list score cells, the pick'em, the public match page and the referee page's team columns. `team-*-soft` are their washes. On the public site the sides wear the tournament's own colours: **blue is green** (`#c7ffce`) and **red is purple** (`#f3c7ff`); the role names keep osu!'s sides. The referee page (`.osu-team-colors` on its root) sets them back to osu!'s own blue and red (`osu-blue` `#62acff`, `osu-red` `#f06c74`), the colours the room and the tourney client show, so a referee never has to translate.
+- **The tournament's own colours**, beside the banner's palette: purple `#f3c7ff`, cyan (mavi) `#c7fff9`, green `#c7ffce`, navy `#181f24` and red (kırmızı) `#ff7575` (`--color-purple|cyan|green|navy|red`). Components never use them directly, only through roles: the two public sides, and the match codes.
+- **Match codes** take their bracket side: winners codes (W12) `code-winners` (cyan), losers codes (L7) `code-losers` (red), in every list, card, calendar chip, notification, reschedule row, the bracket editor's panel and the public match page's heading. The referee page's heading keeps its code in ink, so red there always means a team.
 
 ### Tertiary
 - **Status**: `success`, `warning`, `danger`, `info`, each with a soft wash where used as a badge or alert ground. `now-line` is the calendar's current-time line. `discord` is Discord's own button colour, used only on the Discord link action. Status colours carry state, never decoration.
@@ -229,7 +235,7 @@ A cold slate palette from the banner: a blue-grey ground and its frost ink, one 
 
 **The Strong Yours Rule.** Frost sits close to the ink, so "yours" is never carried by a wash alone: an own team name is frost at 700, an own lobby title frost at 900, and an own bracket row that is hovered steps to a deeper frost wash (10%) so hover never reads as just "yours".
 
-**The Sides Rule.** Any time two teams face each other, team 1 is blue and team 2 is red (the room's slots 1-2 and 3-4), and both colours appear. A head-to-head without its side colours is incomplete.
+**The Sides Rule.** Any time two teams face each other, team 1 is blue and team 2 is red (the room's slots 1-2 and 3-4; green and purple on the public site), and both colours appear. A head-to-head without its side colours is incomplete.
 
 ## Typography
 
@@ -322,7 +328,7 @@ The versus row of the fixture sheet (`components/FixtureRow`), used on the landi
 - **Time:** display figure 18px, countdown under it in muted 14px; a live match shows "Canlı" in frost with an 8px dot that carries the crystal glow.
 - **Teams:** team 1 hugs the score from the left (right-aligned), team 2 from the right; the score halves carry the team colours, the names stay in ink; banners sit beside the name and disappear when empty. Losing team in muted 400; the viewer's own team in frost 700; empty slots in subtle ink.
 - **Score:** two halves, each tinted in its team colour at 30% and underlined with a 3px bar in that team colour; winner's figure in ink 800, loser's muted 600; unplayed shows a muted "vs" across both halves.
-- **Code and stage:** right-aligned; winners-side codes (W58) in ink, losers-side codes (L12) muted; the stage name under it in 12px muted.
+- **Code and stage:** right-aligned; winners-side codes (W58) in cyan, losers-side codes (L12) in red; the stage name under it in 12px muted.
 - **Narrow (under 720px of its own width):** time and code move to a line above; banners hide; scores drop to 24px.
 - **Hover:** hover wash across the row.
 
