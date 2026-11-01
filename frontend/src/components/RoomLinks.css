@@ -1,0 +1,35 @@
+/* The osu! room link: a small secondary button, its leading arrow saying it leaves the site. */
+.room-links {
+  gap: 6px;
+  padding: 0 10px;
+}
+
+.room-links svg {
+  color: var(--color-text-subtle);
+  transition: color var(--duration-fast) ease;
+}
+
+.room-links:hover svg {
+  color: currentColor;
+}
+
+/* Several rooms: a numbered button per room, side by side. */
+.room-links-set {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: var(--space-1);
+}
+
+.room-links.is-room {
+  gap: 5px;
+  padding: 0 var(--space-2) 0 9px;
+}
+
+.room-links-number {
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-md);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}

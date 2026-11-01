@@ -19,7 +19,7 @@ import {
 } from "../../../components/bracket/BracketViewTabs";
 import { RefereeRoomLink } from "../../../components/bracket/RefereeRoomLink";
 import { ErrorAlert } from "../../../components/ErrorAlert";
-import { firstFreeSpot, incomingSources, SIDE_LABELS } from "../../../lib/bracket";
+import { firstFreeSpot, incomingSources, isLive, SIDE_LABELS } from "../../../lib/bracket";
 import { useLive } from "../../../live/LiveContext";
 import { MatchPanel } from "./MatchPanel";
 import { RefereeControl, StreamerControl } from "./StaffControls";
@@ -171,7 +171,9 @@ export function BracketAdminPage() {
                 renderStreamer={(m) => (
                   <StreamerControl match={m} editor={editor} options={streamers} myTeamId={data.myTeamId} />
                 )}
-                renderActions={isReferee ? (m) => <RefereeRoomLink matchId={m.id} variant="row" /> : undefined}
+                renderPageLink={
+                  isReferee ? (m) => <RefereeRoomLink matchId={m.id} live={isLive(m)} variant="text" /> : undefined
+                }
                 onShowInCalendar={showInCalendar}
                 countdown={countdown}
                 presence={presence}

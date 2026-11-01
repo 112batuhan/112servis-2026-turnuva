@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
 import { API_URL } from "../api/client";
 import type { Lobby, Player, Team } from "../api/types";
+import { isLobbyLive } from "../lib/bracket";
 import { formatMatchTime } from "../lib/format";
 import { MatchPageLink } from "./MatchPageLink";
 import { RoomLinks } from "./RoomLinks";
+import { StatusChip } from "./StatusChip";
 import { Countdown } from "./Countdown";
 import { DiscordMention } from "./DiscordMention";
 import { TeamPopover } from "./TeamPopover";
@@ -43,13 +45,6 @@ export function LobbyCard<P extends Player>({
         <div className="lobby-card-title">
           <h3>Lobi {lobby.name}</h3>
           <LobbyStatus lobby={lobby} full={full} />
-          <span className="lobby-card-page">
-            <MatchPageLink
-              matchId={lobby.id}
-              live={!lobby.open && !lobby.concluded_at && lobby.rooms.length > 0}
-              variant="text"
-            />
-          </span>
           <span className={full ? "lobby-card-count is-full" : "lobby-card-count"} title="Kayıtlı takımlar">
             {lobby.teams.length}/{capacity}
           </span>
@@ -81,7 +76,10 @@ export function LobbyCard<P extends Player>({
               )}
             </dd>
           </dl>
-          <RoomLinks rooms={lobby.rooms} className="lobby-card-link" />
+          <div className="lobby-card-links">
+            <MatchPageLink matchId={lobby.id} live={isLobbyLive(lobby)} variant="text" />
+            <RoomLinks rooms={lobby.rooms} />
+          </div>
         </div>
       )}
 
@@ -132,9 +130,10 @@ export function LobbyCard<P extends Player>({
   );
 }
 
-function LobbyStatus({ lobby, full }: { lobby: Lobby<Player>; full: boolean }) {
-  if (lobby.concluded_at) return <span className="badge badge-success">Tamamlandı</span>;
-  if (!lobby.open) return <span className="badge badge-warning">Başladı</span>;
-  if (full) return <span className="badge">Dolu</span>;
+export function LobbyStatus({ lobby, full }: { lobby: Lobby<Player>; full: boolean }) {
+  if (lobby.concluded_at) return <StatusChip state="done">Tamamlandı</StatusChip>;
+  if (isLobbyLive(lobby)) return <StatusChip state="live">Canlı</StatusChip>;
+  if (!lobby.open) return <StatusChip state="due">Başladı</StatusChip>;
+  if (full) return <StatusChip state="full">Dolu</StatusChip>;
   return null;
 }

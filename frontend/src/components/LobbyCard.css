@@ -14,6 +14,8 @@
 
 /* A block of the fixture sheet: a heavy rule over each lobby, hairlines between its teams. */
 .lobby-card {
+  /* Sized by the lobby grid, so the referee line can tell when its links need a line of their own. */
+  container: lobby-card / inline-size;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
@@ -62,7 +64,7 @@
 }
 
 .lobby-card-count.is-full {
-  color: var(--color-warning);
+  color: var(--color-text-muted);
 }
 
 .lobby-card-when {
@@ -110,17 +112,40 @@
   font-weight: 600;
 }
 
-.lobby-card-page {
+/* The match page and the osu! room side by side, at the line's end. */
+.lobby-card-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
   margin-left: auto;
 }
 
-.lobby-card-page + .lobby-card-count {
-  margin-left: var(--space-2);
-}
+/* Too narrow for the links beside the referee (a phone): they take a line of their own and split it in
+   equal halves, as the bracket list's match blocks do; several rooms share the right half. */
+@container lobby-card (max-width: 520px) {
+  .lobby-card-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    margin-left: 0;
+  }
 
-.lobby-card-link {
-  margin-left: auto;
-  font-weight: 600;
+  .lobby-card-links > .match-page-link {
+    grid-column: 1;
+  }
+
+  .lobby-card-links > .room-links,
+  .lobby-card-links > .room-links-set {
+    grid-column: 2;
+  }
+
+  .lobby-card-links > .room-links-set {
+    display: flex;
+  }
+
+  .lobby-card-links > .room-links-set > .room-links {
+    flex: 1 1 0;
+  }
 }
 
 .lobby-card-discord {

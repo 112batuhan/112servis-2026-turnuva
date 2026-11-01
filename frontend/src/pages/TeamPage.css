@@ -213,6 +213,14 @@
   font-weight: 800;
 }
 
+/* The match page and the osu! room, beside the countdown or the lobby's state. */
+.team-qualifier-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-left: auto;
+}
+
 .team-qualifier-countdown {
   display: flex;
   flex-direction: column;

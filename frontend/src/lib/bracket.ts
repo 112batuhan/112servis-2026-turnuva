@@ -1,4 +1,4 @@
-import type { BracketMatch, BracketSide, MatchStage } from "../api/types";
+import type { BracketMatch, BracketSide, Lobby, MatchStage, Player } from "../api/types";
 
 /** W3, L1, … */
 export function matchCode(m: Pick<BracketMatch, "side" | "number">): string {
@@ -125,6 +125,11 @@ export function winningSlot(m: BracketMatch): 1 | 2 | null {
  */
 export function isLive(m: BracketMatch, now = Date.now()): boolean {
   return !m.concluded_at && m.starts_at !== null && new Date(m.starts_at).getTime() <= now && m.rooms.length > 0;
+}
+
+/** A qualifier lobby being played: its time has come, it has a room and it isn't concluded. */
+export function isLobbyLive(lobby: Lobby<Player>): boolean {
+  return !lobby.open && !lobby.concluded_at && lobby.rooms.length > 0;
 }
 
 /** The two halves of a match's score as shown: the figures, or W and FF for a forfeit, or null without one. */

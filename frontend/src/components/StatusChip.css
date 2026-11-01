@@ -1,0 +1,105 @@
+/* Squared, like the score block, so a state never reads as one of the round count badges; set in the
+   display face, like every other figure on the sheet. Each state sets its ink, fill and edge. */
+.status-chip {
+  --chip-ink: var(--color-text-muted);
+  --chip-fill: var(--color-state-waiting);
+  --chip-edge: var(--color-border-strong);
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 var(--space-2) 0 7px;
+  border: 1px solid var(--chip-edge);
+  border-radius: var(--radius-sm);
+  background: var(--chip-fill);
+  color: var(--chip-ink);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-md);
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.status-chip-mark {
+  flex-shrink: 0;
+}
+
+span.status-chip-mark {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* Waiting on its time: a lacivert well, the mark an empty ring. */
+.status-chip.is-waiting span.status-chip-mark {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+/* No time, or no teams yet: hollow on a dashed outline, like the site's other "still to come" marks. */
+.status-chip.is-none,
+.status-chip.is-potential {
+  --chip-ink: var(--color-text-subtle);
+  border-style: dashed;
+}
+
+.status-chip.is-potential {
+  --chip-fill: transparent;
+}
+
+.status-chip.is-none span.status-chip-mark,
+.status-chip.is-potential span.status-chip-mark {
+  height: 1.5px;
+  border-radius: 1px;
+}
+
+/* No places left: the well filled in. */
+.status-chip.is-full {
+  --chip-ink: var(--color-text);
+}
+
+.status-chip.is-full span.status-chip-mark {
+  border-radius: 1.5px;
+  background: var(--color-text-muted);
+}
+
+/* Its time has come and there's no room yet. */
+.status-chip.is-due {
+  --chip-ink: var(--color-state-due);
+  --chip-fill: color-mix(in srgb, var(--color-state-due) 12%, transparent);
+  --chip-edge: color-mix(in srgb, var(--color-state-due) 40%, transparent);
+}
+
+.status-chip.is-done {
+  --chip-ink: var(--color-state-done);
+  --chip-fill: color-mix(in srgb, var(--color-state-done) 9%, transparent);
+  --chip-edge: color-mix(in srgb, var(--color-state-done) 30%, transparent);
+}
+
+/* Live is the one frost chip, and its dot carries the crystal's glow and breathes, as LiveMark's does. */
+.status-chip.is-live {
+  --chip-ink: var(--color-primary);
+  --chip-fill: var(--color-primary-soft);
+  --chip-edge: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  font-weight: 800;
+}
+
+.status-chip.is-live span.status-chip-mark {
+  box-shadow: var(--glow);
+  animation: status-chip-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes status-chip-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-chip.is-live span.status-chip-mark {
+    animation: none;
+  }
+}

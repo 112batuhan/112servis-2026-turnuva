@@ -22,10 +22,12 @@ import { DiscordMention } from "../components/DiscordMention";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { MatchReschedules } from "../components/MatchReschedules";
 import { PlayerChip } from "../components/PlayerChip";
+import { LobbyStatus } from "../components/LobbyCard";
 import { MatchPageLink } from "../components/MatchPageLink";
 import { RoomLinks } from "../components/RoomLinks";
 import { TeamCard } from "../components/TeamCard";
 import { TeamMatches } from "../components/TeamMatches";
+import { isLobbyLive } from "../lib/bracket";
 import { ELIGIBILITY_LABELS, eligibilityBadgeClass } from "../lib/eligibility";
 import { BANNER_MAX_BYTES, formatMatchTime, formatRank, formatTeamValue, TEAM_NAME_MAX } from "../lib/format";
 import "./TeamPage.css";
@@ -392,15 +394,11 @@ function QualifierInfo({ teamId, onError }: { teamId: string; onError: (message:
           ) : (
             "henüz yok"
           )}
-          {lobby.rooms.length > 0 && (
-            <>
-              {" · "}
-              <RoomLinks rooms={lobby.rooms} />
-            </>
-          )}
-          {" · "}
-          <MatchPageLink matchId={lobby.id} live={!lobby.open && !lobby.concluded_at && lobby.rooms.length > 0} variant="text" />
         </span>
+      </div>
+      <div className="team-qualifier-links">
+        <MatchPageLink matchId={lobby.id} live={isLobbyLive(lobby)} variant="text" />
+        <RoomLinks rooms={lobby.rooms} />
       </div>
       {lobby.open ? (
         <div className="team-qualifier-countdown">
@@ -408,7 +406,7 @@ function QualifierInfo({ teamId, onError }: { teamId: string; onError: (message:
           <Countdown to={lobby.starts_at} className="team-qualifier-time" onElapsed={load} />
         </div>
       ) : (
-        <span className="badge badge-warning">Başladı</span>
+        <LobbyStatus lobby={lobby} full={false} />
       )}
     </div>
   );

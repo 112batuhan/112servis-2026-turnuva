@@ -12,7 +12,7 @@ interface Props {
   live?: boolean;
   /**
    * "card" is a bare icon for the grid's cards and the calendar's chips, "row" an icon button for
-   * list rows, "text" a labelled link for headers and lobby cards.
+   * the match panel, "text" a labelled small button for list rows, lobby cards and headers.
    */
   variant: "card" | "row" | "text";
 }
@@ -29,7 +29,7 @@ export function MatchPageLink({ matchId, live = false, variant }: Props) {
   const classes = {
     card: "match-page-link is-card",
     row: "icon-btn icon-btn-outlined match-page-link is-row",
-    text: "match-page-link is-text",
+    text: "btn btn-secondary btn-sm match-page-link is-text",
   }[variant];
   return (
     <Link
@@ -44,7 +44,7 @@ export function MatchPageLink({ matchId, live = false, variant }: Props) {
       onKeyDown={(e) => e.stopPropagation()}
       draggable={false}
     >
-      <Icon name="monitor" size={variant === "card" ? 14 : 16} />
+      <Icon name="monitor" size={variant === "row" ? 16 : 14} />
       {variant === "text" && <span>{label}</span>}
     </Link>
   );

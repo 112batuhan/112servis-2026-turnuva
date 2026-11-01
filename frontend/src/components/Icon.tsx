@@ -34,6 +34,7 @@ const ICONS = {
     />
   ),
   download: <path d="M12 3v12M7 11l5 5 5-5M5 21h14" />,
+  external: <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />,
   eye: (
     <>
       <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />

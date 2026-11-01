@@ -10,3 +10,29 @@
   color: var(--color-primary);
   background: var(--color-hover);
 }
+
+/* The admin list's button: a small secondary button, as the match page link is on the public list. */
+.referee-room-link.is-text {
+  padding: 0 10px;
+  gap: 6px;
+  border-radius: var(--radius-md);
+}
+
+.referee-room-link.is-text:hover {
+  background: transparent;
+  color: var(--color-text);
+}
+
+/* A live match's room is lit, as its match page link is: frost ink on the frost wash, never the
+   filled primary. */
+.referee-room-link.is-text.is-live {
+  border-color: color-mix(in srgb, var(--color-primary) 50%, transparent);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.referee-room-link.is-text.is-live:hover {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+  color: var(--color-primary-hover);
+}

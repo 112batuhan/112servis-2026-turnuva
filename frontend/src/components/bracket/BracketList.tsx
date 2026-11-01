@@ -21,9 +21,9 @@ import { stageLabel } from "../../lib/bestOf";
 import { readString, writeString } from "../../lib/storage";
 import { useStoredSet } from "../../lib/useExpandedSet";
 import { Icon } from "../Icon";
-import { LiveMark } from "../LiveMark";
 import { MatchPageLink } from "../MatchPageLink";
 import { RoomLinks } from "../RoomLinks";
+import { StatusChip } from "../StatusChip";
 import { TeamPopover } from "../TeamPopover";
 import { MatchTime } from "./MatchTime";
 import { MatchTimeLink } from "./MatchTimeLink";
@@ -66,6 +66,11 @@ interface Props<M extends BracketMatch> {
   renderStreamer?: (match: M) => ReactNode;
   /** Controls at the end of each row. */
   renderActions?: (match: M) => ReactNode;
+  /**
+   * Replaces the match page link in the status cell, in its column, e.g. with the referee page's.
+   * Not called for potential matches, which have neither.
+   */
+  renderPageLink?: (match: M) => ReactNode;
   /** Makes each time a button that opens the calendar on that match. */
   onShowInCalendar?: (id: string) => void;
   /** Shows the time left until each match instead of its date. */
@@ -92,6 +97,7 @@ export function BracketList<M extends BracketMatch>({
   renderReferee,
   renderStreamer,
   renderActions,
+  renderPageLink,
   onShowInCalendar,
   countdown,
   hits,
@@ -167,7 +173,9 @@ export function BracketList<M extends BracketMatch>({
                 <th scope="col">Eşleşme</th>
                 <th scope="col">Hakem</th>
                 <th scope="col">Yayıncı</th>
-                <th scope="col">Durum</th>
+                <th scope="col" colSpan={2}>
+                  Durum
+                </th>
                 {renderActions && (
                   <th scope="col">
                     <span className="sr-only">İşlemler</span>
@@ -187,7 +195,7 @@ export function BracketList<M extends BracketMatch>({
                       if (!(e.target as Element).closest("a")) toggle(key);
                     }}
                   >
-                    <th scope="colgroup" colSpan={renderActions ? 7 : 6}>
+                    <th scope="colgroup" colSpan={renderActions ? 8 : 7}>
                       <span className="bracket-list-group-head">
                         <button type="button" className="bracket-list-group-toggle" aria-expanded={!collapsed}>
                           <Icon name="chevronDown" size={18} className="bracket-list-group-caret" />
@@ -306,18 +314,24 @@ export function BracketList<M extends BracketMatch>({
                               <span className="muted">—</span>
                             )}
                           </td>
+                          {/* The state and the links are cells of their own, so the links line up in their
+                              column, and a phone can put the state on the block's top line by the code. */}
+                          <td className="bracket-list-state-cell">
+                            {potential ? (
+                              <StatusChip state="potential" title="İki takım da gelirse oynanır">
+                                Olası
+                              </StatusChip>
+                            ) : undecided ? (
+                              <StatusChip state="potential">{m.potentials.length} olası eşleşme</StatusChip>
+                            ) : (
+                              <MatchStatus match={m} now={now} />
+                            )}
+                          </td>
                           <td className="bracket-list-status-cell">
                             <span className="bracket-list-status">
-                              {potential ? (
-                                <span className="badge badge-potential" title="İki takım da gelirse oynanır">
-                                  Olası
-                                </span>
-                              ) : undecided ? (
-                                <span className="badge">{m.potentials.length} olası eşleşme</span>
-                              ) : (
-                                <MatchStatus match={m} now={now} />
-                              )}
-                              {hasMatchPage(m) && <MatchPageLink matchId={m.id} live={isLive(m)} variant="text" />}
+                              {renderPageLink
+                                ? !potential && renderPageLink(m)
+                                : hasMatchPage(m) && <MatchPageLink matchId={m.id} live={isLive(m)} variant="text" />}
                               <RoomLinks rooms={m.rooms} />
                               {!potential && <RefereeWatchers viewers={presence?.get(m.id)} />}
                             </span>
@@ -377,14 +391,20 @@ function TeamName({ id, source, teams, won, own, bannerEnd }: TeamNameProps) {
 export function MatchStatus({ match, now }: { match: BracketMatch; now: string }) {
   if (match.concluded_at && match.forfeit_slot !== null) {
     return (
-      <span className="badge badge-success" title="Bir takım çekildi ya da maç tamamlanamadı">
+      <StatusChip state="done" title="Bir takım çekildi ya da maç tamamlanamadı">
         Hükmen
-      </span>
+      </StatusChip>
     );
   }
-  if (match.concluded_at) return <span className="badge badge-success">Tamamlandı</span>;
-  if (isLive(match, new Date(now).getTime())) return <LiveMark />;
-  if (!match.starts_at) return <span className="badge">Zaman yok</span>;
-  if (match.starts_at <= now) return <span className="badge badge-warning">Başladı</span>;
-  return <span className="badge">Planlandı</span>;
+  if (match.concluded_at) return <StatusChip state="done">Tamamlandı</StatusChip>;
+  if (isLive(match, new Date(now).getTime())) return <StatusChip state="live">Canlı</StatusChip>;
+  if (!match.starts_at) return <StatusChip state="none">Zaman yok</StatusChip>;
+  if (match.starts_at <= now) {
+    return (
+      <StatusChip state="due" title="Maçın saati geldi, odası henüz açılmadı">
+        Başladı
+      </StatusChip>
+    );
+  }
+  return <StatusChip state="waiting">Planlandı</StatusChip>;
 }

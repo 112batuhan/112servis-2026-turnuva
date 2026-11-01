@@ -26,16 +26,22 @@
   border-color: color-mix(in srgb, var(--color-primary) 55%, transparent);
 }
 
+/* A small secondary button, the same as "Maç linki" beside it (RoomLinks). */
 .match-page-link.is-text {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
+  gap: 6px;
+  padding: 0 10px;
 }
 
-.match-page-link.is-text:hover span {
-  text-decoration: underline;
+/* Live, it's the frost way in: frost ink on the frost wash, the edge in frost. Never the filled
+   primary, which stays the view's one main action. */
+.match-page-link.is-text.is-live {
+  border-color: color-mix(in srgb, var(--color-primary) 50%, transparent);
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+}
+
+.match-page-link.is-text.is-live:hover {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 20%, transparent);
+  color: var(--color-primary-hover);
 }

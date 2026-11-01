@@ -77,6 +77,13 @@
   --color-code-winners: var(--color-cyan);
   --color-code-losers: var(--color-red);
 
+  /* a match's state on its status chip (StatusChip): lacivert for waiting on its time (a recessed
+     well, since navy sits on the ground), kırmızı for a time that has come without a room, yeşil for
+     done. Live stays frost, the one accent. */
+  --color-state-waiting: var(--color-navy);
+  --color-state-due: var(--color-red);
+  --color-state-done: var(--color-green);
+
   /* outlines text drawn over user images, which can be any colour */
   --color-text-outline: #000000;
 
