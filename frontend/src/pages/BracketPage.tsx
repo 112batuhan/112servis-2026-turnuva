@@ -28,25 +28,18 @@ export function BracketPage() {
   const [countdown, toggleCountdown] = useCountdownMode("public");
   // Selecting a match only highlights it and the lines into and out of it.
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // The match a clicked time opens the calendar on; picking a view from the tabs clears it.
-  const [calendarFocus, setCalendarFocus] = useState<string | null>(null);
-  const pickView = (next: typeof view) => {
-    setCalendarFocus(null);
+  // The match a view opens on, centred or scrolled to (a new object each time): switching views passes the
+  // selected one, so the match last clicked in one view is where the next one starts.
+  const [focus, setFocus] = useState<{ id: string } | null>(null);
+  const openView = (next: typeof view, id: string | null) => {
+    if (id) setSelectedId(id);
+    setFocus(id ? { id } : null);
     setView(next);
   };
-  const showInCalendar = (id: string) => {
-    setSelectedId(id);
-    setCalendarFocus(id);
-    setView("calendar");
-  };
-  // The match a team's match history linked to, which the grid centres on.
-  const [gridFocus, setGridFocus] = useState<{ id: string } | null>(null);
-  useLinkedMatch((id) => {
-    setSelectedId(id);
-    setCalendarFocus(null);
-    setView("grid");
-    setGridFocus({ id });
-  });
+  const pickView = (next: typeof view) => openView(next, selectedId);
+  const showInCalendar = (id: string) => openView("calendar", id);
+  // A team's match history links to a match on the grid.
+  useLinkedMatch((id) => openView("grid", id));
 
   const reload = useCallback(async () => setData(await fetchPublicBracket()), []);
 
@@ -99,7 +92,7 @@ export function BracketPage() {
           {view === "grid" && (
             <BracketGrid
               {...shared}
-              centerOn={gridFocus}
+              centerOn={focus}
               onSelect={setSelectedId}
               onShowInCalendar={showInCalendar}
               countdown={countdown}
@@ -108,12 +101,14 @@ export function BracketPage() {
           {view === "list" && (
             <BracketList
               {...shared}
+              focusOn={focus}
+              onSelect={setSelectedId}
               onShowInCalendar={showInCalendar}
               countdown={countdown}
               renderActions={subs.ids ? (m) => <SubscribeButton match={m} subs={subs} /> : undefined}
             />
           )}
-          {view === "calendar" && <BracketCalendar {...shared} focusId={calendarFocus} onSelect={setSelectedId} />}
+          {view === "calendar" && <BracketCalendar {...shared} focusId={focus?.id} onSelect={setSelectedId} />}
         </>
       )}
     </div>

@@ -28,7 +28,8 @@ interface Props {
   myTeamId?: string | null;
   viewerId?: string;
   selectedId?: string | null;
-  onSelect?: (id: string) => void;
+  /** Called with null when the selected match is clicked again. */
+  onSelect?: (id: string | null) => void;
   /** A match to open on: its day's timeline, scrolled to it. Read when the calendar mounts. */
   focusId?: string | null;
   /** Adds a link to each match's referee room. */
@@ -234,20 +235,23 @@ export function BracketCalendar({
         })}
       </>
     );
+    // Clicking the selected match again deselects it.
+    const select = () => onSelect?.(rowMatchId(m) === selectedId ? null : rowMatchId(m));
     // A div acting as a button rather than a <button>, since it can hold the referee room link.
     return onSelect ? (
       <div
         key={m.id}
         role="button"
         tabIndex={0}
+        aria-pressed={rowMatchId(m) === selectedId}
         className={classes}
         style={style}
         title={potential ? `${matchCode(m)} bu eşleşme olursa: iki takım da gelirse oynanır` : undefined}
-        onClick={() => onSelect(rowMatchId(m))}
+        onClick={select}
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
           e.preventDefault();
-          onSelect(rowMatchId(m));
+          select();
         }}
       >
         {content}

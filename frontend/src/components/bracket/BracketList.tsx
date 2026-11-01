@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { BracketMatch, BracketSide, RefereeViewer, Team } from "../../api/types";
 import {
@@ -53,7 +53,13 @@ interface Props<M extends BracketMatch> {
   myTeamId?: string | null;
   viewerId?: string;
   selectedId?: string | null;
-  onSelect?: (id: string) => void;
+  /** Called with null when the selected match is clicked again. */
+  onSelect?: (id: string | null) => void;
+  /**
+   * Scrolls this match's row to the middle, again each time a new object is passed, first opening its stage and
+   * showing both sides if they hide it. A match the search leaves out stays out.
+   */
+  focusOn?: { id: string } | null;
   /** Replaces the referee's name and Discord, e.g. with controls to change who it is. */
   renderReferee?: (match: M) => ReactNode;
   /** Replaces the streamer's name, likewise. */
@@ -82,6 +88,7 @@ export function BracketList<M extends BracketMatch>({
   viewerId,
   selectedId,
   onSelect,
+  focusOn,
   renderReferee,
   renderStreamer,
   renderActions,
@@ -108,8 +115,31 @@ export function BracketList<M extends BracketMatch>({
   const { has: isCollapsed, toggle } = useStoredSet("bracket-list-collapsed");
   const now = new Date().toISOString();
 
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const focused = useRef<{ id: string } | null>(null);
+  // The row to scroll to once it's rendered, after the stage or side hiding it has been opened.
+  const scrollTo = useRef<string | null>(null);
+  useEffect(() => {
+    const m = focusOn && matches.find((m) => m.id === focusOn.id);
+    if (!m || focused.current === focusOn) return;
+    focused.current = focusOn;
+    if (hits && !hits.has(m.id)) return;
+    // Shown for now without changing the side remembered for next time.
+    if (side !== "all" && m.side !== side) setSide("all");
+    const key = m.stage?.id ?? "none";
+    if (isCollapsed(key)) toggle(key);
+    scrollTo.current = m.id;
+  }, [focusOn, matches, hits, side, isCollapsed, toggle]);
+  useEffect(() => {
+    const id = scrollTo.current;
+    const row = id && wrapRef.current?.querySelector(`tr[data-match-id="${CSS.escape(id)}"]`);
+    if (!row) return;
+    scrollTo.current = null;
+    row.scrollIntoView({ block: "center" });
+  });
+
   return (
-    <div className="bracket-list-wrap">
+    <div className="bracket-list-wrap" ref={wrapRef}>
       <div className="bracket-list-toolbar">
         <div className="bracket-view-tabs" role="group" aria-label="Taraf">
           {SIDE_FILTERS.map((f) => (
@@ -190,12 +220,15 @@ export function BracketList<M extends BracketMatch>({
                       ]
                         .filter(Boolean)
                         .join(" ");
-                      // A potential match selects its bracket match, which the grid and the panel know.
-                      const select = () => onSelect?.(rowMatchId(m));
+                      // A potential match selects its bracket match, which the grid and the panel know; clicking
+                      // the selected match again deselects it.
+                      const id = rowMatchId(m);
+                      const select = () => onSelect?.(id === selectedId ? null : id);
                       return (
                         <tr
                           key={m.id}
                           className={classes}
+                          data-match-id={m.id}
                           // A click anywhere in the row selects the match, except on its own controls; the
                           // code stays a button so the keyboard can reach it.
                           onClick={
@@ -214,7 +247,12 @@ export function BracketList<M extends BracketMatch>({
                                 olası
                               </span>
                             ) : onSelect ? (
-                              <button type="button" className={`bracket-list-code is-${m.side}`} onClick={select}>
+                              <button
+                                type="button"
+                                className={`bracket-list-code is-${m.side}`}
+                                aria-pressed={m.id === selectedId}
+                                onClick={select}
+                              >
                                 {matchCode(m)}
                               </button>
                             ) : (

@@ -37,25 +37,18 @@ export function BracketAdminPage() {
   const [view, setView] = useBracketView("admin");
   const [countdown, toggleCountdown] = useCountdownMode("admin");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  // The match a clicked time opens the calendar on; picking a view from the tabs clears it.
-  const [calendarFocus, setCalendarFocus] = useState<string | null>(null);
-  const pickView = (next: typeof view) => {
-    setCalendarFocus(null);
+  // The match a view opens on, centred or scrolled to (a new object each time): switching views passes the
+  // selected one, so the match last clicked in one view is where the next one starts.
+  const [focus, setFocus] = useState<{ id: string } | null>(null);
+  const openView = (next: typeof view, id: string | null) => {
+    if (id) setSelectedId(id);
+    setFocus(id ? { id } : null);
     setView(next);
   };
-  const showInCalendar = (id: string) => {
-    setSelectedId(id);
-    setCalendarFocus(id);
-    setView("calendar");
-  };
-  // The match a team's match history linked to, which the grid centres on.
-  const [gridFocus, setGridFocus] = useState<{ id: string } | null>(null);
-  useLinkedMatch((id) => {
-    setSelectedId(id);
-    setCalendarFocus(null);
-    setView("grid");
-    setGridFocus({ id });
-  });
+  const pickView = (next: typeof view) => openView(next, selectedId);
+  const showInCalendar = (id: string) => openView("calendar", id);
+  // A team's match history links to a match on the grid.
+  useLinkedMatch((id) => openView("grid", id));
   const [newSide, setNewSide] = useState<BracketSide>("winners");
   const [referees, setReferees] = useState<Player[]>([]);
   const [streamers, setStreamers] = useState<Player[]>([]);
@@ -158,7 +151,7 @@ export function BracketAdminPage() {
             {view === "grid" && (
               <BracketGrid
                 {...shared}
-                centerOn={gridFocus}
+                centerOn={focus}
                 onSelect={setSelectedId}
                 editable={isHost}
                 onMove={editor.move}
@@ -172,6 +165,7 @@ export function BracketAdminPage() {
             {view === "list" && (
               <BracketList
                 {...shared}
+                focusOn={focus}
                 onSelect={setSelectedId}
                 renderReferee={(m) => <RefereeControl match={m} editor={editor} options={referees} discord />}
                 renderStreamer={(m) => (
@@ -187,7 +181,7 @@ export function BracketAdminPage() {
               <BracketCalendar
                 {...shared}
                 onSelect={setSelectedId}
-                focusId={calendarFocus}
+                focusId={focus?.id}
                 showRefereeRoom={isReferee}
                 showUnscheduled={isHost}
               />
