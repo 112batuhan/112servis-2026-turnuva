@@ -147,6 +147,20 @@
   --duration-normal: 220ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
 
+  /* the broadcast overlays (pages/overlay), after the designers' tournament-client designs
+     (design/tournament-client-*.png): a ban's crimson over a map's cover, the black well the chat
+     sits in, the current map's frost-teal card and the dark chips set on it, and the display serif
+     the designs set names and titles in */
+  --color-ban: #d4213d;
+  --color-well: #040607;
+  --color-strip: #a6d5d1;
+  --color-strip-light: #c6efeb;
+  --color-on-strip: var(--color-on-primary);
+  --color-chip: #112029;
+  --color-chip-light: #1f3a48;
+  --font-overlay-serif: "Noto Serif Display", Georgia, serif;
+  --font-overlay-serif-stretch: 72%;
+
   --control-height: 36px;
   --control-height-sm: 30px;
   --icon-button-size: 32px;

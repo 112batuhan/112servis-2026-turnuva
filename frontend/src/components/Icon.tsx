@@ -74,6 +74,8 @@ const ICONS = {
     </g>
   ),
   list: <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />,
+  // A metronome, for a map's BPM.
+  metronome: <path d="M9.5 3h5l4.5 18h-14zM12 15l5-9M7 17h10" />,
   minus: <path d="M5 12h14" />,
   monitor: (
     <>

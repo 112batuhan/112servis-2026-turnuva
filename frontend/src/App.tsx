@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext";
 import { RequireAuth } from "./auth/RequireAuth";
 import { MiniPlayer } from "./components/MiniPlayer";
@@ -31,6 +31,9 @@ import { TeamPage } from "./pages/TeamPage";
 import { TeamsPage } from "./pages/TeamsPage";
 import { usePlayer } from "./player/PlayerContext";
 
+// The broadcast overlays and their control dock (pages/overlay), outside the site's shell.
+const OverlayApp = lazy(() => import("./pages/overlay/OverlayApp"));
+
 const DevSwitcher = __DEV_LOGIN__
   ? lazy(() => import("./components/DevSwitcher").then((m) => ({ default: m.DevSwitcher })))
   : null;
@@ -38,6 +41,18 @@ const DevSwitcher = __DEV_LOGIN__
 export function App() {
   const { user, error, refresh } = useAuth();
   const { track } = usePlayer();
+  const { pathname } = useLocation();
+
+  // OBS shows these as they are, signed out, without waiting on the session or drawing the site.
+  if (pathname.startsWith("/overlay")) {
+    return (
+      <Suspense fallback={null}>
+        <Routes>
+          <Route path="/overlay/*" element={<OverlayApp />} />
+        </Routes>
+      </Suspense>
+    );
+  }
 
   if (error) {
     return (

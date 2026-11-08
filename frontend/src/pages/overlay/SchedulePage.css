@@ -1,0 +1,255 @@
+/* The schedule page, in frame pixels: two columns of match capsules under the masthead, after the
+   gameplay and mappool designs' language (pills, tags over the top edge, dark chips). */
+
+.sc-col {
+  position: absolute;
+  top: 176px;
+  width: 812px;
+}
+
+.sc-col.is-upcoming {
+  left: 92px;
+}
+
+.sc-col.is-results {
+  right: 92px;
+}
+
+.sc-col h2 {
+  margin: 0 0 34px;
+  font-family: var(--font-overlay-serif);
+  font-stretch: var(--font-overlay-serif-stretch);
+  font-weight: 600;
+  font-size: 40px;
+  line-height: 1;
+  color: var(--color-text);
+}
+
+.sc-col.is-results h2 {
+  text-align: right;
+}
+
+.sc-col ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 30px;
+}
+
+.sc-empty {
+  margin: 0;
+  font-family: var(--font-overlay-serif);
+  font-stretch: var(--font-overlay-serif-stretch);
+  font-size: 28px;
+  color: var(--color-text-subtle);
+}
+
+.sc-col.is-results .sc-empty {
+  text-align: right;
+}
+
+/* ---------- a match ---------- */
+
+.sc-fixture {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px minmax(0, 1fr);
+  align-items: center;
+  height: 80px;
+  padding: 0 12px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--color-chip), var(--color-chip-light) 50%, var(--color-chip));
+  box-shadow: 0 6px 18px var(--color-scrim);
+  animation: sc-in 700ms var(--ease-out) both;
+}
+
+@keyframes sc-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+.sc-fixture.is-live,
+.sc-fixture.is-on-stream {
+  box-shadow:
+    0 0 0 3px var(--color-primary),
+    0 6px 18px var(--color-scrim);
+}
+
+.sc-team {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.sc-team.is-side-2 {
+  flex-direction: row-reverse;
+}
+
+.sc-banner {
+  width: 112px;
+  height: 56px;
+  font-size: 48px;
+}
+
+.sc-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-overlay-serif);
+  font-stretch: var(--font-overlay-serif-stretch);
+  font-weight: 600;
+  font-size: 30px;
+  line-height: 1.1;
+  color: var(--color-text);
+}
+
+.sc-team.is-side-1 .sc-name {
+  margin-left: auto;
+  text-align: right;
+}
+
+.sc-team.is-side-2 .sc-name {
+  margin-right: auto;
+}
+
+.sc-name.is-waiting {
+  color: var(--color-text-subtle);
+  font-weight: 500;
+}
+
+.sc-team.is-loser .sc-name {
+  color: var(--color-text-subtle);
+}
+
+.sc-team.is-loser .sc-banner {
+  filter: grayscale(0.85) brightness(0.55);
+}
+
+/* The team's colour underlines its name, as the score halves do on the site. */
+.sc-team .sc-name {
+  padding-bottom: 3px;
+  background: linear-gradient(var(--ov-side), var(--ov-side)) left bottom / 100% 2px no-repeat;
+}
+
+.sc-team.is-loser .sc-name {
+  background-size: 0 2px;
+}
+
+.sc-middle {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-stretch: var(--font-wordmark-stretch);
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.sc-vs {
+  font-size: 26px;
+  color: var(--color-text-muted);
+}
+
+.sc-figure {
+  font-size: 40px;
+  color: var(--ov-side);
+}
+
+.sc-figure.is-loser {
+  color: var(--color-text-subtle);
+}
+
+.sc-dash {
+  font-size: 28px;
+  color: var(--color-text-subtle);
+}
+
+/* The code and the time ride the capsule's top edge, like a map's category tag. */
+.sc-tag {
+  position: absolute;
+  top: -15px;
+  height: 30px;
+  padding: 0 16px;
+  border-radius: var(--radius-full);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px var(--color-scrim);
+}
+
+.sc-code {
+  left: 50%;
+  translate: -50% 0;
+  min-width: 72px;
+  justify-content: center;
+  background: var(--color-navy);
+  font-stretch: var(--font-wordmark-stretch);
+  font-weight: 500;
+  font-size: 18px;
+}
+
+.sc-code.is-winners {
+  color: var(--color-code-winners);
+}
+
+.sc-code.is-losers {
+  color: var(--color-code-losers);
+}
+
+.sc-when {
+  left: 40px;
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+}
+
+.sc-col.is-results .sc-when {
+  left: auto;
+  right: 40px;
+  color: var(--color-text-muted);
+}
+
+.sc-when.is-live {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 800;
+}
+
+.sc-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-on-primary);
+  animation: sc-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes sc-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.sc-trophy {
+  --ov-trophy-r: 170px;
+  --ov-trophy-top: 948px;
+  --ov-mark-top: 36px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-fixture,
+  .sc-live-dot {
+    animation: none;
+  }
+}

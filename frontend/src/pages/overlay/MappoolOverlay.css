@@ -1,0 +1,134 @@
+/* The mappool overlay, in frame pixels after design/tournament-client-mappool.png. */
+
+.mp-team-name {
+  top: 37px;
+}
+
+.mp-team.is-side-1 .mp-team-name {
+  left: 248px;
+}
+
+.mp-team.is-side-2 .mp-team-name {
+  right: 241px;
+  text-align: right;
+}
+
+.mp .ov-pips {
+  top: 82px;
+}
+
+.mp .ov-pips.is-side-1 {
+  left: 248px;
+}
+
+.mp .ov-pips.is-side-2 {
+  right: 241px;
+}
+
+/* ---------- the pool ---------- */
+
+.mp-grid {
+  position: absolute;
+  top: 153px;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: calc(47px * var(--mp-scale));
+  --pill-w: calc(248px * var(--mp-scale));
+  --pill-h: calc(86px * var(--mp-scale));
+  --pill-crystal: calc(50px * var(--mp-scale));
+  --pill-tag-h: calc(34px * var(--mp-scale));
+  --pill-title-h: calc(24px * var(--mp-scale));
+}
+
+.mp-row {
+  display: flex;
+  justify-content: center;
+  gap: calc(17px * var(--mp-scale));
+}
+
+.mp .ov-pill {
+  animation: mp-pill-in 700ms var(--ease-out) both;
+}
+
+@keyframes mp-pill-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+}
+
+/* ---------- the chat ---------- */
+
+.mp-chat {
+  position: absolute;
+  left: 14px;
+  top: 859px;
+  width: 726px;
+  height: 206px;
+  border-radius: 18px;
+  background: var(--color-well);
+  overflow: hidden;
+}
+
+.mp-chat-log {
+  position: absolute;
+  inset: 0;
+  padding: 14px 22px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  mask-image: linear-gradient(transparent, #000 34%);
+}
+
+.mp-chat-line {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.36;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+  animation: mp-chat-in 360ms var(--ease-out) both;
+}
+
+@keyframes mp-chat-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.mp-chat-from {
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.mp-chat-from.is-side-1,
+.mp-chat-from.is-side-2 {
+  color: var(--ov-side);
+}
+
+.mp-chat-from.is-referee {
+  color: var(--color-info);
+}
+
+.mp-chat-from.is-bot {
+  color: var(--color-text-subtle);
+}
+
+.mp-chat-line.is-action .mp-chat-text {
+  font-style: italic;
+}
+
+.mp-trophy {
+  --ov-trophy-r: 186px;
+  --ov-trophy-top: 852px;
+  --ov-mark-top: 104px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mp .ov-pill,
+  .mp-chat-line {
+    animation: none;
+  }
+}

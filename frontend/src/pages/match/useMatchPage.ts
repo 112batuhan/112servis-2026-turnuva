@@ -37,7 +37,11 @@ const RELOAD_DELAY_MS = 250;
 // How often the page reloads by itself while the live socket is down and the match is on.
 const FALLBACK_MS = 15_000;
 
-export function useMatchPage(matchId: string) {
+/**
+ * `spectate: false` follows the match without counting among its spectators (the broadcast
+ * overlays, which aren't people watching).
+ */
+export function useMatchPage(matchId: string, { spectate = true }: { spectate?: boolean } = {}) {
   const [match, setMatch] = useState<PublicMatch | null>(null);
   const [live, setLive] = useState<LiveRoom | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -87,9 +91,9 @@ export function useMatchPage(matchId: string) {
   const isLive = match !== null && match.concluded_at === null && match.rooms.length > 0;
   useEffect(() => {
     if (!isLive) return;
-    watch(matchId);
+    watch(matchId, spectate);
     return () => watch(null);
-  }, [isLive, matchId, roomsKey, watch]);
+  }, [isLive, matchId, roomsKey, watch, spectate]);
 
   const streaming = useRef(isLive);
   streaming.current = isLive;

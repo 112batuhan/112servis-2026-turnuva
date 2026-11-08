@@ -1,0 +1,196 @@
+/* The bracket page, in frame pixels: the board seen through a window under the masthead, its edges
+   fading into the ground. Inside the board, sizes are board pixels (the camera scales them). */
+
+.br-view {
+  position: absolute;
+  left: 40px;
+  top: 150px;
+  width: 1840px;
+  height: 890px;
+  overflow: hidden;
+  mask-image:
+    linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent),
+    linear-gradient(transparent, #000 5%, #000 92%, transparent);
+  mask-composite: intersect;
+}
+
+.br-board {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  transform-origin: 0 0;
+}
+
+.br-links {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+}
+
+.br-link {
+  fill: none;
+  stroke: var(--color-border-strong);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+}
+
+.br-link.is-loser {
+  stroke-dasharray: 7 6;
+  stroke: color-mix(in srgb, var(--color-code-losers) 45%, var(--color-border-strong));
+}
+
+.br-link.is-winner.is-settled {
+  stroke: color-mix(in srgb, var(--color-text) 55%, var(--color-border-strong));
+}
+
+/* ---------- a match ---------- */
+
+.br-card {
+  position: absolute;
+  width: 240px;
+  height: 100px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: linear-gradient(90deg, var(--color-chip), var(--color-chip-light));
+  box-shadow: 0 6px 16px var(--color-scrim);
+}
+
+.br-card.is-done {
+  background: linear-gradient(90deg, var(--color-surface), var(--color-chip));
+}
+
+.br-card.is-live,
+.br-card.is-on-stream {
+  box-shadow:
+    0 0 0 3px var(--color-primary),
+    0 6px 16px var(--color-scrim);
+}
+
+.br-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 26px;
+  padding: 0 12px;
+  background: color-mix(in srgb, var(--color-navy) 70%, transparent);
+  font-family: var(--font-display);
+  line-height: 1;
+}
+
+.br-code {
+  font-stretch: var(--font-wordmark-stretch);
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.br-code.is-winners {
+  color: var(--color-code-winners);
+}
+
+.br-code.is-losers {
+  color: var(--color-code-losers);
+}
+
+.br-when {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-stretch: var(--font-display-stretch);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.br-card.is-live .br-when {
+  color: var(--color-primary);
+  font-weight: 800;
+}
+
+.br-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  animation: br-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes br-pulse {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.br-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 10px;
+  height: 37px;
+  padding-left: 10px;
+}
+
+.br-row + .br-row {
+  border-top: 1px solid color-mix(in srgb, var(--color-text) 8%, transparent);
+}
+
+.br-banner {
+  width: 40px;
+  height: 22px;
+  font-size: 30px;
+}
+
+.br-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.br-name.is-empty {
+  color: var(--color-text-subtle);
+}
+
+.br-score {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--ov-side) 26%, transparent);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-weight: 800;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+
+.br-row.is-loser .br-name,
+.br-row.is-loser .br-score {
+  color: var(--color-text-subtle);
+  font-weight: 500;
+}
+
+.br-row.is-loser .br-banner {
+  filter: grayscale(0.85) brightness(0.55);
+}
+
+.br-row.is-loser .br-score {
+  background: color-mix(in srgb, var(--ov-side) 10%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .br-live-dot {
+    animation: none;
+  }
+}

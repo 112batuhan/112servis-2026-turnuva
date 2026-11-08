@@ -1,0 +1,322 @@
+/* The gameplay overlay, in frame pixels after design/tournament-client-gameplay.png. */
+
+.gp-team-name {
+  top: 41px;
+}
+
+.gp-team.is-side-1 .gp-team-name {
+  left: 244px;
+}
+
+.gp-team.is-side-2 .gp-team-name {
+  right: 245px;
+  text-align: right;
+}
+
+/* The stars sit centred under the banner. */
+.gp .ov-pips {
+  top: 151px;
+  translate: -50% 0;
+  --pip-pitch: 34px;
+  --pips-max: 180px;
+}
+
+.gp .ov-pips.is-side-1 {
+  left: 118px;
+}
+
+.gp .ov-pips.is-side-2 {
+  left: 1802px;
+}
+
+/* ---------- bans and picks down each edge ---------- */
+
+.gp-draft {
+  position: absolute;
+  top: 224px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--gp-pitch) - 60px);
+  --pill-w: 134px;
+  --pill-h: 60px;
+  --pill-crystal: 44px;
+  --pill-tag-h: 28px;
+}
+
+.gp-draft.is-side-1 {
+  left: 48px;
+}
+
+.gp-draft.is-side-2 {
+  right: 48px;
+}
+
+/* Each column is one team's, so its maps carry no tint: the crystal says it. A ban is struck in red. */
+.gp-draft .ov-pill-tint {
+  display: none;
+}
+
+.gp-draft .ov-pill .ov-pill-cover img {
+  filter: grayscale(0.4) brightness(0.5);
+}
+
+.gp-draft .ov-mark.is-ban {
+  color: var(--color-red);
+}
+
+.gp-draft li {
+  animation: gp-draft-in 600ms var(--ease-out) both;
+}
+
+@keyframes gp-draft-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+/* ---------- the tournament client's two halves ---------- */
+
+.gp-divider {
+  position: absolute;
+  left: 959px;
+  top: 80px;
+  width: 2px;
+  height: 814px;
+  border-radius: 1px;
+  background: linear-gradient(transparent, color-mix(in srgb, var(--color-text) 70%, transparent) 14%, var(--color-text));
+}
+
+/* ---------- the map's live score ---------- */
+
+.gp-score {
+  position: absolute;
+  inset: 893px 0 auto;
+  height: 38px;
+  font-family: var(--font-display);
+  font-stretch: var(--font-wordmark-stretch);
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  line-height: 38px;
+}
+
+.gp-score > * {
+  position: absolute;
+  top: 0;
+}
+
+.gp-score-total {
+  font-size: 32px;
+  color: var(--ov-side);
+  white-space: nowrap;
+}
+
+.gp-score-total.is-side-1 {
+  right: 1372px;
+  text-align: right;
+}
+
+.gp-score-total.is-side-2 {
+  left: 1372px;
+}
+
+.gp-score-bar {
+  top: 14px;
+  width: 316px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--ov-side) 10%, transparent);
+  display: flex;
+}
+
+.gp-score-bar > span {
+  height: 100%;
+  border-radius: inherit;
+  transition: width var(--duration-normal) var(--ease-out);
+}
+
+.gp-score-bar.is-side-1 {
+  left: 560px;
+}
+
+.gp-score-bar.is-side-1 > span {
+  background: linear-gradient(90deg, var(--ov-side), color-mix(in srgb, var(--ov-side) 30%, transparent));
+}
+
+.gp-score-bar.is-side-2 {
+  left: 1044px;
+  justify-content: flex-end;
+}
+
+.gp-score-bar.is-side-2 > span {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--ov-side) 30%, transparent), var(--ov-side));
+}
+
+.gp-score-lead {
+  left: 876px;
+  width: 168px;
+  text-align: center;
+  font-size: 30px;
+  color: var(--ov-side);
+  white-space: nowrap;
+}
+
+/* ---------- the map on ---------- */
+
+.gp-strip {
+  position: absolute;
+  left: 20px;
+  top: 935px;
+  width: 770px;
+  height: 130px;
+  animation: gp-strip-in 700ms var(--ease-out) both;
+}
+
+@keyframes gp-strip-in {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+}
+
+.gp-strip-card {
+  position: absolute;
+  left: 0;
+  top: 21px;
+  width: 768px;
+  height: 94px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--color-strip), var(--color-strip-light));
+  color: var(--color-on-strip);
+  box-shadow: 0 6px 18px var(--color-scrim);
+}
+
+.gp-strip-cover {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 197px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  background: var(--color-surface-raised);
+}
+
+.gp-strip-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gp-strip-text {
+  position: absolute;
+  left: 212px;
+  right: 176px;
+  top: 19px;
+}
+
+.gp-strip-text .ov-marquee {
+  font-family: var(--font-overlay-serif);
+  font-stretch: var(--font-overlay-serif-stretch);
+  line-height: 1.05;
+}
+
+.gp-strip-title {
+  font-size: 31px;
+  padding-bottom: 2px;
+  font-weight: 500;
+}
+
+.gp-strip-artist {
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.gp-strip-slot {
+  position: absolute;
+  right: 30px;
+  top: 50%;
+  translate: 0 -54%;
+  font-family: var(--font-overlay-serif);
+  font-stretch: var(--font-overlay-serif-stretch);
+  font-weight: 600;
+  font-size: 68px;
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.gp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 26px;
+  padding: 0 16px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--color-chip), var(--color-chip-light));
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 19px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.gp-strip-tabs {
+  position: absolute;
+  left: 232px;
+  top: 0;
+  display: flex;
+  gap: 10px;
+}
+
+.gp-chip.is-stats {
+  gap: 12px;
+}
+
+.gp-strip-sr {
+  position: absolute;
+  left: 34px;
+  top: 106px;
+  min-width: 160px;
+  padding-left: 52px;
+  font-size: 21px;
+}
+
+.gp-strip-sr-mark {
+  position: absolute;
+  left: 4px;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  translate: 0 -50%;
+  color: var(--color-text);
+}
+
+.gp-strip-picker {
+  position: absolute;
+  left: 456px;
+  top: 98px;
+  width: 246px;
+  justify-content: center;
+  font-size: 20px;
+}
+
+.gp-strip-picker > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gp-trophy {
+  --ov-trophy-r: 184px;
+  --ov-trophy-top: 930px;
+  --ov-mark-top: 20px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gp-strip,
+  .gp-draft li {
+    animation: none;
+  }
+}

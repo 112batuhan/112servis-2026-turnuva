@@ -9,3 +9,9 @@
 /frontend/dist
 
 selfnotes.txt
+
+# Impeccable: per-run screenshots, in-progress build/live state, per-developer config
+/.impeccable/review/
+/.impeccable/build/
+/.impeccable/live/
+/.impeccable/config.local.json

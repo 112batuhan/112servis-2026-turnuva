@@ -1,0 +1,328 @@
+/* The winner screen, in frame pixels: one centred column, revealed in order as the page comes up
+   (banner, name, players, score, the maps one by one) under the "Kazanan" title, then where both
+   teams go next, stacked in the bottom left: the bottom right is kept free for the streamer's own
+   overlay. */
+
+.wn-banner,
+.wn-name,
+.wn-players,
+.wn-score,
+.wn-maps {
+  animation: wn-rise 900ms var(--ease-out) both;
+}
+
+@keyframes wn-rise {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+}
+
+.wn-banner {
+  position: absolute;
+  top: 150px;
+  left: 50%;
+  width: 560px;
+  height: 248px;
+  margin-left: -280px;
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--color-surface-raised);
+  box-shadow:
+    0 0 0 5px var(--ov-side),
+    0 28px 70px color-mix(in srgb, var(--ov-side) 32%, transparent);
+  animation-name: wn-banner-in;
+  animation-duration: 1100ms;
+}
+
+@keyframes wn-banner-in {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+}
+
+.wn-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.wn-banner-initial {
+  font-family: var(--font-overlay-serif);
+  font-stretch: var(--font-overlay-serif-stretch);
+  font-weight: 600;
+  font-size: 150px;
+  line-height: 1;
+  color: var(--ov-side);
+}
+
+.wn-name {
+  position: absolute;
+  top: 430px;
+  left: 120px;
+  right: 120px;
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-overlay-serif);
+  font-stretch: var(--font-overlay-serif-stretch);
+  font-weight: 600;
+  font-size: 124px;
+  line-height: 1;
+  color: var(--ov-side);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation-delay: 250ms;
+}
+
+.wn-players {
+  position: absolute;
+  top: 580px;
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  justify-content: center;
+  gap: 48px;
+  animation-delay: 420ms;
+}
+
+.wn-players li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.wn-players img,
+.wn-avatar-blank {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--color-surface-raised);
+  box-shadow: 0 0 0 2px var(--ov-side);
+}
+
+.wn-score {
+  position: absolute;
+  top: 664px;
+  left: 0;
+  right: 0;
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 18px;
+  font-family: var(--font-display);
+  font-stretch: var(--font-wordmark-stretch);
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  animation-delay: 580ms;
+}
+
+.wn-figure {
+  font-size: 84px;
+  color: var(--ov-side);
+}
+
+.wn-figure.is-loser {
+  color: var(--color-text-subtle);
+}
+
+.wn-dash {
+  font-size: 56px;
+  color: var(--color-text-subtle);
+}
+
+.wn-against {
+  margin-left: 14px;
+  font-family: var(--font-overlay-serif);
+  font-stretch: var(--font-overlay-serif-stretch);
+  font-weight: 500;
+  font-size: 34px;
+  color: var(--color-text-muted);
+}
+
+.wn-against > span {
+  font-weight: 600;
+  color: var(--ov-side);
+}
+
+/* ---------- the maps in the order they were played ---------- */
+
+.wn-maps {
+  position: absolute;
+  top: 800px;
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  animation: none;
+  --pill-w: 118px;
+  --pill-h: 54px;
+  --pill-crystal: 38px;
+  --pill-tag-h: 26px;
+}
+
+.wn-maps li {
+  animation: wn-rise 700ms var(--ease-out) both;
+  animation-delay: calc(760ms + var(--wn-i) * 90ms);
+}
+
+/* Each map shows who took it: its crystal; the tint would say who picked it twice over. */
+.wn-maps .ov-pill-tint {
+  display: none;
+}
+
+/* ---------- where they go next ---------- */
+
+.wn-next {
+  position: absolute;
+  left: 64px;
+  bottom: 44px;
+  display: grid;
+  justify-items: start;
+  gap: 14px;
+}
+
+.wn-next-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0;
+  animation: wn-rise 900ms var(--ease-out) both;
+  animation-delay: 1500ms;
+}
+
+.wn-next-row.is-loser {
+  animation-delay: 1650ms;
+}
+
+.wn-next-team {
+  font-family: var(--font-overlay-serif);
+  font-stretch: var(--font-overlay-serif-stretch);
+  font-weight: 600;
+  font-size: 30px;
+  line-height: 1;
+  color: var(--ov-side);
+  white-space: nowrap;
+}
+
+.wn-next-row.is-loser .wn-next-team {
+  color: var(--color-text-muted);
+}
+
+.wn-next-where {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  height: 40px;
+  padding: 0 20px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(90deg, var(--color-chip), var(--color-chip-light));
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 20px;
+  color: var(--color-text);
+  white-space: nowrap;
+}
+
+.wn-next-code {
+  font-stretch: var(--font-wordmark-stretch);
+  font-weight: 500;
+}
+
+.wn-next-code.is-winners {
+  color: var(--color-code-winners);
+}
+
+.wn-next-code.is-losers {
+  color: var(--color-code-losers);
+}
+
+.wn-next-vs {
+  font-stretch: var(--font-wordmark-stretch);
+  font-weight: 300;
+  color: var(--color-text-subtle);
+}
+
+.wn-next-banner {
+  width: 44px;
+  height: 22px;
+  font-size: 30px;
+}
+
+.wn-trophy {
+  --ov-trophy-r: 176px;
+  --ov-trophy-top: 930px;
+  --ov-mark-top: 40px;
+}
+
+/* ---------- before there's a winner ---------- */
+
+.wn-waiting {
+  position: absolute;
+  top: 400px;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+.wn-waiting-teams {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 40px;
+  font-family: var(--font-overlay-serif);
+  font-stretch: var(--font-overlay-serif-stretch);
+  font-weight: 600;
+  font-size: 72px;
+  line-height: 1;
+}
+
+.wn-waiting-teams .is-side-1,
+.wn-waiting-teams .is-side-2 {
+  color: var(--ov-side);
+}
+
+.wn-waiting-score {
+  font-family: var(--font-display);
+  font-stretch: var(--font-wordmark-stretch);
+  font-weight: 300;
+  font-size: 64px;
+  color: var(--color-text-muted);
+}
+
+.wn-waiting-note {
+  margin: 32px 0 0;
+  font-family: var(--font-display);
+  font-stretch: var(--font-wordmark-stretch);
+  font-weight: 300;
+  font-size: 24px;
+  color: var(--color-text-subtle);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wn-banner,
+  .wn-name,
+  .wn-players,
+  .wn-score,
+  .wn-maps li,
+  .wn-next-row {
+    animation: none;
+  }
+}
