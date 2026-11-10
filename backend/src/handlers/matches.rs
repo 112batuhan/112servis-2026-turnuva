@@ -11,21 +11,23 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+use super::{is_host, require_runs, require_unconcluded};
 use crate::{
     auth::AuthUser,
     db::{
         self,
-        matches::{MatchKind, MatchRow, MatchState, RefereeColumns},
+        matches::{MatchKind, MatchRow},
         notifications::StaffRole,
         team::{Player, TeamMemberRow},
     },
     discord::jobs::Job,
     error::AppError,
-    handlers::{
-        bracket,
-        team::{group_teams, AdminTeamPlayer, Team},
-    },
     role::Role,
+    services::{
+        bracket,
+        matches::{link_room, load_match},
+    },
+    views::{group_teams, lobby_name, match_rooms, AdminTeamPlayer, MatchRoom, Referee, Team},
     AppState,
 };
 
@@ -57,54 +59,6 @@ pub fn routes() -> Router<AppState> {
 const LOBBY_SIZE: i64 = 7;
 
 const NOTES_MAX: usize = 2000;
-
-// A lobby's letter from its index: 1 is "A", 26 "Z", 27 "AA".
-pub fn lobby_name(index: i32) -> String {
-    let mut n = index.max(1) as u32;
-    let mut name = Vec::new();
-    while n > 0 {
-        n -= 1;
-        name.push(char::from(b'A' + (n % 26) as u8));
-        n /= 26;
-    }
-    name.into_iter().rev().collect()
-}
-
-pub fn is_host(user: &AuthUser) -> bool {
-    user.roles.has(Role::Host)
-}
-
-#[derive(Debug, Serialize)]
-// Public on purpose: players need to reach their match's referee on Discord.
-pub struct Referee {
-    id: Uuid,
-    osu_id: i64,
-    username: String,
-    avatar_url: String,
-    discord_id: Option<String>,
-    discord_username: Option<String>,
-}
-
-impl Referee {
-    pub fn from_columns(cols: RefereeColumns) -> Option<Self> {
-        match (
-            cols.referee_id,
-            cols.referee_osu_id,
-            cols.referee_username,
-            cols.referee_avatar_url,
-        ) {
-            (Some(id), Some(osu_id), Some(username), Some(avatar_url)) => Some(Referee {
-                id,
-                osu_id,
-                username,
-                avatar_url,
-                discord_id: cols.referee_discord_id,
-                discord_username: cols.referee_discord_username,
-            }),
-            _ => None,
-        }
-    }
-}
 
 #[derive(Debug, Serialize)]
 pub struct Lobby<P> {
@@ -185,7 +139,7 @@ pub struct PublicQualifiers {
 }
 
 // GET /api/public/qualifiers — every qualifier lobby and who's in it.
-pub async fn list_public_lobbies(
+async fn list_public_lobbies(
     State(state): State<AppState>,
     user: Option<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -201,15 +155,9 @@ pub async fn list_public_lobbies(
             .map(|(m, teams)| to_lobby(m, teams, now).0)
             .collect(),
         capacity: LOBBY_SIZE,
-        pool_stage_id: db::mappool::published_qualifier_stage_id(&state.db).await?,
+        pool_stage_id: db::stages::published_qualifier_stage_id(&state.db).await?,
         my_team_id,
     }))
-}
-
-async fn my_team_id(state: &AppState, user: &AuthUser) -> Result<Uuid, AppError> {
-    db::team::find_team_id(&state.db, user.id)
-        .await?
-        .ok_or(AppError::BadRequest("you need a team first"))
 }
 
 #[derive(Debug, Deserialize)]
@@ -271,22 +219,22 @@ async fn move_team(
 
 // PUT /api/me/qualifier — either player signs their team up for a lobby, or moves
 // it to another one.
-pub async fn join_lobby(
+async fn join_lobby(
     State(state): State<AppState>,
     user: AuthUser,
     Json(body): Json<JoinBody>,
 ) -> Result<impl IntoResponse, AppError> {
-    let team_id = my_team_id(&state, &user).await?;
+    let team_id = user.team_id(&state.db).await?;
     move_team(&state, team_id, body.match_id, false).await
 }
 
 // DELETE /api/me/qualifier — either player takes their team out of its lobby
 // before it starts.
-pub async fn leave_lobby(
+async fn leave_lobby(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
-    let team_id = my_team_id(&state, &user).await?;
+    let team_id = user.team_id(&state.db).await?;
     let mut tx = state.db.begin().await?;
     let (match_id, lobby) = db::matches::lock_team_lobby(&mut tx, team_id)
         .await?
@@ -324,7 +272,7 @@ pub struct StaffQualifiers {
 
 // GET /api/qualifiers — staff. Like the public list, plus referee notes, each
 // player's Discord and the teams without a lobby.
-pub async fn list_lobbies(
+async fn list_lobbies(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -343,7 +291,7 @@ pub async fn list_lobbies(
             })
             .collect(),
         capacity: LOBBY_SIZE,
-        pool_stage_id: db::mappool::published_qualifier_stage_id(&state.db).await?,
+        pool_stage_id: db::stages::published_qualifier_stage_id(&state.db).await?,
         unassigned,
     }))
 }
@@ -355,7 +303,7 @@ pub struct ScheduleBody {
 }
 
 // POST /api/qualifiers — host-only. Opens a new lobby at the given time.
-pub async fn create_lobby(
+async fn create_lobby(
     State(state): State<AppState>,
     user: AuthUser,
     Json(body): Json<ScheduleBody>,
@@ -366,7 +314,7 @@ pub async fn create_lobby(
 }
 
 // PATCH /api/qualifiers/:id — host-only. Moves a lobby to another time.
-pub async fn reschedule_lobby(
+async fn reschedule_lobby(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -386,7 +334,7 @@ pub async fn reschedule_lobby(
 }
 
 // DELETE /api/qualifiers/:id — host-only. Its teams go back to having no lobby.
-pub async fn delete_lobby(
+async fn delete_lobby(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -409,7 +357,7 @@ pub async fn delete_lobby(
 
 // PUT /api/teams/:id/qualifier — host-only. Puts a team in a lobby, even one that
 // has started or been concluded.
-pub async fn assign_team(
+async fn assign_team(
     State(state): State<AppState>,
     user: AuthUser,
     Path(team_id): Path<Uuid>,
@@ -420,7 +368,7 @@ pub async fn assign_team(
 }
 
 // DELETE /api/teams/:id/qualifier — host-only. Takes a team out of its lobby.
-pub async fn unassign_team(
+async fn unassign_team(
     State(state): State<AppState>,
     user: AuthUser,
     Path(team_id): Path<Uuid>,
@@ -441,7 +389,7 @@ pub async fn unassign_team(
 }
 
 // GET /api/referees — host-only. Everyone a match can be given to.
-pub async fn list_referees(
+async fn list_referees(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -450,29 +398,6 @@ pub async fn list_referees(
 }
 
 // ---------- running a match ----------
-
-// A match that can be run: a potential match has no room, notes or result of its own,
-// so the routes that run a match don't know it.
-pub async fn load_match(state: &AppState, id: Uuid) -> Result<MatchState, AppError> {
-    db::matches::find_match(&state.db, id)
-        .await?
-        .filter(|m| m.kind != MatchKind::Potential)
-        .ok_or(AppError::NotFound)
-}
-
-// Any referee (or host) can run any match, so one can step in when its own referee
-// can't; the assigned referee is the one Discord pings and asks about the match.
-pub fn require_runs(user: &AuthUser) -> Result<(), AppError> {
-    user.require_role(Role::Referee)
-}
-
-// Once a match is concluded only hosts can change it (notes aside).
-pub fn require_unconcluded(user: &AuthUser, m: &MatchState) -> Result<(), AppError> {
-    if m.concluded() && !is_host(user) {
-        return Err(AppError::Conflict("this match is concluded"));
-    }
-    Ok(())
-}
 
 #[derive(Debug, Deserialize)]
 pub struct RefereeBody {
@@ -483,7 +408,7 @@ pub struct RefereeBody {
 // gives up theirs (null). Hosts can give any match to anyone holding the referee role
 // (themselves too, if they hold it), or clear it. Potential matches are taken the same
 // way, and a bracket match's potential matches still on its old referee follow it.
-pub async fn set_referee(
+async fn set_referee(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -549,24 +474,6 @@ pub async fn set_referee(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// One of a match's osu! multiplayer rooms. Usually a match has one; a room that
-// closes or breaks mid-match is replaced, and the old one stays listed.
-#[derive(Debug, Serialize)]
-pub struct MatchRoom {
-    mp_id: i64,
-    url: String,
-}
-
-pub fn match_rooms(mp_ids: Vec<i64>) -> Vec<MatchRoom> {
-    mp_ids
-        .into_iter()
-        .map(|mp_id| MatchRoom {
-            mp_id,
-            url: format!("https://osu.ppy.sh/community/matches/{mp_id}"),
-        })
-        .collect()
-}
-
 // Accepts a multiplayer room link (osu.ppy.sh/community/matches/<id> or
 // osu.ppy.sh/mp/<id>, with or without the scheme) or the bare room id.
 fn parse_mp_id(raw: &str) -> Option<i64> {
@@ -596,7 +503,7 @@ pub struct RoomBody {
 // link or id) until the match is concluded; hosts can any time. It's handed to the
 // least busy bot with room for it, which joins it once the room's maker adds it as a
 // referee. A room belongs to one match.
-pub async fn add_room(
+async fn add_room(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -616,38 +523,10 @@ pub async fn add_room(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// Puts a room on its match, from a link or as a bot made it, and tells Discord and the
-// pages. `bot` runs it; `bot_made` when that bot made it.
-pub async fn link_room(
-    state: &AppState,
-    match_id: Uuid,
-    mp_id: i64,
-    bot: Option<Uuid>,
-    bot_made: bool,
-    concluded: bool,
-) -> Result<(), AppError> {
-    match db::bancho::add_room(&state.db, match_id, mp_id, bot, bot_made).await {
-        Ok(()) => {
-            // The channel's card lists the rooms; only an unconcluded match announces one.
-            let mut jobs = vec![Job::SyncMatch { match_id }];
-            if !concluded {
-                jobs.push(Job::RoomAdded { match_id, mp_id });
-            }
-            state.discord.enqueue(&state.db, &jobs).await?;
-            state.live.bracket_changed();
-            Ok(())
-        }
-        Err(sqlx::Error::Database(e)) if e.constraint() == Some("match_rooms_pkey") => {
-            Err(AppError::Conflict("that room is already linked to a match"))
-        }
-        Err(err) => Err(err.into()),
-    }
-}
-
 // DELETE /api/matches/:id/rooms/:mp_id — takes a mistaken room off the match, on
 // the same terms as adding one. A concluded match keeps at least one. The room's
 // saved chat stays in the database.
-pub async fn remove_room(
+async fn remove_room(
     State(state): State<AppState>,
     user: AuthUser,
     Path((id, mp_id)): Path<(Uuid, i64)>,
@@ -678,7 +557,7 @@ pub struct NotesBody {
 
 // PUT /api/matches/:id/notes — a referee or a host notes down anything
 // unusual, also after the match is concluded. Staff-only.
-pub async fn set_notes(
+async fn set_notes(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -697,7 +576,7 @@ pub async fn set_notes(
 // POST /api/matches/:id/conclude — a referee or a host marks it as
 // played. Needs a room; a bracket match also needs its score, and concluding
 // it sends its teams on to their next matches.
-pub async fn conclude(
+async fn conclude(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -738,7 +617,7 @@ pub async fn conclude(
 
 // POST /api/matches/:id/reopen — host-only. Undoes a conclusion, taking a bracket
 // match's teams back out of the matches they advanced to.
-pub async fn reopen(
+async fn reopen(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -767,21 +646,4 @@ pub async fn reopen(
     tx.commit().await?;
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::lobby_name;
-
-    #[test]
-    fn lobby_names_run_through_the_alphabet() {
-        assert_eq!(lobby_name(1), "A");
-        assert_eq!(lobby_name(2), "B");
-        assert_eq!(lobby_name(26), "Z");
-        assert_eq!(lobby_name(27), "AA");
-        assert_eq!(lobby_name(52), "AZ");
-        assert_eq!(lobby_name(53), "BA");
-        assert_eq!(lobby_name(702), "ZZ");
-        assert_eq!(lobby_name(703), "AAA");
-    }
 }

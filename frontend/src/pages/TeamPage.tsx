@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { errorMessage } from "../api/client";
+import { useAction } from "../lib/useAction";
 import {
   acceptInvite,
   deleteInvite,
@@ -58,8 +59,8 @@ export function TeamPage() {
   const user = useSignedInUser();
   const isStaff = !canPlay(user);
   const [status, setStatus] = useState<TeamStatus | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // A change, then the team and the search results again either way.
+  const { busy, error, setError, run } = useAction(() => Promise.all([reload(), runSearch(query)]));
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<PlayerResult[] | null>(null);
   const [teamName, setTeamName] = useState("");
@@ -91,23 +92,6 @@ export function TeamPage() {
 
   // Staff can't play, but someone promoted after forming a team still sees it.
   const staffOnly = isStaff && status !== null && !status.team;
-
-  async function run(action: () => Promise<void>) {
-    setBusy(true);
-    setError(null);
-    try {
-      await action();
-    } catch (e) {
-      setError(errorMessage(e));
-    }
-    try {
-      await Promise.all([reload(), runSearch(query)]);
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
 
   return (
     <div className="page page-narrow team-page">
@@ -278,7 +262,7 @@ interface MyTeamProps {
   team: Team;
   frozen: boolean;
   busy: boolean;
-  run: (action: () => Promise<void>) => Promise<void>;
+  run: (action: () => Promise<void>) => Promise<unknown>;
   onError: (message: string) => void;
 }
 

@@ -8,13 +8,14 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::require_runs;
 use crate::{
     auth::AuthUser,
     bancho::{BotLimits, BotStatus, RoomCommand, LIMITS},
     db::{self, bancho::BotRow},
     error::AppError,
-    handlers::matches::{load_match, require_runs},
     role::Role,
+    services::matches::load_match,
     AppState,
 };
 
@@ -47,7 +48,7 @@ pub struct BotsView {
 }
 
 // GET /api/bancho/bots — host-only. Every bot account, how it's doing and its rooms.
-pub async fn list_bots(
+async fn list_bots(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -99,7 +100,7 @@ pub struct Created {
 }
 
 // POST /api/bancho/bots — host-only. Adds an osu! account the site runs rooms with.
-pub async fn create_bot(
+async fn create_bot(
     State(state): State<AppState>,
     user: AuthUser,
     Json(body): Json<CreateBotBody>,
@@ -134,7 +135,7 @@ pub struct UpdateBotBody {
 
 // PATCH /api/bancho/bots/:id — host-only. A new IRC password, or switches it on or off.
 // Switching a bot off leaves its rooms on their matches, without a bot until it's back.
-pub async fn update_bot(
+async fn update_bot(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -159,7 +160,7 @@ pub async fn update_bot(
 }
 
 // DELETE /api/bancho/bots/:id — host-only. Its rooms stay on their matches without a bot.
-pub async fn delete_bot(
+async fn delete_bot(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -191,7 +192,7 @@ pub struct CreatedRoom {
 // POST /api/matches/:id/room/create — the least busy bot with room for it makes the
 // match's room (or a new one, to replace a broken room), sets it up and invites the
 // players. Refused when every bot already has as many rooms as Bancho allows.
-pub async fn create_room(
+async fn create_room(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -204,7 +205,7 @@ pub async fn create_room(
 // POST /api/matches/:id/room/command — the room's bot sends a command to the match's
 // latest room. Saying something through it (`say`) is for hosts, who referee from the
 // site: their accounts are the bots.
-pub async fn command(
+async fn command(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -229,7 +230,7 @@ pub async fn command(
 
 // POST /api/matches/:id/room/save-score — saves the score as the bots count it, now
 // (they save it by themselves as it changes, but not over a score entered by hand).
-pub async fn save_score(
+async fn save_score(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,

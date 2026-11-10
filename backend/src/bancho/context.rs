@@ -20,7 +20,7 @@ use crate::{
         referee::RoomSettings,
     },
     draft::DraftOrder,
-    handlers::matches::lobby_name,
+    views::lobby_name,
 };
 
 #[derive(Debug, Clone)]

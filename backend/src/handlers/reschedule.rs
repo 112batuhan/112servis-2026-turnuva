@@ -54,12 +54,6 @@ fn plays(m: &BracketLock, team_id: Uuid) -> bool {
     m.team1_id == Some(team_id) || m.team2_id == Some(team_id)
 }
 
-async fn my_team_id(state: &AppState, user: &AuthUser) -> Result<Uuid, AppError> {
-    db::team::find_team_id(&state.db, user.id)
-        .await?
-        .ok_or(AppError::BadRequest("you aren't in a team"))
-}
-
 #[derive(Debug, Serialize)]
 pub struct Proposal {
     id: Uuid,
@@ -115,7 +109,7 @@ pub struct MyReschedules {
 
 // GET /api/me/reschedules — the caller's team's unconcluded matches that have both
 // teams, each with the times either side has proposed for it. Empty without a team.
-pub async fn list_my_reschedules(
+async fn list_my_reschedules(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -170,12 +164,12 @@ pub struct ProposeBody {
 // POST /api/reschedules — a player proposes a new time for one of their team's
 // matches, and the opponent's players are notified. The match row is locked so the
 // limit holds and an accept can't slip in.
-pub async fn propose(
+async fn propose(
     State(state): State<AppState>,
     user: AuthUser,
     Json(body): Json<ProposeBody>,
 ) -> Result<impl IntoResponse, AppError> {
-    let team_id = my_team_id(&state, &user).await?;
+    let team_id = user.team_id(&state.db).await?;
     if body.starts_at <= OffsetDateTime::now_utc() {
         return Err(AppError::BadRequest("pick a time in the future"));
     }
@@ -232,12 +226,12 @@ pub async fn propose(
 
 // DELETE /api/reschedules/:id — either team's player cancels their team's proposal
 // or declines the opponent's.
-pub async fn delete_proposal(
+async fn delete_proposal(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
-    let team_id = my_team_id(&state, &user).await?;
+    let team_id = user.team_id(&state.db).await?;
     if !db::reschedule::delete_proposal(&state.db, id, team_id).await? {
         return Err(AppError::NotFound);
     }
@@ -249,12 +243,12 @@ pub async fn delete_proposal(
 // dropped. Its referee and streamer are asked to confirm the new time and the hosts
 // are told (handlers/notifications.rs). The match is locked before the proposal is
 // read again, so of two accepts at once the second finds its proposal gone.
-pub async fn accept(
+async fn accept(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
-    let team_id = my_team_id(&state, &user).await?;
+    let team_id = user.team_id(&state.db).await?;
     let match_id = db::reschedule::find_proposal(&state.db, id)
         .await?
         .ok_or(AppError::NotFound)?

@@ -41,7 +41,7 @@ pub async fn list(pool: &PgPool) -> sqlx::Result<Vec<PotentialRow>> {
         JOIN matches m ON m.id = p.match_id
         LEFT JOIN osu_users u ON u.id = m.referee_id
         LEFT JOIN discord_accounts d ON d.osu_user_id = u.id
-        LEFT JOIN osu_users s ON s.id = p.streamer_id
+        LEFT JOIN osu_users s ON s.id = m.streamer_id
         WHERE p.removed_at IS NULL
         ORDER BY m.starts_at NULLS LAST, m.created_at, p.match_id
         "#,
@@ -67,7 +67,7 @@ pub async fn find(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<BracketLock>> 
         r#"
         SELECT m.starts_at, m.referee_id, p.team1_id, p.team2_id,
                NULL::int AS team1_score, NULL::int AS team2_score, NULL::smallint AS forfeit_slot,
-               p.streamer_id, false AS has_room, m.concluded_at
+               m.streamer_id, false AS has_room, m.concluded_at
         FROM potential_matches p
         JOIN matches m ON m.id = p.match_id
         WHERE p.match_id = $1 AND p.removed_at IS NULL
@@ -91,7 +91,7 @@ pub async fn lock_schedulable(
         r#"
         SELECT m.starts_at, m.referee_id, p.team1_id, p.team2_id,
                NULL::int AS team1_score, NULL::int AS team2_score, NULL::smallint AS forfeit_slot,
-               p.streamer_id, false AS has_room, m.concluded_at
+               m.streamer_id, false AS has_room, m.concluded_at
         FROM potential_matches p
         JOIN matches m ON m.id = p.match_id
         WHERE p.match_id = $1 AND p.removed_at IS NULL
@@ -101,40 +101,6 @@ pub async fn lock_schedulable(
     .bind(id)
     .fetch_optional(conn)
     .await
-}
-
-// Takes an unstreamed potential match. False when someone else got there first.
-pub async fn claim_stream(pool: &PgPool, id: Uuid, streamer_id: Uuid) -> sqlx::Result<bool> {
-    let result = sqlx::query(
-        "UPDATE potential_matches SET streamer_id = $2 \
-         WHERE match_id = $1 AND streamer_id IS NULL AND removed_at IS NULL",
-    )
-    .bind(id)
-    .bind(streamer_id)
-    .execute(pool)
-    .await?;
-    Ok(result.rows_affected() > 0)
-}
-
-// Drops the streamer only if it's still `streamer_id`.
-pub async fn release_stream(pool: &PgPool, id: Uuid, streamer_id: Uuid) -> sqlx::Result<bool> {
-    let result = sqlx::query(
-        "UPDATE potential_matches SET streamer_id = NULL WHERE match_id = $1 AND streamer_id = $2",
-    )
-    .bind(id)
-    .bind(streamer_id)
-    .execute(pool)
-    .await?;
-    Ok(result.rows_affected() > 0)
-}
-
-pub async fn set_streamer(pool: &PgPool, id: Uuid, streamer_id: Option<Uuid>) -> sqlx::Result<()> {
-    sqlx::query("UPDATE potential_matches SET streamer_id = $2 WHERE match_id = $1")
-        .bind(id)
-        .bind(streamer_id)
-        .execute(pool)
-        .await?;
-    Ok(())
 }
 
 // A bracket match's time, referee and streamer are what its potential matches start
@@ -203,15 +169,17 @@ pub async fn follow_streamer(
     sqlx::query_scalar(
         r#"
         WITH followed AS (
-            UPDATE potential_matches p SET streamer_id = $3
-            WHERE p.bracket_match_id = $1 AND p.streamer_id IS NOT DISTINCT FROM $2
+            UPDATE matches m SET streamer_id = $3
+            FROM potential_matches p
+            WHERE p.match_id = m.id AND p.bracket_match_id = $1
+              AND m.streamer_id IS NOT DISTINCT FROM $2
               AND NOT EXISTS (
                   SELECT 1 FROM team_members tm
                   WHERE tm.user_id = $3 AND tm.team_id IN (p.team1_id, p.team2_id)
               )
-            RETURNING p.match_id, p.removed_at
+            RETURNING m.id, p.removed_at
         )
-        SELECT match_id FROM followed WHERE removed_at IS NULL
+        SELECT id FROM followed WHERE removed_at IS NULL
         "#,
     )
     .bind(bracket_match_id)
@@ -330,7 +298,7 @@ pub async fn sync(conn: &mut PgConnection, before: &[Before]) -> sqlx::Result<Ve
     let nodes = sqlx::query_as::<_, NodeRow>(
         r#"
         SELECT b.match_id AS id, b.stage_id, b.team1_id, b.team2_id,
-               m.concluded_at IS NOT NULL AS concluded, m.starts_at, m.referee_id, b.streamer_id
+               m.concluded_at IS NOT NULL AS concluded, m.starts_at, m.referee_id, m.streamer_id
         FROM bracket_matches b
         JOIN matches m ON m.id = b.match_id
         "#,
@@ -442,14 +410,15 @@ async fn create(conn: &mut PgConnection, w: &Pairing, parent: &NodeRow) -> sqlx:
     sqlx::query_scalar(
         r#"
         WITH m AS (
-            INSERT INTO matches (kind, starts_at, referee_id) VALUES ('potential', $5, $6)
+            INSERT INTO matches (kind, starts_at, referee_id, streamer_id)
+            VALUES ('potential', $5, $6,
+                    CASE WHEN EXISTS (SELECT 1 FROM team_members tm
+                                      WHERE tm.user_id = $4 AND tm.team_id IN ($2, $3))
+                         THEN NULL ELSE $4 END)
             RETURNING id
         )
-        INSERT INTO potential_matches (match_id, bracket_match_id, team1_id, team2_id, streamer_id)
-        SELECT m.id, $1, $2, $3,
-               CASE WHEN EXISTS (SELECT 1 FROM team_members tm
-                                 WHERE tm.user_id = $4 AND tm.team_id IN ($2, $3))
-                    THEN NULL ELSE $4 END
+        INSERT INTO potential_matches (match_id, bracket_match_id, team1_id, team2_id)
+        SELECT m.id, $1, $2, $3
         FROM m
         RETURNING match_id
         "#,
@@ -476,20 +445,10 @@ async fn promote(
 ) -> sqlx::Result<()> {
     sqlx::query(
         r#"
-        UPDATE matches t SET starts_at = p.starts_at, referee_id = p.referee_id
+        UPDATE matches t
+        SET starts_at = p.starts_at, referee_id = p.referee_id, streamer_id = p.streamer_id
         FROM matches p
         WHERE t.id = $1 AND p.id = $2
-        "#,
-    )
-    .bind(match_id)
-    .bind(potential_id)
-    .execute(&mut *conn)
-    .await?;
-    sqlx::query(
-        r#"
-        UPDATE bracket_matches b SET streamer_id = p.streamer_id
-        FROM potential_matches p
-        WHERE b.match_id = $1 AND p.match_id = $2
         "#,
     )
     .bind(match_id)
@@ -592,24 +551,14 @@ async fn adopt(conn: &mut PgConnection, match_id: Uuid, potential_id: Uuid) -> s
         .await?;
     sqlx::query(
         r#"
-        UPDATE matches p SET starts_at = t.starts_at, referee_id = t.referee_id
-        FROM matches t
-        WHERE p.id = $2 AND t.id = $1
-        "#,
-    )
-    .bind(match_id)
-    .bind(potential_id)
-    .execute(&mut *conn)
-    .await?;
-    sqlx::query(
-        r#"
-        UPDATE potential_matches p
-        SET streamer_id = CASE WHEN EXISTS (SELECT 1 FROM team_members tm
-                                            WHERE tm.user_id = b.streamer_id
-                                              AND tm.team_id IN (p.team1_id, p.team2_id))
-                               THEN NULL ELSE b.streamer_id END
-        FROM bracket_matches b
-        WHERE p.match_id = $2 AND b.match_id = $1
+        UPDATE matches p
+        SET starts_at = t.starts_at, referee_id = t.referee_id,
+            streamer_id = CASE WHEN EXISTS (SELECT 1 FROM team_members tm
+                                            WHERE tm.user_id = t.streamer_id
+                                              AND tm.team_id IN (pm.team1_id, pm.team2_id))
+                               THEN NULL ELSE t.streamer_id END
+        FROM matches t, potential_matches pm
+        WHERE p.id = $2 AND t.id = $1 AND pm.match_id = p.id
         "#,
     )
     .bind(match_id)

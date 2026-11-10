@@ -37,7 +37,7 @@ pub struct RefereeColumns {
 #[derive(Debug, sqlx::FromRow)]
 pub struct MatchRow {
     pub id: Uuid,
-    // Its letter, as crate::handlers::matches::lobby_name spells it.
+    // Its letter, as crate::views::lobby_name spells it.
     pub lobby_index: i32,
     pub starts_at: OffsetDateTime,
     // Its rooms, oldest first.
@@ -105,7 +105,7 @@ pub struct RoomRow {
     pub team1_score: Option<i32>,
     pub team2_score: Option<i32>,
     pub forfeit_slot: Option<i16>,
-    // Bracket matches only: who streams it, all null when nobody does.
+    // Who streams it (never a lobby), all null when nobody does.
     pub streamer_id: Option<Uuid>,
     pub streamer_osu_id: Option<i64>,
     pub streamer_username: Option<String>,
@@ -295,7 +295,7 @@ pub async fn find_room(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<RoomRow>>
         LEFT JOIN bracket_matches b ON b.match_id = m.id
         LEFT JOIN osu_users u ON u.id = m.referee_id
         LEFT JOIN discord_accounts d ON d.osu_user_id = u.id
-        LEFT JOIN osu_users s ON s.id = b.streamer_id
+        LEFT JOIN osu_users s ON s.id = m.streamer_id
         LEFT JOIN stages st ON st.id = CASE
             WHEN m.kind = 'qualifier' THEN (SELECT s.id FROM stages s WHERE s.is_qualifier)
             ELSE b.stage_id
@@ -334,6 +334,44 @@ pub async fn set_referee(pool: &PgPool, id: Uuid, referee_id: Option<Uuid>) -> s
     sqlx::query("UPDATE matches SET referee_id = $2 WHERE id = $1")
         .bind(id)
         .bind(referee_id)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+// Takes an unstreamed bracket or potential match. False when someone else got there
+// first, or when it's a potential match that can no longer happen.
+pub async fn claim_stream(pool: &PgPool, id: Uuid, streamer_id: Uuid) -> sqlx::Result<bool> {
+    let result = sqlx::query(
+        r#"
+        UPDATE matches m SET streamer_id = $2
+        WHERE m.id = $1 AND m.streamer_id IS NULL AND m.kind <> 'qualifier'
+          AND NOT EXISTS (SELECT 1 FROM potential_matches p
+                          WHERE p.match_id = m.id AND p.removed_at IS NOT NULL)
+        "#,
+    )
+    .bind(id)
+    .bind(streamer_id)
+    .execute(pool)
+    .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+// Drops the streamer only if it's still `streamer_id`.
+pub async fn release_stream(pool: &PgPool, id: Uuid, streamer_id: Uuid) -> sqlx::Result<bool> {
+    let result =
+        sqlx::query("UPDATE matches SET streamer_id = NULL WHERE id = $1 AND streamer_id = $2")
+            .bind(id)
+            .bind(streamer_id)
+            .execute(pool)
+            .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+pub async fn set_streamer(pool: &PgPool, id: Uuid, streamer_id: Option<Uuid>) -> sqlx::Result<()> {
+    sqlx::query("UPDATE matches SET streamer_id = $2 WHERE id = $1")
+        .bind(id)
+        .bind(streamer_id)
         .execute(pool)
         .await?;
     Ok(())

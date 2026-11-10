@@ -5,7 +5,7 @@ import { TeamBanner } from "../../components/bracket/TeamBanner";
 import { LiveMark } from "../../components/LiveMark";
 import { TeamPopover } from "../../components/TeamPopover";
 import { matchPagePath } from "../../lib/bracket";
-import type { PoolEntry } from "../admin/referee/pool";
+import type { PoolEntry } from "../../lib/matchPool";
 import { formatZ, type StatPlayer, type StatsIndex } from "./statsModel";
 import "./StatsParts.css";
 

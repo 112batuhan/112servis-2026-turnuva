@@ -24,7 +24,7 @@ pub fn routes() -> Router<AppState> {
 
 // GET /api/users — host-only. Lists every registered user with their linked
 // Discord account (if any) folded in.
-pub async fn list_users(
+async fn list_users(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -43,7 +43,7 @@ pub struct SetRolesBody {
 // them a regular player), effective on their next request since sessions read the
 // roles from the database. A host can't take Host off themselves, so the site can't
 // be left without one by a misclick.
-pub async fn set_roles(
+async fn set_roles(
     State(state): State<AppState>,
     user: AuthUser,
     Path(user_id): Path<Uuid>,

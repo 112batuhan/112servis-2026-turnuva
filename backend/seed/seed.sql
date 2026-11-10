@@ -578,10 +578,11 @@ BEGIN
 
     -- Streamers on some matches, but never one their own team plays in. Cay plays in
     -- Çay Ocağı.
-    UPDATE bracket_matches b
+    UPDATE matches m
     SET streamer_id = s.id
-    FROM osu_users s
-    WHERE b.match_id IN (SELECT value::uuid FROM jsonb_each_text(ids))
+    FROM osu_users s, bracket_matches b
+    WHERE b.match_id = m.id
+      AND b.match_id IN (SELECT value::uuid FROM jsonb_each_text(ids))
       AND b.number % 4 = 1
       AND s.osu_id = CASE WHEN b.number % 8 = 1 THEN -5 ELSE -110 END
       AND NOT EXISTS (
@@ -605,21 +606,21 @@ BEGIN
         WHERE s1.match_id = (ids ->> 'l2-6')::uuid AND s2.match_id = (ids ->> 'l2-7')::uuid
         ORDER BY a.n, c.n
     LOOP
-        INSERT INTO matches (kind, starts_at, referee_id)
+        INSERT INTO matches (kind, starts_at, referee_id, streamer_id)
         SELECT 'potential',
                m.starts_at - CASE WHEN pair.key = 11 THEN interval '2 hours' ELSE interval '0' END,
                CASE pair.key
                    WHEN 12 THEN NULL
                    WHEN 21 THEN (SELECT id FROM osu_users WHERE osu_id = -4)
                    ELSE m.referee_id
-               END
+               END,
+               CASE WHEN pair.key = 21 THEN (SELECT id FROM osu_users WHERE osu_id = -5)
+                    ELSE m.streamer_id END
         FROM matches m
         WHERE m.id = (ids ->> 'l3-3')::uuid
         RETURNING id INTO new_match;
-        INSERT INTO potential_matches (match_id, bracket_match_id, team1_id, team2_id, streamer_id)
-        SELECT new_match, b.match_id, pair.team1_id, pair.team2_id,
-               CASE WHEN pair.key = 21 THEN (SELECT id FROM osu_users WHERE osu_id = -5)
-                    ELSE b.streamer_id END
+        INSERT INTO potential_matches (match_id, bracket_match_id, team1_id, team2_id)
+        SELECT new_match, b.match_id, pair.team1_id, pair.team2_id
         FROM bracket_matches b
         WHERE b.match_id = (ids ->> 'l3-3')::uuid;
         IF pair.key = 22 THEN

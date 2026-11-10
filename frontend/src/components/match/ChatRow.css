@@ -1,3 +1,5 @@
+/* The chat panel of a match's cockpit: its tabs, its log and the lines in it (ChatRow), on the
+   referee page and the public match page alike, and the referee page's input under it. */
 .chat-panel {
   display: flex;
   flex-direction: column;

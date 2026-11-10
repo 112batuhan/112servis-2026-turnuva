@@ -7,6 +7,7 @@ mod discord_api;
 mod draft;
 mod error;
 mod handlers;
+mod live;
 mod mods;
 mod osu_api;
 mod pickem;
@@ -14,8 +15,11 @@ mod potentials;
 mod rank_refresh;
 mod role;
 mod room_scores;
+mod services;
 mod stats;
+mod stats_cache;
 mod team_rank;
+mod views;
 
 use axum::Router;
 use clap::Parser;
@@ -50,13 +54,13 @@ pub struct AppState {
     // The site's bots on Bancho, which run every multiplayer room.
     pub bancho: bancho::Bancho,
     // Each referee's own Bancho IRC connection, shared by their tabs, and failed logins.
-    pub irc_users: handlers::irc::IrcUsers,
+    pub irc_users: bancho::relay::IrcUsers,
     // Every open page's live socket: score pushes and referee-page presence.
-    pub live: handlers::live::Live,
+    pub live: live::Live,
     // The tournament server's bot, when it's configured.
     pub discord: discord::Discord,
     // The statistics last counted, until the site next changes.
-    pub stats_cache: handlers::stats::StatsCache,
+    pub stats_cache: stats_cache::StatsCache,
 }
 
 #[tokio::main]
@@ -101,15 +105,15 @@ async fn main() {
         osu_app_token: Arc::new(Mutex::new(None)),
         rank_refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
         bancho,
-        irc_users: handlers::irc::IrcUsers::default(),
-        live: handlers::live::Live::default(),
+        irc_users: bancho::relay::IrcUsers::default(),
+        live: live::Live::default(),
         discord: discord::Discord::new(&config.discord_bot),
-        stats_cache: handlers::stats::StatsCache::default(),
+        stats_cache: stats_cache::StatsCache::default(),
     };
-    handlers::stats::spawn_invalidation(&state);
+    stats_cache::spawn_invalidation(&state);
     // Seeds loaded straight into the database, and bracket changes from before potential
     // matches existed, get theirs now.
-    if let Err(err) = handlers::bracket::resync_potentials(&state).await {
+    if let Err(err) = services::bracket::resync_potentials(&state).await {
         tracing::error!(error = ?err, "could not work out the potential matches");
     }
     rank_refresh::spawn_daily_refresh(state.clone());
@@ -143,6 +147,7 @@ async fn main() {
         .merge(handlers::referee::routes())
         .merge(handlers::reschedule::routes())
         .merge(handlers::rules::routes())
+        .merge(handlers::stages::routes())
         .merge(handlers::stats::routes())
         .merge(handlers::notifications::routes())
         .merge(handlers::pickem::routes())

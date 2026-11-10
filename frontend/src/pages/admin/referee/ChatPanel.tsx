@@ -1,9 +1,9 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { IconButton } from "../../../components/IconButton";
 import { conversationKey, isChannel, useIrc, type ChatLine } from "../../../irc/IrcContext";
-import { BANCHO_BOT, normalizeName, type SlotTeam } from "../../../lib/bancho";
+import type { SlotTeam } from "../../../lib/bancho";
 import type { RoomChatView } from "./useRefereeRoom";
-import "./ChatPanel.css";
+import { ChatRow } from "../../../components/match/ChatRow";
 
 interface Props {
   /** The match's rooms, oldest first, each with what its bot saved. */
@@ -22,28 +22,6 @@ interface Props {
    */
   viaBot?: { bot: string | null; blocker: string | null; send: (text: string) => Promise<boolean> };
 }
-
-const URL_RE = /(https?:\/\/[^\s]+)/g;
-
-export function Linkified({ text }: { text: string }) {
-  const parts = text.split(URL_RE);
-  return (
-    <>
-      {parts.map((part, i) =>
-        i % 2 === 1 ? (
-          <a key={i} href={part} target="_blank" rel="noopener noreferrer">
-            {part}
-          </a>
-        ) : (
-          <Fragment key={i}>{part}</Fragment>
-        ),
-      )}
-    </>
-  );
-}
-
-const time = (at: number) =>
-  new Date(at).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
 /**
  * The match's chat, IRC style: a tab per room of the match, each what its bot saved and saves as it
@@ -238,41 +216,5 @@ export function ChatPanel({ rooms, colors, top, visible = true, onUnread, viaBot
         </button>
       </form>
     </section>
-  );
-}
-
-interface ChatRowProps {
-  line: ChatLine;
-  /** Our nick, whose lines stand out. */
-  me: string | null;
-  colors: Map<string, SlotTeam | null>;
-  /** The match's referee, whose lines stand out on the public page. */
-  referee?: string | null;
-}
-
-/** One chat line, IRC style: the time, who said it in their team's colour, what they said. */
-export function ChatRow({ line, me, colors, referee }: ChatRowProps) {
-  const fromMe = me !== null && line.from.toLowerCase() === me.toLowerCase();
-  const fromReferee = referee != null && normalizeName(line.from) === normalizeName(referee);
-  const color = colors.get(normalizeName(line.from));
-  const classes = [
-    "chat-line",
-    line.from === BANCHO_BOT && "is-bot",
-    fromMe && "is-me",
-    fromReferee && "is-referee",
-    line.notice && "is-notice",
-    color && `is-team-${color}`,
-    colors.has(normalizeName(line.from)) && "is-player",
-  ]
-    .filter(Boolean)
-    .join(" ");
-  return (
-    <div className={classes}>
-      <time className="chat-time">{time(line.at)}</time>
-      <span className="chat-from">{line.action ? `* ${line.from}` : line.from}</span>
-      <span className="chat-text">
-        <Linkified text={line.text} />
-      </span>
-    </div>
   );
 }

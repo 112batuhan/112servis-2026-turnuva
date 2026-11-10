@@ -1,6 +1,6 @@
 import { Icon } from "../../../components/Icon";
 import { stepLabel } from "../../../lib/draftOrder";
-import { scoreMessage } from "./pool";
+import { scoreMessage } from "../../../lib/matchPool";
 import { botBlocker, type RefereeRoomState } from "./useRefereeRoom";
 import "./MatchScore.css";
 

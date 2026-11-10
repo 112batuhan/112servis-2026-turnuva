@@ -9,7 +9,7 @@
 //! ROOM_LIMIT rooms open, counting the ones it was only made a referee of, so a bot is
 //! never added to another bot's room and the site makes no more rooms than they can
 //! hold. A referee still joins the room with their own IRC account
-//! (handlers/irc.rs), to talk in it: the room's bot adds them as one of its referees
+//! (relay.rs), to talk in it: the room's bot adds them as one of its referees
 //! while they have the match open, and takes it back a while after they leave.
 
 pub mod bot;
@@ -17,6 +17,7 @@ pub mod commands;
 pub mod context;
 pub mod irc;
 mod manager;
+pub mod relay;
 pub mod room;
 pub mod tally;
 pub mod view;
@@ -30,7 +31,7 @@ use uuid::Uuid;
 
 use crate::{error::AppError, osu_api::matches::MatchGame, AppState};
 
-use self::{room::SlotTeam, view::LiveRoom};
+use self::{relay::SessionLink, room::SlotTeam, view::LiveRoom};
 
 // How many rooms an osu! account can have open at once on Bancho, counting the ones it
 // was made a referee of.
@@ -98,27 +99,6 @@ pub enum RoomCommand {
         #[serde(skip)]
         by: String,
     },
-}
-
-// A referee's own Bancho connection (handlers/irc.rs), which the room's bot lets into
-// the room's channel once it has made them one of its referees.
-#[derive(Clone)]
-pub struct SessionLink {
-    pub id: u32,
-    // As it logged in to Bancho.
-    pub nick: String,
-    pub tx: mpsc::UnboundedSender<SessionRequest>,
-}
-
-pub enum SessionRequest {
-    Join(String),
-    Part(String),
-}
-
-impl SessionLink {
-    fn send(&self, request: SessionRequest) {
-        let _ = self.tx.send(request);
-    }
 }
 
 // A bot as the bots page shows it, beside its account.

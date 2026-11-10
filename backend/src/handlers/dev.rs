@@ -20,12 +20,12 @@ pub fn routes() -> Router<AppState> {
         .route("/dev/seed/live", post(seed_live))
 }
 
-pub async fn list_accounts(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn list_accounts(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     Ok(Json(db::dev::list_accounts(&state.db).await?))
 }
 
 // POST /api/dev/login/:id — replaces the current session with one for `id`.
-pub async fn login_as(
+async fn login_as(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
     jar: CookieJar,
@@ -38,9 +38,9 @@ pub async fn login_as(
     Ok((jar, StatusCode::NO_CONTENT))
 }
 
-pub async fn seed(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn seed(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     db::dev::seed(&state.db).await?;
-    crate::handlers::bracket::resync_potentials(&state).await?;
+    crate::services::bracket::resync_potentials(&state).await?;
     // The first lobby is seeded with only its chat.
     crate::bancho::backfill_lobbies(&state).await?;
     // The bots read the seeded rooms; the open pages reload.
@@ -50,13 +50,13 @@ pub async fn seed(State(state): State<AppState>) -> Result<impl IntoResponse, Ap
 
 // POST /api/dev/seed/live — reseeds, then puts the signed-in real account in a team
 // with a bracket match starting now (seed/live.sql), to test a real osu! room.
-pub async fn seed_live(
+async fn seed_live(
     State(state): State<AppState>,
     user: auth::AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
     match db::dev::seed_live(&state.db, user.id).await? {
         db::dev::LiveSeed::Done => {
-            crate::handlers::bracket::resync_potentials(&state).await?;
+            crate::services::bracket::resync_potentials(&state).await?;
             crate::bancho::backfill_lobbies(&state).await?;
             state.live.bracket_changed();
             Ok(StatusCode::NO_CONTENT)
@@ -70,9 +70,9 @@ pub async fn seed_live(
     }
 }
 
-pub async fn clear(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
+async fn clear(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     db::dev::clear(&state.db).await?;
-    crate::handlers::bracket::resync_potentials(&state).await?;
+    crate::services::bracket::resync_potentials(&state).await?;
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }

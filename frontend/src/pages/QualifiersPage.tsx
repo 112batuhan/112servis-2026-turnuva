@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { errorMessage } from "../api/client";
+import { useAction } from "../lib/useAction";
 import { fetchPublicQualifiers, joinLobby, leaveLobby } from "../api/matches";
 import type { Lobby, PublicQualifiers } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
@@ -14,31 +15,13 @@ import "./QualifiersPage.css";
 export function QualifiersPage() {
   const { user } = useAuth();
   const [data, setData] = useState<PublicQualifiers | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { busy, error, setError, run } = useAction(() => reload());
 
   const reload = useCallback(async () => setData(await fetchPublicQualifiers()), []);
 
   useEffect(() => {
     reload().catch((e) => setError(errorMessage(e)));
   }, [reload]);
-
-  async function run(action: () => Promise<void>) {
-    setBusy(true);
-    setError(null);
-    try {
-      await action();
-    } catch (e) {
-      setError(errorMessage(e));
-    }
-    try {
-      await reload();
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
 
   const lobbies = data?.lobbies;
   const myTeamId = data?.my_team_id ?? null;

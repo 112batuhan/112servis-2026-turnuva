@@ -12,11 +12,7 @@ WITH gone AS (
            JOIN osu_users u ON u.id = tm.user_id
            WHERE e.match_id = m.id AND u.osu_id < 0
        )
-       OR EXISTS (
-           SELECT 1 FROM bracket_matches b
-           JOIN osu_users u ON u.id = b.streamer_id
-           WHERE b.match_id = m.id AND u.osu_id < 0
-       )
+       OR EXISTS (SELECT 1 FROM osu_users u WHERE u.id = m.streamer_id AND u.osu_id < 0)
        OR EXISTS (
            SELECT 1 FROM bracket_matches b
            JOIN team_members tm ON tm.team_id IN (b.team1_id, b.team2_id)

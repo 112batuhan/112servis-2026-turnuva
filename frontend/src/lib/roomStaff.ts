@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { fetchStaff } from "../../../api/staff";
-import type { Role, StaffMember } from "../../../api/types";
-import { sameName, type RoomSlot } from "../../../lib/bancho";
+import { fetchStaff } from "../api/staff";
+import type { Role, StaffMember } from "../api/types";
+import { sameName, type RoomSlot } from "./bancho";
 
 // The staff who may be in a match's osu! room without playing in it, shared by the referee
 // page (which kicks everyone else) and the public match page (which names them).

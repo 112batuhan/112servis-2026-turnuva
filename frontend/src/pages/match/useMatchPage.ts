@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { errorMessage } from "../../api/client";
+import { useCallback, useMemo } from "react";
 import { fetchPublicChat, fetchPublicMatch } from "../../api/matches";
-import type { LiveRoom, Player, PublicMatch } from "../../api/types";
+import type { Player } from "../../api/types";
 import type { ChatLine } from "../../irc/IrcContext";
 import { sameName, type RoomSlot } from "../../lib/bancho";
 import { raceOf, type Race } from "../../lib/bestOf";
@@ -14,14 +13,16 @@ import {
   type FinishedMap,
   type RosterPlayer,
   type Tally,
-} from "../admin/referee/liveRoom";
-import { draftTurn, matchDraft, matchTeams, poolEntries, type MatchTeam } from "../admin/referee/pool";
-import { appendLine, mergeFetched, toChatLine, type StoredLine } from "../admin/referee/roomChat";
+} from "../../lib/liveRoom";
+import { draftTurn, matchDraft, matchTeams, poolEntries, type MatchTeam } from "../../lib/matchPool";
+import { toChatLine } from "../../lib/roomChat";
+import { useMatchFeed } from "../../lib/useMatchFeed";
 import { useLive } from "../../live/LiveContext";
 
 // The public match page reads the same room the referee page runs: the match as saved, the room
 // as its bot reads it (the same reading on every page), and each room's chat as the bot saved it,
-// then every change over the live socket.
+// then every change over the live socket (lib/useMatchFeed.ts, which the referee page follows its
+// match with too).
 
 /** One of the match's rooms with its chat so far. */
 export interface PublicRoomChat {
@@ -32,8 +33,6 @@ export interface PublicRoomChat {
   current: boolean;
 }
 
-// A burst of changes (a conclusion, a ban and the score) is one reload.
-const RELOAD_DELAY_MS = 250;
 // How often the page reloads by itself while the live socket is down and the match is on.
 const FALLBACK_MS = 15_000;
 
@@ -42,106 +41,27 @@ const FALLBACK_MS = 15_000;
  * overlays, which aren't people watching).
  */
 export function useMatchPage(matchId: string, { spectate = true }: { spectate?: boolean } = {}) {
-  const [match, setMatch] = useState<PublicMatch | null>(null);
-  const [live, setLive] = useState<LiveRoom | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  // Each room's saved lines, by room id, oldest first.
-  const [chat, setChat] = useState<ReadonlyMap<number, StoredLine[]>>(new Map());
-  // Whether the saved chat has arrived once, so what it holds isn't counted as new.
-  const [chatLoaded, setChatLoaded] = useState(false);
-  const { subscribe, watch, connected, spectators: watchers } = useLive();
-
-  const reload = useCallback(async () => {
-    try {
-      const m = await fetchPublicMatch(matchId);
-      setMatch(m);
-      setLive(m.live);
-      setLoadError(null);
-    } catch (e) {
-      setLoadError(errorMessage(e));
-    }
-  }, [matchId]);
-
-  const reloadChat = useCallback(async () => {
-    try {
-      const rooms = await fetchPublicChat(matchId);
-      setChat((prev) => new Map(rooms.map((r) => [r.mp_id, mergeFetched(r.messages, prev.get(r.mp_id))])));
-      setChatLoaded(true);
-    } catch {
-      // The match's own reload says what's wrong; the chat comes back with the next one.
-    }
-  }, [matchId]);
-
-  useEffect(() => {
-    reload();
-  }, [reload]);
-
-  // The rooms' chat is loaded again whenever the match gets a room: the lines said while the bot
-  // set it up came before the page knew it.
-  const roomsKey = match?.rooms.map((r) => r.mp_id).join(",") ?? "";
-  const loaded = match !== null;
-  useEffect(() => {
-    if (loaded) reloadChat();
-  }, [loaded, roomsKey, reloadChat]);
-
-  // Live: it has a room and isn't concluded. Only then is it followed: the page asks the server for
-  // it (again when the rooms change, since the server looks them up when asked). A concluded
+  const { spectators: watchers } = useLive();
+  // Live: it has a room and isn't concluded. Only then is it followed over the socket. A concluded
   // match's chat is the saved one; an upcoming one is followed once its room is added, which
   // reloads the match.
-  const isLive = match !== null && match.concluded_at === null && match.rooms.length > 0;
-  useEffect(() => {
-    if (!isLive) return;
-    watch(matchId, spectate);
-    return () => watch(null);
-  }, [isLive, matchId, roomsKey, watch, spectate]);
-
-  const streaming = useRef(isLive);
-  streaming.current = isLive;
-  const rooms = useRef<Set<number>>(new Set());
-  rooms.current = new Set(match?.rooms.map((r) => r.mp_id) ?? []);
-  useEffect(() => {
-    let timer: number | undefined;
-    const later = () => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(() => reload(), RELOAD_DELAY_MS);
-    };
-    const off = subscribe((event) => {
-      switch (event.type) {
-        case "chat":
-          if (!rooms.current.has(event.mp_id)) return;
-          setChat((prev) => new Map(prev).set(event.mp_id, appendLine(prev.get(event.mp_id) ?? [], event.message)));
-          return;
-        case "room":
-          if (event.match_id === matchId) setLive(event.room);
-          return;
-        case "score":
-        case "match":
-          if (event.match_id === matchId) later();
-          return;
-        case "bracket":
-          // Also what a reconnect sends, so the chat missed meanwhile is fetched too (a concluded
-          // match's saved chat doesn't change).
-          later();
-          if (streaming.current) reloadChat();
-          return;
-      }
-    });
-    return () => {
-      off();
-      window.clearTimeout(timer);
-    };
-  }, [subscribe, matchId, reload, reloadChat]);
-
-  // While the socket is down and the match is live, the page polls instead.
-  useEffect(() => {
-    if (connected || !isLive) return;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      reload();
-      reloadChat();
-    }, FALLBACK_MS);
-    return () => window.clearInterval(timer);
-  }, [connected, isLive, reload, reloadChat]);
+  const {
+    match,
+    live,
+    loadError,
+    chat,
+    chatLoaded,
+    connected,
+    following: isLive,
+  } = useMatchFeed(matchId, {
+    fetchMatch: fetchPublicMatch,
+    fetchChat: fetchPublicChat,
+    follows: (m) => m.concluded_at === null && m.rooms.length > 0,
+    spectate,
+    staff: false,
+    pollMs: FALLBACK_MS,
+    pollAlways: false,
+  });
 
   const roomChats = useMemo<PublicRoomChat[]>(
     () =>

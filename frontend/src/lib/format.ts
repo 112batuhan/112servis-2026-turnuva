@@ -40,9 +40,34 @@ export function formatShortMatchTime(iso: string): string {
   });
 }
 
-/** "21:00" */
-export function formatClock(iso: string): string {
-  return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+/** "21:00", from an ISO time or a timestamp. */
+export function formatClock(at: string | number): string {
+  return new Date(at).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** "21:00:07", for chat lines. */
+export function formatClockSeconds(at: string | number): string {
+  return new Date(at).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+/** "15 Ekim Perşembe", or "15 Ekim 2026 Perşembe" with the year. */
+export function formatDay(day: Date, withYear = false): string {
+  return day.toLocaleDateString("tr-TR", {
+    day: "numeric",
+    month: "long",
+    weekday: "long",
+    ...(withYear ? { year: "numeric" } : {}),
+  });
+}
+
+/** "Ekim 2026" */
+export function formatMonth(month: Date): string {
+  return month.toLocaleDateString("tr-TR", { month: "long", year: "numeric" });
+}
+
+/** 1234567 -> "1.234.567" */
+export function formatScore(score: number): string {
+  return score.toLocaleString("tr-TR");
 }
 
 /** ISO -> the local "YYYY-MM-DDTHH:mm" a datetime-local input takes. */

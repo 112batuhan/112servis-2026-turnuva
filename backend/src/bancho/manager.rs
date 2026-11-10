@@ -20,21 +20,22 @@ use super::{
     },
     context::{self, MatchContext},
     irc::{normalize_name, room_channel, room_id, same_name, BANCHO_BOT},
+    relay::{SessionLink, SessionRequest},
     room::{
         parse_created, parse_joined, parse_left, read_lobby, RoomSlot, RoomState, MATCH_STARTED,
     },
     tally::{lobby_key, lobby_rows, race_of, score_key, score_message, tally, Race, TallyInput},
     view::{self, finished_of, LiveRoom, RoomAccess, ViewRoom},
-    BotRoom, BotState, BotStatus, Request, RoomCommand, SessionLink, SessionRequest, ROOM_LIMIT,
+    BotRoom, BotState, BotStatus, Request, RoomCommand, ROOM_LIMIT,
 };
 use crate::{
     db::{self, bancho::BotLogin, matches::MatchKind, stats::QualifierMapRow, user::StaffMember},
     error::AppError,
-    handlers::{self, live::Change},
+    live::Change,
     osu_api,
     osu_api::matches::MatchGame,
     role::Role,
-    room_scores, AppState,
+    room_scores, services, AppState,
 };
 
 // How often timers are checked and changed rooms pushed to the pages.
@@ -250,7 +251,7 @@ fn spawn_saver(app: AppState) -> mpsc::UnboundedSender<SaveJob> {
         while let Some(job) = rx.recv().await {
             let result = match &job.save {
                 Save::Score { team1, team2, maps } => {
-                    handlers::bracket::save_score(
+                    services::bracket::save_score(
                         &app,
                         job.match_id,
                         Some(*team1),
@@ -1240,7 +1241,7 @@ impl Manager {
         }
         self.ensure_refs(match_id);
         let concluded = self.runs.get(&match_id).is_none_or(|r| r.ctx.concluded());
-        handlers::matches::link_room(&self.app, match_id, mp_id, Some(bot_id), true, concluded)
+        services::matches::link_room(&self.app, match_id, mp_id, Some(bot_id), true, concluded)
             .await
     }
 

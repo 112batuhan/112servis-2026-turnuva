@@ -9,8 +9,10 @@ src/
   api/          Backend calls. types.ts mirrors the Rust response structs.
   auth/         Signed-in user context, role checks, route guard.
   player/       App-wide song preview player state.
-  lib/          Small helpers: localStorage, formatting, reordering, drag & drop.
-  components/   Reusable UI (MapCard, PoolSection, StageTabs, IconButton, Icon…).
+  lib/          Helpers and shared models: formatting, storage, the match pool and room
+                models, useMatchFeed (following a match) and useAction (a page's changes).
+  components/   Reusable UI (MapCard, PoolSection, StageTabs, IconButton, Icon…);
+                components/match/ is the cockpit the referee and public match pages share.
   pages/        One file per route. The map pool editor is in pages/admin/mappool/:
                 useStageEditor.ts holds its data + API actions, the .tsx files only render.
   styles/       tokens.css (all colours/sizes), base, controls (buttons, inputs), layout.

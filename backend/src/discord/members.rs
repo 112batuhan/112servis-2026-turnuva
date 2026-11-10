@@ -229,11 +229,7 @@ async fn on_left(state: &AppState, user_id: Uuid) -> BotResult {
 }
 
 async fn on_back(state: &AppState, user_id: Uuid, returned: bool) -> BotResult {
-    let mut jobs: Vec<Job> = db::discord::open_matches_of(&state.db, user_id)
-        .await?
-        .into_iter()
-        .map(|match_id| Job::SyncMatch { match_id })
-        .collect();
+    let mut jobs = Job::sync_matches(db::discord::open_matches_of(&state.db, user_id).await?);
     if returned {
         jobs.push(Job::MemberReturned { user_id });
     }

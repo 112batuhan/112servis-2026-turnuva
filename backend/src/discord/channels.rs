@@ -479,11 +479,7 @@ pub async fn archive_orphan(
 
 // Queues a sync of every match that has a channel or should have one.
 pub async fn sync_all(state: &AppState) -> BotResult {
-    let jobs: Vec<Job> = db::discord::syncable_matches(&state.db)
-        .await?
-        .into_iter()
-        .map(|match_id| Job::SyncMatch { match_id })
-        .collect();
+    let jobs = Job::sync_matches(db::discord::syncable_matches(&state.db).await?);
     state.discord.enqueue(&state.db, &jobs).await?;
     Ok(())
 }

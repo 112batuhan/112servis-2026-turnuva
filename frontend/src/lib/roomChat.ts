@@ -1,5 +1,5 @@
-import type { RoomChatMessage } from "../../../api/types";
-import type { ChatLine } from "../../../irc/IrcContext";
+import type { RoomChatMessage } from "../api/types";
+import type { ChatLine } from "../irc/IrcContext";
 
 // A room's chat is what its bot saved (the database), loaded with the page, followed by every line
 // the bot saves after that, streamed over the live socket. Both are the same rows, so a line is

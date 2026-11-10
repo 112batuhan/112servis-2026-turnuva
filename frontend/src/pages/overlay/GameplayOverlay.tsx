@@ -1,9 +1,9 @@
 import { useMemo, type CSSProperties } from "react";
 import type { PublicMatch } from "../../api/types";
 import { Icon } from "../../components/Icon";
-import { formatLength } from "../../lib/format";
-import type { PoolEntry } from "../admin/referee/pool";
-import { matchTeams, poolEntries } from "../admin/referee/pool";
+import { formatLength, formatScore } from "../../lib/format";
+import type { PoolEntry } from "../../lib/matchPool";
+import { matchTeams, poolEntries } from "../../lib/matchPool";
 import type { LiveTotals } from "./useBroadcastMatch";
 import {
   Crystal,
@@ -96,7 +96,6 @@ function DraftColumn({
   );
 }
 
-const formatScore = (n: number) => n.toLocaleString("tr-TR");
 
 /**
  * The map's live score under the client: each team's total at its end, a bar from each end

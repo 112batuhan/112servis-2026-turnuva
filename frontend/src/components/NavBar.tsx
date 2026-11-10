@@ -3,7 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { loginWithOsu } from "../api/auth";
 import { useAuth } from "../auth/AuthContext";
 import { canAccess, canPlay, isStaff } from "../auth/roles";
-import { ADMIN_TABS, isAdminPath } from "../pages/admin/tabs";
+import { ADMIN_TABS, isAdminPath } from "../lib/adminTabs";
 import { Icon } from "./Icon";
 import { NotificationBell } from "./NotificationBell";
 import "./NavBar.css";

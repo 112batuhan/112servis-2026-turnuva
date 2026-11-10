@@ -75,6 +75,13 @@ impl AuthUser {
             Err(AppError::DiscordVerificationRequired)
         }
     }
+
+    // The team the caller plays in, otherwise 400.
+    pub async fn team_id(&self, db: &PgPool) -> Result<Uuid, AppError> {
+        db::team::find_team_id(db, self.id)
+            .await?
+            .ok_or(AppError::BadRequest("you aren't in a team"))
+    }
 }
 
 // Only the hash of a session token is stored, so the raw cookie value can't be

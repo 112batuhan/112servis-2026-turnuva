@@ -8,27 +8,18 @@ use axum::{
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{
-    auth::AuthUser, db, discord::jobs::Job, draft::DraftOrder, error::AppError, osu_api,
-    role::Role, AppState,
-};
+use super::ReorderBody;
+use crate::{auth::AuthUser, db, error::AppError, osu_api, role::Role, AppState};
 
-// Routes under the `/api` nest. The authed endpoints require map_pooler+, except that
-// only hosts create, rename, reorder and delete stages: stages are the tournament's
-// rounds, which bracket matches also point at, and that pool testers and custom
-// mappers can also read the stages (`view_guard`) but change nothing. The two
-// `/public/*` ones take no AuthUser and only expose published stages.
+// Routes under the `/api` nest: the stages' map pools. The authed endpoints require
+// map_pooler+, except that pool testers and custom mappers can also read the stages
+// (`view_guard`) but change nothing. Managing the stages themselves is in
+// handlers/stages.rs. The two `/public/*` ones take no AuthUser and only expose
+// published stages.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/stages", get(list_stages).post(create_stage))
-        .route("/stages/reorder", post(reorder_stages))
-        .route("/stages/qualifier", put(set_qualifier_stage))
-        .route(
-            "/stages/:id",
-            get(get_stage).delete(delete_stage).patch(update_stage),
-        )
-        .route("/stages/:id/best-of", put(set_stage_best_of))
-        .route("/stages/:id/draft-order", put(set_stage_draft_order))
+        .route("/stages", get(list_stages))
+        .route("/stages/:id", get(get_stage))
         .route("/stages/:id/pack", put(set_stage_pack_url))
         .route("/stages/:id/categories", post(create_category))
         .route("/categories/reorder", post(reorder_categories))
@@ -64,42 +55,23 @@ fn view_guard(user: &AuthUser) -> Result<(), AppError> {
 
 // ---------- stages ----------
 
-pub async fn list_stages(
+async fn list_stages(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
     view_guard(&user)?;
-    Ok(Json(db::mappool::list_stages(&state.db).await?))
-}
-
-#[derive(Debug, Deserialize)]
-pub struct CreateStageBody {
-    name: String,
-}
-
-// POST /api/stages — host-only.
-pub async fn create_stage(
-    State(state): State<AppState>,
-    user: AuthUser,
-    Json(body): Json<CreateStageBody>,
-) -> Result<impl IntoResponse, AppError> {
-    user.require_role(Role::Host)?;
-    let name = body.name.trim();
-    if name.is_empty() {
-        return Err(AppError::BadRequest("stage name is required"));
-    }
-    Ok(Json(db::mappool::create_stage(&state.db, name).await?))
+    Ok(Json(db::stages::list_stages(&state.db).await?))
 }
 
 // GET /api/stages/:id — a stage with its categories and every relevant map (the
 // global generic pool plus this stage's categorised maps).
-pub async fn get_stage(
+async fn get_stage(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     view_guard(&user)?;
-    let stage = db::mappool::get_stage(&state.db, id)
+    let stage = db::stages::get_stage(&state.db, id)
         .await?
         .ok_or(AppError::NotFound)?;
     let categories = db::mappool::list_categories(&state.db, id).await?;
@@ -113,159 +85,6 @@ pub async fn get_stage(
     }))
 }
 
-// DELETE /api/stages/:id — host-only. Its maps go back to the generic pool and its
-// bracket matches are left without a stage, so without potential matches.
-pub async fn delete_stage(
-    State(state): State<AppState>,
-    user: AuthUser,
-    Path(id): Path<Uuid>,
-) -> Result<impl IntoResponse, AppError> {
-    user.require_role(Role::Host)?;
-    db::mappool::delete_stage(&state.db, id).await?;
-    crate::handlers::bracket::resync_potentials(&state).await?;
-    state.live.bracket_changed();
-    Ok(StatusCode::NO_CONTENT)
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateStageBody {
-    // Each field is optional — only the ones present are changed.
-    #[serde(default)]
-    name: Option<String>,
-    #[serde(default)]
-    published: Option<bool>,
-}
-
-// PATCH /api/stages/:id — rename (host-only) and/or publish/unpublish a stage's pool.
-pub async fn update_stage(
-    State(state): State<AppState>,
-    user: AuthUser,
-    Path(id): Path<Uuid>,
-    Json(body): Json<UpdateStageBody>,
-) -> Result<impl IntoResponse, AppError> {
-    guard(&user)?;
-    if body.name.is_some() {
-        user.require_role(Role::Host)?;
-    }
-    let name = body.name.as_deref().map(str::trim);
-    if let Some(n) = name {
-        if n.is_empty() {
-            return Err(AppError::BadRequest("stage name is required"));
-        }
-    }
-    Ok(Json(
-        db::mappool::update_stage(&state.db, id, name, body.published).await?,
-    ))
-}
-
-// A new ordering for a set of items, most-first, given by their ids.
-#[derive(Debug, Deserialize)]
-pub struct ReorderBody {
-    ids: Vec<Uuid>,
-}
-
-// POST /api/stages/reorder — host-only. Persists a new stage order.
-pub async fn reorder_stages(
-    State(state): State<AppState>,
-    user: AuthUser,
-    Json(body): Json<ReorderBody>,
-) -> Result<impl IntoResponse, AppError> {
-    user.require_role(Role::Host)?;
-    db::mappool::reorder_stages(&state.db, &body.ids).await?;
-    Ok(StatusCode::NO_CONTENT)
-}
-
-#[derive(Debug, Deserialize)]
-pub struct QualifierStageBody {
-    stage_id: Option<Uuid>,
-}
-
-// PUT /api/stages/qualifier — host-only. Picks the stage whose pool the qualifier
-// lobbies play, or none.
-pub async fn set_qualifier_stage(
-    State(state): State<AppState>,
-    user: AuthUser,
-    Json(body): Json<QualifierStageBody>,
-) -> Result<impl IntoResponse, AppError> {
-    user.require_role(Role::Host)?;
-    match db::mappool::set_qualifier_stage(&state.db, body.stage_id).await {
-        Ok(true) => Ok(StatusCode::NO_CONTENT),
-        Ok(false) => Err(AppError::NotFound),
-        // Another host picked one at the same moment.
-        Err(sqlx::Error::Database(e)) if e.constraint() == Some("stages_qualifier_key") => Err(
-            AppError::Conflict("the qualifier stage just changed, try again"),
-        ),
-        Err(err) => Err(err.into()),
-    }
-}
-
-#[derive(Debug, Deserialize)]
-pub struct BestOfBody {
-    best_of: Option<i32>,
-}
-
-// The most maps a match may be played to; the column allows the same.
-const MAX_BEST_OF: i32 = 25;
-
-// PUT /api/stages/:id/best-of — host-only. How many maps the stage's bracket matches
-// are played to (odd), or none. The referee page, the match pages and Discord show it.
-pub async fn set_stage_best_of(
-    State(state): State<AppState>,
-    user: AuthUser,
-    Path(id): Path<Uuid>,
-    Json(body): Json<BestOfBody>,
-) -> Result<impl IntoResponse, AppError> {
-    user.require_role(Role::Host)?;
-    if let Some(n) = body.best_of {
-        if !(1..=MAX_BEST_OF).contains(&n) || n % 2 == 0 {
-            return Err(AppError::BadRequest(
-                "best of must be an odd number from 1 to 25",
-            ));
-        }
-    }
-    let matches = db::mappool::set_stage_best_of(&state.db, id, body.best_of)
-        .await?
-        .ok_or(AppError::NotFound)?;
-    let jobs: Vec<Job> = matches
-        .into_iter()
-        .map(|match_id| Job::SyncMatch { match_id })
-        .collect();
-    state.discord.enqueue(&state.db, &jobs).await?;
-    state.live.bracket_changed();
-    Ok(StatusCode::NO_CONTENT)
-}
-
-#[derive(Debug, Deserialize)]
-pub struct DraftOrderBody {
-    draft_order: Option<String>,
-}
-
-// PUT /api/stages/:id/draft-order — host-only. The order the stage's bracket matches
-// ban and pick in ("p1-p2-b2-b1-p1-*", crate::draft), stored as it reads; empty or
-// null goes back to the default. The referee page, the match page and the room's bot
-// follow it.
-pub async fn set_stage_draft_order(
-    State(state): State<AppState>,
-    user: AuthUser,
-    Path(id): Path<Uuid>,
-    Json(body): Json<DraftOrderBody>,
-) -> Result<impl IntoResponse, AppError> {
-    user.require_role(Role::Host)?;
-    let order = match body.draft_order.as_deref().map(str::trim) {
-        None | Some("") => None,
-        Some(text) => Some(
-            DraftOrder::parse(text)
-                .map_err(AppError::BadRequest)?
-                .format(),
-        ),
-    };
-    if !db::mappool::set_stage_draft_order(&state.db, id, order.as_deref()).await? {
-        return Err(AppError::NotFound);
-    }
-    state.live.bracket_changed();
-    Ok(StatusCode::NO_CONTENT)
-}
-
 #[derive(Debug, Deserialize)]
 pub struct PackUrlBody {
     pack_url: Option<String>,
@@ -276,7 +95,7 @@ const MAX_PACK_URL: usize = 2048;
 
 // PUT /api/stages/:id/pack — map poolers. The link to the stage's beatmap pack, hosted
 // elsewhere; empty or null takes it off. The public mappool page offers it.
-pub async fn set_stage_pack_url(
+async fn set_stage_pack_url(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -299,7 +118,7 @@ pub async fn set_stage_pack_url(
             Some(text)
         }
     };
-    if !db::mappool::set_stage_pack_url(&state.db, id, url).await? {
+    if !db::stages::set_stage_pack_url(&state.db, id, url).await? {
         return Err(AppError::NotFound);
     }
     Ok(StatusCode::NO_CONTENT)
@@ -312,7 +131,7 @@ pub struct CreateCategoryBody {
     name: String,
 }
 
-pub async fn create_category(
+async fn create_category(
     State(state): State<AppState>,
     user: AuthUser,
     Path(stage_id): Path<Uuid>,
@@ -338,7 +157,7 @@ pub struct UpdateCategoryBody {
 }
 
 // POST /api/categories/reorder — persist a new category order.
-pub async fn reorder_categories(
+async fn reorder_categories(
     State(state): State<AppState>,
     user: AuthUser,
     Json(body): Json<ReorderBody>,
@@ -349,7 +168,7 @@ pub async fn reorder_categories(
 }
 
 // PATCH /api/categories/:id — rename and/or recolour a category.
-pub async fn update_category(
+async fn update_category(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -367,7 +186,7 @@ pub async fn update_category(
     ))
 }
 
-pub async fn delete_category(
+async fn delete_category(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -380,7 +199,7 @@ pub async fn delete_category(
 // ---------- category slots ----------
 
 // POST /api/categories/:id/slots — add a slot to a category.
-pub async fn add_slot(
+async fn add_slot(
     State(state): State<AppState>,
     user: AuthUser,
     Path(category_id): Path<Uuid>,
@@ -395,7 +214,7 @@ pub struct UpdateSlotBody {
 }
 
 // PATCH /api/slots/:id — update a slot's editor notes.
-pub async fn update_slot(
+async fn update_slot(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -408,7 +227,7 @@ pub async fn update_slot(
 }
 
 // DELETE /api/slots/:id — remove a slot.
-pub async fn delete_slot(
+async fn delete_slot(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -478,7 +297,7 @@ pub struct AddMapBody {
 // POST /api/pool — add a map (beatmap id + mods) to the generic pool. The beatmap is
 // fetched from the osu! API, its mod stats are resolved, and the whole thing (metadata +
 // locked stats) is stored self-contained in one pool_maps row.
-pub async fn add_map(
+async fn add_map(
     State(state): State<AppState>,
     user: AuthUser,
     Json(body): Json<AddMapBody>,
@@ -519,7 +338,7 @@ pub struct MoveMapBody {
 
 // PATCH /api/maps/:id — assign a map to a slot or back to the generic pool. Stats and
 // mods are locked, so nothing about them changes.
-pub async fn move_map(
+async fn move_map(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -536,7 +355,7 @@ pub async fn move_map(
 // POST /api/maps/:id/stats — resolve the map's stats again from osu! and lock them in
 // anew: for maps added while AR/OD missed their mods or before HR stats were stored, or
 // a beatmap osu! has since changed. Mods, metadata, slot and notes stay.
-pub async fn recompute_map_stats(
+async fn recompute_map_stats(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -556,7 +375,7 @@ pub async fn recompute_map_stats(
 }
 
 // DELETE /api/maps/:id — remove a map from the pool entirely.
-pub async fn delete_map(
+async fn delete_map(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -576,7 +395,7 @@ pub struct UpdateMapNotesBody {
 }
 
 // PATCH /api/maps/:id/notes — update a map's public and/or editor notes.
-pub async fn update_map_notes(
+async fn update_map_notes(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -595,17 +414,15 @@ pub async fn update_map_notes(
 
 // ---------- public (unauthenticated) — published stages only ----------
 
-pub async fn list_public_stages(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, AppError> {
-    Ok(Json(db::mappool::list_published_stages(&state.db).await?))
+async fn list_public_stages(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
+    Ok(Json(db::stages::list_published_stages(&state.db).await?))
 }
 
-pub async fn get_public_stage(
+async fn get_public_stage(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
-    let stage = db::mappool::get_published_stage(&state.db, id)
+    let stage = db::stages::get_published_stage(&state.db, id)
         .await?
         .ok_or(AppError::NotFound)?;
     let categories = db::mappool::list_categories(&state.db, id).await?;

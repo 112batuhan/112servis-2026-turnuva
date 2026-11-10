@@ -1,5 +1,7 @@
-/* The match column fills its cockpit column: the room bar as a fixed header, then a body that
-   scrolls. */
+/* The match column of a cockpit, on the referee page and the public match page: it fills its
+   cockpit column, the room bar as a fixed header, then a body that scrolls. The map clock
+   (MapClock.tsx) is the piece both pages render; the referee page's commands, room settings and
+   bot notices are styled here too. */
 .lobby-panel {
   container: lobby-panel / inline-size;
   display: flex;

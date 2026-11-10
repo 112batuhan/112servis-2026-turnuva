@@ -2,8 +2,8 @@ import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode }
 import { API_URL } from "../../api/client";
 import type { PublicMatch, Team } from "../../api/types";
 import { firstTo } from "../../lib/bestOf";
-import type { PoolEntry } from "../admin/referee/pool";
-import type { Tally } from "../admin/referee/liveRoom";
+import type { PoolEntry } from "../../lib/matchPool";
+import type { Tally } from "../../lib/liveRoom";
 import "./Overlay.css";
 
 // The pieces both overlay pages are drawn from, after the designers' tournament-client designs.

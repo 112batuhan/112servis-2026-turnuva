@@ -1,3 +1,6 @@
+/* A match's cockpit, one screen tall under a one-line header: pool | match | chat, or one of them
+   at a time under a tab bar on a phone (Cockpit.tsx). The referee page and the public match page
+   both wear it; the class names say "referee" because it was the referee page's first. */
 .referee-page {
   container: referee-page / inline-size;
   display: flex;

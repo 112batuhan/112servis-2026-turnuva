@@ -11,11 +11,12 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+use super::{is_host, require_runs, require_unconcluded};
 use crate::{
     auth::AuthUser,
     db::{
         self,
-        bracket::{BracketLock, BracketRow, LinkRow, MapResultRow, MatchUpdate, Outcome, Side},
+        bracket::{BracketRow, LinkRow, MapResultRow, MatchUpdate, Outcome, Side},
         matches::MatchKind,
         notifications::StaffRole,
         potential::{Before, PotentialRow},
@@ -23,13 +24,12 @@ use crate::{
     },
     discord::jobs::Job,
     error::AppError,
-    handlers::{
-        matches::{
-            is_host, load_match, match_rooms, require_runs, require_unconcluded, MatchRoom, Referee,
-        },
-        team::{group_teams, AdminTeamPlayer, Team},
-    },
     role::Role,
+    services::{
+        bracket::{conclude, save_score},
+        matches::load_match,
+    },
+    views::{group_teams, match_rooms, AdminTeamPlayer, MatchRoom, Referee, Streamer, Team},
     AppState,
 };
 
@@ -57,41 +57,7 @@ pub fn routes() -> Router<AppState> {
         .route("/streamers", get(list_streamers))
 }
 
-const SCORE_MAX: i32 = 99;
 const RESULT_NOTE_MAX: usize = 200;
-// More finished maps than any match plays, warmups and replays included.
-const MAP_RESULTS_MAX: usize = 50;
-// Longer than any set of mod acronyms a player can have on.
-const MODS_MAX: usize = 40;
-
-#[derive(Debug, Serialize)]
-pub struct Streamer {
-    id: Uuid,
-    osu_id: i64,
-    username: String,
-    avatar_url: String,
-}
-
-impl Streamer {
-    // From the streamer_* columns, all null when nobody streams the match.
-    pub fn from_columns(
-        id: Option<Uuid>,
-        osu_id: Option<i64>,
-        username: Option<String>,
-        avatar_url: Option<String>,
-    ) -> Option<Self> {
-        match (id, osu_id, username, avatar_url) {
-            (Some(id), Some(osu_id), Some(username), Some(avatar_url)) => Some(Streamer {
-                id,
-                osu_id,
-                username,
-                avatar_url,
-            }),
-            _ => None,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct NextMatch {
     match_id: Uuid,
@@ -266,7 +232,7 @@ pub struct PublicBracket {
 }
 
 // GET /api/public/bracket — every bracket match.
-pub async fn list_public_bracket(
+async fn list_public_bracket(
     State(state): State<AppState>,
     user: Option<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -297,7 +263,7 @@ pub struct StaffBracket {
 
 // GET /api/bracket — referees and hosts. Like the public list, plus referee notes and
 // each player's Discord. Other staff (streamers can play) get the public view instead.
-pub async fn list_bracket(
+async fn list_bracket(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -349,7 +315,7 @@ pub struct Created {
 
 // POST /api/bracket — host-only. Adds an empty match at a board position, numbered
 // after the last match on its side.
-pub async fn create_match(
+async fn create_match(
     State(state): State<AppState>,
     user: AuthUser,
     Json(body): Json<CreateBody>,
@@ -400,7 +366,7 @@ fn leads_back(links: &[LinkRow], id: Uuid, targets: &[Uuid]) -> bool {
 // match reopened first; its time, code and stage can still change. A team taken out
 // of the match loses its proposed times for it. The potential matches are worked out
 // again, and the ones still on the match's old time follow it to the new one.
-pub async fn update_match(
+async fn update_match(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -540,7 +506,7 @@ pub struct MoveBody {
 
 // PUT /api/bracket/:id/position — host-only. Moves a match on the editor's board.
 // The editor keeps cards from overlapping; the server doesn't need to.
-pub async fn move_match(
+async fn move_match(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -555,7 +521,7 @@ pub async fn move_match(
 
 // DELETE /api/bracket/:id — host-only. Teams it already sent on stay where they are.
 // Its potential matches go with it, and the ones it decided are worked out again.
-pub async fn delete_match(
+async fn delete_match(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -607,7 +573,7 @@ pub struct ScoreBody {
 // PUT /api/bracket/:id/score — a referee or a host enters the score by hand (the bots
 // save the one they count from the rooms themselves, see crate::bancho). The score
 // decides who moves on, so a concluded match has to be reopened first.
-pub async fn set_score(
+async fn set_score(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -627,78 +593,6 @@ pub async fn set_score(
     )
     .await?;
     Ok(StatusCode::NO_CONTENT)
-}
-
-// Saves a bracket match's score and, when given, the map results behind it, which
-// replace the saved ones (the results post lists them). Checks them the same way
-// whoever sends them.
-pub async fn save_score(
-    state: &AppState,
-    id: Uuid,
-    team1_score: Option<i32>,
-    team2_score: Option<i32>,
-    maps: Option<&[MapResultRow]>,
-) -> Result<(), AppError> {
-    let valid = |score: Option<i32>| score.is_none_or(|s| (0..=SCORE_MAX).contains(&s));
-    if !valid(team1_score) || !valid(team2_score) {
-        return Err(AppError::BadRequest("scores must be between 0 and 99"));
-    }
-    if let Some(maps) = maps {
-        if maps.len() > MAP_RESULTS_MAX {
-            return Err(AppError::BadRequest("too many map results"));
-        }
-        if maps.iter().any(|m| m.team1_score < 0 || m.team2_score < 0) {
-            return Err(AppError::BadRequest("map scores can't be negative"));
-        }
-        for map in maps {
-            let mut seen = HashSet::new();
-            for p in &map.players {
-                if p.score < 0 || !seen.insert(p.user_id) {
-                    return Err(AppError::BadRequest("bad player scores on a map"));
-                }
-                // Mod acronyms: "HDHR", "NF".
-                if p.mods.as_deref().is_some_and(|m| {
-                    m.len() > MODS_MAX || !m.chars().all(|c| c.is_ascii_alphanumeric())
-                }) {
-                    return Err(AppError::BadRequest("bad mods on a map"));
-                }
-            }
-        }
-        let players: Vec<Uuid> = maps
-            .iter()
-            .flat_map(|m| m.players.iter().map(|p| p.user_id))
-            .collect();
-        if !db::bracket::players_in_match(&state.db, id, &players).await? {
-            return Err(AppError::BadRequest("a player doesn't play in this match"));
-        }
-        let Some(ids) = maps.iter().map(|m| m.map_id).collect::<Option<Vec<Uuid>>>() else {
-            return Err(AppError::BadRequest("every map result needs its map"));
-        };
-        if !db::bracket::maps_in_pool(&state.db, id, &ids).await? {
-            return Err(AppError::BadRequest("a map isn't in this match's pool"));
-        }
-    }
-    // The match card in its Discord channel shows the running score, so it's synced
-    // with every change; the open pages hear it right away.
-    let mut tx = state.db.begin().await?;
-    if !db::bracket::set_score(&mut *tx, id, team1_score, team2_score).await? {
-        return Err(AppError::Conflict(
-            "this match is concluded, reopen it to change the score",
-        ));
-    }
-    if let Some(maps) = maps {
-        db::bracket::replace_map_results(&mut tx, id, maps).await?;
-    }
-    let mut jobs = vec![Job::SyncMatch { match_id: id }];
-    // A match being played that never got its public announcement (its time passed
-    // before the scheduler's window) gets it now, with the score in it.
-    if state.discord.enabled() && db::discord::claim_late_announcement(&mut tx, id).await? {
-        jobs.push(Job::Announce { match_id: id });
-    }
-    state.discord.enqueue(&mut *tx, &jobs).await?;
-    tx.commit().await?;
-    state.live.score(id, team1_score, team2_score);
-    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -740,210 +634,102 @@ async fn check_unmark(state: &AppState, user: &AuthUser, id: Uuid) -> Result<(),
     require_unconcluded(user, &m)
 }
 
-// PUT /api/bracket/:id/bans/:map_id — marks a map as banned by one of the match's
-// teams (or moves the ban to the other team). A picked map can't be banned.
-pub async fn set_ban(
-    State(state): State<AppState>,
-    user: AuthUser,
-    Path((id, map_id)): Path<(Uuid, Uuid)>,
-    Json(body): Json<MapTeamBody>,
-) -> Result<impl IntoResponse, AppError> {
-    check_map_team(&state, &user, id, map_id, body.team_id).await?;
-    if !db::bracket::set_ban(&state.db, id, map_id, body.team_id).await? {
-        return Err(AppError::Conflict("that map has been picked"));
+// What a referee marks on a pool map for one of the match's teams. A map can't be both.
+#[derive(Clone, Copy)]
+enum Mark {
+    Ban,
+    Pick,
+}
+
+// Marks a map as banned or picked by one of the match's teams (or moves the mark to the
+// other team).
+async fn set_mark(
+    state: &AppState,
+    user: &AuthUser,
+    (id, map_id): (Uuid, Uuid),
+    team_id: Uuid,
+    mark: Mark,
+) -> Result<StatusCode, AppError> {
+    check_map_team(state, user, id, map_id, team_id).await?;
+    let (marked, taken) = match mark {
+        Mark::Ban => (
+            db::bracket::set_ban(&state.db, id, map_id, team_id).await?,
+            "that map has been picked",
+        ),
+        Mark::Pick => (
+            db::bracket::set_pick(&state.db, id, map_id, team_id).await?,
+            "that map is banned",
+        ),
+    };
+    if !marked {
+        return Err(AppError::Conflict(taken));
     }
-    // The rules say whose pick is next again.
+    marks_changed(state, id).await
+}
+
+// Takes a ban or a pick back.
+async fn remove_mark(
+    state: &AppState,
+    user: &AuthUser,
+    (id, map_id): (Uuid, Uuid),
+    mark: Mark,
+) -> Result<StatusCode, AppError> {
+    check_unmark(state, user, id).await?;
+    let removed = match mark {
+        Mark::Ban => db::bracket::delete_ban(&state.db, id, map_id).await?,
+        Mark::Pick => db::bracket::delete_pick(&state.db, id, map_id).await?,
+    };
+    if !removed {
+        return Err(AppError::NotFound);
+    }
+    marks_changed(state, id).await
+}
+
+// The rules say whose pick is next again, and the match's pages reload it.
+async fn marks_changed(state: &AppState, id: Uuid) -> Result<StatusCode, AppError> {
     db::referee::clear_next_pick(&state.db, id).await?;
     state.live.match_changed(id);
     Ok(StatusCode::NO_CONTENT)
 }
 
-// DELETE /api/bracket/:id/bans/:map_id — takes a ban back.
-pub async fn remove_ban(
+// PUT /api/bracket/:id/bans/:map_id — marks a map as banned by one of the match's
+// teams (or moves the ban to the other team). A picked map can't be banned.
+async fn set_ban(
     State(state): State<AppState>,
     user: AuthUser,
-    Path((id, map_id)): Path<(Uuid, Uuid)>,
+    Path(ids): Path<(Uuid, Uuid)>,
+    Json(body): Json<MapTeamBody>,
 ) -> Result<impl IntoResponse, AppError> {
-    check_unmark(&state, &user, id).await?;
-    if !db::bracket::delete_ban(&state.db, id, map_id).await? {
-        return Err(AppError::NotFound);
-    }
-    // The rules say whose pick is next again.
-    db::referee::clear_next_pick(&state.db, id).await?;
-    state.live.match_changed(id);
-    Ok(StatusCode::NO_CONTENT)
+    set_mark(&state, &user, ids, body.team_id, Mark::Ban).await
+}
+
+// DELETE /api/bracket/:id/bans/:map_id — takes a ban back.
+async fn remove_ban(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(ids): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    remove_mark(&state, &user, ids, Mark::Ban).await
 }
 
 // PUT /api/bracket/:id/picks/:map_id — marks a map as picked by one of the match's
 // teams (or moves the pick to the other team). A banned map can't be picked.
-pub async fn set_pick(
+async fn set_pick(
     State(state): State<AppState>,
     user: AuthUser,
-    Path((id, map_id)): Path<(Uuid, Uuid)>,
+    Path(ids): Path<(Uuid, Uuid)>,
     Json(body): Json<MapTeamBody>,
 ) -> Result<impl IntoResponse, AppError> {
-    check_map_team(&state, &user, id, map_id, body.team_id).await?;
-    if !db::bracket::set_pick(&state.db, id, map_id, body.team_id).await? {
-        return Err(AppError::Conflict("that map is banned"));
-    }
-    // The rules say whose pick is next again.
-    db::referee::clear_next_pick(&state.db, id).await?;
-    state.live.match_changed(id);
-    Ok(StatusCode::NO_CONTENT)
+    set_mark(&state, &user, ids, body.team_id, Mark::Pick).await
 }
 
 // DELETE /api/bracket/:id/picks/:map_id — takes a pick back.
-pub async fn remove_pick(
+async fn remove_pick(
     State(state): State<AppState>,
     user: AuthUser,
-    Path((id, map_id)): Path<(Uuid, Uuid)>,
+    Path(ids): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, AppError> {
-    check_unmark(&state, &user, id).await?;
-    if !db::bracket::delete_pick(&state.db, id, map_id).await? {
-        return Err(AppError::NotFound);
-    }
-    // The rules say whose pick is next again.
-    db::referee::clear_next_pick(&state.db, id).await?;
-    state.live.match_changed(id);
-    Ok(StatusCode::NO_CONTENT)
-}
-
-// The winner and loser of a match with both teams: the team that didn't forfeit, or
-// else the one ahead on a score that isn't a tie.
-fn outcome(m: &BracketLock) -> Option<(Uuid, Uuid)> {
-    let (t1, t2) = (m.team1_id?, m.team2_id?);
-    match m.forfeit_slot {
-        Some(1) => return Some((t2, t1)),
-        Some(_) => return Some((t1, t2)),
-        None => {}
-    }
-    match m.team1_score?.cmp(&m.team2_score?) {
-        std::cmp::Ordering::Greater => Some((t1, t2)),
-        std::cmp::Ordering::Less => Some((t2, t1)),
-        std::cmp::Ordering::Equal => None,
-    }
-}
-
-// Concludes a bracket match and puts its winner and loser into the slots they're
-// linked to. Called by matches::conclude once it has checked who's asking, and by
-// `forfeit` with the slot that forfeited, which needs neither a room nor a score.
-pub async fn conclude(state: &AppState, id: Uuid, forfeit: Option<i16>) -> Result<(), AppError> {
-    let mut tx = state.db.begin().await?;
-    db::potential::lock(&mut tx).await?;
-    let mut m = db::bracket::lock_match(&mut tx, id)
-        .await?
-        .ok_or(AppError::NotFound)?;
-    if m.concluded() {
-        return Err(AppError::Conflict("this match is already concluded"));
-    }
-    if forfeit.is_none() && !m.has_room {
-        return Err(AppError::BadRequest("add the match's room first"));
-    }
-    if m.team1_id.is_none() || m.team2_id.is_none() {
-        return Err(AppError::BadRequest("this match needs both teams first"));
-    }
-    m.forfeit_slot = forfeit;
-    let (winner, loser) =
-        outcome(&m).ok_or(AppError::BadRequest("enter a score with a winner first"))?;
-    if forfeit.is_some() {
-        db::bracket::set_forfeit(&mut tx, id, forfeit).await?;
-    }
-    // The channel is archived, the results posted, and the matches the teams move on to
-    // may now have both teams and so their channel.
-    let mut jobs = vec![
-        Job::SyncMatch { match_id: id },
-        Job::Concluded { match_id: id },
-        Job::PostResults { match_id: id },
-    ];
-    for target in db::bracket::lock_targets(&mut tx, id).await? {
-        if target.concluded_at.is_some() {
-            return Err(AppError::Conflict(
-                "a match this one leads into is already concluded, reopen it first",
-            ));
-        }
-        let team = match target.outcome {
-            Outcome::Winner => winner,
-            Outcome::Loser => loser,
-        };
-        db::bracket::set_slot(&mut tx, target.target_id, target.slot, Some(team)).await?;
-        jobs.push(Job::SyncMatch {
-            match_id: target.target_id,
-        });
-    }
-    db::reschedule::delete_for_match(&mut tx, id).await?;
-    let concluded = match forfeit {
-        Some(_) => db::matches::conclude_forfeit(&mut *tx, id).await?,
-        None => db::matches::conclude(&mut *tx, id).await?,
-    };
-    // The row is locked, so this only fails if the room was removed in between.
-    if !concluded {
-        return Err(AppError::Conflict(
-            "this match changed, reload and try again",
-        ));
-    }
-    // The pairings its teams were in narrow down: the loser's go, and a match that now
-    // has both teams takes over its own.
-    jobs.extend(db::potential::sync(&mut tx, &[]).await?);
-    state.discord.enqueue(&mut *tx, &jobs).await?;
-    tx.commit().await?;
-    Ok(())
-}
-
-// Reopens a bracket match and takes its teams back out of the slots it put them in,
-// unless a host has put another team there since.
-pub async fn reopen(state: &AppState, id: Uuid) -> Result<(), AppError> {
-    let mut tx = state.db.begin().await?;
-    db::potential::lock(&mut tx).await?;
-    let m = db::bracket::lock_match(&mut tx, id)
-        .await?
-        .ok_or(AppError::NotFound)?;
-    if !m.concluded() {
-        return Ok(());
-    }
-    let result = outcome(&m);
-    let mut jobs = vec![
-        Job::SyncMatch { match_id: id },
-        Job::Reopened { match_id: id },
-        Job::DeleteResults { match_id: id },
-    ];
-    let mut before = Vec::new();
-    for target in db::bracket::lock_targets(&mut tx, id).await? {
-        if target.concluded_at.is_some() {
-            return Err(AppError::Conflict(
-                "a match this one leads into is already concluded, reopen it first",
-            ));
-        }
-        let Some((winner, loser)) = result else {
-            continue;
-        };
-        let team = match target.outcome {
-            Outcome::Winner => winner,
-            Outcome::Loser => loser,
-        };
-        let current = if target.slot == 1 {
-            target.team1_id
-        } else {
-            target.team2_id
-        };
-        if current == Some(team) {
-            before.push(Before {
-                match_id: target.target_id,
-                team1_id: target.team1_id,
-                team2_id: target.team2_id,
-            });
-            db::bracket::set_slot(&mut tx, target.target_id, target.slot, None).await?;
-            jobs.push(Job::SyncMatch {
-                match_id: target.target_id,
-            });
-        }
-    }
-    db::bracket::set_forfeit(&mut tx, id, None).await?;
-    db::matches::reopen(&mut *tx, id).await?;
-    // The matches it decided go back to their pairings.
-    jobs.extend(db::potential::sync(&mut tx, &before).await?);
-    state.discord.enqueue(&mut *tx, &jobs).await?;
-    tx.commit().await?;
-    Ok(())
+    remove_mark(&state, &user, ids, Mark::Pick).await
 }
 
 #[derive(Debug, Deserialize)]
@@ -955,7 +741,7 @@ pub struct ForfeitBody {
 // POST /api/bracket/:id/forfeit — a referee or a host concludes it by
 // forfeit: a team didn't show up or the match couldn't be finished. The other team
 // moves on as the winner. Needs both teams, but no room or score.
-pub async fn forfeit(
+async fn forfeit(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -1002,7 +788,7 @@ async fn check_results(state: &AppState, user: &AuthUser, id: Uuid) -> Result<()
 // POST /api/bracket/:id/results — awards a map (or a point without one) to one of the
 // match's teams by hand, for a map the room didn't settle. The referee page counts it
 // with the maps read from the room.
-pub async fn add_manual_result(
+async fn add_manual_result(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -1033,7 +819,7 @@ pub async fn add_manual_result(
 }
 
 // DELETE /api/bracket/:id/results/:result_id — takes a hand-awarded map win back.
-pub async fn remove_manual_result(
+async fn remove_manual_result(
     State(state): State<AppState>,
     user: AuthUser,
     Path((id, result_id)): Path<(Uuid, Uuid)>,
@@ -1056,7 +842,7 @@ pub struct StreamerBody {
 // can give any match to any streamer, or clear it. A potential match is streamed the
 // same way, and a bracket match's potential matches still on its old streamer follow
 // it to the new one.
-pub async fn set_streamer(
+async fn set_streamer(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -1079,11 +865,7 @@ pub async fn set_streamer(
                 return Err(AppError::BadRequest("only streamers can stream"));
             }
         }
-        if potential {
-            db::potential::set_streamer(&state.db, id, body.streamer_id).await?;
-        } else {
-            db::bracket::set_streamer(&state.db, id, body.streamer_id).await?;
-        }
+        db::matches::set_streamer(&state.db, id, body.streamer_id).await?;
         streamer_changed(
             &state,
             &user,
@@ -1114,22 +896,12 @@ pub async fn set_streamer(
                     return Err(AppError::BadRequest("you can't stream a match you play in"));
                 }
             }
-            let claimed = if potential {
-                db::potential::claim_stream(&state.db, id, user.id).await?
-            } else {
-                db::bracket::claim_stream(&state.db, id, user.id).await?
-            };
-            if !claimed {
+            if !db::matches::claim_stream(&state.db, id, user.id).await? {
                 return Err(AppError::Conflict("this match already has a streamer"));
             }
         }
         None => {
-            let released = if potential {
-                db::potential::release_stream(&state.db, id, user.id).await?
-            } else {
-                db::bracket::release_stream(&state.db, id, user.id).await?
-            };
-            if !released {
+            if !db::matches::release_stream(&state.db, id, user.id).await? {
                 return Err(AppError::Forbidden);
             }
         }
@@ -1183,19 +955,8 @@ async fn streamer_changed(
     Ok(())
 }
 
-// Works the potential matches out again after a change that doesn't go through the
-// bracket's own routes (a stage deleted, a dev reseed) and at startup.
-pub async fn resync_potentials(state: &AppState) -> Result<(), AppError> {
-    let mut tx = state.db.begin().await?;
-    db::potential::lock(&mut tx).await?;
-    let jobs = db::potential::sync(&mut tx, &[]).await?;
-    state.discord.enqueue(&mut *tx, &jobs).await?;
-    tx.commit().await?;
-    Ok(())
-}
-
 // GET /api/streamers — host-only. Everyone a match's stream can be given to.
-pub async fn list_streamers(
+async fn list_streamers(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {

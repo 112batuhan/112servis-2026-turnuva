@@ -337,7 +337,7 @@ pub async fn open_matches_of(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Vec<U
         LEFT JOIN bracket_matches b ON b.match_id = m.id
         LEFT JOIN potential_matches p ON p.match_id = m.id
         WHERE m.concluded_at IS NULL AND p.removed_at IS NULL AND (
-            m.referee_id = $1 OR b.streamer_id = $1 OR p.streamer_id = $1
+            m.referee_id = $1 OR m.streamer_id = $1
             OR EXISTS (SELECT 1 FROM team_members tm
                        WHERE tm.user_id = $1
                          AND tm.team_id IN (b.team1_id, b.team2_id, p.team1_id, p.team2_id))
@@ -450,7 +450,7 @@ pub async fn match_info(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<Optio
         LEFT JOIN team_banners tb2 ON tb2.team_id = t2.id
         LEFT JOIN osu_users r ON r.id = m.referee_id
         LEFT JOIN discord_accounts rd ON rd.osu_user_id = r.id
-        LEFT JOIN osu_users s ON s.id = COALESCE(b.streamer_id, p.streamer_id)
+        LEFT JOIN osu_users s ON s.id = m.streamer_id
         LEFT JOIN discord_accounts sd ON sd.osu_user_id = s.id
         LEFT JOIN stages st ON st.id = CASE
             WHEN m.kind = 'qualifier' THEN (SELECT x.id FROM stages x WHERE x.is_qualifier)

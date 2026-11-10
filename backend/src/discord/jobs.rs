@@ -158,6 +158,16 @@ pub enum Job {
     },
 }
 
+impl Job {
+    // A SyncMatch for each of the matches.
+    pub fn sync_matches(match_ids: impl IntoIterator<Item = Uuid>) -> Vec<Job> {
+        match_ids
+            .into_iter()
+            .map(|match_id| Job::SyncMatch { match_id })
+            .collect()
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "kind", content = "id", rename_all = "snake_case")]
 pub enum Target {

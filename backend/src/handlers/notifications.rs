@@ -16,8 +16,8 @@ use crate::{
         bracket::Side,
         notifications::{NotificationKind, NotificationRow, Response, StaffRole},
     },
-    discord::jobs::Job,
     error::AppError,
+    services::notifications::answer_as,
     team_rank, AppState,
 };
 
@@ -123,7 +123,7 @@ pub struct NotificationList {
 }
 
 // GET /api/notifications — the caller's newest notifications, newest first.
-pub async fn list_notifications(
+async fn list_notifications(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -140,7 +140,7 @@ pub struct NotificationCount {
 }
 
 // GET /api/notifications/count — just the bell's number, for polling.
-pub async fn notification_count(
+async fn notification_count(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -151,7 +151,7 @@ pub async fn notification_count(
 
 // POST /api/notifications/read — marks all of the caller's notifications read.
 // Unanswered confirmations still count until they're answered.
-pub async fn mark_read(
+async fn mark_read(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -161,7 +161,7 @@ pub async fn mark_read(
 
 // POST /api/notifications/:id/confirm — the match's referee or streamer can make its
 // new time.
-pub async fn confirm(
+async fn confirm(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -173,86 +173,11 @@ pub async fn confirm(
 // POST /api/notifications/:id/decline — the match's referee or streamer can't make its
 // new time: they're taken off the match, and everyone who could take their place
 // (hosts included) is told.
-pub async fn decline(
+async fn decline(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     answer_as(&state, user.id, id, Response::Declined).await?;
     Ok(StatusCode::NO_CONTENT)
-}
-
-// The match is locked before the notification, like accepting a reschedule does, so the
-// two can't deadlock, and an answer can't land on a time that just changed. Also
-// answered from the buttons in the bot's direct message (discord/commands.rs).
-pub async fn answer_as(
-    state: &AppState,
-    user_id: Uuid,
-    id: Uuid,
-    response: Response,
-) -> Result<(), AppError> {
-    // A question nobody answered is replaced when the match is moved again.
-    const GONE: AppError =
-        AppError::Conflict("the match has been moved again since, answer the newer notification");
-    let match_id = db::notifications::confirm_match_id(&state.db, id, user_id)
-        .await?
-        .ok_or(GONE)?;
-
-    let mut tx = state.db.begin().await?;
-    let m = db::potential::lock_schedulable(&mut tx, match_id)
-        .await?
-        .ok_or(AppError::NotFound)?;
-    let n = db::notifications::lock_confirm(&mut tx, id, user_id)
-        .await?
-        .ok_or(GONE)?;
-    if n.response.is_some() {
-        return Err(AppError::Conflict("you already answered this"));
-    }
-    if m.concluded() {
-        return Err(AppError::Conflict("this match is concluded"));
-    }
-    let holder = match n.staff_role {
-        StaffRole::Referee => m.referee_id,
-        StaffRole::Streamer => m.streamer_id,
-    };
-    if holder != Some(user_id) {
-        return Err(AppError::Conflict("you're no longer on this match"));
-    }
-    if m.starts_at != Some(n.new_starts_at) {
-        return Err(AppError::Conflict("the match's time has changed since"));
-    }
-
-    db::notifications::respond(&mut tx, id, response).await?;
-    let declined = response == Response::Declined;
-    if declined {
-        db::notifications::clear_staff(&mut tx, n.match_id, n.staff_role).await?;
-        db::notifications::notify_declined(
-            &mut tx,
-            n.match_id,
-            user_id,
-            n.staff_role,
-            n.old_starts_at,
-            n.new_starts_at,
-        )
-        .await?;
-    }
-    let answered = Job::StaffAnswered {
-        match_id: n.match_id,
-        user_id,
-        role: n.staff_role,
-        declined,
-    };
-    let jobs = if declined {
-        vec![
-            Job::SyncMatch {
-                match_id: n.match_id,
-            },
-            answered,
-        ]
-    } else {
-        vec![answered]
-    };
-    state.discord.enqueue(&mut *tx, &jobs).await?;
-    tx.commit().await?;
-    Ok(())
 }

@@ -20,8 +20,9 @@ use crate::{
         matches::MatchKind,
         notifications::StaffRole,
     },
-    handlers::matches::lobby_name,
-    team_rank, AppState,
+    team_rank,
+    views::lobby_name,
+    AppState,
 };
 
 // How many accounts one announcement message pings; Discord allows 100.

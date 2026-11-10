@@ -1,4 +1,4 @@
-import type { LiveFinished, LiveRoom, Player, PublicMatch, RefereeRoom, Team } from "../../../api/types";
+import type { LiveFinished, LiveRoom, Player, PublicMatch, RefereeRoom, Team } from "../api/types";
 import {
   EMPTY_ROOM,
   fromLiveScore,
@@ -10,9 +10,9 @@ import {
   type MapScore,
   type RoomState,
   type SlotTeam,
-} from "../../../lib/bancho";
-import { matchCode } from "../../../lib/bracket";
-import type { MatchData, PoolEntry } from "./pool";
+} from "./bancho";
+import { matchCode } from "./bracket";
+import type { MatchData, PoolEntry } from "./matchPool";
 
 // The room as the referee page and the public match page show it, both from the server's one
 // reading of it (LiveRoom): the room's state, its finished maps and the score counted from them.

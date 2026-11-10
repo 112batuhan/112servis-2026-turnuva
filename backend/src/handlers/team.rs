@@ -20,7 +20,9 @@ use crate::{
     error::AppError,
     rank_refresh,
     role::{Role, Roles},
-    team_rank, AppState,
+    team_rank,
+    views::{group_teams, AdminTeamPlayer, Team},
+    AppState,
 };
 
 // Routes under the `/api` nest.
@@ -89,94 +91,6 @@ impl Eligibility {
     }
 }
 
-// Set on a formed team whose ranks no longer fit. Hosts decide what happens next.
-#[derive(Debug, Clone, Copy, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum RankWarning {
-    OverLimit,
-    Unranked,
-}
-
-#[derive(Debug, Serialize)]
-pub struct Team<P> {
-    pub id: Uuid,
-    name: String,
-    #[serde(with = "time::serde::rfc3339")]
-    created_at: OffsetDateTime,
-    // Versioned by upload time, so the image can be cached forever.
-    banner_url: Option<String>,
-    team_value: Option<f64>,
-    rank_warning: Option<RankWarning>,
-    players: Vec<P>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct AdminTeamPlayer {
-    #[serde(flatten)]
-    player: Player,
-    // For copying a mention (<@id>) that pings them on Discord.
-    discord_id: Option<String>,
-    discord_username: Option<String>,
-    // False once they've left the tournament's Discord server.
-    discord_in_guild: Option<bool>,
-}
-
-impl AdminTeamPlayer {
-    pub fn from_row(row: TeamMemberRow) -> Self {
-        Self {
-            player: row.player,
-            discord_id: row.discord_id,
-            discord_username: row.discord_username,
-            discord_in_guild: row.discord_in_guild,
-        }
-    }
-}
-
-// Rows arrive ordered by team, so consecutive rows with the same team_id belong together.
-pub fn group_teams<P>(
-    rows: Vec<TeamMemberRow>,
-    to_player: impl Fn(TeamMemberRow) -> P,
-) -> Vec<Team<P>> {
-    let mut teams: Vec<(Team<P>, Vec<Player>)> = Vec::new();
-    for row in rows {
-        if teams.last().map(|(t, _)| t.id) != Some(row.team_id) {
-            let team = Team {
-                id: row.team_id,
-                name: row.team_name.clone(),
-                created_at: row.team_created_at,
-                banner_url: row.banner_updated_at.map(|at| {
-                    let version = at.unix_timestamp_nanos() / 1_000_000;
-                    format!("/api/public/teams/{}/banner?v={version}", row.team_id)
-                }),
-                team_value: None,
-                rank_warning: None,
-                players: Vec::new(),
-            };
-            teams.push((team, Vec::new()));
-        }
-        let (team, players) = teams.last_mut().unwrap();
-        players.push(row.player.clone());
-        team.players.push(to_player(row));
-    }
-    teams
-        .into_iter()
-        .map(|(mut team, players)| {
-            if let [a, b] = &players[..] {
-                team.team_value = a
-                    .global_rank
-                    .zip(b.global_rank)
-                    .map(|(a, b)| team_rank::team_value(a, b));
-            }
-            team.rank_warning = match team.team_value {
-                None => Some(RankWarning::Unranked),
-                Some(value) if value > team_rank::LIMIT => Some(RankWarning::OverLimit),
-                Some(_) => None,
-            };
-            team
-        })
-        .collect()
-}
-
 // Only basic users and streamers play; the rest of the staff run the tournament.
 // Forming a team also needs a linked Discord account.
 fn require_player(user: &AuthUser) -> Result<(), AppError> {
@@ -238,7 +152,7 @@ pub struct PlayerResult {
 
 // GET /api/players/search?q= — players matching a username, with whether the
 // caller could team up with each one.
-pub async fn search_players(
+async fn search_players(
     State(state): State<AppState>,
     user: AuthUser,
     Query(params): Query<SearchParams>,
@@ -300,7 +214,7 @@ pub struct TeamStatus {
 }
 
 // GET /api/me/team — the caller's team (if any) and their pending invites.
-pub async fn my_team_status(
+async fn my_team_status(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -354,7 +268,7 @@ pub struct SendInviteBody {
 }
 
 // POST /api/invites — invite another player to team up under the given team name.
-pub async fn send_invite(
+async fn send_invite(
     State(state): State<AppState>,
     user: AuthUser,
     Json(body): Json<SendInviteBody>,
@@ -388,7 +302,7 @@ pub async fn send_invite(
 }
 
 // DELETE /api/invites/:id — cancel a sent invite or decline a received one.
-pub async fn delete_invite(
+async fn delete_invite(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -401,7 +315,7 @@ pub async fn delete_invite(
 
 // POST /api/invites/:id/accept — forms a team with the inviter. Eligibility is
 // checked again here since ranks or teams may have changed since the invite.
-pub async fn accept_invite(
+async fn accept_invite(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -487,11 +401,7 @@ async fn rename(state: &AppState, team_id: Uuid, raw_name: &str) -> Result<Statu
         }
         Err(err) => return Err(err.into()),
     }
-    let jobs: Vec<Job> = db::discord::open_matches_of_team(&mut *tx, team_id)
-        .await?
-        .into_iter()
-        .map(|match_id| Job::SyncMatch { match_id })
-        .collect();
+    let jobs = Job::sync_matches(db::discord::open_matches_of_team(&mut *tx, team_id).await?);
     state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
@@ -514,11 +424,7 @@ async fn disband(state: &AppState, team_id: Uuid, by_host: bool) -> Result<bool,
         .map(|p| Job::SyncUser { user_id: p.user_id })
         .collect();
     jobs.extend(potentials);
-    jobs.extend(
-        matches
-            .into_iter()
-            .map(|match_id| Job::SyncMatch { match_id }),
-    );
+    jobs.extend(Job::sync_matches(matches));
     jobs.extend(db::potential::sync(&mut tx, &[]).await?);
     if let Some(first) = players.first() {
         jobs.push(Job::TeamDisbanded {
@@ -532,30 +438,24 @@ async fn disband(state: &AppState, team_id: Uuid, by_host: bool) -> Result<bool,
     Ok(true)
 }
 
-async fn my_team_id(state: &AppState, user: &AuthUser) -> Result<Uuid, AppError> {
-    db::team::find_team_id(&state.db, user.id)
-        .await?
-        .ok_or(AppError::NotFound)
-}
-
 // PATCH /api/me/team — either player renames their team.
-pub async fn rename_my_team(
+async fn rename_my_team(
     State(state): State<AppState>,
     user: AuthUser,
     Json(body): Json<RenameBody>,
 ) -> Result<impl IntoResponse, AppError> {
     require_unfrozen(&state.db).await?;
-    let team_id = my_team_id(&state, &user).await?;
+    let team_id = user.team_id(&state.db).await?;
     rename(&state, team_id, &body.name).await
 }
 
 // DELETE /api/me/team — either player disbands their team.
-pub async fn disband_my_team(
+async fn disband_my_team(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
     require_unfrozen(&state.db).await?;
-    let team_id = my_team_id(&state, &user).await?;
+    let team_id = user.team_id(&state.db).await?;
     disband(&state, team_id, false).await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -581,13 +481,13 @@ fn banner_content_type(data: &[u8]) -> Option<&'static str> {
 
 // PUT /api/me/team/banner — either player sets their team's banner. The body is
 // the raw image.
-pub async fn upload_my_banner(
+async fn upload_my_banner(
     State(state): State<AppState>,
     user: AuthUser,
     body: Bytes,
 ) -> Result<impl IntoResponse, AppError> {
     require_unfrozen(&state.db).await?;
-    let team_id = my_team_id(&state, &user).await?;
+    let team_id = user.team_id(&state.db).await?;
     let content_type = banner_content_type(&body).ok_or(AppError::BadRequest(
         "banners must be PNG, JPEG, GIF or WebP images",
     ))?;
@@ -598,29 +498,25 @@ pub async fn upload_my_banner(
 
 // The team's open matches show its banner on their channel cards.
 async fn sync_team_matches(state: &AppState, team_id: Uuid) -> Result<(), AppError> {
-    let jobs: Vec<Job> = db::discord::open_matches_of_team(&state.db, team_id)
-        .await?
-        .into_iter()
-        .map(|match_id| Job::SyncMatch { match_id })
-        .collect();
+    let jobs = Job::sync_matches(db::discord::open_matches_of_team(&state.db, team_id).await?);
     state.discord.enqueue(&state.db, &jobs).await?;
     Ok(())
 }
 
 // DELETE /api/me/team/banner
-pub async fn remove_my_banner(
+async fn remove_my_banner(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
     require_unfrozen(&state.db).await?;
-    let team_id = my_team_id(&state, &user).await?;
+    let team_id = user.team_id(&state.db).await?;
     db::team::delete_banner(&state.db, team_id).await?;
     sync_team_matches(&state, team_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 // GET /api/public/teams/:id/banner
-pub async fn team_banner(
+async fn team_banner(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -670,14 +566,12 @@ async fn team_list<P>(
 }
 
 // GET /api/public/teams — every team with its players.
-pub async fn list_public_teams(
-    State(state): State<AppState>,
-) -> Result<impl IntoResponse, AppError> {
+async fn list_public_teams(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     Ok(Json(team_list(&state, |row| row.player).await?))
 }
 
 // GET /api/teams — host-only. Like the public list, plus each player's Discord.
-pub async fn list_teams(
+async fn list_teams(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -687,7 +581,7 @@ pub async fn list_teams(
 }
 
 // PATCH /api/teams/:id — host-only. Renames a team.
-pub async fn rename_team(
+async fn rename_team(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -698,7 +592,7 @@ pub async fn rename_team(
 }
 
 // DELETE /api/teams/:id — host-only. Disbands a team; its players become free agents.
-pub async fn disband_team(
+async fn disband_team(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -711,7 +605,7 @@ pub async fn disband_team(
 }
 
 // DELETE /api/teams/:id/banner — host-only.
-pub async fn remove_team_banner(
+async fn remove_team_banner(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -732,7 +626,7 @@ pub struct RefreshResult {
 }
 
 // POST /api/ranks/refresh — host-only. Runs the daily rank refresh right away.
-pub async fn refresh_ranks(
+async fn refresh_ranks(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -750,7 +644,7 @@ pub struct FreezeBody {
 }
 
 // PUT /api/settings/teams-frozen — host-only. Freezes or unfreezes every team.
-pub async fn set_teams_frozen(
+async fn set_teams_frozen(
     State(state): State<AppState>,
     user: AuthUser,
     Json(body): Json<FreezeBody>,

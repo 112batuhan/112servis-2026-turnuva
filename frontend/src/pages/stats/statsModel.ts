@@ -1,5 +1,5 @@
 import type { Player, StageStats, StatMap, StatMatch, Team } from "../../api/types";
-import { poolEntries, type PoolEntry } from "../admin/referee/pool";
+import { poolEntries, type PoolEntry } from "../../lib/matchPool";
 
 export type StatsTab = "pool" | "map-players" | "map-teams" | "players" | "teams";
 

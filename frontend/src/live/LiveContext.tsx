@@ -200,9 +200,11 @@ export function useLive(): LiveState {
   return ctx;
 }
 
-// How long a burst of bracket changes (a conclusion moves teams into two matches) is
-// gathered into one reload.
-const RELOAD_DELAY_MS = 250;
+/**
+ * How long a burst of changes (a conclusion moves teams into two matches; a ban and the score it
+ * moves) is gathered into one reload, on every page that reloads after live events.
+ */
+export const RELOAD_DELAY_MS = 250;
 
 /**
  * Keeps a page's bracket in step: `onScore` applies a saved score at once, `onChanged` reloads

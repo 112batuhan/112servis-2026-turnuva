@@ -9,13 +9,14 @@ use serde::{Deserialize, Serialize};
 use serenity::all::ChannelType;
 use uuid::Uuid;
 
+use super::require_runs;
 use crate::{
     auth::AuthUser,
     db::{self, discord::Settings, matches::MatchKind},
     discord::jobs::Job,
     error::AppError,
-    handlers::matches::{load_match, require_runs},
     role::Role,
+    services::matches::load_match,
     AppState,
 };
 
@@ -77,7 +78,7 @@ pub struct DiscordView {
 }
 
 // GET /api/discord — host-only. The bot's state, its settings and what can be picked.
-pub async fn get_discord(
+async fn get_discord(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -156,7 +157,7 @@ pub async fn get_discord(
 
 // PUT /api/discord/settings — host-only. Saves what the bot uses, then brings the
 // server in line with it (roles handed out, channels moved to new categories).
-pub async fn save_settings(
+async fn save_settings(
     State(state): State<AppState>,
     user: AuthUser,
     Json(body): Json<Settings>,
@@ -169,7 +170,7 @@ pub async fn save_settings(
 
 // POST /api/discord/sync — host-only. Rechecks who's in the server, everyone's roles
 // and every match channel.
-pub async fn sync(
+async fn sync(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -189,7 +190,7 @@ pub struct ActiveBody {
 // PUT /api/discord/active — host-only. Switches the bot off (the gateway closes, jobs
 // still waiting are dropped and nothing new is queued) or back on (it reconnects and
 // runs a full sync, which catches up on what happened meanwhile).
-pub async fn set_active(
+async fn set_active(
     State(state): State<AppState>,
     user: AuthUser,
     Json(body): Json<ActiveBody>,
@@ -220,7 +221,7 @@ pub struct PausedBody {
 // PUT /api/discord/channels/paused — host-only. Stops new match channels from opening
 // (the ones there are still kept up to date and archived), or lets them open again, in
 // which case every match that needs one gets it.
-pub async fn set_channels_paused(
+async fn set_channels_paused(
     State(state): State<AppState>,
     user: AuthUser,
     Json(body): Json<PausedBody>,
@@ -228,11 +229,7 @@ pub async fn set_channels_paused(
     user.require_role(Role::Host)?;
     db::discord::set_channels_paused(&state.db, body.paused).await?;
     if !body.paused {
-        let jobs: Vec<Job> = db::discord::syncable_matches(&state.db)
-            .await?
-            .into_iter()
-            .map(|match_id| Job::SyncMatch { match_id })
-            .collect();
+        let jobs = Job::sync_matches(db::discord::syncable_matches(&state.db).await?);
         state.discord.enqueue(&state.db, &jobs).await?;
     }
     tracing::info!(by = %user.id, paused = body.paused, "discord match channels switched");
@@ -242,7 +239,7 @@ pub async fn set_channels_paused(
 // POST /api/discord/channels/delete — host-only. Deletes every match channel, archived
 // ones included, in the background. Unless channels are paused, the matches that need
 // one get a new one afterwards.
-pub async fn delete_channels(
+async fn delete_channels(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -267,7 +264,7 @@ pub struct Subscriptions {
 }
 
 // GET /api/me/subscriptions — the bracket matches the caller wants to be pinged for.
-pub async fn my_subscriptions(
+async fn my_subscriptions(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
@@ -280,7 +277,7 @@ pub async fn my_subscriptions(
 
 // PUT /api/bracket/:id/subscription — pings the caller on Discord when the match is
 // about to start. Needs a linked Discord account.
-pub async fn subscribe(
+async fn subscribe(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -298,7 +295,7 @@ pub async fn subscribe(
 }
 
 // DELETE /api/bracket/:id/subscription
-pub async fn unsubscribe(
+async fn unsubscribe(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -314,7 +311,7 @@ pub struct PingBody {
 
 // POST /api/matches/:id/ping — a referee (or a host) pings one of its
 // players in the match's Discord channel, at most every 30 seconds per player.
-pub async fn ping(
+async fn ping(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,

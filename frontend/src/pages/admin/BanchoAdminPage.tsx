@@ -6,6 +6,7 @@ import type { BanchoBot, BotState, BotsView } from "../../api/types";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { Icon } from "../../components/Icon";
 import { IconButton } from "../../components/IconButton";
+import { formatClock } from "../../lib/format";
 import { useLive } from "../../live/LiveContext";
 import "./BanchoAdminPage.css";
 
@@ -31,7 +32,6 @@ const REASONS: Record<string, string> = {
   "Bancho sent an invalid line": "Bancho geçersiz bir satır gönderdi",
 };
 
-const since = (at: string) => new Date(at).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
 
 /**
  * Host-only. The osu! accounts the site makes and runs match rooms with: each one's connection,
@@ -201,7 +201,7 @@ function BotRow({
           </a>
           <span className="bancho-bot-state">
             {STATE_LABELS[state]}
-            {state === "online" && status?.online_since && ` · ${since(status.online_since)}'den beri`}
+            {state === "online" && status?.online_since && ` · ${formatClock(status.online_since)}'den beri`}
           </span>
           {reason && <span className="bancho-bot-reason">{reason}</span>}
         </span>

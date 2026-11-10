@@ -1,6 +1,6 @@
-import type { PublicMatch, PublicPoolMap, RefereeRoom } from "../../../api/types";
-import { isFreemodCategory, SIDE_COLOR, type SlotTeam } from "../../../lib/bancho";
-import { draftOf, stageDraftOrder, stepLabel, type Draft, type StepKind } from "../../../lib/draftOrder";
+import type { PublicMatch, PublicPoolMap, RefereeRoom } from "../api/types";
+import { isFreemodCategory, SIDE_COLOR, type SlotTeam } from "./bancho";
+import { draftOf, stageDraftOrder, stepLabel, type Draft, type StepKind } from "./draftOrder";
 
 // The match's pool as the referee page shows it, shared by the pool panel and the
 // results, and by the public match page, which shows the same match.

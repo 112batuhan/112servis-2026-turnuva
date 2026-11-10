@@ -14,7 +14,7 @@ import {
 } from "../../lib/bracket";
 import { LiveMark } from "../LiveMark";
 import { stageLabel } from "../../lib/bestOf";
-import { formatClock } from "../../lib/format";
+import { formatClock, formatDay, formatMonth } from "../../lib/format";
 import { IconButton } from "../IconButton";
 import { TeamPopover } from "../TeamPopover";
 import { MatchPageLink } from "../MatchPageLink";
@@ -274,15 +274,13 @@ export function BracketCalendar({
         {day ? (
           <>
             <IconButton icon="chevronLeft" label="Önceki gün" variant="outlined" onClick={() => shiftDay(-1)} />
-            <h2 className="cal-title">
-              {day.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric", weekday: "long" })}
-            </h2>
+            <h2 className="cal-title">{formatDay(day, true)}</h2>
             <IconButton icon="chevronRight" label="Sonraki gün" variant="outlined" onClick={() => shiftDay(1)} />
           </>
         ) : (
           <>
             <IconButton icon="chevronLeft" label="Önceki ay" variant="outlined" onClick={() => shiftMonth(-1)} />
-            <h2 className="cal-title">{month.toLocaleDateString("tr-TR", { month: "long", year: "numeric" })}</h2>
+            <h2 className="cal-title">{formatMonth(month)}</h2>
             <IconButton icon="chevronRight" label="Sonraki ay" variant="outlined" onClick={() => shiftMonth(1)} />
           </>
         )}
@@ -358,7 +356,7 @@ function MonthGrid({ month, today, byDay, isMine, onOpenDay }: MonthGridProps) {
           ]
             .filter(Boolean)
             .join(" ");
-          const date = d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", weekday: "long" });
+          const date = formatDay(d);
           const live = dayMatches.some((m) => isLive(m));
           const summary =
             count > 0 ? [`${count} maç`, ...(live ? ["şu an oynanan maç var"] : []), ...stages].join(", ") : "maç yok";

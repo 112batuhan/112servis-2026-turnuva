@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { fetchBracket } from "../../api/bracket";
 import { fetchPickem, setStagePickemMode } from "../../api/pickem";
 import { errorMessage } from "../../api/client";
+import { useAction } from "../../lib/useAction";
 import {
   createStage,
   deleteStage,
@@ -46,8 +47,8 @@ export function StagesAdminPage() {
   const [matchCounts, setMatchCounts] = useState(new Map<string, number>());
   // Each stage's pick'em as it stands, for the stages that have one.
   const [pickem, setPickem] = useState(new Map<string, PickemStage>());
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // A change, then a reload either way.
+  const { busy, error, setError, run } = useAction(() => load());
 
   const load = useCallback(async () => {
     const [list, bracket, picks] = await Promise.all([fetchStages(), fetchBracket(), fetchPickem()]);
@@ -66,22 +67,6 @@ export function StagesAdminPage() {
 
   const ids = useMemo(() => (stages ?? []).map((s) => s.id), [stages]);
   const reorderProps = useDragReorder((dragged, target) => applyOrder(moveToTarget(ids, dragged, target)));
-
-  /** Runs a change, then reloads. Resolves true on success so forms know to clear. */
-  async function run(change: () => Promise<unknown>): Promise<boolean> {
-    setError(null);
-    setBusy(true);
-    try {
-      await change();
-      return true;
-    } catch (e) {
-      setError(errorMessage(e));
-      return false;
-    } finally {
-      await load().catch((e) => setError(errorMessage(e)));
-      setBusy(false);
-    }
-  }
 
   // Ordering applies right away and saves in the background.
   function applyOrder(next: string[] | null) {

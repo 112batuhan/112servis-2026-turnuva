@@ -86,18 +86,18 @@ pub async fn list(pool: &PgPool, user_id: Uuid, limit: i64) -> sqlx::Result<Vec<
                    n.kind = 'confirm_time' AND n.response IS NULL
                    AND m.concluded_at IS NULL AND m.starts_at = n.new_starts_at
                    AND CASE n.staff_role WHEN 'referee' THEN m.referee_id = n.user_id
-                                         ELSE b.streamer_id = n.user_id END,
+                                         ELSE m.streamer_id = n.user_id END,
                    false
                ) AS actionable
         FROM notifications n
         LEFT JOIN matches m ON m.id = n.match_id
         LEFT JOIN (
             SELECT match_id, match_id AS bracket_match_id, false AS potential, side, number,
-                   team1_id, team2_id, streamer_id
+                   team1_id, team2_id
             FROM bracket_matches
             UNION ALL
             SELECT p.match_id, p.bracket_match_id, true, pb.side, pb.number,
-                   p.team1_id, p.team2_id, p.streamer_id
+                   p.team1_id, p.team2_id
             FROM potential_matches p
             JOIN bracket_matches pb ON pb.match_id = p.bracket_match_id
         ) AS b ON b.match_id = n.match_id
@@ -129,11 +129,11 @@ pub async fn attention_count(pool: &PgPool, user_id: Uuid) -> sqlx::Result<i64> 
         LEFT JOIN matches m ON m.id = n.match_id
         LEFT JOIN (
             SELECT match_id, match_id AS bracket_match_id, false AS potential, side, number,
-                   team1_id, team2_id, streamer_id
+                   team1_id, team2_id
             FROM bracket_matches
             UNION ALL
             SELECT p.match_id, p.bracket_match_id, true, pb.side, pb.number,
-                   p.team1_id, p.team2_id, p.streamer_id
+                   p.team1_id, p.team2_id
             FROM potential_matches p
             JOIN bracket_matches pb ON pb.match_id = p.bracket_match_id
         ) AS b ON b.match_id = n.match_id
@@ -145,7 +145,7 @@ pub async fn attention_count(pool: &PgPool, user_id: Uuid) -> sqlx::Result<i64> 
                       n.kind = 'confirm_time' AND n.response IS NULL
                       AND m.concluded_at IS NULL AND m.starts_at = n.new_starts_at
                       AND CASE n.staff_role WHEN 'referee' THEN m.referee_id = n.user_id
-                                            ELSE b.streamer_id = n.user_id END,
+                                            ELSE m.streamer_id = n.user_id END,
                       false
                   ))
         "#,
@@ -305,10 +305,7 @@ pub async fn clear_staff(
 ) -> sqlx::Result<()> {
     let queries: &[&str] = match role {
         StaffRole::Referee => &["UPDATE matches SET referee_id = NULL WHERE id = $1"],
-        StaffRole::Streamer => &[
-            "UPDATE bracket_matches SET streamer_id = NULL WHERE match_id = $1",
-            "UPDATE potential_matches SET streamer_id = NULL WHERE match_id = $1",
-        ],
+        StaffRole::Streamer => &["UPDATE matches SET streamer_id = NULL WHERE id = $1"],
     };
     for query in queries {
         sqlx::query(query)

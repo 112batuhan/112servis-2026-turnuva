@@ -115,7 +115,7 @@ pub async fn list_matches(pool: &PgPool) -> sqlx::Result<Vec<BracketRow>> {
         JOIN matches m ON m.id = b.match_id
         LEFT JOIN osu_users u ON u.id = m.referee_id
         LEFT JOIN discord_accounts d ON d.osu_user_id = u.id
-        LEFT JOIN osu_users s ON s.id = b.streamer_id
+        LEFT JOIN osu_users s ON s.id = m.streamer_id
         LEFT JOIN stages st ON st.id = b.stage_id
         ORDER BY b.pos_x, b.pos_y
         "#,
@@ -162,7 +162,7 @@ pub async fn find_match(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<BracketL
     sqlx::query_as::<_, BracketLock>(
         r#"
         SELECT m.starts_at, m.referee_id, b.team1_id, b.team2_id, b.team1_score, b.team2_score,
-               b.forfeit_slot, b.streamer_id,
+               b.forfeit_slot, m.streamer_id,
                EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id) AS has_room,
                m.concluded_at
         FROM bracket_matches b
@@ -180,7 +180,7 @@ pub async fn lock_match(conn: &mut PgConnection, id: Uuid) -> sqlx::Result<Optio
     sqlx::query_as::<_, BracketLock>(
         r#"
         SELECT m.starts_at, m.referee_id, b.team1_id, b.team2_id, b.team1_score, b.team2_score,
-               b.forfeit_slot, b.streamer_id,
+               b.forfeit_slot, m.streamer_id,
                EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id) AS has_room,
                m.concluded_at
         FROM bracket_matches b
@@ -340,39 +340,6 @@ pub async fn set_slot(
     .bind(team_id)
     .execute(conn)
     .await?;
-    Ok(())
-}
-
-// Takes an unstreamed match. False when someone else got there first.
-pub async fn claim_stream(pool: &PgPool, id: Uuid, streamer_id: Uuid) -> sqlx::Result<bool> {
-    let result = sqlx::query(
-        "UPDATE bracket_matches SET streamer_id = $2 WHERE match_id = $1 AND streamer_id IS NULL",
-    )
-    .bind(id)
-    .bind(streamer_id)
-    .execute(pool)
-    .await?;
-    Ok(result.rows_affected() > 0)
-}
-
-// Drops the streamer only if it's still `streamer_id`.
-pub async fn release_stream(pool: &PgPool, id: Uuid, streamer_id: Uuid) -> sqlx::Result<bool> {
-    let result = sqlx::query(
-        "UPDATE bracket_matches SET streamer_id = NULL WHERE match_id = $1 AND streamer_id = $2",
-    )
-    .bind(id)
-    .bind(streamer_id)
-    .execute(pool)
-    .await?;
-    Ok(result.rows_affected() > 0)
-}
-
-pub async fn set_streamer(pool: &PgPool, id: Uuid, streamer_id: Option<Uuid>) -> sqlx::Result<()> {
-    sqlx::query("UPDATE bracket_matches SET streamer_id = $2 WHERE match_id = $1")
-        .bind(id)
-        .bind(streamer_id)
-        .execute(pool)
-        .await?;
     Ok(())
 }
 

@@ -5,7 +5,7 @@ import { useSignedInUser } from "../../auth/AuthContext";
 import { canAccess, hasRole } from "../../auth/roles";
 import { IrcProvider } from "../../irc/IrcContext";
 import { readString, writeString } from "../../lib/storage";
-import { ADMIN_TABS } from "./tabs";
+import { ADMIN_TABS } from "../../lib/adminTabs";
 
 // The first tab a user can open is their default, except that hosts start on Users.
 const USERS_TAB = "/admin/users";

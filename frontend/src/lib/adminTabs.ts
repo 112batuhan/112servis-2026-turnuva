@@ -1,4 +1,4 @@
-import type { Access } from "../../auth/roles";
+import type { Access } from "../auth/roles";
 
 /** The admin tabs, in order, each with who can open it. The top bar shows them on /admin pages. */
 export const ADMIN_TABS: { path: string; label: string; access: Access }[] = [

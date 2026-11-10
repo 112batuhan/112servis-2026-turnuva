@@ -13,7 +13,7 @@ import {
   withScore,
 } from "../lib/bracket";
 import { useLiveBracket } from "../live/LiveContext";
-import { isAdminPath } from "../pages/admin/tabs";
+import { isAdminPath } from "../lib/adminTabs";
 import { FixtureRow } from "./FixtureRow";
 import "./TeamMatches.css";
 

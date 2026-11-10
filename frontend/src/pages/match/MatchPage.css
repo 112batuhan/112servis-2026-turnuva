@@ -1,4 +1,4 @@
-/* The public match page wears the referee page's cockpit (RefereeRoomPage.css); this adds what
+/* The public match page wears the referee page's cockpit (components/match/Cockpit.css); this adds what
    spectators get instead of the referee's controls. */
 
 /* The top row: the way back and the match's code, the facts beside them, and the match's state

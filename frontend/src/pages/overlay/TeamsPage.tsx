@@ -2,7 +2,7 @@ import type { BracketMatch, PublicBracket, PublicMatch, Team } from "../../api/t
 import { bestOfLabel } from "../../lib/bestOf";
 import { matchCode, scoreHalves, winningSlot } from "../../lib/bracket";
 import { formatRank, formatShortMatchTime } from "../../lib/format";
-import { roomLabel } from "../admin/referee/liveRoom";
+import { roomLabel } from "../../lib/liveRoom";
 import { BannerChip, Crystal, Masthead, OverlayStage, SIDE_CLASS, TrophyGlow, type Side } from "./parts";
 import type { BroadcastMatch } from "./useBroadcastMatch";
 import { useTeamHistory } from "./useOverlayData";

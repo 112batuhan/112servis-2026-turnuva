@@ -42,12 +42,9 @@ async fn tick(state: &AppState) -> sqlx::Result<()> {
             .into_iter()
             .map(|match_id| Job::Announce { match_id }),
     );
-    jobs.extend(
-        db::discord::take_due_archives(&mut tx)
-            .await?
-            .into_iter()
-            .map(|match_id| Job::SyncMatch { match_id }),
-    );
+    jobs.extend(Job::sync_matches(
+        db::discord::take_due_archives(&mut tx).await?,
+    ));
     state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await
 }

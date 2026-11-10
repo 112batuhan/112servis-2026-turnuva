@@ -21,7 +21,7 @@ use crate::{
         matches::MatchKind,
         notifications::Response,
     },
-    handlers, team_rank, AppState,
+    services, team_rank, AppState,
 };
 
 const LIST_LIMIT: i64 = 10;
@@ -600,7 +600,7 @@ async fn component(state: &AppState, bot: &Bot, comp: &ComponentInteraction) -> 
         .await?;
         return Ok(());
     };
-    match handlers::notifications::answer_as(state, account.user_id, id, response).await {
+    match services::notifications::answer_as(state, account.user_id, id, response).await {
         Ok(()) => {
             let note = match response {
                 Response::Confirmed => "✅ Yeni saati onayladın.",

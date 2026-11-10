@@ -1,7 +1,8 @@
 //! Database access layer: the connection pool plus query modules grouped by category.
 //!
 //! Add a submodule per category (e.g. `pub mod user;`) as new tables appear; query
-//! functions take `&PgPool` and return typed rows, surfacing failures as `sqlx::Error`.
+//! functions take `&PgPool` (or the transaction's connection, when the change is part of
+//! one) and return typed rows, surfacing failures as `sqlx::Error`.
 pub mod admin;
 pub mod arg;
 pub mod bancho;
@@ -20,6 +21,7 @@ pub mod reschedule;
 pub mod rules;
 pub mod session;
 pub mod settings;
+pub mod stages;
 pub mod stats;
 pub mod team;
 pub mod user;

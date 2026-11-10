@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   addManualResult,
   forfeitMatch,
@@ -23,7 +23,6 @@ import {
 } from "../../../api/referee";
 import type {
   AdminTeamPlayer,
-  LiveRoom,
   PublicPoolMap,
   RefereeRoom,
   RoomAccess,
@@ -32,7 +31,6 @@ import type {
 import { useSignedInUser } from "../../../auth/AuthContext";
 import { hasRole, holdsRole } from "../../../auth/roles";
 import { conversationKey, useIrc, type ChatLine } from "../../../irc/IrcContext";
-import { useLive } from "../../../live/LiveContext";
 import { isRoomRef, sameName, type RoomSlot, type ScoreMode, type SlotTeam } from "../../../lib/bancho";
 import { raceOf, type Race } from "../../../lib/bestOf";
 import { LIVE_REFRESH_MS } from "../../../lib/useLiveRefresh";
@@ -47,10 +45,12 @@ import {
   type ResultSource,
   type RosterPlayer,
   type Tally,
-} from "./liveRoom";
-import { draftTurn, matchDraft, matchTeams, poolEntries, type MatchTeam } from "./pool";
-import { appendLine, mergeFetched, toChatLine, type StoredLine } from "./roomChat";
-import { useRoomStaff } from "./roomStaff";
+} from "../../../lib/liveRoom";
+import { draftTurn, matchDraft, matchTeams, poolEntries, type MatchTeam } from "../../../lib/matchPool";
+import { toChatLine } from "../../../lib/roomChat";
+import { useRoomStaff } from "../../../lib/roomStaff";
+import { useAction } from "../../../lib/useAction";
+import { useMatchFeed } from "../../../lib/useMatchFeed";
 
 export interface RoomOptions {
   scoreMode: ScoreMode;
@@ -80,9 +80,6 @@ export interface RoomChatView {
 
 const DEFAULT_OPTIONS: RoomOptions = { scoreMode: 3, noFail: true, autoPlace: true, autoKick: true };
 
-// How long a burst of live changes (a ban and the score it moves) is gathered into one reload.
-const RELOAD_DELAY_MS = 250;
-
 /**
  * Owns the referee page's data. The room itself (its slots, map, finished maps, score) is the
  * bots' reading of it, the same on every page and kept up to date over the live socket; every
@@ -91,100 +88,31 @@ const RELOAD_DELAY_MS = 250;
 export function useRefereeRoom(matchId: string) {
   const user = useSignedInUser();
   const irc = useIrc();
-  const [room, setRoom] = useState<RefereeRoom | null>(null);
-  const [live, setLive] = useState<LiveRoom | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  // Each room's saved lines, by room id, oldest first.
-  const [chat, setChat] = useState<ReadonlyMap<number, StoredLine[]>>(new Map());
-
-  const reload = useCallback(async () => {
-    try {
-      const r = await fetchRefereeRoom(matchId);
-      setRoom(r);
-      setLive(r.live);
-      setLoadError(null);
-    } catch (e) {
-      setLoadError(errorMessage(e));
-    }
-  }, [matchId]);
-
-  const reloadChat = useCallback(async () => {
-    try {
-      const rooms = await fetchRoomChat(matchId);
-      setChat((prev) => new Map(rooms.map((r) => [r.mp_id, mergeFetched(r.messages, prev.get(r.mp_id))])));
-    } catch (e) {
-      setError(errorMessage(e));
-    }
-  }, [matchId]);
-
-  useEffect(() => {
-    reload();
-  }, [reload]);
-
-  const rooms = useMemo(() => room?.rooms ?? [], [room]);
-  const roomsKey = rooms.map((r) => r.mp_id).join(",");
-  const loaded = room !== null;
-  useEffect(() => {
-    if (loaded) reloadChat();
-  }, [loaded, roomsKey, reloadChat]);
+  const { busy, error, setError, run } = useAction();
 
   // The page follows the match over the live socket: its room as the bots read it and every line
   // its bot saves, without counting among its spectators. Whatever any referee or host changes
   // (bans, picks, results, "Sayma", the options, the rooms) reloads it here; while the socket is
   // down, the page polls instead.
-  const { subscribe, connected, watch } = useLive();
-  useEffect(() => {
-    if (!roomsKey) return;
-    watch(matchId, false);
-    return () => watch(null);
-  }, [matchId, roomsKey, watch]);
-
-  const roomIds = useRef<Set<number>>(new Set());
-  roomIds.current = new Set(rooms.map((r) => r.mp_id));
-  useEffect(() => {
-    let timer: number | undefined;
-    const later = () => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(reload, RELOAD_DELAY_MS);
-    };
-    const off = subscribe((event) => {
-      switch (event.type) {
-        case "chat":
-          if (!roomIds.current.has(event.mp_id)) return;
-          setChat((prev) => new Map(prev).set(event.mp_id, appendLine(prev.get(event.mp_id) ?? [], event.message)));
-          return;
-        case "room":
-          if (event.match_id === matchId) setLive(event.room);
-          return;
-        case "score":
-        case "match":
-        case "referee":
-          if (event.match_id === matchId) later();
-          return;
-        case "bracket":
-          // Rooms, staff, conclusions; also what a reconnect sends, so the chat missed meanwhile
-          // is loaded too.
-          later();
-          reloadChat();
-          return;
-      }
-    });
-    return () => {
-      off();
-      window.clearTimeout(timer);
-    };
-  }, [subscribe, matchId, reload, reloadChat]);
-  useEffect(() => {
-    if (connected) return;
-    const timer = window.setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      reload();
-      reloadChat();
-    }, LIVE_REFRESH_MS);
-    return () => window.clearInterval(timer);
-  }, [connected, reload, reloadChat]);
+  const {
+    match: room,
+    setMatch: setRoom,
+    live,
+    loadError,
+    chat,
+    reload,
+  } = useMatchFeed(matchId, {
+    fetchMatch: fetchRefereeRoom,
+    fetchChat: fetchRoomChat,
+    follows: (r) => r.rooms.length > 0,
+    spectate: false,
+    staff: true,
+    pollMs: LIVE_REFRESH_MS,
+    pollAlways: true,
+    onChatError: setError,
+  });
+  const rooms = useMemo(() => room?.rooms ?? [], [room]);
+  const roomsKey = rooms.map((r) => r.mp_id).join(",");
 
   const concluded = room !== null && room.concluded_at !== null;
   const current = rooms.length > 0 ? rooms[rooms.length - 1] : null;
@@ -306,18 +234,6 @@ export function useRefereeRoom(matchId: string) {
   const streamer = room?.streamer ?? null;
   const streamerIsRef = streamer !== null && isRoomRef(lobby, streamer.username);
   const [syncing, setSyncing] = useState(false);
-
-  async function run(action: () => Promise<void>) {
-    setBusy(true);
-    setError(null);
-    try {
-      await action();
-    } catch (e) {
-      setError(errorMessage(e));
-    } finally {
-      setBusy(false);
-    }
-  }
 
   // A command for the room's bot. It's queued at once; what it does shows as BanchoBot answers.
   const command = useCallback(

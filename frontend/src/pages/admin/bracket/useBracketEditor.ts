@@ -12,6 +12,7 @@ import {
   type BracketMatchUpdate,
 } from "../../../api/bracket";
 import { errorMessage } from "../../../api/client";
+import { useAction } from "../../../lib/useAction";
 import {
   addMatchRoom,
   concludeMatch,
@@ -42,8 +43,7 @@ const MOVE_SAVE_DELAY_MS = 400;
 /** Owns the bracket admin page's data and every API call it makes. */
 export function useBracketEditor(staffView: boolean) {
   const [data, setData] = useState<EditorData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { busy, error, setError, run: act } = useAction(() => reload());
   // Moves waiting to be saved, by match id.
   const pendingMoves = useRef(new Map<string, { timer: number; save: () => Promise<void> }>());
 
@@ -73,23 +73,12 @@ export function useBracketEditor(staffView: boolean) {
   // concluding or reopening a match also changes the matches it leads into.
   const run = useCallback(
     async (action: () => Promise<void>) => {
-      setBusy(true);
-      setError(null);
-      try {
+      await act(async () => {
         await flushMoves();
         await action();
-      } catch (e) {
-        setError(errorMessage(e));
-      }
-      try {
-        await reload();
-      } catch (e) {
-        setError(errorMessage(e));
-      } finally {
-        setBusy(false);
-      }
+      });
     },
-    [reload, flushMoves],
+    [act, flushMoves],
   );
 
   const patchMatches = (change: (m: EditorMatch) => EditorMatch) =>

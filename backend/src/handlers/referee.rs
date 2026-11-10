@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+use super::{require_runs, require_unconcluded};
 use crate::{
     auth::AuthUser,
     bancho::view::LiveRoom,
@@ -23,15 +24,11 @@ use crate::{
     },
     draft::DraftOrder,
     error::AppError,
-    handlers::{
-        bracket::Streamer,
-        matches::{
-            load_match, lobby_name, match_rooms, require_runs, require_unconcluded, MatchRoom,
-            Referee,
-        },
-        team::{group_teams, AdminTeamPlayer, Team},
-    },
     role::Role,
+    services::matches::load_match,
+    views::{
+        group_teams, lobby_name, match_rooms, AdminTeamPlayer, MatchRoom, Referee, Streamer, Team,
+    },
     AppState,
 };
 
@@ -224,7 +221,7 @@ fn room_stage(row: &RoomRow) -> Option<RoomStage> {
 
 // GET /api/matches/:id/room — referees and up. Everything the referee page shows
 // about a match: its teams with their Discords, and its map pool.
-pub async fn get_room(
+async fn get_room(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -320,7 +317,7 @@ pub struct PublicMatch {
 
 // GET /api/public/matches/:id — anyone. A match for its public page, which follows
 // it live (handlers/live.rs).
-pub async fn get_public_match(
+async fn get_public_match(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -394,7 +391,7 @@ async fn load_chat(state: &AppState, id: Uuid) -> Result<Vec<RoomChat>, AppError
 }
 
 // GET /api/matches/:id/chat — referees and up. The saved chat of the match's rooms.
-pub async fn get_chat(
+async fn get_chat(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -405,7 +402,7 @@ pub async fn get_chat(
 
 // GET /api/public/matches/:id/chat — anyone. The same chat for the match page: only
 // the match's own rooms, which everyone in them could read anyway.
-pub async fn get_public_chat(
+async fn get_public_chat(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
@@ -433,7 +430,7 @@ pub struct RoomOptionsBody {
 
 // PUT /api/matches/:id/room-options — how the room's bot sets the room up and what it
 // does there by itself.
-pub async fn set_room_options(
+async fn set_room_options(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -466,7 +463,7 @@ pub struct OsuSynced {
 // something: reads osu!'s record of the match's rooms, which takes the place of the
 // chat's maps up to its last one, and saves the score counted from it. A room osu! has
 // no record of keeps its chat. Returns when it was synced.
-pub async fn mark_osu_synced(
+async fn mark_osu_synced(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -487,7 +484,7 @@ pub struct NextPickBody {
 
 // PUT /api/matches/:id/next-pick — a bracket match's referee says whose pick is next
 // (null: as the rules say), until the next ban or pick is marked.
-pub async fn set_next_pick(
+async fn set_next_pick(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
@@ -521,7 +518,7 @@ const MAP_KEY_MAX: usize = 64;
 
 // PUT /api/matches/:id/ignored-maps — leaves a finished map out of the score
 // ("Sayma") or counts it again. The bots count the score anew and save it.
-pub async fn set_ignored_map(
+async fn set_ignored_map(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,

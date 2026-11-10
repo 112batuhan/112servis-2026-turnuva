@@ -1,3 +1,5 @@
+/* The pool column of a cockpit: the stage's pool by category with the draft over it (PoolView.tsx),
+   and the ban and pick buttons the referee page puts on each map. */
 .pool-panel {
   display: flex;
   flex-direction: column;

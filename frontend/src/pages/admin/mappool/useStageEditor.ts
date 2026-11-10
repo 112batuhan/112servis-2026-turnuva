@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../../api/client";
+import { useAction } from "../../../lib/useAction";
 import * as api from "../../../api/mappool";
 import type { MapNoteField, Stage, StageDetail } from "../../../api/types";
 import { readString, writeString } from "../../../lib/storage";
@@ -24,8 +25,7 @@ export function useStageEditor(userId: string) {
   const [stages, setStages] = useState<Stage[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<StageDetail | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const { busy, error, setError, run } = useAction();
 
   const loadStages = useCallback(async () => {
     const list = await api.fetchStages();
@@ -63,21 +63,6 @@ export function useStageEditor(userId: string) {
 
   async function reloadDetail() {
     if (selectedId) setDetail(await api.fetchStage(selectedId));
-  }
-
-  /** Runs a structural change. Resolves true on success so forms know to clear. */
-  async function run(change: () => Promise<unknown>): Promise<boolean> {
-    setError(null);
-    setBusy(true);
-    try {
-      await change();
-      return true;
-    } catch (e) {
-      setError(errorMessage(e));
-      return false;
-    } finally {
-      setBusy(false);
-    }
   }
 
   function saveInBackground(request: Promise<unknown>) {

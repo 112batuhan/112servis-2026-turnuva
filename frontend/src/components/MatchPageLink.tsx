@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { hasRole } from "../auth/roles";
 import { matchPagePath } from "../lib/bracket";
-import { isAdminPath } from "../pages/admin/tabs";
+import { isAdminPath } from "../lib/adminTabs";
 import { Icon } from "./Icon";
 import "./MatchPageLink.css";
 
