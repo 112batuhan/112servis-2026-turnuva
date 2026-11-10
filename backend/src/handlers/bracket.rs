@@ -1,13 +1,15 @@
 use std::collections::{HashMap, HashSet};
 
 use axum::{
+    body::Bytes,
     extract::{Path, State},
-    http::StatusCode,
+    http::{header, StatusCode},
     response::IntoResponse,
     routing::{delete, get, post, put},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::PgConnection;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -23,12 +25,13 @@ use crate::{
         team::{Player, TeamMemberRow},
     },
     discord::jobs::Job,
-    error::AppError,
+    error::{AppError, ErrorCode},
     role::Role,
     services::{
         bracket::{conclude, save_score},
         matches::load_match,
     },
+    stats_cache,
     views::{group_teams, match_rooms, AdminTeamPlayer, MatchRoom, Referee, Streamer, Team},
     AppState,
 };
@@ -39,21 +42,24 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/public/bracket", get(list_public_bracket))
         .route("/bracket", get(list_bracket).post(create_match))
-        .route("/bracket/:id", put(update_match).delete(delete_match))
-        .route("/bracket/:id/position", put(move_match))
-        .route("/bracket/:id/score", put(set_score))
-        .route("/bracket/:id/forfeit", post(forfeit))
-        .route("/bracket/:id/results", post(add_manual_result))
+        .route("/bracket/{id}", put(update_match).delete(delete_match))
+        .route("/bracket/{id}/position", put(move_match))
+        .route("/bracket/{id}/score", put(set_score))
+        .route("/bracket/{id}/forfeit", post(forfeit))
+        .route("/bracket/{id}/results", post(add_manual_result))
         .route(
-            "/bracket/:id/results/:result_id",
+            "/bracket/{id}/results/{result_id}",
             delete(remove_manual_result),
         )
-        .route("/bracket/:id/bans/:map_id", put(set_ban).delete(remove_ban))
         .route(
-            "/bracket/:id/picks/:map_id",
+            "/bracket/{id}/bans/{map_id}",
+            put(set_ban).delete(remove_ban),
+        )
+        .route(
+            "/bracket/{id}/picks/{map_id}",
             put(set_pick).delete(remove_pick),
         )
-        .route("/bracket/:id/streamer", put(set_streamer))
+        .route("/bracket/{id}/streamer", put(set_streamer))
         .route("/streamers", get(list_streamers))
 }
 
@@ -223,12 +229,13 @@ async fn load_bracket<P>(
     Ok((matches, group_teams(members, to_player)))
 }
 
+// The same for everyone, so it's kept between changes (crate::stats_cache); the
+// response adds `my_team_id`, the signed-in player's team, so the page can point out
+// their matches.
 #[derive(Debug, Serialize)]
 pub struct PublicBracket {
     matches: Vec<BracketMatch>,
     teams: Vec<Team<Player>>,
-    // The signed-in player's team, so the page can point out their matches.
-    my_team_id: Option<Uuid>,
 }
 
 // GET /api/public/bracket — every bracket match.
@@ -236,16 +243,23 @@ async fn list_public_bracket(
     State(state): State<AppState>,
     user: Option<AuthUser>,
 ) -> Result<impl IntoResponse, AppError> {
-    let (matches, teams) = load_bracket(&state, |row| row.player).await?;
+    let shared = state
+        .bracket_cache
+        .get_or_count(Uuid::nil(), || async {
+            let (matches, teams) = load_bracket(&state, |row| row.player).await?;
+            let bracket = PublicBracket {
+                matches: matches.into_iter().map(|(m, _)| m).collect(),
+                teams,
+            };
+            Ok(Bytes::from(serde_json::to_vec(&bracket)?))
+        })
+        .await?;
     let my_team_id = match user {
         Some(user) => db::team::find_team_id(&state.db, user.id).await?,
         None => None,
     };
-    Ok(Json(PublicBracket {
-        matches: matches.into_iter().map(|(m, _)| m).collect(),
-        teams,
-        my_team_id,
-    }))
+    let body = stats_cache::with_field(&shared, "my_team_id", &my_team_id)?;
+    Ok(([(header::CONTENT_TYPE, "application/json")], body))
 }
 
 #[derive(Debug, Serialize)]
@@ -283,17 +297,17 @@ fn edit_error(err: sqlx::Error) -> AppError {
     if let sqlx::Error::Database(e) = &err {
         match e.constraint() {
             Some("bracket_matches_code_key") => {
-                return AppError::Conflict("another match already has that number")
+                return AppError::Conflict(ErrorCode::MatchNumberTaken)
             }
             Some("bracket_links_target_key") => {
-                return AppError::Conflict("that slot already gets a team from another match")
+                return AppError::Conflict(ErrorCode::SlotHasSource)
             }
             Some("bracket_links_target_id_fkey") => return AppError::NotFound,
             Some("bracket_matches_team1_id_fkey" | "bracket_matches_team2_id_fkey") => {
-                return AppError::BadRequest("that team doesn't exist")
+                return AppError::BadRequest(ErrorCode::UnknownTeam)
             }
             Some("bracket_matches_stage_id_fkey") => {
-                return AppError::BadRequest("that stage doesn't exist")
+                return AppError::BadRequest(ErrorCode::UnknownStage)
             }
             _ => {}
         }
@@ -374,10 +388,10 @@ async fn update_match(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     if body.number < 1 {
-        return Err(AppError::BadRequest("match numbers start at 1"));
+        return Err(AppError::BadRequest(ErrorCode::BadMatchNumber));
     }
     if body.team1_id.is_some() && body.team1_id == body.team2_id {
-        return Err(AppError::BadRequest("a team can't play itself"));
+        return Err(AppError::BadRequest(ErrorCode::TeamPlaysItself));
     }
     let mut new_links = Vec::new();
     for (outcome, next) in [
@@ -386,10 +400,10 @@ async fn update_match(
     ] {
         let Some(next) = next else { continue };
         if next.slot != 1 && next.slot != 2 {
-            return Err(AppError::BadRequest("a match has only two slots"));
+            return Err(AppError::BadRequest(ErrorCode::BadSlot));
         }
         if next.match_id == id {
-            return Err(AppError::BadRequest("a match can't lead into itself"));
+            return Err(AppError::BadRequest(ErrorCode::LinkToItself));
         }
         new_links.push(LinkRow {
             source_id: id,
@@ -417,15 +431,11 @@ async fn update_match(
             || current.team2_id != body.team2_id
             || old_links != new_links)
     {
-        return Err(AppError::Conflict(
-            "this match is concluded, reopen it before changing its teams or links",
-        ));
+        return Err(AppError::Conflict(ErrorCode::MatchConcludedTeams));
     }
     let targets: Vec<Uuid> = new_links.iter().map(|l| l.target_id).collect();
     if leads_back(&links, id, &targets) {
-        return Err(AppError::BadRequest(
-            "that link would make the bracket loop back to this match",
-        ));
+        return Err(AppError::BadRequest(ErrorCode::BracketLoop));
     }
 
     let update = MatchUpdate {
@@ -619,10 +629,10 @@ async fn check_map_team(
         .await?
         .ok_or(AppError::NotFound)?;
     if Some(team_id) != teams.team1_id && Some(team_id) != teams.team2_id {
-        return Err(AppError::BadRequest("that team doesn't play in this match"));
+        return Err(AppError::BadRequest(ErrorCode::TeamNotInMatch));
     }
     if !db::bracket::map_in_pool(&state.db, id, map_id).await? {
-        return Err(AppError::BadRequest("that map isn't in this match's pool"));
+        return Err(AppError::BadRequest(ErrorCode::MapNotInPool));
     }
     Ok(())
 }
@@ -654,11 +664,11 @@ async fn set_mark(
     let (marked, taken) = match mark {
         Mark::Ban => (
             db::bracket::set_ban(&state.db, id, map_id, team_id).await?,
-            "that map has been picked",
+            ErrorCode::MapPicked,
         ),
         Mark::Pick => (
             db::bracket::set_pick(&state.db, id, map_id, team_id).await?,
-            "that map is banned",
+            ErrorCode::MapBanned,
         ),
     };
     if !marked {
@@ -753,7 +763,7 @@ async fn forfeit(
     }
     require_runs(&user)?;
     if !(1..=2).contains(&body.slot) {
-        return Err(AppError::BadRequest("slot must be 1 or 2"));
+        return Err(AppError::BadRequest(ErrorCode::BadSlot));
     }
     conclude(&state, id, Some(body.slot)).await?;
     state.live.bracket_changed();
@@ -778,9 +788,7 @@ async fn check_results(state: &AppState, user: &AuthUser, id: Uuid) -> Result<()
     }
     require_runs(user)?;
     if m.concluded() {
-        return Err(AppError::Conflict(
-            "this match is concluded, reopen it to change its results",
-        ));
+        return Err(AppError::Conflict(ErrorCode::MatchConcludedResults));
     }
     Ok(())
 }
@@ -799,18 +807,16 @@ async fn add_manual_result(
         .await?
         .ok_or(AppError::NotFound)?;
     if Some(body.team_id) != teams.team1_id && Some(body.team_id) != teams.team2_id {
-        return Err(AppError::BadRequest("that team doesn't play in this match"));
+        return Err(AppError::BadRequest(ErrorCode::TeamNotInMatch));
     }
     if let Some(map_id) = body.map_id {
         if !db::bracket::map_in_pool(&state.db, id, map_id).await? {
-            return Err(AppError::BadRequest("that map isn't in this match's pool"));
+            return Err(AppError::BadRequest(ErrorCode::MapNotInPool));
         }
     }
     let note = body.note.trim();
     if note.chars().count() > RESULT_NOTE_MAX {
-        return Err(AppError::BadRequest(
-            "the note can be at most 200 characters",
-        ));
+        return Err(AppError::BadRequest(ErrorCode::NoteTooLong));
     }
     let result_id =
         db::bracket::add_manual_result(&state.db, id, body.map_id, body.team_id, note).await?;
@@ -862,12 +868,14 @@ async fn set_streamer(
     if is_host(&user) {
         if let Some(streamer_id) = body.streamer_id {
             if !db::bracket::can_stream(&state.db, streamer_id).await? {
-                return Err(AppError::BadRequest("only streamers can stream"));
+                return Err(AppError::BadRequest(ErrorCode::NotAStreamer));
             }
         }
-        db::matches::set_streamer(&state.db, id, body.streamer_id).await?;
+        let mut tx = state.db.begin().await?;
+        db::matches::set_streamer(&mut *tx, id, body.streamer_id).await?;
         streamer_changed(
             &state,
+            &mut tx,
             &user,
             id,
             potential,
@@ -875,13 +883,15 @@ async fn set_streamer(
             body.streamer_id,
         )
         .await?;
+        tx.commit().await?;
         state.live.bracket_changed();
         return Ok(StatusCode::NO_CONTENT);
     }
 
     if m.concluded() {
-        return Err(AppError::Conflict("this match is concluded"));
+        return Err(AppError::Conflict(ErrorCode::MatchConcluded));
     }
+    let mut tx = state.db.begin().await?;
     match body.streamer_id {
         Some(streamer_id) if streamer_id == user.id => {
             if m.streamer_id == Some(user.id) {
@@ -893,15 +903,15 @@ async fn set_streamer(
             }
             if let Some(team_id) = db::team::find_team_id(&state.db, user.id).await? {
                 if m.team1_id == Some(team_id) || m.team2_id == Some(team_id) {
-                    return Err(AppError::BadRequest("you can't stream a match you play in"));
+                    return Err(AppError::BadRequest(ErrorCode::StreamOwnMatch));
                 }
             }
-            if !db::matches::claim_stream(&state.db, id, user.id).await? {
-                return Err(AppError::Conflict("this match already has a streamer"));
+            if !db::matches::claim_stream(&mut *tx, id, user.id).await? {
+                return Err(AppError::Conflict(ErrorCode::HasStreamer));
             }
         }
         None => {
-            if !db::matches::release_stream(&state.db, id, user.id).await? {
+            if !db::matches::release_stream(&mut *tx, id, user.id).await? {
                 return Err(AppError::Forbidden);
             }
         }
@@ -909,6 +919,7 @@ async fn set_streamer(
     }
     streamer_changed(
         &state,
+        &mut tx,
         &user,
         id,
         potential,
@@ -916,6 +927,7 @@ async fn set_streamer(
         body.streamer_id,
     )
     .await?;
+    tx.commit().await?;
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }
@@ -924,6 +936,7 @@ async fn set_streamer(
 // channels of the potential matches that follow a bracket match's streamer.
 async fn streamer_changed(
     state: &AppState,
+    conn: &mut PgConnection,
     user: &AuthUser,
     id: Uuid,
     potential: bool,
@@ -935,7 +948,7 @@ async fn streamer_changed(
     }
     let mut changed = vec![id];
     if !potential {
-        changed.extend(db::potential::follow_streamer(&state.db, id, before, after).await?);
+        changed.extend(db::potential::follow_streamer(&mut *conn, id, before, after).await?);
     }
     let jobs: Vec<Job> = changed
         .into_iter()
@@ -951,7 +964,7 @@ async fn streamer_changed(
             ]
         })
         .collect();
-    state.discord.enqueue(&state.db, &jobs).await?;
+    state.discord.enqueue(&mut *conn, &jobs).await?;
     Ok(())
 }
 

@@ -28,7 +28,7 @@ Postgres is the source of truth (see `backend/migrations/0001_init.sql`). The co
 ## 1. Create a Postgres database
 
 ```bash
-createdb discord_auth_starter
+createdb tournament
 ```
 
 Migrations run automatically on backend startup — no separate migration step needed.
@@ -78,9 +78,11 @@ Set `DEV_LOGIN=true` in `.env` and restart both the backend and the frontend. A 
 button appears in the bottom-left corner: it switches to any account with one click
 and can reseed or clear the dummy players, teams and invites from `backend/seed/`.
 
-Leave `DEV_LOGIN` unset (or `false`) on live servers. The backend then doesn't serve the
-dev endpoints, the frontend build doesn't contain the switcher, and the backend refuses
-to start with it on when `FRONTEND_URL` is https.
+It also works over https, so testers can use it on the live server while the site isn't
+public, but anyone who can reach the site can then sign in as any account (hosts
+included); the backend only logs a warning. Turn it off (unset or `false`) before the
+site goes public: the backend then doesn't serve the dev endpoints and the frontend build
+doesn't contain the switcher.
 
 ## Running with Docker
 

@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::{
     db::{self, ranks::RankChange},
     discord::jobs::Job,
-    error::AppError,
+    error::{AppError, ErrorCode},
     osu_api::{self, user::USERS_PER_REQUEST},
     team_rank, AppState,
 };
@@ -22,7 +22,9 @@ async fn refresh(state: &AppState, osu_ids: &[i64]) -> Result<u64, AppError> {
     if osu_ids.is_empty() {
         return Ok(0);
     }
-    let token = osu_api::token::app_token(&state.osu_client, &state.osu_app_token).await?;
+    let token =
+        osu_api::token::app_token(&state.osu_client, &state.oauth_http, &state.osu_app_token)
+            .await?;
     let mut changes = Vec::new();
     for chunk in osu_ids.chunks(USERS_PER_REQUEST) {
         let users = osu_api::user::fetch_many(&state.http_client, &token, chunk).await?;
@@ -144,9 +146,9 @@ pub async fn refresh_team_members(state: &AppState) -> Result<FullRefresh, AppEr
     let _running = state
         .rank_refresh_lock
         .try_lock()
-        .map_err(|_| AppError::Conflict("a rank update is already running"))?;
+        .map_err(|_| AppError::Conflict(ErrorCode::RankUpdateRunning))?;
     if db::settings::teams_frozen(&state.db).await? {
-        return Err(AppError::Conflict("teams are frozen"));
+        return Err(AppError::Conflict(ErrorCode::TeamsFrozen));
     }
     let ids = db::ranks::team_member_osu_ids(&state.db).await?;
     let updated = refresh(state, &ids).await?;
@@ -158,7 +160,11 @@ pub async fn refresh_team_members(state: &AppState) -> Result<FullRefresh, AppEr
 // Checks hourly whether the last full refresh is a day old, so restarts neither
 // skip nor repeat it. Nothing runs while teams are frozen.
 pub fn spawn_daily_refresh(state: AppState) {
-    tokio::spawn(async move {
+    crate::supervise::spawn("daily rank refresh", move || daily_refresh(state.clone()));
+}
+
+async fn daily_refresh(state: AppState) {
+    {
         let mut interval = tokio::time::interval(CHECK_INTERVAL);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
@@ -185,7 +191,7 @@ pub fn spawn_daily_refresh(state: AppState) {
                 }
             }
         }
-    });
+    }
 }
 
 #[cfg(test)]

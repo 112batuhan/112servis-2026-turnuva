@@ -11,7 +11,7 @@ use crate::{
         notifications::{Response, StaffRole},
     },
     discord::jobs::Job,
-    error::AppError,
+    error::{AppError, ErrorCode},
     AppState,
 };
 
@@ -25,8 +25,7 @@ pub async fn answer_as(
     response: Response,
 ) -> Result<(), AppError> {
     // A question nobody answered is replaced when the match is moved again.
-    const GONE: AppError =
-        AppError::Conflict("the match has been moved again since, answer the newer notification");
+    const GONE: AppError = AppError::Conflict(ErrorCode::MovedAgain);
     let match_id = db::notifications::confirm_match_id(&state.db, id, user_id)
         .await?
         .ok_or(GONE)?;
@@ -39,20 +38,20 @@ pub async fn answer_as(
         .await?
         .ok_or(GONE)?;
     if n.response.is_some() {
-        return Err(AppError::Conflict("you already answered this"));
+        return Err(AppError::Conflict(ErrorCode::AlreadyAnswered));
     }
     if m.concluded() {
-        return Err(AppError::Conflict("this match is concluded"));
+        return Err(AppError::Conflict(ErrorCode::MatchConcluded));
     }
     let holder = match n.staff_role {
         StaffRole::Referee => m.referee_id,
         StaffRole::Streamer => m.streamer_id,
     };
     if holder != Some(user_id) {
-        return Err(AppError::Conflict("you're no longer on this match"));
+        return Err(AppError::Conflict(ErrorCode::NoLongerOnMatch));
     }
     if m.starts_at != Some(n.new_starts_at) {
-        return Err(AppError::Conflict("the match's time has changed since"));
+        return Err(AppError::Conflict(ErrorCode::TimeChanged));
     }
 
     db::notifications::respond(&mut tx, id, response).await?;

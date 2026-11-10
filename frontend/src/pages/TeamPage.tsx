@@ -79,7 +79,7 @@ export function TeamPage() {
     reload()
       .then((s) => setTeamName(s.sent[0]?.team_name ?? ""))
       .catch((e) => setError(errorMessage(e)));
-  }, [reload]);
+  }, [reload, setError]);
 
   const runSearch = useCallback(async (q: string) => {
     setResults(q.trim() ? await searchPlayers(q) : null);
@@ -88,7 +88,7 @@ export function TeamPage() {
   useEffect(() => {
     const timer = setTimeout(() => runSearch(query).catch((e) => setError(errorMessage(e))), SEARCH_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [query, runSearch]);
+  }, [query, runSearch, setError]);
 
   // Staff can't play, but someone promoted after forming a team still sees it.
   const staffOnly = isStaff && status !== null && !status.team;

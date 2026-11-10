@@ -1,15 +1,25 @@
+import { useSearchParams } from "react-router-dom";
 import { linkDiscord } from "../api/auth";
+import { DISCORD_LINK_ERROR_TEXT, textFor } from "../api/errors";
 import { useSignedInUser } from "../auth/AuthContext";
 import { DiscordMark } from "../components/DiscordMark";
 
 export function LinkDiscordPage() {
   const user = useSignedInUser();
+  // Set by the backend when linking didn't go through.
+  const [params] = useSearchParams();
+  const error = params.get("error");
 
   return (
     <div className="card-page">
       <div className="card">
         <DiscordMark size={40} />
         <h1>Discord bağla</h1>
+        {error && (
+          <p className="alert alert-error" role="alert">
+            {textFor(DISCORD_LINK_ERROR_TEXT, error, "failed")}
+          </p>
+        )}
         {user.discord?.in_guild === false ? (
           <>
             <p className="card-subtitle">

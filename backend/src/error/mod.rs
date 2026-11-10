@@ -1,11 +1,20 @@
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
+    Json,
 };
 use thiserror::Error;
 
+mod code;
+pub use code::ErrorCode;
+
 // Central error type for handlers: `?`-friendly, and turns into an HTTP response
 // that hides internal detail from the client while still logging it server-side.
+//
+// Responses are JSON, `{ "code": "lobby_full", "message": "that lobby is full" }`: the
+// code (an ErrorCode, code.rs) is what the frontend goes by (it shows each in Turkish,
+// `api/errors.ts`), the English message is for logs and anything without a translation.
+// BadRequest, Conflict and TooManyRequests take the code; the status comes from which.
 #[derive(Debug, Error)]
 pub enum AppError {
     #[error("not authenticated")]
@@ -41,14 +50,14 @@ pub enum AppError {
     #[error("not found")]
     NotFound,
 
-    #[error("{0}")]
-    BadRequest(&'static str),
+    #[error("{}", .0.message())]
+    BadRequest(ErrorCode),
 
-    #[error("{0}")]
-    Conflict(&'static str),
+    #[error("{}", .0.message())]
+    Conflict(ErrorCode),
 
-    #[error("{0}")]
-    TooManyRequests(&'static str),
+    #[error("{}", .0.message())]
+    TooManyRequests(ErrorCode),
 
     #[error("beatmap {0} not found")]
     BeatmapNotFound(i64),
@@ -66,47 +75,59 @@ pub enum AppError {
     Serialize(#[from] serde_json::Error),
 }
 
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
-        let (status, message): (StatusCode, &'static str) = match &self {
-            AppError::Unauthenticated => (StatusCode::UNAUTHORIZED, "not authenticated"),
-            AppError::Forbidden => (StatusCode::FORBIDDEN, "insufficient permissions"),
+#[derive(serde::Serialize)]
+struct ErrorBody {
+    code: ErrorCode,
+    message: &'static str,
+}
+
+impl AppError {
+    // The status and the code the client gets.
+    fn public(&self) -> (StatusCode, ErrorCode) {
+        match self {
+            AppError::Unauthenticated => (StatusCode::UNAUTHORIZED, ErrorCode::Unauthenticated),
+            AppError::Forbidden => (StatusCode::FORBIDDEN, ErrorCode::Forbidden),
             AppError::DiscordVerificationRequired => {
-                (StatusCode::FORBIDDEN, "link your Discord account first")
+                (StatusCode::FORBIDDEN, ErrorCode::DiscordRequired)
             }
-            AppError::InvalidLoginAttempt => {
-                (StatusCode::BAD_REQUEST, "invalid or expired login attempt")
-            }
+            AppError::InvalidLoginAttempt => (StatusCode::BAD_REQUEST, ErrorCode::InvalidLogin),
             AppError::OsuTokenExchange(_)
             | AppError::OsuProfileRequest(_)
-            | AppError::OsuProfileDecode(_) => {
-                (StatusCode::BAD_GATEWAY, "could not complete osu! login")
-            }
+            | AppError::OsuProfileDecode(_) => (StatusCode::BAD_GATEWAY, ErrorCode::OsuLoginFailed),
             AppError::DiscordTokenExchange(_)
             | AppError::DiscordProfileRequest(_)
             | AppError::DiscordProfileDecode(_) => {
-                (StatusCode::BAD_GATEWAY, "could not link Discord")
+                (StatusCode::BAD_GATEWAY, ErrorCode::DiscordLinkFailed)
             }
-            AppError::NotFound => (StatusCode::NOT_FOUND, "not found"),
-            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
-            AppError::Conflict(msg) => (StatusCode::CONFLICT, msg),
-            AppError::TooManyRequests(msg) => (StatusCode::TOO_MANY_REQUESTS, msg),
-            AppError::BeatmapNotFound(_) => (StatusCode::NOT_FOUND, "beatmap not found"),
-            AppError::OsuApiRequest(_) => (StatusCode::BAD_GATEWAY, "could not reach osu! API"),
-            AppError::OsuApiDecode(_) => {
-                (StatusCode::BAD_GATEWAY, "could not read osu! API response")
-            }
+            AppError::NotFound => (StatusCode::NOT_FOUND, ErrorCode::NotFound),
+            AppError::BadRequest(code) => (StatusCode::BAD_REQUEST, *code),
+            AppError::Conflict(code) => (StatusCode::CONFLICT, *code),
+            AppError::TooManyRequests(code) => (StatusCode::TOO_MANY_REQUESTS, *code),
+            AppError::BeatmapNotFound(_) => (StatusCode::NOT_FOUND, ErrorCode::BeatmapNotFound),
+            AppError::OsuApiRequest(_) => (StatusCode::BAD_GATEWAY, ErrorCode::OsuApiUnreachable),
+            AppError::OsuApiDecode(_) => (StatusCode::BAD_GATEWAY, ErrorCode::OsuApiBadResponse),
             AppError::Database(_) | AppError::Serialize(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal server error")
+                (StatusCode::INTERNAL_SERVER_ERROR, ErrorCode::Internal)
             }
-        };
+        }
+    }
+}
 
-        // Client only sees the generic message above; the real cause goes to the logs.
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        let (status, code) = self.public();
+
+        // Client only sees the code and its generic message; the real cause goes to the
+        // logs.
         if status.is_server_error() {
             tracing::error!(error = ?self, "{self}");
         }
 
-        (status, message).into_response()
+        let body = ErrorBody {
+            code,
+            message: code.message(),
+        };
+        (status, Json(body)).into_response()
     }
 }
 

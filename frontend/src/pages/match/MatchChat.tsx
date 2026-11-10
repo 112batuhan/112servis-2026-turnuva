@@ -33,6 +33,9 @@ const FILTER_KEY = "match-chat-filtered";
  * hides the room being run, BanchoBot's housekeeping and the referee's !mp commands, and keeps
  * what the players and referee say and the match itself: maps set, started, finished and scored.
  */
+// One empty list, so a room without lines doesn't make a new one every render.
+const NO_LINES: never[] = [];
+
 export function MatchChat({ rooms, colors, referee, loaded, live, connected, visible, onUnread }: Props) {
   const latest = rooms.length > 0 ? rooms[rooms.length - 1].mpId : null;
   const [active, setActive] = useState<number | null>(latest);
@@ -42,7 +45,7 @@ export function MatchChat({ rooms, colors, referee, loaded, live, connected, vis
   const [filtered, setFiltered] = useState(() => readJson<boolean>(FILTER_KEY, true));
   useEffect(() => writeJson(FILTER_KEY, filtered), [filtered]);
 
-  const all = room?.lines ?? [];
+  const all = room?.lines ?? NO_LINES;
   const lines = useMemo(() => (filtered ? all.filter((l) => !isRoomNoise(l.from, l.text)) : all), [all, filtered]);
   const hidden = all.length - lines.length;
 

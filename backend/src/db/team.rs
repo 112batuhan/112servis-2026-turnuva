@@ -307,7 +307,7 @@ pub async fn find_banner(pool: &PgPool, team_id: Uuid) -> sqlx::Result<Option<Ba
 }
 
 pub async fn set_banner(
-    pool: &PgPool,
+    ex: impl PgExecutor<'_>,
     team_id: Uuid,
     content_type: &str,
     data: &[u8],
@@ -322,15 +322,15 @@ pub async fn set_banner(
     .bind(team_id)
     .bind(content_type)
     .bind(data)
-    .execute(pool)
+    .execute(ex)
     .await?;
     Ok(())
 }
 
-pub async fn delete_banner(pool: &PgPool, team_id: Uuid) -> sqlx::Result<bool> {
+pub async fn delete_banner(ex: impl PgExecutor<'_>, team_id: Uuid) -> sqlx::Result<bool> {
     let result = sqlx::query("DELETE FROM team_banners WHERE team_id = $1")
         .bind(team_id)
-        .execute(pool)
+        .execute(ex)
         .await?;
     Ok(result.rows_affected() > 0)
 }

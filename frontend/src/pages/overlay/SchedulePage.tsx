@@ -13,9 +13,11 @@ import "./SchedulePage.css";
 
 // Six rows fill a column at the designed spacing.
 const ROWS = 6;
+// One empty list, so no bracket doesn't make a new one every render.
+const NO_MATCHES: never[] = [];
 
 export function SchedulePage({ bracket, matchId }: { bracket: PublicBracket | null; matchId: string | null }) {
-  const matches = bracket?.matches ?? [];
+  const matches = bracket?.matches ?? NO_MATCHES;
   const onStream = matches.find((m) => m.id === matchId) ?? null;
   const stageId = currentStageId(matches, onStream);
   const stage = matches.find((m) => m.stage?.id === stageId)?.stage ?? null;

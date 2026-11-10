@@ -8,6 +8,8 @@
 use serde::Serialize;
 use uuid::Uuid;
 
+use crate::error::ErrorCode;
+
 // What a stage that has no order of its own plays: two bans, then picks in turn from
 // the team that didn't ban first.
 pub const DEFAULT_ORDER: &str = "b1-b2-p2-*";
@@ -43,9 +45,9 @@ impl Default for DraftOrder {
 }
 
 impl DraftOrder {
-    // Reads an order, ignoring case and spaces. The error says what's wrong, for the
-    // host who typed it.
-    pub fn parse(text: &str) -> Result<Self, &'static str> {
+    // Reads an order, ignoring case and spaces. The error says what's wrong, for the host
+    // who typed it.
+    pub fn parse(text: &str) -> Result<Self, ErrorCode> {
         let text: String = text
             .chars()
             .filter(|c| !c.is_whitespace())
@@ -57,10 +59,10 @@ impl DraftOrder {
             _ => (false, &tokens[..]),
         };
         if tokens.is_empty() || tokens == [""] {
-            return Err("the order needs at least one ban or pick");
+            return Err(ErrorCode::DraftOrderEmpty);
         }
         if tokens.len() > MAX_STEPS {
-            return Err("the order has more than 40 steps");
+            return Err(ErrorCode::DraftOrderTooLong);
         }
         let steps = tokens
             .iter()
@@ -69,12 +71,12 @@ impl DraftOrder {
                 let kind = match chars.next() {
                     Some('p') => StepKind::Pick,
                     Some('b') => StepKind::Ban,
-                    _ => return Err("each step is p1, p2, b1 or b2, and * only at the end"),
+                    _ => return Err(ErrorCode::DraftOrderStep),
                 };
                 let team = match (chars.next(), chars.next()) {
                     (Some('1'), None) => 1,
                     (Some('2'), None) => 2,
-                    _ => return Err("each step is p1, p2, b1 or b2, and * only at the end"),
+                    _ => return Err(ErrorCode::DraftOrderStep),
                 };
                 Ok(Step { kind, team })
             })

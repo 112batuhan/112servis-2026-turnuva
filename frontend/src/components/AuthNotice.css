@@ -1,0 +1,16 @@
+.auth-notice {
+  position: fixed;
+  top: calc(var(--nav-height, 56px) + var(--space-3));
+  left: 50%;
+  z-index: 50;
+  width: min(560px, calc(100vw - 2 * var(--space-4)));
+  transform: translateX(-50%);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
+}
+
+/* It floats over the page, so the alert's tint goes over an opaque ground. */
+.auth-notice.alert-error {
+  background:
+    linear-gradient(var(--color-danger-soft), var(--color-danger-soft)),
+    var(--color-surface);
+}

@@ -13,7 +13,7 @@ use crate::{
     auth::AuthUser,
     db::{self, bracket::BracketLock, bracket::Side, reschedule::ProposalRow, team::Player},
     discord::jobs::Job,
-    error::AppError,
+    error::{AppError, ErrorCode},
     AppState,
 };
 
@@ -25,8 +25,8 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/me/reschedules", get(list_my_reschedules))
         .route("/reschedules", post(propose))
-        .route("/reschedules/:id", delete(delete_proposal))
-        .route("/reschedules/:id/accept", post(accept))
+        .route("/reschedules/{id}", delete(delete_proposal))
+        .route("/reschedules/{id}/accept", post(accept))
 }
 
 // The most times a team can have proposed for one match at once.
@@ -40,12 +40,10 @@ fn is_open(starts_at: Option<OffsetDateTime>, has_room: bool, now: OffsetDateTim
 
 fn require_open(m: &BracketLock) -> Result<(), AppError> {
     if m.concluded() {
-        return Err(AppError::Conflict("this match is concluded"));
+        return Err(AppError::Conflict(ErrorCode::MatchConcluded));
     }
     if !is_open(m.starts_at, m.has_room, OffsetDateTime::now_utc()) {
-        return Err(AppError::Conflict(
-            "this match has started, only the staff can move it now",
-        ));
+        return Err(AppError::Conflict(ErrorCode::MatchStarted));
     }
     Ok(())
 }
@@ -171,7 +169,7 @@ async fn propose(
 ) -> Result<impl IntoResponse, AppError> {
     let team_id = user.team_id(&state.db).await?;
     if body.starts_at <= OffsetDateTime::now_utc() {
-        return Err(AppError::BadRequest("pick a time in the future"));
+        return Err(AppError::BadRequest(ErrorCode::TimeInPast));
     }
 
     let mut tx = state.db.begin().await?;
@@ -182,13 +180,11 @@ async fn propose(
         return Err(AppError::NotFound);
     }
     let (Some(team1_id), Some(team2_id)) = (m.team1_id, m.team2_id) else {
-        return Err(AppError::Conflict(
-            "this match doesn't have its opponent yet",
-        ));
+        return Err(AppError::Conflict(ErrorCode::NoOpponent));
     };
     require_open(&m)?;
     if m.starts_at == Some(body.starts_at) {
-        return Err(AppError::BadRequest("the match is already at that time"));
+        return Err(AppError::BadRequest(ErrorCode::SameTime));
     }
     let opponent_id = if team1_id == team_id {
         team2_id
@@ -196,18 +192,14 @@ async fn propose(
         team1_id
     };
     if db::reschedule::proposal_exists(&mut tx, body.match_id, opponent_id, body.starts_at).await? {
-        return Err(AppError::Conflict(
-            "they already proposed that time, accept theirs instead",
-        ));
+        return Err(AppError::Conflict(ErrorCode::TheyProposedTime));
     }
     if db::reschedule::count_proposals(&mut tx, body.match_id, team_id).await? >= PROPOSAL_LIMIT {
-        return Err(AppError::Conflict(
-            "your team has too many proposals for this match, cancel some first",
-        ));
+        return Err(AppError::Conflict(ErrorCode::TooManyProposals));
     }
     db::reschedule::create_proposal(&mut tx, body.match_id, team_id, user.id, body.starts_at)
         .await?
-        .ok_or(AppError::Conflict("your team already proposed that time"))?;
+        .ok_or(AppError::Conflict(ErrorCode::AlreadyProposed))?;
     db::notifications::notify_proposed(&mut tx, body.match_id, opponent_id, user.id).await?;
     state
         .discord
@@ -265,13 +257,11 @@ async fn accept(
         return Err(AppError::NotFound);
     }
     if proposal.team_id == team_id {
-        return Err(AppError::BadRequest(
-            "your team proposed this time, the other team has to accept it",
-        ));
+        return Err(AppError::BadRequest(ErrorCode::OwnProposal));
     }
     require_open(&m)?;
     if proposal.starts_at <= OffsetDateTime::now_utc() {
-        return Err(AppError::Conflict("that time has already passed"));
+        return Err(AppError::Conflict(ErrorCode::TimePassed));
     }
     db::reschedule::reschedule(&mut tx, match_id, proposal.starts_at).await?;
     db::notifications::notify_rescheduled(

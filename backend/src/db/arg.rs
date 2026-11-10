@@ -1,4 +1,4 @@
-use sqlx::{PgConnection, PgPool};
+use sqlx::{PgConnection, PgExecutor, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -18,13 +18,23 @@ pub async fn place_of(pool: &PgPool, user_id: Uuid, message: i16) -> sqlx::Resul
 }
 
 // How many guesses the player made in the last 10 minutes.
-pub async fn recent_attempts(pool: &PgPool, user_id: Uuid) -> sqlx::Result<i64> {
+pub async fn recent_attempts(db: impl PgExecutor<'_>, user_id: Uuid) -> sqlx::Result<i64> {
     sqlx::query_scalar(
         "SELECT count(*) FROM arg_attempts WHERE user_id = $1 AND created_at > now() - interval '10 minutes'",
     )
     .bind(user_id)
-    .fetch_one(pool)
+    .fetch_one(db)
     .await
+}
+
+// Held until the transaction ends: a player's guesses are counted and recorded one at a
+// time.
+pub async fn lock_player(conn: &mut PgConnection, user_id: Uuid) -> sqlx::Result<()> {
+    sqlx::query("SELECT pg_advisory_xact_lock(hashtext('arg:' || $1::text))")
+        .bind(user_id)
+        .execute(conn)
+        .await?;
+    Ok(())
 }
 
 // `message` is the one the guess matched, None for a wrong guess.

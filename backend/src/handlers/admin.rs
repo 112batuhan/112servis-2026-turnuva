@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::{
     auth::AuthUser,
     db,
-    error::AppError,
+    error::{AppError, ErrorCode},
     role::{self, Role},
     AppState,
 };
@@ -19,7 +19,7 @@ use crate::{
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/users", get(list_users))
-        .route("/users/:id/roles", put(set_roles))
+        .route("/users/{id}/roles", put(set_roles))
 }
 
 // GET /api/users — host-only. Lists every registered user with their linked
@@ -52,11 +52,13 @@ async fn set_roles(
     user.require_role(Role::Host)?;
     let roles = role::normalize(body.roles);
     if user_id == user.id && !roles.contains(&Role::Host) {
-        return Err(AppError::BadRequest("you can't remove your own host role"));
+        return Err(AppError::BadRequest(ErrorCode::OwnHostRole));
     }
 
     let updated = db::admin::set_roles(&state.db, user_id, &roles).await?;
     // Who the bots let stay in a room, and make its referees, goes by the roles.
     state.bancho.resync();
+    // Their open sockets (staff events, the Bancho relay) check again.
+    state.live.user_changed(user_id);
     Ok(Json(updated))
 }

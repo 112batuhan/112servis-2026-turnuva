@@ -173,6 +173,8 @@ function anchorFor(title: string, seen: Map<string, number>): string {
       .replace(/ö/g, "o")
       .replace(/ç/g, "c")
       .normalize("NFKD")
+      // The accents NFKD splits off (â, î, û), so they don't turn into dashes.
+      .replace(/[\u0300-\u036f]/g, "")
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "") || "bolum";
   const count = seen.get(base) ?? 0;

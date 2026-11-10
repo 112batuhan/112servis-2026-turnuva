@@ -1,0 +1,19 @@
+.error-boundary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+}
+
+.error-boundary-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.error-boundary-text {
+  margin: 0;
+  color: var(--color-text-muted);
+}

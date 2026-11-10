@@ -32,7 +32,7 @@ use crate::{
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/public/stats", get(list_stage_activity))
-        .route("/public/stats/:id", get(get_stage_stats))
+        .route("/public/stats/{id}", get(get_stage_stats))
 }
 
 fn json(body: Bytes) -> impl IntoResponse {

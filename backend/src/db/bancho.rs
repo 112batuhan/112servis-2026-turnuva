@@ -1,7 +1,9 @@
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::{PgExecutor, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
+
+use crate::secret::{BotSecret, Sealed};
 
 // A bot account as hosts see it on /admin/bancho: never with its password.
 #[derive(Debug, Clone, Serialize, sqlx::FromRow)]
@@ -13,8 +15,8 @@ pub struct BotRow {
     pub created_at: OffsetDateTime,
 }
 
-// What the bot connection logs in with.
-#[derive(Debug, Clone, sqlx::FromRow)]
+// What the bot connection logs in with, its password decrypted.
+#[derive(Debug, Clone)]
 pub struct BotLogin {
     pub id: Uuid,
     pub username: String,
@@ -30,32 +32,118 @@ pub async fn list_bots(pool: &PgPool) -> sqlx::Result<Vec<BotRow>> {
     .await
 }
 
-pub async fn list_logins(pool: &PgPool) -> sqlx::Result<Vec<BotLogin>> {
-    sqlx::query_as::<_, BotLogin>(
-        "SELECT id, username, irc_password, active FROM bancho_bots ORDER BY created_at, id",
+#[derive(sqlx::FromRow)]
+struct LoginRow {
+    id: Uuid,
+    username: String,
+    // Only on rows saved before passwords were encrypted, until the backend encrypts them.
+    irc_password: Option<String>,
+    password_nonce: Option<Vec<u8>>,
+    password_ciphertext: Option<Vec<u8>>,
+    active: bool,
+}
+
+// Every bot whose password can be read: encrypted ones need the key they were sealed
+// with. The rest are left out (and so stay offline) with an error in the log.
+pub async fn list_logins(pool: &PgPool, secret: Option<&BotSecret>) -> sqlx::Result<Vec<BotLogin>> {
+    let rows = sqlx::query_as::<_, LoginRow>(
+        r#"
+        SELECT id, username, irc_password, password_nonce, password_ciphertext, active
+        FROM bancho_bots
+        ORDER BY created_at, id
+        "#,
     )
     .fetch_all(pool)
-    .await
+    .await?;
+    Ok(rows
+        .into_iter()
+        .filter_map(|row| {
+            let password = match (&row.password_nonce, &row.password_ciphertext, secret) {
+                (Some(nonce), Some(ciphertext), Some(secret)) => secret.open(nonce, ciphertext),
+                _ => None,
+            }
+            .or(row.irc_password);
+            if password.is_none() {
+                tracing::error!(
+                    bot = %row.username,
+                    "can't read the bot's IRC password (BOT_SECRET_KEY unset or changed); enter it again on /admin/bancho"
+                );
+            }
+            Some(BotLogin {
+                id: row.id,
+                username: row.username,
+                irc_password: password?,
+                active: row.active,
+            })
+        })
+        .collect())
 }
 
 // Fails on bancho_bots_username_key when the account is already a bot.
-pub async fn create_bot(pool: &PgPool, username: &str, irc_password: &str) -> sqlx::Result<Uuid> {
+pub async fn create_bot(pool: &PgPool, username: &str, password: &Sealed) -> sqlx::Result<Uuid> {
     sqlx::query_scalar(
-        "INSERT INTO bancho_bots (username, irc_password) VALUES ($1, $2) RETURNING id",
+        r#"
+        INSERT INTO bancho_bots (username, password_nonce, password_ciphertext)
+        VALUES ($1, $2, $3)
+        RETURNING id
+        "#,
     )
     .bind(username)
-    .bind(irc_password)
+    .bind(&password.nonce)
+    .bind(&password.ciphertext)
     .fetch_one(pool)
     .await
 }
 
-pub async fn set_password(pool: &PgPool, id: Uuid, irc_password: &str) -> sqlx::Result<bool> {
-    let result = sqlx::query("UPDATE bancho_bots SET irc_password = $2 WHERE id = $1")
-        .bind(id)
-        .bind(irc_password)
-        .execute(pool)
-        .await?;
+pub async fn set_password(pool: &PgPool, id: Uuid, password: &Sealed) -> sqlx::Result<bool> {
+    let result = sqlx::query(
+        r#"
+        UPDATE bancho_bots
+        SET password_nonce = $2, password_ciphertext = $3, irc_password = NULL
+        WHERE id = $1
+        "#,
+    )
+    .bind(id)
+    .bind(&password.nonce)
+    .bind(&password.ciphertext)
+    .execute(pool)
+    .await?;
     Ok(result.rows_affected() > 0)
+}
+
+// Encrypts the passwords saved before they were, and empties the plaintext. Returns how
+// many it encrypted.
+pub async fn encrypt_plaintext(pool: &PgPool, secret: &BotSecret) -> sqlx::Result<usize> {
+    let mut tx = pool.begin().await?;
+    let rows: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT id, irc_password FROM bancho_bots WHERE irc_password IS NOT NULL FOR UPDATE",
+    )
+    .fetch_all(&mut *tx)
+    .await?;
+    for (id, password) in &rows {
+        let sealed = secret.seal(password);
+        sqlx::query(
+            r#"
+            UPDATE bancho_bots
+            SET password_nonce = $2, password_ciphertext = $3, irc_password = NULL
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .bind(&sealed.nonce)
+        .bind(&sealed.ciphertext)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
+    Ok(rows.len())
+}
+
+// How many bots still have their password in plaintext.
+pub async fn count_plaintext(pool: &PgPool) -> sqlx::Result<i64> {
+    sqlx::query_scalar("SELECT count(*) FROM bancho_bots WHERE irc_password IS NOT NULL")
+        .fetch_one(pool)
+        .await
 }
 
 pub async fn set_active(pool: &PgPool, id: Uuid, active: bool) -> sqlx::Result<bool> {
@@ -109,7 +197,7 @@ pub async fn list_tracked_rooms(pool: &PgPool) -> sqlx::Result<Vec<RoomOwner>> {
 // Adds a room a bot made, or one made elsewhere and handed to `bot_id`. Fails on
 // match_rooms_pkey when the room already belongs to a match.
 pub async fn add_room(
-    pool: &PgPool,
+    ex: impl PgExecutor<'_>,
     match_id: Uuid,
     mp_id: i64,
     bot_id: Option<Uuid>,
@@ -122,7 +210,7 @@ pub async fn add_room(
     .bind(match_id)
     .bind(bot_id)
     .bind(bot_made)
-    .execute(pool)
+    .execute(ex)
     .await?;
     Ok(())
 }

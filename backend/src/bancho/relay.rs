@@ -105,8 +105,39 @@ pub enum ServerMsg {
     },
     // The IRC connection is gone; the socket closes after this.
     Closed {
-        reason: String,
+        reason: CloseReason,
     },
+}
+
+// Why a tab's relay socket closed, as the page is told it (snake_case); the referee page
+// shows each in Turkish (`CLOSE_REASON_TEXT` in irc/IrcContext.tsx).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CloseReason {
+    // A tab asked to resume, and the user has no connection.
+    NoSession,
+    // The login it sent can't be an osu! account's.
+    InvalidLogin,
+    // That account is one of the site's bots.
+    BotAccount,
+    // The bot accounts couldn't be read to check it.
+    AccountCheckFailed,
+    TooManyFailedLogins,
+    // A tab's first message has to be a login or a resume.
+    LoginExpected,
+    // Their roles changed, or their session ended.
+    NoLongerReferee,
+    // The tab couldn't keep up with its events.
+    FellBehind,
+    BanchoUnreachable,
+    // Bancho didn't answer the login in time.
+    LoginTimedOut,
+    // Bancho refused the login.
+    LoginFailed,
+    BanchoClosed,
+    InvalidLine,
+    EveryTabClosed,
+    QuitInAnotherTab,
 }
 
 pub enum Outgoing {
@@ -435,9 +466,7 @@ async fn run_session(
     // No tab can join from here on; the ones still here get the reason and are closed.
     users.end(user_id, &session);
     rooms.session_ended(session.id);
-    session.emit(&ServerMsg::Closed {
-        reason: reason.to_string(),
-    });
+    session.emit(&ServerMsg::Closed { reason });
 }
 
 async fn bancho(
@@ -448,12 +477,12 @@ async fn bancho(
     addr: &str,
     commands: &mut mpsc::UnboundedReceiver<Command>,
     requests: &mut mpsc::UnboundedReceiver<SessionRequest>,
-) -> &'static str {
+) -> CloseReason {
     let connected = connect(addr, &session.nick, &password).await;
     drop(password);
     let Ok((mut reader, mut writer)) = connected else {
         users.refund_login(user_id);
-        return "could not reach Bancho";
+        return CloseReason::BanchoUnreachable;
     };
 
     let reason = run(
@@ -479,7 +508,7 @@ async fn run(
     writer: &mut OwnedWriteHalf,
     commands: &mut mpsc::UnboundedReceiver<Command>,
     requests: &mut mpsc::UnboundedReceiver<SessionRequest>,
-) -> &'static str {
+) -> CloseReason {
     let nick = session.nick.as_str();
     let login_deadline = Instant::now() + LOGIN_TIMEOUT;
     let mut registered = false;
@@ -509,12 +538,12 @@ async fn run(
                     // A bad login gets a MOTD saying so, then Bancho hangs up.
                     Ok(0) | Err(_) if !registered => {
                         session.emit(&ServerMsg::LoginFailed);
-                        return "login failed";
+                        return CloseReason::LoginFailed;
                     }
-                    Ok(0) | Err(_) => return "Bancho closed the connection",
+                    Ok(0) | Err(_) => return CloseReason::BanchoClosed,
                     Ok(_) if !buf.ends_with(b"\n") => {
                         if buf.len() > LINE_MAX {
-                            return "Bancho sent an invalid line";
+                            return CloseReason::InvalidLine;
                         }
                         continue;
                     }
@@ -527,7 +556,7 @@ async fn run(
                     "PING" => {
                         let token = line.params.first().copied().unwrap_or_default();
                         if writer.write_all(format!("PONG :{token}\r\n").as_bytes()).await.is_err() {
-                            return "Bancho closed the connection";
+                            return CloseReason::BanchoClosed;
                         }
                     }
                     "001" => {
@@ -537,9 +566,9 @@ async fn run(
                     }
                     "464" => {
                         session.emit(&ServerMsg::LoginFailed);
-                        return "login failed";
+                        return CloseReason::LoginFailed;
                     }
-                    "ERROR" => return "Bancho closed the connection",
+                    "ERROR" => return CloseReason::BanchoClosed,
                     _ => {
                         if let Some(msg) = to_server_msg(&line, nick) {
                             session.emit(&msg);
@@ -548,8 +577,8 @@ async fn run(
                 }
             }
             command = commands.recv() => match command {
-                None => return "every tab closed",
-                Some(Command::Quit) => return "disconnected in another tab",
+                None => return CloseReason::EveryTabClosed,
+                Some(Command::Quit) => return CloseReason::QuitInAnotherTab,
                 Some(Command::Close(name)) => session.close_conversation(&name),
                 // Bancho ignores everything before the login goes through.
                 Some(Command::Send(out)) if registered => queue.push_back(out),
@@ -572,7 +601,7 @@ async fn run(
                     Outgoing::Raw(raw) => format!("{raw}\r\n"),
                 };
                 if writer.write_all(line.as_bytes()).await.is_err() {
-                    return "Bancho closed the connection";
+                    return CloseReason::BanchoClosed;
                 }
                 // The room's bot logs what's said in rooms; private messages are echoed here.
                 if let Outgoing::Privmsg { target, text } = out {
@@ -581,7 +610,7 @@ async fn run(
                     }
                 }
             }
-            _ = sleep_until(login_deadline), if !registered => return "Bancho didn't answer the login",
+            _ = sleep_until(login_deadline), if !registered => return CloseReason::LoginTimedOut,
         }
     }
 }

@@ -156,6 +156,7 @@ export function BracketCalendar({
     setDay(null);
     setMonth(initialMonth(matches));
     // Only when the search changes, not when the user pages through months.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hits]);
 
   const byDay = useMemo(() => {
@@ -417,6 +418,7 @@ function DayTimeline({ day, now, placed, focusStart, chip }: DayTimelineProps) {
     const minutes = focusStart ?? (isToday ? minutesIntoDay(new Date()) : (firstStart ?? 8 * 60));
     el.scrollTop = Math.max(0, ((minutes - 60) / 60) * HOUR_H);
     // Keyed on the day alone so the clock ticking doesn't scroll it back.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   return (

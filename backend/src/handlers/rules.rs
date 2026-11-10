@@ -7,7 +7,13 @@ use axum::{
 use serde::Deserialize;
 use time::OffsetDateTime;
 
-use crate::{auth::AuthUser, db, error::AppError, role::Role, AppState};
+use crate::{
+    auth::AuthUser,
+    db,
+    error::{AppError, ErrorCode},
+    role::Role,
+    AppState,
+};
 
 // Generous for a rules post (the last tournament's was about 6k), small enough to keep
 // one request sane.
@@ -42,13 +48,11 @@ async fn save_rules(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     if body.bbcode.len() > MAX_LENGTH {
-        return Err(AppError::BadRequest("the rules are too long"));
+        return Err(AppError::BadRequest(ErrorCode::RulesTooLong));
     }
 
     let saved = db::rules::save(&state.db, &body.bbcode, body.base, user.id)
         .await?
-        .ok_or(AppError::Conflict(
-            "someone else saved the rules after you opened them; reload to see their version",
-        ))?;
+        .ok_or(AppError::Conflict(ErrorCode::RulesChanged))?;
     Ok(Json(saved))
 }

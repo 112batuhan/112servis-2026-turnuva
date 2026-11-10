@@ -9,7 +9,7 @@ use crate::{
         matches::{MatchKind, MatchState},
     },
     discord::jobs::Job,
-    error::AppError,
+    error::{AppError, ErrorCode},
     AppState,
 };
 
@@ -32,20 +32,21 @@ pub async fn link_room(
     bot_made: bool,
     concluded: bool,
 ) -> Result<(), AppError> {
-    match db::bancho::add_room(&state.db, match_id, mp_id, bot, bot_made).await {
-        Ok(()) => {
-            // The channel's card lists the rooms; only an unconcluded match announces one.
-            let mut jobs = vec![Job::SyncMatch { match_id }];
-            if !concluded {
-                jobs.push(Job::RoomAdded { match_id, mp_id });
-            }
-            state.discord.enqueue(&state.db, &jobs).await?;
-            state.live.bracket_changed();
-            Ok(())
-        }
+    let mut tx = state.db.begin().await?;
+    match db::bancho::add_room(&mut *tx, match_id, mp_id, bot, bot_made).await {
+        Ok(()) => {}
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("match_rooms_pkey") => {
-            Err(AppError::Conflict("that room is already linked to a match"))
+            return Err(AppError::Conflict(ErrorCode::RoomTaken));
         }
-        Err(err) => Err(err.into()),
+        Err(err) => return Err(err.into()),
     }
+    // The channel's card lists the rooms; only an unconcluded match announces one.
+    let mut jobs = vec![Job::SyncMatch { match_id }];
+    if !concluded {
+        jobs.push(Job::RoomAdded { match_id, mp_id });
+    }
+    state.discord.enqueue(&mut *tx, &jobs).await?;
+    tx.commit().await?;
+    state.live.bracket_changed();
+    Ok(())
 }

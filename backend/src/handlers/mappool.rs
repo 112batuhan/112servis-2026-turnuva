@@ -9,7 +9,14 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use super::ReorderBody;
-use crate::{auth::AuthUser, db, error::AppError, osu_api, role::Role, AppState};
+use crate::{
+    auth::AuthUser,
+    db,
+    error::{AppError, ErrorCode},
+    osu_api,
+    role::Role,
+    AppState,
+};
 
 // Routes under the `/api` nest: the stages' map pools. The authed endpoints require
 // map_pooler+, except that pool testers and custom mappers can also read the stages
@@ -19,22 +26,22 @@ use crate::{auth::AuthUser, db, error::AppError, osu_api, role::Role, AppState};
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/stages", get(list_stages))
-        .route("/stages/:id", get(get_stage))
-        .route("/stages/:id/pack", put(set_stage_pack_url))
-        .route("/stages/:id/categories", post(create_category))
+        .route("/stages/{id}", get(get_stage))
+        .route("/stages/{id}/pack", put(set_stage_pack_url))
+        .route("/stages/{id}/categories", post(create_category))
         .route("/categories/reorder", post(reorder_categories))
         .route(
-            "/categories/:id",
+            "/categories/{id}",
             delete(delete_category).patch(update_category),
         )
-        .route("/categories/:id/slots", post(add_slot))
-        .route("/slots/:id", patch(update_slot).delete(delete_slot))
+        .route("/categories/{id}/slots", post(add_slot))
+        .route("/slots/{id}", patch(update_slot).delete(delete_slot))
         .route("/pool", post(add_map))
-        .route("/maps/:id", patch(move_map).delete(delete_map))
-        .route("/maps/:id/notes", patch(update_map_notes))
-        .route("/maps/:id/stats", post(recompute_map_stats))
+        .route("/maps/{id}", patch(move_map).delete(delete_map))
+        .route("/maps/{id}/notes", patch(update_map_notes))
+        .route("/maps/{id}/stats", post(recompute_map_stats))
         .route("/public/stages", get(list_public_stages))
-        .route("/public/stages/:id", get(get_public_stage))
+        .route("/public/stages/{id}", get(get_public_stage))
 }
 
 // Every authed map pool endpoint that changes something requires the map_pooler role
@@ -106,14 +113,12 @@ async fn set_stage_pack_url(
         None | Some("") => None,
         Some(text) => {
             let parsed = reqwest::Url::parse(text)
-                .map_err(|_| AppError::BadRequest("the pack link isn't a valid address"))?;
+                .map_err(|_| AppError::BadRequest(ErrorCode::BadPackLink))?;
             if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
-                return Err(AppError::BadRequest(
-                    "the pack link must start with http:// or https://",
-                ));
+                return Err(AppError::BadRequest(ErrorCode::PackLinkScheme));
             }
             if text.len() > MAX_PACK_URL {
-                return Err(AppError::BadRequest("the pack link is too long"));
+                return Err(AppError::BadRequest(ErrorCode::PackLinkTooLong));
             }
             Some(text)
         }
@@ -140,7 +145,7 @@ async fn create_category(
     guard(&user)?;
     let name = body.name.trim();
     if name.is_empty() {
-        return Err(AppError::BadRequest("category name is required"));
+        return Err(AppError::BadRequest(ErrorCode::NameRequired));
     }
     Ok(Json(
         db::mappool::create_category(&state.db, stage_id, name).await?,
@@ -178,7 +183,7 @@ async fn update_category(
     let name = body.name.as_deref().map(str::trim);
     if let Some(n) = name {
         if n.is_empty() {
-            return Err(AppError::BadRequest("category name is required"));
+            return Err(AppError::BadRequest(ErrorCode::NameRequired));
         }
     }
     Ok(Json(
@@ -255,7 +260,9 @@ async fn resolve_stats(
     // Only the star rating needs osu!'s difficulty calculation (nomod uses the value on
     // the beatmap response). A nomod map also gets its HR stats, for freemod picks.
     // osu! names OD `accuracy`.
-    let token = osu_api::token::app_token(&state.osu_client, &state.osu_app_token).await?;
+    let token =
+        osu_api::token::app_token(&state.osu_client, &state.oauth_http, &state.osu_app_token)
+            .await?;
     let star_rating = if parsed.is_empty() {
         bm.difficulty_rating
     } else {
@@ -305,7 +312,9 @@ async fn add_map(
     guard(&user)?;
     let mods = body.mods.trim().to_uppercase();
 
-    let token = osu_api::token::app_token(&state.osu_client, &state.osu_app_token).await?;
+    let token =
+        osu_api::token::app_token(&state.osu_client, &state.oauth_http, &state.osu_app_token)
+            .await?;
     let bm = osu_api::beatmap::fetch(&state.http_client, &token, body.beatmap_id).await?;
     let stats = resolve_stats(&state, &bm, &mods).await?;
 
@@ -364,7 +373,9 @@ async fn recompute_map_stats(
     let map = db::mappool::get_pool_map(&state.db, id)
         .await?
         .ok_or(AppError::NotFound)?;
-    let token = osu_api::token::app_token(&state.osu_client, &state.osu_app_token).await?;
+    let token =
+        osu_api::token::app_token(&state.osu_client, &state.oauth_http, &state.osu_app_token)
+            .await?;
     let bm = osu_api::beatmap::fetch(&state.http_client, &token, map.beatmap_id).await?;
     let stats = resolve_stats(&state, &bm, &map.mods).await?;
     db::mappool::update_pool_map_stats(&state.db, id, &stats).await?;

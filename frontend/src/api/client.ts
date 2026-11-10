@@ -1,13 +1,26 @@
+import { apiErrorOf } from "./errors";
+
 // `??` rather than `||`: an explicitly empty VITE_API_URL means "same origin"
 // (the Docker image serves the frontend from the backend).
 export const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8080";
 
-/** Sends cookies, throws the server's error text on failure, and returns undefined for 204s. */
+// Told when a request finds the session gone (it ran out, or the user logged out in
+// another tab). Set by AuthContext.
+let unauthenticated: (() => void) | null = null;
+
+export function onUnauthenticated(handler: (() => void) | null) {
+  unauthenticated = handler;
+}
+
+/**
+ * Sends cookies, throws an ApiError (with the error's Turkish text as its message) on
+ * failure, and returns undefined for 204s.
+ */
 export async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { credentials: "include", ...init });
   if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `İstek başarısız oldu (${res.status})`);
+    if (res.status === 401 && path !== "/api/me") unauthenticated?.();
+    throw await apiErrorOf(res);
   }
   return (res.status === 204 ? undefined : await res.json()) as T;
 }

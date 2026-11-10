@@ -15,3 +15,7 @@ selfnotes.txt
 /.impeccable/build/
 /.impeccable/live/
 /.impeccable/config.local.json
+
+# Impeccable's platform binary and font index are large and installed per machine
+/.claude/skills/impeccable/scripts/bin/
+/.claude/skills/impeccable/scripts/data/font-index.json

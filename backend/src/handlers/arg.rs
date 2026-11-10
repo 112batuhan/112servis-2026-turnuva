@@ -1,5 +1,6 @@
-//! The ARG: a hidden page behind the navbar's trophy where signed-in players with a linked
-//! Discord type secret messages. There are three, entered in any order, each answered by its
+//! The ARG: a hidden page behind the snowflake in the landing page's banner where
+//! signed-in players with a linked Discord type secret messages. There are three,
+//! entered in any order, each answered by its
 //! reply; the first to enter the third wins. The answers and replies live only in the
 //! environment (`ArgConfig`) and the checking only here, so the frontend carries no hint of
 //! them: a player is only sent a message's reply in answer to the guess that entered it.
@@ -15,7 +16,13 @@ use sha2::{Digest, Sha256};
 use std::{collections::HashMap, fmt::Write};
 use time::{OffsetDateTime, UtcOffset};
 
-use crate::{auth::AuthUser, config::ArgMessage, db, error::AppError, AppState};
+use crate::{
+    auth::AuthUser,
+    config::ArgMessage,
+    db,
+    error::{AppError, ErrorCode},
+    AppState,
+};
 
 // Guesses a player may make in `db::arg::recent_attempts`' window (10 minutes), against
 // brute forcing.
@@ -31,7 +38,7 @@ const WINNING_MESSAGE: i16 = 3;
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/kupa", post(guess))
-        .route("/kupa/results/:token", get(results).post(reset))
+        .route("/kupa/results/{token}", get(results).post(reset))
 }
 
 // The puzzle's messages, for a signed-in player with a linked Discord; 404 while it's off.
@@ -80,16 +87,16 @@ async fn guess(
     let messages = messages_for(&state, &user)?;
     let guess = body.guess.trim();
     if guess.is_empty() || guess.chars().count() > MAX_GUESS_LENGTH {
-        return Err(AppError::BadRequest("invalid guess"));
-    }
-    if db::arg::recent_attempts(&state.db, user.id).await? >= GUESS_LIMIT {
-        return Err(AppError::TooManyRequests(
-            "too many guesses; wait 10 minutes and try again",
-        ));
+        return Err(AppError::BadRequest(ErrorCode::InvalidGuess));
     }
 
     let message = matching(&messages, guess);
     let mut tx = state.db.begin().await?;
+    // One guess per player at a time, so parallel requests can't all pass the count.
+    db::arg::lock_player(&mut tx, user.id).await?;
+    if db::arg::recent_attempts(&mut *tx, user.id).await? >= GUESS_LIMIT {
+        return Err(AppError::TooManyRequests(ErrorCode::TooManyGuesses));
+    }
     db::arg::record_attempt(&mut tx, user.id, message, guess).await?;
     if let Some(message) = message {
         db::arg::solve(&mut tx, user.id, message).await?;

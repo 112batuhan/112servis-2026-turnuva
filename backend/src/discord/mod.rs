@@ -103,9 +103,9 @@ pub struct Bot {
 }
 
 impl Bot {
-    pub async fn user_id(&self) -> serenity::Result<UserId> {
+    pub async fn user_id(&self) -> BotResult<UserId> {
         self.user_id
-            .get_or_try_init(|| async { Ok(self.http.get_current_user().await?.id) })
+            .get_or_try_init(|| async { Ok::<_, BotError>(self.http.get_current_user().await?.id) })
             .await
             .copied()
     }
@@ -192,7 +192,8 @@ impl Discord {
 #[derive(Debug, thiserror::Error)]
 pub enum BotError {
     #[error("discord: {0}")]
-    Discord(#[from] serenity::Error),
+    // Boxed: serenity's error is large, and every bot function returns this.
+    Discord(Box<serenity::Error>),
     #[error("database: {0}")]
     Database(#[from] sqlx::Error),
     #[error("{0}")]
@@ -206,23 +207,34 @@ pub enum BotError {
     Timeout,
 }
 
+impl From<serenity::Error> for BotError {
+    fn from(err: serenity::Error) -> Self {
+        BotError::Discord(Box::new(err))
+    }
+}
+
 impl BotError {
     // Whether retrying can't help: Discord refused the request itself (missing
     // permissions, unknown channel or user, closed DMs) rather than failing to answer.
     pub fn permanent(&self) -> bool {
         match self {
-            BotError::Discord(serenity::Error::Http(err)) => err
-                .status_code()
-                .is_some_and(|s| s.is_client_error() && s.as_u16() != 429),
-            BotError::Discord(serenity::Error::Model(_)) | BotError::Setup(_) => true,
+            BotError::Discord(err) => match err.as_ref() {
+                serenity::Error::Http(err) => err
+                    .status_code()
+                    .is_some_and(|s| s.is_client_error() && s.as_u16() != 429),
+                serenity::Error::Model(_) => true,
+                _ => false,
+            },
+            BotError::Setup(_) => true,
             _ => false,
         }
     }
 
     // Discord answered that the thing doesn't exist (404).
     pub fn not_found(&self) -> bool {
-        matches!(self, BotError::Discord(serenity::Error::Http(err))
-            if err.status_code().is_some_and(|s| s.as_u16() == 404))
+        matches!(self, BotError::Discord(err)
+            if matches!(err.as_ref(), serenity::Error::Http(err)
+                if err.status_code().is_some_and(|s| s.as_u16() == 404)))
     }
 }
 
@@ -245,10 +257,25 @@ pub async fn spawn(state: &AppState) {
     if !active {
         tracing::info!("discord bot is switched off on /admin/discord");
     }
-    tokio::spawn(jobs::run_worker(state.clone(), bot.clone()));
-    tokio::spawn(scheduler::run(state.clone()));
+    {
+        let (state, bot) = (state.clone(), bot.clone());
+        crate::supervise::spawn("discord job worker", move || {
+            jobs::run_worker(state.clone(), bot.clone())
+        });
+    }
+    {
+        let state = state.clone();
+        crate::supervise::spawn("discord scheduler", move || scheduler::run(state.clone()));
+    }
     let state = state.clone();
-    tokio::spawn(async move {
+    crate::supervise::spawn("discord gateway", move || {
+        gateway(state.clone(), bot.clone())
+    });
+}
+
+// Keeps the gateway connected while the bot is switched on.
+async fn gateway(state: AppState, bot: Arc<Bot>) {
+    {
         // GUILD_MEMBERS is privileged: it has to be enabled on the bot's page.
         let intents = GatewayIntents::GUILDS | GatewayIntents::GUILD_MEMBERS;
         loop {
@@ -289,7 +316,7 @@ pub async fn spawn(state: &AppState) {
                 _ = bot.until_active(false) => {}
             }
         }
-    });
+    }
 }
 
 // A match's title as its Discord messages show it ("W3: Team A vs Team B"), for jobs

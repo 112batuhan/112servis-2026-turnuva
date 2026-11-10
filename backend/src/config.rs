@@ -9,6 +9,17 @@ pub struct Config {
     #[arg(long, env = "DATABASE_URL")]
     pub database_url: String,
 
+    /// The most connections the backend keeps to Postgres. The Discord job worker's
+    /// listener holds one of them for good.
+    #[arg(long, env = "DATABASE_MAX_CONNECTIONS", default_value_t = 20)]
+    pub database_max_connections: u32,
+
+    /// Encrypts the bots' IRC passwords in the database: 32 bytes as 64 hex digits
+    /// (`openssl rand -hex 32`). Needed once any bot is saved; changing it loses the
+    /// saved passwords (hosts enter them again).
+    #[arg(long, env = "BOT_SECRET_KEY")]
+    pub bot_secret_key: Option<String>,
+
     /// Where the frontend lives (used for CORS + post-login redirect).
     #[arg(long, env = "FRONTEND_URL", default_value = "http://localhost:5173")]
     pub frontend_url: String,
@@ -51,8 +62,9 @@ pub struct Config {
     #[arg(long, env = "BANCHO_IRC_ADDR", default_value = "irc.ppy.sh:6667")]
     pub bancho_irc_addr: String,
 
-    /// Enables /api/dev/* (sign in as any account, seed dummy data). Local testing only;
-    /// the server refuses to start with it over https.
+    /// Enables /api/dev/* (sign in as any account, seed dummy data). It works over https
+    /// too, so testers can use it on the live server before launch (the server only logs
+    /// a warning), but anyone can then sign in as anyone: turn it off before launch.
     #[arg(long, env = "DEV_LOGIN", default_value_t = false, action = clap::ArgAction::Set)]
     pub dev_login: bool,
 }
@@ -68,16 +80,25 @@ pub struct DiscordBotConfig {
 
     /// The tournament server's id.
     #[arg(long, env = "DISCORD_GUILD_ID")]
-    pub discord_guild_id: Option<u64>,
+    pub discord_guild_id: Option<String>,
 }
 
 impl DiscordBotConfig {
     pub fn bot(&self) -> Option<(&str, u64)> {
-        Some((self.discord_bot_token.as_deref()?, self.discord_guild_id?))
+        // Empty counts as unset (docker-compose passes unset variables as empty).
+        let token = set(&self.discord_bot_token)?;
+        let guild_id = match set(&self.discord_guild_id)?.trim().parse() {
+            Ok(id) => id,
+            Err(_) => {
+                tracing::error!("DISCORD_GUILD_ID isn't a number; the Discord bot is off");
+                return None;
+            }
+        };
+        Some((token, guild_id))
     }
 }
 
-/// The hidden puzzle behind the navbar's trophy (handlers/arg.rs): three secret messages,
+/// The hidden puzzle behind the snowflake in the landing page's banner (handlers/arg.rs): three secret messages,
 /// each answered by its reply, entered in any order; the first to enter the third wins.
 /// Off unless every answer and reply is set. Answers are matched ignoring case and extra
 /// spaces; a reply's `{place}` becomes the player's place among that message's finders.

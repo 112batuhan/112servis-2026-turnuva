@@ -13,8 +13,9 @@ use crate::{
     auth::AuthUser,
     bancho::{BotLimits, BotStatus, RoomCommand, LIMITS},
     db::{self, bancho::BotRow},
-    error::AppError,
+    error::{AppError, ErrorCode},
     role::Role,
+    secret::BotSecret,
     services::matches::load_match,
     AppState,
 };
@@ -27,10 +28,10 @@ pub fn routes() -> Router<AppState> {
             "/bancho/bots",
             axum::routing::get(list_bots).post(create_bot),
         )
-        .route("/bancho/bots/:id", patch(update_bot).delete(delete_bot))
-        .route("/matches/:id/room/create", post(create_room))
-        .route("/matches/:id/room/command", post(command))
-        .route("/matches/:id/room/save-score", post(save_score))
+        .route("/bancho/bots/{id}", patch(update_bot).delete(delete_bot))
+        .route("/matches/{id}/room/create", post(create_room))
+        .route("/matches/{id}/room/command", post(command))
+        .route("/matches/{id}/room/save-score", post(save_score))
 }
 
 #[derive(Debug, Serialize)]
@@ -94,6 +95,14 @@ pub struct CreateBotBody {
     active: bool,
 }
 
+// Passwords are only saved encrypted, which needs BOT_SECRET_KEY.
+fn bot_secret(state: &AppState) -> Result<&BotSecret, AppError> {
+    state
+        .bot_secret
+        .as_deref()
+        .ok_or(AppError::BadRequest(ErrorCode::BotSecretMissing))
+}
+
 #[derive(Debug, Serialize)]
 pub struct Created {
     id: Uuid,
@@ -108,15 +117,16 @@ async fn create_bot(
     user.require_role(Role::Host)?;
     let username = body.username.trim();
     if !valid_username(username) {
-        return Err(AppError::BadRequest("that isn't an osu! username"));
+        return Err(AppError::BadRequest(ErrorCode::BadUsername));
     }
     if !valid_password(&body.irc_password) {
-        return Err(AppError::BadRequest("that isn't an IRC password"));
+        return Err(AppError::BadRequest(ErrorCode::BadIrcPassword));
     }
-    let id = match db::bancho::create_bot(&state.db, username, &body.irc_password).await {
+    let sealed = bot_secret(&state)?.seal(&body.irc_password);
+    let id = match db::bancho::create_bot(&state.db, username, &sealed).await {
         Ok(id) => id,
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("bancho_bots_username_key") => {
-            return Err(AppError::Conflict("that account is already a bot"))
+            return Err(AppError::Conflict(ErrorCode::AlreadyABot))
         }
         Err(err) => return Err(err.into()),
     };
@@ -144,9 +154,10 @@ async fn update_bot(
     user.require_role(Role::Host)?;
     if let Some(password) = &body.irc_password {
         if !valid_password(password) {
-            return Err(AppError::BadRequest("that isn't an IRC password"));
+            return Err(AppError::BadRequest(ErrorCode::BadIrcPassword));
         }
-        if !db::bancho::set_password(&state.db, id, password).await? {
+        let sealed = bot_secret(&state)?.seal(password);
+        if !db::bancho::set_password(&state.db, id, &sealed).await? {
             return Err(AppError::NotFound);
         }
     }
@@ -179,7 +190,7 @@ async fn check_runs(state: &AppState, user: &AuthUser, id: Uuid) -> Result<(), A
     let m = load_match(state, id).await?;
     require_runs(user)?;
     if m.concluded() {
-        return Err(AppError::Conflict("this match is concluded"));
+        return Err(AppError::Conflict(ErrorCode::MatchConcluded));
     }
     Ok(())
 }
@@ -217,7 +228,7 @@ async fn command(
             return Err(AppError::Forbidden);
         }
         if text.trim().is_empty() {
-            return Err(AppError::BadRequest("write something first"));
+            return Err(AppError::BadRequest(ErrorCode::EmptyMessage));
         }
         let profile = db::user::find_user(&state.db, user.id)
             .await?

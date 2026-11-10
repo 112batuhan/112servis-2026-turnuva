@@ -4,12 +4,14 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: discord_auth_starter
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: tournament
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    # Only reachable from this machine (e.g. psql from the host); the app reaches it
+    # over the compose network.
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -28,7 +30,8 @@ services:
       postgres:
         condition: service_healthy
     environment:
-      DATABASE_URL: postgres://postgres:postgres@postgres:5432/discord_auth_starter
+      DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/tournament
+      DATABASE_MAX_CONNECTIONS: ${DATABASE_MAX_CONNECTIONS:-20}
       SERVER_ADDR: 0.0.0.0:8080
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8080}
       OSU_CLIENT_ID: ${OSU_CLIENT_ID:?set OSU_CLIENT_ID in .env}
@@ -38,6 +41,10 @@ services:
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:?set DISCORD_CLIENT_SECRET in .env}
       DISCORD_REDIRECT_URI: ${DISCORD_REDIRECT_URI:-http://localhost:8080/auth/discord/callback}
       DEV_LOGIN: ${DEV_LOGIN:-false}
+      BANCHO_IRC_ADDR: ${BANCHO_IRC_ADDR:-irc.ppy.sh:6667}
+      BOT_SECRET_KEY: ${BOT_SECRET_KEY:-}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN:-}
+      DISCORD_GUILD_ID: ${DISCORD_GUILD_ID:-}
       ARG_ANSWER_1: ${ARG_ANSWER_1:-}
       ARG_REPLY_1: ${ARG_REPLY_1:-}
       ARG_ANSWER_2: ${ARG_ANSWER_2:-}

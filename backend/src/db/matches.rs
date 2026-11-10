@@ -163,7 +163,7 @@ pub async fn create_lobby(pool: &PgPool, starts_at: OffsetDateTime) -> sqlx::Res
 }
 
 pub async fn reschedule_lobby(
-    pool: &PgPool,
+    ex: impl PgExecutor<'_>,
     id: Uuid,
     starts_at: OffsetDateTime,
 ) -> sqlx::Result<bool> {
@@ -171,16 +171,16 @@ pub async fn reschedule_lobby(
         sqlx::query("UPDATE matches SET starts_at = $2 WHERE id = $1 AND kind = 'qualifier'")
             .bind(id)
             .bind(starts_at)
-            .execute(pool)
+            .execute(ex)
             .await?;
     Ok(result.rows_affected() > 0)
 }
 
 // Deleting a lobby drops its signups, so its teams can pick another one.
-pub async fn delete_lobby(pool: &PgPool, id: Uuid) -> sqlx::Result<bool> {
+pub async fn delete_lobby(ex: impl PgExecutor<'_>, id: Uuid) -> sqlx::Result<bool> {
     let result = sqlx::query("DELETE FROM matches WHERE id = $1 AND kind = 'qualifier'")
         .bind(id)
-        .execute(pool)
+        .execute(ex)
         .await?;
     Ok(result.rows_affected() > 0)
 }
@@ -309,39 +309,55 @@ pub async fn find_room(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<RoomRow>>
 }
 
 // Takes an unrefereed match. False when someone else got there first.
-pub async fn claim_match(pool: &PgPool, id: Uuid, referee_id: Uuid) -> sqlx::Result<bool> {
+pub async fn claim_match(
+    ex: impl PgExecutor<'_>,
+    id: Uuid,
+    referee_id: Uuid,
+) -> sqlx::Result<bool> {
     let result =
         sqlx::query("UPDATE matches SET referee_id = $2 WHERE id = $1 AND referee_id IS NULL")
             .bind(id)
             .bind(referee_id)
-            .execute(pool)
+            .execute(ex)
             .await?;
     Ok(result.rows_affected() > 0)
 }
 
 // Drops the referee only if it's still `referee_id`.
-pub async fn release_match(pool: &PgPool, id: Uuid, referee_id: Uuid) -> sqlx::Result<bool> {
+pub async fn release_match(
+    ex: impl PgExecutor<'_>,
+    id: Uuid,
+    referee_id: Uuid,
+) -> sqlx::Result<bool> {
     let result =
         sqlx::query("UPDATE matches SET referee_id = NULL WHERE id = $1 AND referee_id = $2")
             .bind(id)
             .bind(referee_id)
-            .execute(pool)
+            .execute(ex)
             .await?;
     Ok(result.rows_affected() > 0)
 }
 
-pub async fn set_referee(pool: &PgPool, id: Uuid, referee_id: Option<Uuid>) -> sqlx::Result<()> {
+pub async fn set_referee(
+    ex: impl PgExecutor<'_>,
+    id: Uuid,
+    referee_id: Option<Uuid>,
+) -> sqlx::Result<()> {
     sqlx::query("UPDATE matches SET referee_id = $2 WHERE id = $1")
         .bind(id)
         .bind(referee_id)
-        .execute(pool)
+        .execute(ex)
         .await?;
     Ok(())
 }
 
 // Takes an unstreamed bracket or potential match. False when someone else got there
 // first, or when it's a potential match that can no longer happen.
-pub async fn claim_stream(pool: &PgPool, id: Uuid, streamer_id: Uuid) -> sqlx::Result<bool> {
+pub async fn claim_stream(
+    ex: impl PgExecutor<'_>,
+    id: Uuid,
+    streamer_id: Uuid,
+) -> sqlx::Result<bool> {
     let result = sqlx::query(
         r#"
         UPDATE matches m SET streamer_id = $2
@@ -352,37 +368,49 @@ pub async fn claim_stream(pool: &PgPool, id: Uuid, streamer_id: Uuid) -> sqlx::R
     )
     .bind(id)
     .bind(streamer_id)
-    .execute(pool)
+    .execute(ex)
     .await?;
     Ok(result.rows_affected() > 0)
 }
 
 // Drops the streamer only if it's still `streamer_id`.
-pub async fn release_stream(pool: &PgPool, id: Uuid, streamer_id: Uuid) -> sqlx::Result<bool> {
+pub async fn release_stream(
+    ex: impl PgExecutor<'_>,
+    id: Uuid,
+    streamer_id: Uuid,
+) -> sqlx::Result<bool> {
     let result =
         sqlx::query("UPDATE matches SET streamer_id = NULL WHERE id = $1 AND streamer_id = $2")
             .bind(id)
             .bind(streamer_id)
-            .execute(pool)
+            .execute(ex)
             .await?;
     Ok(result.rows_affected() > 0)
 }
 
-pub async fn set_streamer(pool: &PgPool, id: Uuid, streamer_id: Option<Uuid>) -> sqlx::Result<()> {
+pub async fn set_streamer(
+    ex: impl PgExecutor<'_>,
+    id: Uuid,
+    streamer_id: Option<Uuid>,
+) -> sqlx::Result<()> {
     sqlx::query("UPDATE matches SET streamer_id = $2 WHERE id = $1")
         .bind(id)
         .bind(streamer_id)
-        .execute(pool)
+        .execute(ex)
         .await?;
     Ok(())
 }
 
 // Takes a room off a match. Its saved chat stays, for moderation.
-pub async fn remove_room(pool: &PgPool, match_id: Uuid, mp_id: i64) -> sqlx::Result<bool> {
+pub async fn remove_room(
+    ex: impl PgExecutor<'_>,
+    match_id: Uuid,
+    mp_id: i64,
+) -> sqlx::Result<bool> {
     let result = sqlx::query("DELETE FROM match_rooms WHERE mp_id = $1 AND match_id = $2")
         .bind(mp_id)
         .bind(match_id)
-        .execute(pool)
+        .execute(ex)
         .await?;
     Ok(result.rows_affected() > 0)
 }

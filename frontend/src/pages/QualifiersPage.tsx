@@ -21,7 +21,7 @@ export function QualifiersPage() {
 
   useEffect(() => {
     reload().catch((e) => setError(errorMessage(e)));
-  }, [reload]);
+  }, [reload, setError]);
 
   const lobbies = data?.lobbies;
   const myTeamId = data?.my_team_id ?? null;

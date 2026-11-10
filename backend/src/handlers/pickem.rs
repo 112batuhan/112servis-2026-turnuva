@@ -18,7 +18,7 @@ use crate::{
         pickem::{MatchRow, Mode, PredictionRow, StageRow},
         team::Player,
     },
-    error::AppError,
+    error::{AppError, ErrorCode},
     pickem::{self, Status, Tally, Window},
     role::Role,
     AppState,
@@ -29,9 +29,9 @@ use crate::{
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/public/pickem", get(overview))
-        .route("/public/pickem/matches/:id", get(match_pickem))
-        .route("/pickem/:match_id", put(predict).delete(withdraw))
-        .route("/stages/:id/pickem", put(set_mode))
+        .route("/public/pickem/matches/{id}", get(match_pickem))
+        .route("/pickem/{match_id}", put(predict).delete(withdraw))
+        .route("/stages/{id}/pickem", put(set_mode))
 }
 
 // Everything the pick'em is worked out from, read at once. The windows follow the
@@ -416,14 +416,14 @@ fn open_match(snap: &Snapshot, match_id: Uuid) -> Result<(&MatchRow, i32), AppEr
         .ok_or(AppError::NotFound)?;
     let w = snap.window(m.stage_id).ok_or(AppError::NotFound)?;
     if w.status != Status::Open {
-        return Err(AppError::Conflict("this stage's pick'em isn't open"));
+        return Err(AppError::Conflict(ErrorCode::PickemClosed));
     }
     let best_of = m
         .stage_id
         .and_then(|s| snap.stage(s))
         .and_then(|s| s.best_of);
     if !pickem::predictable(m, best_of, OffsetDateTime::now_utc()) {
-        return Err(AppError::Conflict("this match can't be predicted"));
+        return Err(AppError::Conflict(ErrorCode::CantPredict));
     }
     Ok((m, best_of.unwrap_or(1)))
 }
@@ -447,13 +447,11 @@ async fn predict(
     let snap = Snapshot::load(&state).await?;
     let (m, best_of) = open_match(&snap, match_id)?;
     if Some(body.team_id) != m.team1_id && Some(body.team_id) != m.team2_id {
-        return Err(AppError::BadRequest("that team isn't in this match"));
+        return Err(AppError::BadRequest(ErrorCode::TeamNotInMatch));
     }
     let winner_score = pickem::first_to(best_of);
     if !(0..winner_score).contains(&body.loser_score) {
-        return Err(AppError::BadRequest(
-            "that score isn't possible in this match",
-        ));
+        return Err(AppError::BadRequest(ErrorCode::ImpossibleScore));
     }
     db::pickem::save_prediction(
         &state.db,

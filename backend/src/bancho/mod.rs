@@ -29,7 +29,11 @@ use time::OffsetDateTime;
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
-use crate::{error::AppError, osu_api::matches::MatchGame, AppState};
+use crate::{
+    error::{AppError, ErrorCode},
+    osu_api::matches::MatchGame,
+    AppState,
+};
 
 use self::{relay::SessionLink, room::SlotTeam, view::LiveRoom};
 
@@ -207,7 +211,7 @@ pub struct Bancho {
     tx: mpsc::UnboundedSender<Request>,
 }
 
-const GONE: AppError = AppError::Conflict("the room manager is restarting, try again");
+const GONE: AppError = AppError::Conflict(ErrorCode::BanchoRestarting);
 
 impl Bancho {
     // The handle, and what `spawn` starts the manager with.
@@ -323,5 +327,9 @@ pub struct BanchoInbox(mpsc::UnboundedReceiver<Request>);
 
 // Starts the manager and the active bots.
 pub fn spawn(state: &AppState, inbox: BanchoInbox) {
-    tokio::spawn(manager::run(state.clone(), inbox.0));
+    let state = state.clone();
+    let inbox = crate::supervise::shared(inbox.0);
+    crate::supervise::spawn("bancho manager", move || {
+        manager::run(state.clone(), inbox.clone())
+    });
 }

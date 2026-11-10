@@ -30,7 +30,13 @@ use axum::http::{header, HeaderMap};
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{auth::AuthUser, db::matches::MatchState, error::AppError, role::Role, AppState};
+use crate::{
+    auth::AuthUser,
+    db::matches::MatchState,
+    error::{AppError, ErrorCode},
+    role::Role,
+    AppState,
+};
 
 // CORS doesn't cover WebSockets, so the socket routes check that the page asking is ours.
 fn check_origin(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> {
@@ -56,7 +62,7 @@ fn require_runs(user: &AuthUser) -> Result<(), AppError> {
 // Once a match is concluded only hosts can change it (notes aside).
 fn require_unconcluded(user: &AuthUser, m: &MatchState) -> Result<(), AppError> {
     if m.concluded() && !is_host(user) {
-        return Err(AppError::Conflict("this match is concluded"));
+        return Err(AppError::Conflict(ErrorCode::MatchConcluded));
     }
     Ok(())
 }

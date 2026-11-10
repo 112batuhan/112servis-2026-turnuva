@@ -7,6 +7,7 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use sqlx::PgConnection;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -17,7 +18,7 @@ use crate::{
         team::{InviteRow, Player, PlayerState, TeamMemberRow},
     },
     discord::jobs::Job,
-    error::AppError,
+    error::{AppError, ErrorCode},
     rank_refresh,
     role::{Role, Roles},
     team_rank,
@@ -42,13 +43,13 @@ pub fn routes() -> Router<AppState> {
                 .layer(DefaultBodyLimit::max(BANNER_MAX_BYTES)),
         )
         .route("/invites", post(send_invite))
-        .route("/invites/:id", delete(delete_invite))
-        .route("/invites/:id/accept", post(accept_invite))
+        .route("/invites/{id}", delete(delete_invite))
+        .route("/invites/{id}/accept", post(accept_invite))
         .route("/public/teams", get(list_public_teams))
-        .route("/public/teams/:id/banner", get(team_banner))
+        .route("/public/teams/{id}/banner", get(team_banner))
         .route("/teams", get(list_teams))
-        .route("/teams/:id", patch(rename_team).delete(disband_team))
-        .route("/teams/:id/banner", delete(remove_team_banner))
+        .route("/teams/{id}", patch(rename_team).delete(disband_team))
+        .route("/teams/{id}/banner", delete(remove_team_banner))
         .route("/ranks/refresh", post(refresh_ranks))
         .route("/settings/teams-frozen", put(set_teams_frozen))
 }
@@ -81,12 +82,10 @@ impl Eligibility {
     fn require(self) -> Result<(), AppError> {
         match self {
             Self::Eligible => Ok(()),
-            Self::NotPlayer => Err(AppError::BadRequest("staff can't join teams")),
-            Self::InTeam => Err(AppError::Conflict("that player is already in a team")),
-            Self::Unranked => Err(AppError::BadRequest("both players need a global rank")),
-            Self::OverLimit => Err(AppError::BadRequest(
-                "this team would be over the rank limit",
-            )),
+            Self::NotPlayer => Err(AppError::BadRequest(ErrorCode::StaffCantPlay)),
+            Self::InTeam => Err(AppError::Conflict(ErrorCode::PlayerInTeam)),
+            Self::Unranked => Err(AppError::BadRequest(ErrorCode::NeedsGlobalRank)),
+            Self::OverLimit => Err(AppError::BadRequest(ErrorCode::OverRankLimit)),
         }
     }
 }
@@ -95,7 +94,7 @@ impl Eligibility {
 // Forming a team also needs a linked Discord account.
 fn require_player(user: &AuthUser) -> Result<(), AppError> {
     if !user.roles.can_play() {
-        return Err(AppError::BadRequest("staff can't join teams"));
+        return Err(AppError::BadRequest(ErrorCode::StaffCantPlay));
     }
     user.require_discord_verified()
 }
@@ -104,7 +103,7 @@ fn require_player(user: &AuthUser) -> Result<(), AppError> {
 // skip this check.
 async fn require_unfrozen(ex: impl sqlx::PgExecutor<'_>) -> Result<(), AppError> {
     if db::settings::teams_frozen(ex).await? {
-        return Err(AppError::Conflict("teams are frozen"));
+        return Err(AppError::Conflict(ErrorCode::TeamsFrozen));
     }
     Ok(())
 }
@@ -120,14 +119,10 @@ const TEAM_NAME_MAX: usize = 32;
 fn parse_team_name(raw: &str) -> Result<String, AppError> {
     let name = raw.split_whitespace().collect::<Vec<_>>().join(" ");
     if name.is_empty() || name.chars().count() > TEAM_NAME_MAX {
-        return Err(AppError::BadRequest(
-            "team names must be 1 to 32 characters",
-        ));
+        return Err(AppError::BadRequest(ErrorCode::TeamNameLength));
     }
     if name.chars().any(char::is_control) {
-        return Err(AppError::BadRequest(
-            "team names can't contain control characters",
-        ));
+        return Err(AppError::BadRequest(ErrorCode::TeamNameCharacters));
     }
     Ok(name)
 }
@@ -275,7 +270,7 @@ async fn send_invite(
 ) -> Result<impl IntoResponse, AppError> {
     require_player(&user)?;
     if body.user_id == user.id {
-        return Err(AppError::BadRequest("you can't invite yourself"));
+        return Err(AppError::BadRequest(ErrorCode::InviteSelf));
     }
     let team_name = parse_team_name(&body.team_name)?;
     require_unfrozen(&state.db).await?;
@@ -283,7 +278,7 @@ async fn send_invite(
     rank_refresh::refresh_stale(&state, &[user.id, body.user_id]).await;
     let me = load_self(&state, &user).await?;
     if me.in_team {
-        return Err(AppError::Conflict("you are already in a team"));
+        return Err(AppError::Conflict(ErrorCode::AlreadyInTeam));
     }
     let target = db::team::find_player(&state.db, body.user_id)
         .await?
@@ -291,13 +286,11 @@ async fn send_invite(
     Eligibility::of(&me.player, &target).require()?;
 
     if db::team::invite_exists(&state.db, body.user_id, user.id).await? {
-        return Err(AppError::Conflict(
-            "they already invited you, accept their invite instead",
-        ));
+        return Err(AppError::Conflict(ErrorCode::TheyInvitedYou));
     }
     db::team::create_invite(&state.db, user.id, body.user_id, &team_name)
         .await?
-        .ok_or(AppError::Conflict("invite already sent"))?;
+        .ok_or(AppError::Conflict(ErrorCode::InviteAlreadySent))?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -339,17 +332,17 @@ async fn accept_invite(
         .await?
         .ok_or(AppError::NotFound)?;
     if me.in_team {
-        return Err(AppError::Conflict("you are already in a team"));
+        return Err(AppError::Conflict(ErrorCode::AlreadyInTeam));
     }
     Eligibility::of(&me.player, &inviter).require()?;
 
     let team_id = match db::team::create_team(&mut tx, inviter_id, user.id, &team_name).await {
         Ok(team_id) => team_id,
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("teams_name_key") => {
-            return Err(AppError::Conflict("that team name is taken"))
+            return Err(AppError::Conflict(ErrorCode::TeamNameTaken))
         }
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("team_members_pkey") => {
-            return Err(AppError::Conflict("one of you is already in a team"))
+            return Err(AppError::Conflict(ErrorCode::SomeoneInTeam))
         }
         Err(err) => return Err(err.into()),
     };
@@ -377,9 +370,7 @@ async fn require_in_server(state: &AppState, user_id: Uuid) -> Result<(), AppErr
         return Ok(());
     }
     match db::discord::account_of(&state.db, user_id).await? {
-        Some((_, Some(false))) => Err(AppError::Conflict(
-            "rejoin the tournament's Discord server first",
-        )),
+        Some((_, Some(false))) => Err(AppError::Conflict(ErrorCode::NotInDiscordServer)),
         _ => Ok(()),
     }
 }
@@ -397,7 +388,7 @@ async fn rename(state: &AppState, team_id: Uuid, raw_name: &str) -> Result<Statu
         Ok(true) => {}
         Ok(false) => return Err(AppError::NotFound),
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("teams_name_key") => {
-            return Err(AppError::Conflict("that team name is taken"))
+            return Err(AppError::Conflict(ErrorCode::TeamNameTaken))
         }
         Err(err) => return Err(err.into()),
     }
@@ -488,18 +479,23 @@ async fn upload_my_banner(
 ) -> Result<impl IntoResponse, AppError> {
     require_unfrozen(&state.db).await?;
     let team_id = user.team_id(&state.db).await?;
-    let content_type = banner_content_type(&body).ok_or(AppError::BadRequest(
-        "banners must be PNG, JPEG, GIF or WebP images",
-    ))?;
-    db::team::set_banner(&state.db, team_id, content_type, &body).await?;
-    sync_team_matches(&state, team_id).await?;
+    let content_type =
+        banner_content_type(&body).ok_or(AppError::BadRequest(ErrorCode::BadBannerType))?;
+    let mut tx = state.db.begin().await?;
+    db::team::set_banner(&mut *tx, team_id, content_type, &body).await?;
+    sync_team_matches(&state, &mut tx, team_id).await?;
+    tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
 // The team's open matches show its banner on their channel cards.
-async fn sync_team_matches(state: &AppState, team_id: Uuid) -> Result<(), AppError> {
-    let jobs = Job::sync_matches(db::discord::open_matches_of_team(&state.db, team_id).await?);
-    state.discord.enqueue(&state.db, &jobs).await?;
+async fn sync_team_matches(
+    state: &AppState,
+    conn: &mut PgConnection,
+    team_id: Uuid,
+) -> Result<(), AppError> {
+    let jobs = Job::sync_matches(db::discord::open_matches_of_team(&mut *conn, team_id).await?);
+    state.discord.enqueue(&mut *conn, &jobs).await?;
     Ok(())
 }
 
@@ -510,8 +506,10 @@ async fn remove_my_banner(
 ) -> Result<impl IntoResponse, AppError> {
     require_unfrozen(&state.db).await?;
     let team_id = user.team_id(&state.db).await?;
-    db::team::delete_banner(&state.db, team_id).await?;
-    sync_team_matches(&state, team_id).await?;
+    let mut tx = state.db.begin().await?;
+    db::team::delete_banner(&mut *tx, team_id).await?;
+    sync_team_matches(&state, &mut tx, team_id).await?;
+    tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -611,10 +609,12 @@ async fn remove_team_banner(
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
-    if !db::team::delete_banner(&state.db, id).await? {
+    let mut tx = state.db.begin().await?;
+    if !db::team::delete_banner(&mut *tx, id).await? {
         return Err(AppError::NotFound);
     }
-    sync_team_matches(&state, id).await?;
+    sync_team_matches(&state, &mut tx, id).await?;
+    tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

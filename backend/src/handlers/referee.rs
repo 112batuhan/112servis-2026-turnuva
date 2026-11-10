@@ -23,7 +23,7 @@ use crate::{
         team::{Player, TeamMemberRow},
     },
     draft::DraftOrder,
-    error::AppError,
+    error::{AppError, ErrorCode},
     role::Role,
     services::matches::load_match,
     views::{
@@ -41,14 +41,14 @@ use crate::{
 // from `/api/public/matches/:id`.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/matches/:id/room", get(get_room))
-        .route("/matches/:id/chat", get(get_chat))
-        .route("/matches/:id/room-options", put(set_room_options))
-        .route("/matches/:id/osu-sync", post(mark_osu_synced))
-        .route("/matches/:id/next-pick", put(set_next_pick))
-        .route("/matches/:id/ignored-maps", put(set_ignored_map))
-        .route("/public/matches/:id", get(get_public_match))
-        .route("/public/matches/:id/chat", get(get_public_chat))
+        .route("/matches/{id}/room", get(get_room))
+        .route("/matches/{id}/chat", get(get_chat))
+        .route("/matches/{id}/room-options", put(set_room_options))
+        .route("/matches/{id}/osu-sync", post(mark_osu_synced))
+        .route("/matches/{id}/next-pick", put(set_next_pick))
+        .route("/matches/{id}/ignored-maps", put(set_ignored_map))
+        .route("/public/matches/{id}", get(get_public_match))
+        .route("/public/matches/{id}/chat", get(get_public_chat))
 }
 
 #[derive(Debug, Serialize)]
@@ -438,7 +438,7 @@ async fn set_room_options(
 ) -> Result<impl IntoResponse, AppError> {
     check_runs(&state, &user, id).await?;
     if !(0..=3).contains(&body.score_mode) {
-        return Err(AppError::BadRequest("unknown score mode"));
+        return Err(AppError::BadRequest(ErrorCode::BadScoreMode));
     }
     db::referee::set_options(
         &state.db,
@@ -498,7 +498,7 @@ async fn set_next_pick(
             .await?
             .ok_or(AppError::NotFound)?;
         if Some(team_id) != teams.team1_id && Some(team_id) != teams.team2_id {
-            return Err(AppError::BadRequest("that team doesn't play in this match"));
+            return Err(AppError::BadRequest(ErrorCode::TeamNotInMatch));
         }
     }
     db::referee::set_next_pick(&state.db, id, body.team_id).await?;
@@ -526,7 +526,7 @@ async fn set_ignored_map(
 ) -> Result<impl IntoResponse, AppError> {
     check_runs(&state, &user, id).await?;
     if body.key.is_empty() || body.key.len() > MAP_KEY_MAX {
-        return Err(AppError::BadRequest("that isn't a map of this match"));
+        return Err(AppError::BadRequest(ErrorCode::NotAMatchMap));
     }
     if body.ignored {
         db::referee::ignore_map(&state.db, id, &body.key).await?;

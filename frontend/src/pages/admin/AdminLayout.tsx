@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import type { User } from "../../api/types";
 import { useSignedInUser } from "../../auth/AuthContext";
@@ -35,7 +35,10 @@ export function AdminLayout() {
     <div className="page admin-page">
       {/* Here rather than on the referee page, so the Bancho connection outlives tab switches. */}
       <IrcProvider>
-        <Outlet />
+        {/* Admin pages load when first opened; the tabs stay meanwhile. */}
+        <Suspense fallback={<p className="status page-loading">Yükleniyor…</p>}>
+          <Outlet />
+        </Suspense>
       </IrcProvider>
     </div>
   );

@@ -26,13 +26,6 @@ pub enum Role {
     Commentator,
 }
 
-// So a `staff_role[]` column reads into a Vec<Role>; sqlx 0.7 doesn't derive it.
-impl sqlx::postgres::PgHasArrayType for Role {
-    fn array_type_info() -> sqlx::postgres::PgTypeInfo {
-        sqlx::postgres::PgTypeInfo::with_name("_staff_role")
-    }
-}
-
 impl Role {
     fn bit(self) -> u8 {
         1 << self as u8

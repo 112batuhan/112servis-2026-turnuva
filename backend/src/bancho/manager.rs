@@ -30,12 +30,14 @@ use super::{
 };
 use crate::{
     db::{self, bancho::BotLogin, matches::MatchKind, stats::QualifierMapRow, user::StaffMember},
-    error::AppError,
+    error::{AppError, ErrorCode},
     live::Change,
     osu_api,
     osu_api::matches::MatchGame,
     role::Role,
-    room_scores, services, AppState,
+    room_scores, services,
+    supervise::{self, SharedReceiver},
+    AppState,
 };
 
 // How often timers are checked and changed rooms pushed to the pages.
@@ -173,7 +175,10 @@ enum Save {
     Lobby(Vec<QualifierMapRow>),
 }
 
-pub(super) async fn run(app: AppState, mut inbox: mpsc::UnboundedReceiver<Request>) {
+// Supervised (crate::supervise): after a panic a new manager takes over the same inbox
+// and rebuilds the rooms from their saved chat, as at startup.
+pub(super) async fn run(app: AppState, inbox: SharedReceiver<Request>) {
+    let mut inbox = inbox.lock().await;
     let (events_tx, mut events) = mpsc::unbounded_channel();
     let mut changes = app.live.changes();
     let mut manager = Manager {
@@ -224,58 +229,74 @@ pub(super) async fn run(app: AppState, mut inbox: mpsc::UnboundedReceiver<Reques
 
 // Saves room lines in order, then sends each to the pages watching its match.
 fn spawn_chat_writer(app: AppState) -> mpsc::UnboundedSender<ChatWrite> {
-    let (tx, mut rx) = mpsc::unbounded_channel::<ChatWrite>();
-    tokio::spawn(async move {
-        while let Some(w) = rx.recv().await {
-            match db::chat::insert_message(
-                &app.db, w.mp_id, &w.from, &w.text, w.action, w.bot, w.at,
-            )
-            .await
-            {
-                Ok(message) => app.live.chat(w.mp_id, &message),
-                Err(err) => {
-                    tracing::error!(error = ?err, mp_id = w.mp_id, "could not save a chat line")
-                }
-            }
-        }
+    let (tx, rx) = mpsc::unbounded_channel::<ChatWrite>();
+    let rx = supervise::shared(rx);
+    supervise::spawn("bancho chat writer", move || {
+        write_chat(app.clone(), rx.clone())
     });
     tx
+}
+
+// Ends once the manager that feeds it is gone.
+async fn write_chat(app: AppState, rx: SharedReceiver<ChatWrite>) {
+    let mut rx = rx.lock().await;
+    while let Some(w) = rx.recv().await {
+        match db::chat::insert_message(&app.db, w.mp_id, &w.from, &w.text, w.action, w.bot, w.at)
+            .await
+        {
+            Ok(message) => app.live.chat(w.mp_id, &message),
+            Err(err) => {
+                tracing::error!(error = ?err, mp_id = w.mp_id, "could not save a chat line")
+            }
+        }
+    }
 }
 
 // Saves scores one after the other, so an older one never lands after a newer one. Each
 // save has osu!'s record of the match's rooms read for its accuracy.
 fn spawn_saver(app: AppState) -> mpsc::UnboundedSender<SaveJob> {
-    let (tx, mut rx) = mpsc::unbounded_channel::<SaveJob>();
+    let (tx, rx) = mpsc::unbounded_channel::<SaveJob>();
+    let rx = supervise::shared(rx);
     let scores = room_scores::spawn(app.clone());
-    tokio::spawn(async move {
-        while let Some(job) = rx.recv().await {
-            let result = match &job.save {
-                Save::Score { team1, team2, maps } => {
-                    services::bracket::save_score(
-                        &app,
-                        job.match_id,
-                        Some(*team1),
-                        Some(*team2),
-                        Some(maps),
-                    )
-                    .await
-                }
-                Save::Lobby(rows) => save_lobby(&app, job.match_id, rows).await,
-            };
-            match &result {
-                Ok(()) => {
-                    let _ = scores.send(job.match_id);
-                }
-                Err(err) => {
-                    tracing::error!(error = ?err, match_id = %job.match_id, "could not save a match's score")
-                }
-            }
-            if let Some(reply) = job.reply {
-                let _ = reply.send(result);
-            }
-        }
+    supervise::spawn("bancho score saver", move || {
+        save_scores(app.clone(), rx.clone(), scores.clone())
     });
     tx
+}
+
+// Ends once the manager that feeds it is gone.
+async fn save_scores(
+    app: AppState,
+    rx: SharedReceiver<SaveJob>,
+    scores: mpsc::UnboundedSender<Uuid>,
+) {
+    let mut rx = rx.lock().await;
+    while let Some(job) = rx.recv().await {
+        let result = match &job.save {
+            Save::Score { team1, team2, maps } => {
+                services::bracket::save_score(
+                    &app,
+                    job.match_id,
+                    Some(*team1),
+                    Some(*team2),
+                    Some(maps),
+                )
+                .await
+            }
+            Save::Lobby(rows) => save_lobby(&app, job.match_id, rows).await,
+        };
+        match &result {
+            Ok(()) => {
+                let _ = scores.send(job.match_id);
+            }
+            Err(err) => {
+                tracing::error!(error = ?err, match_id = %job.match_id, "could not save a match's score")
+            }
+        }
+        if let Some(reply) = job.reply {
+            let _ = reply.send(result);
+        }
+    }
 }
 
 // Saves a qualifier lobby's finished pool maps; the pages showing it (the statistics
@@ -350,13 +371,14 @@ impl Manager {
     // ---------- bots ----------
 
     async fn reload_bots(&mut self) {
-        let logins = match db::bancho::list_logins(&self.app.db).await {
-            Ok(logins) => logins,
-            Err(err) => {
-                tracing::error!(error = ?err, "could not read the bot accounts");
-                return;
-            }
-        };
+        let logins =
+            match db::bancho::list_logins(&self.app.db, self.app.bot_secret.as_deref()).await {
+                Ok(logins) => logins,
+                Err(err) => {
+                    tracing::error!(error = ?err, "could not read the bot accounts");
+                    return;
+                }
+            };
         let known: HashSet<Uuid> = logins.iter().map(|l| l.id).collect();
         for id in self.bots.keys().copied().collect::<Vec<_>>() {
             if !known.contains(&id) {
@@ -432,7 +454,7 @@ impl Manager {
         if let Some(making) = bot.making.take() {
             let _ = making
                 .reply
-                .send(Err(AppError::Conflict("the bot was turned off")));
+                .send(Err(AppError::Conflict(ErrorCode::BotTurnedOff)));
         }
         self.bot_offline(id);
     }
@@ -517,7 +539,7 @@ impl Manager {
             .filter(|b| b.login.active && b.online && !skip.contains(&b.login.id))
             .collect();
         if online.is_empty() {
-            return Err(AppError::Conflict("no bot is connected to Bancho"));
+            return Err(AppError::Conflict(ErrorCode::NoBotConnected));
         }
         online
             .into_iter()
@@ -527,9 +549,7 @@ impl Manager {
             .filter(|(load, _)| *load < ROOM_LIMIT)
             .min_by(|(a, x), (b, y)| a.cmp(b).then(x.login.username.cmp(&y.login.username)))
             .map(|(_, b)| b.login.id)
-            .ok_or(AppError::Conflict(
-                "every bot already has as many rooms open as Bancho allows (4 each)",
-            ))
+            .ok_or(AppError::Conflict(ErrorCode::BotsFull))
     }
 
     // ---------- rooms and runs ----------
@@ -855,7 +875,9 @@ impl Manager {
                     ],
                 )
             });
-        let run = self.runs.get_mut(&id).expect("checked above");
+        let Some(run) = self.runs.get_mut(&id) else {
+            return;
+        };
         run.last_key = Some(key);
         run.force_save = false;
         if save {
@@ -899,7 +921,9 @@ impl Manager {
         );
         let key = lobby_key(&rows);
         let save = key != run.ctx.saved_key && run.last_key.as_deref() != Some(key.as_str());
-        let run = self.runs.get_mut(&id).expect("checked above");
+        let Some(run) = self.runs.get_mut(&id) else {
+            return;
+        };
         run.last_key = Some(key);
         if save {
             let _ = self.saver.send(SaveJob {
@@ -922,14 +946,18 @@ impl Manager {
         if !ready || !self.bot_online(self.rooms[&mp_id].bot) {
             return;
         }
-        let room = self.rooms.get_mut(&mp_id).expect("checked above");
+        let Some(room) = self.rooms.get_mut(&mp_id) else {
+            return;
+        };
         room.tiebreaker_done = Some(key);
         let current = room.state.beatmap_id;
         let last = room.state.results.last().and_then(|r| r.beatmap_id);
         if current == Some(beatmap_id) || (current.is_some() && current != last) {
             return;
         }
-        let bot = room.bot.expect("online");
+        let Some(bot) = room.bot else {
+            return;
+        };
         for line in lines {
             self.bot_send(
                 bot,
@@ -985,9 +1013,9 @@ impl Manager {
                     bot.online_since = None;
                     bot.error = Some(reason);
                     if let Some(making) = bot.making.take() {
-                        let _ = making.reply.send(Err(AppError::Conflict(
-                            "the bot lost its connection to Bancho",
-                        )));
+                        let _ = making
+                            .reply
+                            .send(Err(AppError::Conflict(ErrorCode::BotDisconnected)));
                     }
                     if login_failed {
                         bot.refused_password = Some(bot.login.irc_password.clone());
@@ -1393,7 +1421,9 @@ impl Manager {
                 }
             }
         }
-        let room = self.rooms.get_mut(&mp_id).expect("checked above");
+        let Some(room) = self.rooms.get_mut(&mp_id) else {
+            return;
+        };
         room.unknown = unknown;
         room.refs_asked = refs_asked;
         for line in out {
@@ -1587,11 +1617,10 @@ impl Manager {
 
         // !mp make answers that never came.
         for bot in self.bots.values_mut() {
-            if bot.making.as_ref().is_some_and(|m| m.deadline <= now) {
-                let making = bot.making.take().expect("checked");
-                let _ = making.reply.send(Err(AppError::Conflict(
-                    "BanchoBot didn't answer; look at the bot's chat",
-                )));
+            if let Some(making) = bot.making.take_if(|m| m.deadline <= now) {
+                let _ = making
+                    .reply
+                    .send(Err(AppError::Conflict(ErrorCode::BanchobotNoAnswer)));
                 self.status_changed = true;
             }
         }
@@ -1648,9 +1677,14 @@ impl Manager {
             .map(|r| r.mp_id)
             .collect();
         for mp_id in due {
-            let room = self.rooms.get_mut(&mp_id).expect("listed");
+            let Some(room) = self.rooms.get_mut(&mp_id) else {
+                continue;
+            };
             room.close_at = None;
-            let (bot, made) = (room.bot.expect("joined"), room.bot_made);
+            let Some(bot) = room.bot else {
+                continue;
+            };
+            let made = room.bot_made;
             if made {
                 self.bot_send(
                     bot,
@@ -1770,7 +1804,7 @@ impl Manager {
                     );
                 }
                 Ok(Some(_)) => {
-                    let _ = reply.send(Err(AppError::Conflict("this match is concluded")));
+                    let _ = reply.send(Err(AppError::Conflict(ErrorCode::MatchConcluded)));
                     return;
                 }
                 Ok(None) => {
@@ -1801,13 +1835,11 @@ impl Manager {
 
     fn save_now(&mut self, match_id: Uuid, reply: oneshot::Sender<Result<(), AppError>>) {
         let Some(run) = self.runs.get(&match_id) else {
-            let _ = reply.send(Err(AppError::Conflict("the bots don't run this match")));
+            let _ = reply.send(Err(AppError::Conflict(ErrorCode::MatchNotRun)));
             return;
         };
         let Some([a, b]) = run.ctx.sides.clone() else {
-            let _ = reply.send(Err(AppError::BadRequest(
-                "this match needs both teams first",
-            )));
+            let _ = reply.send(Err(AppError::BadRequest(ErrorCode::NeedsBothTeams)));
             return;
         };
         let rooms: Vec<ViewRoom> = self
@@ -1846,22 +1878,20 @@ impl Manager {
         let run = self
             .runs
             .get(&match_id)
-            .ok_or(AppError::Conflict("this match has no room yet"))?;
+            .ok_or(AppError::Conflict(ErrorCode::MatchNeedsRoom))?;
         let ctx = run.ctx.clone();
         let mp_id = self
             .latest_room(match_id)
-            .ok_or(AppError::Conflict("this match has no room yet"))?;
+            .ok_or(AppError::Conflict(ErrorCode::MatchNeedsRoom))?;
         let room = &self.rooms[&mp_id];
         let bot = room
             .bot
-            .ok_or(AppError::Conflict("no bot runs this room; open a new room"))?;
+            .ok_or(AppError::Conflict(ErrorCode::RoomWithoutBot))?;
         if room.closed {
-            return Err(AppError::Conflict("this room is closed"));
+            return Err(AppError::Conflict(ErrorCode::RoomClosed));
         }
         if !self.bot_online(Some(bot)) {
-            return Err(AppError::Conflict(
-                "the room's bot isn't connected to Bancho; open a new room",
-            ));
+            return Err(AppError::Conflict(ErrorCode::RoomBotOffline));
         }
         if let RoomCommand::Rejoin = command {
             if let Some(room) = self.rooms.get_mut(&mp_id) {
@@ -1872,7 +1902,7 @@ impl Manager {
             return Ok(());
         }
         if !room.joined {
-            return Err(AppError::Conflict("the room's bot isn't in the room yet"));
+            return Err(AppError::Conflict(ErrorCode::BotNotInRoom));
         }
         let state = &room.state;
         let slot_at = |n: i32| {
@@ -1881,7 +1911,7 @@ impl Manager {
                 .iter()
                 .find(|s| s.slot == n)
                 .cloned()
-                .ok_or(AppError::BadRequest("nobody is in that slot"))
+                .ok_or(AppError::BadRequest(ErrorCode::SlotEmpty))
         };
         let with_id = |slot: RoomSlot| match ctx
             .roster
@@ -1903,9 +1933,7 @@ impl Manager {
             RoomCommand::Settings => vec![refresh()],
             RoomCommand::Invite { osu_id } => {
                 if !ctx.roster.iter().any(|r| r.osu_id == osu_id) {
-                    return Err(AppError::BadRequest(
-                        "that player doesn't play in this match",
-                    ));
+                    return Err(AppError::BadRequest(ErrorCode::PlayerNotInMatch));
                 }
                 vec![format!("!mp invite {}", player_ref(osu_id))]
             }
@@ -1917,7 +1945,7 @@ impl Manager {
             RoomCommand::Move { slot, to, team } => {
                 let mover = with_id(slot_at(slot)?);
                 if to.is_some_and(|t| !(1..=16).contains(&t)) {
-                    return Err(AppError::BadRequest("slots go from 1 to 16"));
+                    return Err(AppError::BadRequest(ErrorCode::BadRoomSlot));
                 }
                 let mut lines = move_commands(state, &mover, to, team, None);
                 if !lines.is_empty() {
@@ -1936,7 +1964,7 @@ impl Manager {
             RoomCommand::Kick { slot } => vec![kick_command(&slot_at(slot)?)],
             RoomCommand::KickOutsiders => {
                 if !self.staff_loaded {
-                    return Err(AppError::Conflict("the staff list isn't loaded yet"));
+                    return Err(AppError::Conflict(ErrorCode::StaffNotLoaded));
                 }
                 state
                     .slots
@@ -1961,7 +1989,7 @@ impl Manager {
                     .entries
                     .iter()
                     .find(|e| e.map_id == map_id)
-                    .ok_or(AppError::BadRequest("that map isn't in this match's pool"))?;
+                    .ok_or(AppError::BadRequest(ErrorCode::MapNotInPool))?;
                 vec![
                     map_command(entry.beatmap_id, &entry.mode),
                     mods_command(&entry.mods, entry.freemod, ctx.settings.no_fail),
@@ -1970,7 +1998,7 @@ impl Manager {
             RoomCommand::AnnounceScore => {
                 let view = self.view_of(match_id).ok_or(AppError::NotFound)?;
                 let (Some([a, b]), Some(t)) = (&ctx.sides, view.tally) else {
-                    return Err(AppError::BadRequest("this match needs both teams first"));
+                    return Err(AppError::BadRequest(ErrorCode::NeedsBothTeams));
                 };
                 let next = view.next_turn.and_then(|turn| {
                     [a, b]
@@ -1990,25 +2018,19 @@ impl Manager {
                             .iter()
                             .any(|r| s.roles.contains(r))
                     })
-                    .ok_or(AppError::BadRequest(
-                        "only referees, streamers and commentators can be added as referees",
-                    ))?;
+                    .ok_or(AppError::BadRequest(ErrorCode::CantBeRoomReferee))?;
                 if self.is_bot_name(&member.username) {
-                    return Err(AppError::BadRequest(
-                        "a bot is never added to another bot's room",
-                    ));
+                    return Err(AppError::BadRequest(ErrorCode::BotInBotRoom));
                 }
                 // Streamers and commentators can play; a referee of the room could run it.
                 if ctx.roster.iter().any(|p| p.osu_id == member.osu_id) {
-                    return Err(AppError::BadRequest(
-                        "a player of the match can't be one of its room's referees",
-                    ));
+                    return Err(AppError::BadRequest(ErrorCode::PlayerCantReferee));
                 }
                 vec![add_ref_command(&member.username)]
             }
             RoomCommand::RemoveRef { username } => {
                 if !state.is_ref(&username) {
-                    return Err(AppError::BadRequest("they aren't a referee of this room"));
+                    return Err(AppError::BadRequest(ErrorCode::NotRoomReferee));
                 }
                 let nick = normalize_name(&username);
                 if let Some(run) = self.runs.get_mut(&match_id) {
@@ -2030,9 +2052,7 @@ impl Manager {
                         .unwrap_or_default()
                         .to_lowercase();
                     if ["make", "addref", "removeref"].contains(&verb.as_str()) {
-                        return Err(AppError::BadRequest(
-                            "add and remove the room's referees from its settings",
-                        ));
+                        return Err(AppError::BadRequest(ErrorCode::RefsFromSettings));
                     }
                     vec![text.to_string()]
                 } else if self
@@ -2044,7 +2064,8 @@ impl Manager {
                     vec![format!("[{by}] {text}")]
                 }
             }
-            RoomCommand::Rejoin => unreachable!("handled above"),
+            // Handled above.
+            RoomCommand::Rejoin => return Ok(()),
         };
         for line in lines {
             self.bot_send(bot, room_channel(mp_id), line, Some(mp_id), Priority::High);
@@ -2117,7 +2138,8 @@ pub async fn read_osu_games(
     app: &AppState,
     rooms: &[i64],
 ) -> Result<HashMap<i64, Vec<MatchGame>>, AppError> {
-    let token = osu_api::token::app_token(&app.osu_client, &app.osu_app_token).await?;
+    let token =
+        osu_api::token::app_token(&app.osu_client, &app.oauth_http, &app.osu_app_token).await?;
     let mut games = HashMap::new();
     for &mp_id in rooms {
         match osu_api::matches::fetch_games(&app.http_client, &token, mp_id).await {

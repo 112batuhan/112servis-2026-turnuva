@@ -2,7 +2,7 @@
 //! bracket stage, how its matches are played (best of, ban and pick order).
 
 use serde::Serialize;
-use sqlx::PgPool;
+use sqlx::{PgConnection, PgPool};
 use time::OffsetDateTime;
 use uuid::Uuid;
 
@@ -142,24 +142,22 @@ pub async fn set_stage_pack_url(pool: &PgPool, id: Uuid, url: Option<&str>) -> s
 // the ids of its bracket matches, whose Discord cards show it, or None when there's no
 // such stage.
 pub async fn set_stage_best_of(
-    pool: &PgPool,
+    conn: &mut PgConnection,
     id: Uuid,
     best_of: Option<i32>,
 ) -> sqlx::Result<Option<Vec<Uuid>>> {
-    let mut tx = pool.begin().await?;
     let found = sqlx::query("UPDATE stages SET best_of = $2, updated_at = now() WHERE id = $1")
         .bind(id)
         .bind(best_of)
-        .execute(&mut *tx)
+        .execute(&mut *conn)
         .await?;
     if found.rows_affected() == 0 {
         return Ok(None);
     }
     let matches = sqlx::query_scalar("SELECT match_id FROM bracket_matches WHERE stage_id = $1")
         .bind(id)
-        .fetch_all(&mut *tx)
+        .fetch_all(&mut *conn)
         .await?;
-    tx.commit().await?;
     Ok(Some(matches))
 }
 

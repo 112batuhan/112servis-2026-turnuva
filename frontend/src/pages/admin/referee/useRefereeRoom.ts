@@ -188,7 +188,7 @@ export function useRefereeRoom(matchId: string) {
         reload();
       });
     },
-    [reload],
+    [reload, setError, setRoom],
   );
 
   const entries = useMemo(() => (room ? poolEntries(room) : []), [room]);
@@ -241,7 +241,7 @@ export function useRefereeRoom(matchId: string) {
       setError(null);
       roomCommand(matchId, cmd).catch((e) => setError(errorMessage(e)));
     },
-    [matchId],
+    [matchId, setError],
   );
 
   const actions = {

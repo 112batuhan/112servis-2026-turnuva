@@ -12,16 +12,20 @@ use axum::{
     routing::get,
     Router,
 };
+use axum_extra::extract::cookie::CookieJar;
 use serde::Deserialize;
-use tokio::{sync::broadcast::error::RecvError, time::timeout};
+use tokio::{
+    sync::broadcast::error::RecvError,
+    time::{timeout, Duration},
+};
 use uuid::Uuid;
 
 use super::check_origin;
 use crate::{
-    auth::AuthUser,
+    auth::{AuthUser, SessionKey},
     bancho::{
         irc::{clean_text, same_name, valid_name, LOGIN_TIMEOUT},
-        relay::{Attached, Command, Outgoing, ServerMsg},
+        relay::{Attached, CloseReason, Command, Outgoing, ServerMsg},
     },
     db,
     error::AppError,
@@ -52,35 +56,51 @@ enum ClientMsg {
     Attend { match_id: Option<Uuid> },
 }
 
+// The most a tab's message may be: a login, or a chat line (IRC's are under 512 bytes).
+const MAX_MESSAGE: usize = 4096;
+// How often a tab checks its session again, besides whenever its user's roles change or
+// they log out.
+const RECHECK_EVERY: Duration = Duration::from_secs(5 * 60);
+
 // GET /api/irc — referees and up. Upgrades to the relay WebSocket.
 async fn connect(
     State(state): State<AppState>,
     user: AuthUser,
+    jar: CookieJar,
     headers: HeaderMap,
     ws: WebSocketUpgrade,
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Referee)?;
     check_origin(&state, &headers)?;
     let user_id = user.id;
-    Ok(ws.on_upgrade(move |socket| tab(socket, state, user_id)))
+    let session = SessionKey::of(&jar);
+    Ok(ws
+        .max_message_size(MAX_MESSAGE)
+        .on_upgrade(move |socket| tab(socket, state, user_id, session)))
+}
+
+// Whether the tab's user may still use the relay: signed in on the same session and
+// still allowed Referee.
+async fn still_referee(state: &AppState, session: &SessionKey) -> bool {
+    match session.user(&state.db).await {
+        Ok(user) => user.is_some_and(|user| user.roles.allows(Role::Referee)),
+        Err(err) => {
+            tracing::warn!(error = ?err, "could not check a relay socket's session");
+            true
+        }
+    }
 }
 
 async fn send(socket: &mut WebSocket, msg: &ServerMsg) -> bool {
     match serde_json::to_string(msg) {
-        Ok(json) => socket.send(Message::Text(json)).await.is_ok(),
+        Ok(json) => socket.send(Message::Text(json.into())).await.is_ok(),
         Err(_) => false,
     }
 }
 
-async fn close(mut socket: WebSocket, reason: &str) {
-    send(
-        &mut socket,
-        &ServerMsg::Closed {
-            reason: reason.to_string(),
-        },
-    )
-    .await;
-    let _ = socket.close().await;
+async fn close(mut socket: WebSocket, reason: CloseReason) {
+    send(&mut socket, &ServerMsg::Closed { reason }).await;
+    let _ = socket.send(Message::Close(None)).await;
 }
 
 // Reads the next JSON message from the page. None when the socket is closed.
@@ -96,13 +116,13 @@ async fn next_client_msg(socket: &mut WebSocket) -> Option<Result<ClientMsg, ()>
 
 // One tab's WebSocket: joins or starts the user's session, then passes messages both
 // ways until the tab or the session goes away.
-async fn tab(mut socket: WebSocket, state: AppState, user_id: Uuid) {
+async fn tab(mut socket: WebSocket, state: AppState, user_id: Uuid, session: SessionKey) {
     let attached = match timeout(LOGIN_TIMEOUT, next_client_msg(&mut socket)).await {
         Ok(Some(Ok(ClientMsg::Resume))) => match state.irc_users.attach(user_id) {
             Some(attached) => attached,
             None => {
                 send(&mut socket, &ServerMsg::NoSession).await;
-                return close(socket, "no connection to resume").await;
+                return close(socket, CloseReason::NoSession).await;
             }
         },
         Ok(Some(Ok(ClientMsg::Login { username, password }))) => {
@@ -111,18 +131,18 @@ async fn tab(mut socket: WebSocket, state: AppState, user_id: Uuid) {
             if !valid_name(&nick) || password.is_empty() || password.chars().any(|c| c.is_control())
             {
                 send(&mut socket, &ServerMsg::LoginFailed).await;
-                return close(socket, "invalid login").await;
+                return close(socket, CloseReason::InvalidLogin).await;
             }
             // Bancho keeps one IRC connection per account, so this one would replace the bot's.
             match db::bancho::list_bots(&state.db).await {
                 Ok(bots) if bots.iter().any(|b| same_name(&b.username, &nick)) => {
                     send(&mut socket, &ServerMsg::BotAccount).await;
-                    return close(socket, "that account is one of the site's bots").await;
+                    return close(socket, CloseReason::BotAccount).await;
                 }
                 Ok(_) => {}
                 Err(err) => {
                     tracing::error!(error = ?err, "could not read the bot accounts");
-                    return close(socket, "could not check the account").await;
+                    return close(socket, CloseReason::AccountCheckFailed).await;
                 }
             }
             match state.irc_users.login(&state, user_id, nick, password) {
@@ -130,32 +150,57 @@ async fn tab(mut socket: WebSocket, state: AppState, user_id: Uuid) {
                 Err(wait) => {
                     let retry_after = wait.as_secs().max(1);
                     send(&mut socket, &ServerMsg::LoginBlocked { retry_after }).await;
-                    return close(socket, "too many failed logins").await;
+                    return close(socket, CloseReason::TooManyFailedLogins).await;
                 }
             }
         }
-        _ => return close(socket, "login expected").await,
+        _ => return close(socket, CloseReason::LoginExpected).await,
     };
     let id = rand::random();
-    pump(socket, attached, &state, id).await;
+    pump(socket, attached, &state, id, user_id, &session).await;
     state.bancho.tab_closed(id);
 }
 
-async fn pump(mut socket: WebSocket, mut tab: Attached, state: &AppState, id: u64) {
+async fn pump(
+    mut socket: WebSocket,
+    mut tab: Attached,
+    state: &AppState,
+    id: u64,
+    user_id: Uuid,
+    session: &SessionKey,
+) {
     for msg in &tab.backlog {
         if !send(&mut socket, msg).await {
             return;
         }
     }
+    let mut users = state.live.user_changes();
+    let mut recheck = tokio::time::interval(RECHECK_EVERY);
+    recheck.tick().await;
     loop {
         tokio::select! {
+            changed = users.recv() => {
+                let ours = match changed {
+                    Ok(changed) => changed == user_id,
+                    Err(RecvError::Lagged(_)) => true,
+                    Err(RecvError::Closed) => false,
+                };
+                if ours && !still_referee(state, session).await {
+                    return close(socket, CloseReason::NoLongerReferee).await;
+                }
+            }
+            _ = recheck.tick() => {
+                if !still_referee(state, session).await {
+                    return close(socket, CloseReason::NoLongerReferee).await;
+                }
+            }
             event = tab.events.recv() => match event {
                 Ok(json) => {
-                    if socket.send(Message::Text(json.as_ref().clone())).await.is_err() {
+                    if socket.send(Message::Text(json.as_str().into())).await.is_err() {
                         return;
                     }
                 }
-                Err(RecvError::Lagged(_)) => return close(socket, "this tab fell behind").await,
+                Err(RecvError::Lagged(_)) => return close(socket, CloseReason::FellBehind).await,
                 // The session ended and its Closed message went out before this.
                 Err(RecvError::Closed) => break,
             },
@@ -183,5 +228,5 @@ async fn pump(mut socket: WebSocket, mut tab: Attached, state: &AppState, id: u6
             }
         }
     }
-    let _ = socket.close().await;
+    let _ = socket.send(Message::Close(None)).await;
 }

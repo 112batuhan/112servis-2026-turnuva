@@ -29,8 +29,8 @@ pub fn routes() -> Router<AppState> {
         .route("/notifications", get(list_notifications))
         .route("/notifications/count", get(notification_count))
         .route("/notifications/read", post(mark_read))
-        .route("/notifications/:id/confirm", post(confirm))
-        .route("/notifications/:id/decline", post(decline))
+        .route("/notifications/{id}/confirm", post(confirm))
+        .route("/notifications/{id}/decline", post(decline))
 }
 
 // How many of the newest notifications the list returns.

@@ -63,7 +63,7 @@ export function StagesAdminPage() {
 
   useEffect(() => {
     load().catch((e) => setError(errorMessage(e)));
-  }, [load]);
+  }, [load, setError]);
 
   const ids = useMemo(() => (stages ?? []).map((s) => s.id), [stages]);
   const reorderProps = useDragReorder((dragged, target) => applyOrder(moveToTarget(ids, dragged, target)));

@@ -59,7 +59,7 @@ export function useBracketEditor(staffView: boolean) {
 
   useEffect(() => {
     reload().catch((e) => setError(errorMessage(e)));
-  }, [reload]);
+  }, [reload, setError]);
 
   // Saves waiting moves now, so a reload can't put their cards back.
   const flushMoves = useCallback(async () => {

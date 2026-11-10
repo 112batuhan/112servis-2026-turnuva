@@ -42,7 +42,7 @@ type ServerMsg =
   | { type: "parted"; channel: string }
   | { type: "conversation_closed"; name: string }
   | { type: "error"; message: string }
-  | { type: "closed"; reason: string };
+  | { type: "closed"; reason: CloseReason };
 
 interface IrcApi {
   status: IrcStatus;
@@ -77,6 +77,42 @@ const IrcContext = createContext<IrcApi | null>(null);
 
 // Tells this browser's other tabs that we're online, so the ones that aren't join in.
 const TABS_CHANNEL = "bancho-irc";
+
+/** Why the relay closed: `CloseReason` in backend/src/bancho/relay.rs. */
+type CloseReason =
+  | "no_session"
+  | "invalid_login"
+  | "bot_account"
+  | "account_check_failed"
+  | "too_many_failed_logins"
+  | "login_expected"
+  | "no_longer_referee"
+  | "fell_behind"
+  | "bancho_unreachable"
+  | "login_timed_out"
+  | "login_failed"
+  | "bancho_closed"
+  | "invalid_line"
+  | "every_tab_closed"
+  | "quit_in_another_tab";
+
+export const CLOSE_REASON_TEXT: Record<CloseReason, string> = {
+  no_session: "sürdürülecek bağlantı yok",
+  invalid_login: "giriş bilgileri geçersiz",
+  bot_account: "bu hesap sitenin botlarından biri",
+  account_check_failed: "hesap kontrol edilemedi",
+  too_many_failed_logins: "çok fazla hatalı giriş denemesi",
+  login_expected: "giriş bekleniyordu",
+  no_longer_referee: "artık hakem değilsin",
+  fell_behind: "bu sekme geride kaldı",
+  bancho_unreachable: "Bancho'ya ulaşılamadı",
+  login_timed_out: "Bancho girişe cevap vermedi",
+  login_failed: "giriş başarısız",
+  bancho_closed: "Bancho bağlantıyı kapattı",
+  invalid_line: "Bancho geçersiz bir satır gönderdi",
+  every_tab_closed: "bütün sekmeler kapandı",
+  quit_in_another_tab: "başka bir sekmede bağlantı kesildi",
+};
 
 export function IrcProvider({ children }: { children: ReactNode }) {
   const canReferee = hasRole(useSignedInUser(), "referee");
@@ -188,7 +224,7 @@ export function IrcProvider({ children }: { children: ReactNode }) {
           break;
         }
         case "closed":
-          setError((e) => e ?? `Bağlantı kapandı: ${msg.reason}`);
+          setError((e) => e ?? `Bağlantı kapandı: ${CLOSE_REASON_TEXT[msg.reason] ?? "bilinmeyen sebep"}`);
           break;
       }
     },

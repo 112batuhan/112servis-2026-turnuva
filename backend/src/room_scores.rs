@@ -15,7 +15,9 @@ use uuid::Uuid;
 use crate::{
     db::{self, stats::RoomScore},
     error::AppError,
-    osu_api, AppState,
+    osu_api,
+    supervise::{self, SharedReceiver},
+    AppState,
 };
 
 // How long after a save the rooms are read: osu! records a map as it ends, but give it
@@ -28,45 +30,52 @@ const SWEEP_ROOMS: i64 = 20;
 
 // Starts the reader. Send it a match whose maps were just saved.
 pub fn spawn(app: AppState) -> mpsc::UnboundedSender<Uuid> {
-    let (tx, mut rx) = mpsc::unbounded_channel::<Uuid>();
-    tokio::spawn(async move {
-        let mut due: HashMap<Uuid, Instant> = HashMap::new();
-        let mut sweep = interval(SWEEP_EVERY);
-        sweep.set_missed_tick_behavior(MissedTickBehavior::Delay);
-        loop {
-            let next = due.values().min().copied();
-            tokio::select! {
-                received = rx.recv() => match received {
-                    // A burst of saves reads the rooms once.
-                    Some(id) => { due.entry(id).or_insert_with(|| Instant::now() + AFTER_SAVE); }
-                    None => return,
-                },
-                _ = sleep_until(next.unwrap_or_else(Instant::now)), if next.is_some() => {
-                    let now = Instant::now();
-                    let ready: Vec<Uuid> = due.iter().filter(|(_, at)| **at <= now).map(|(id, _)| *id).collect();
-                    for id in ready {
-                        due.remove(&id);
-                        if let Err(err) = read_match(&app, id).await {
-                            tracing::warn!(error = ?err, match_id = %id, "could not read osu!'s record of a match's rooms");
-                        }
-                    }
-                }
-                _ = sweep.tick() => {
-                    match db::stats::rooms_missing_accuracy(&app.db, SWEEP_ROOMS).await {
-                        Ok(rooms) => {
-                            for mp_id in rooms {
-                                if let Err(err) = read_room(&app, mp_id).await {
-                                    tracing::warn!(error = ?err, mp_id, "could not read osu!'s record of a room");
-                                }
-                            }
-                        }
-                        Err(err) => tracing::error!(error = ?err, "could not look for rooms missing accuracy"),
+    let (tx, rx) = mpsc::unbounded_channel::<Uuid>();
+    let rx = supervise::shared(rx);
+    supervise::spawn("room score reader", move || {
+        read_rooms(app.clone(), rx.clone())
+    });
+    tx
+}
+
+// Ends once nothing can send it a match any more.
+async fn read_rooms(app: AppState, rx: SharedReceiver<Uuid>) {
+    let mut rx = rx.lock().await;
+    let mut due: HashMap<Uuid, Instant> = HashMap::new();
+    let mut sweep = interval(SWEEP_EVERY);
+    sweep.set_missed_tick_behavior(MissedTickBehavior::Delay);
+    loop {
+        let next = due.values().min().copied();
+        tokio::select! {
+            received = rx.recv() => match received {
+                // A burst of saves reads the rooms once.
+                Some(id) => { due.entry(id).or_insert_with(|| Instant::now() + AFTER_SAVE); }
+                None => return,
+            },
+            _ = sleep_until(next.unwrap_or_else(Instant::now)), if next.is_some() => {
+                let now = Instant::now();
+                let ready: Vec<Uuid> = due.iter().filter(|(_, at)| **at <= now).map(|(id, _)| *id).collect();
+                for id in ready {
+                    due.remove(&id);
+                    if let Err(err) = read_match(&app, id).await {
+                        tracing::warn!(error = ?err, match_id = %id, "could not read osu!'s record of a match's rooms");
                     }
                 }
             }
+            _ = sweep.tick() => {
+                match db::stats::rooms_missing_accuracy(&app.db, SWEEP_ROOMS).await {
+                    Ok(rooms) => {
+                        for mp_id in rooms {
+                            if let Err(err) = read_room(&app, mp_id).await {
+                                tracing::warn!(error = ?err, mp_id, "could not read osu!'s record of a room");
+                            }
+                        }
+                    }
+                    Err(err) => tracing::error!(error = ?err, "could not look for rooms missing accuracy"),
+                }
+            }
         }
-    });
-    tx
+    }
 }
 
 async fn read_match(app: &AppState, match_id: Uuid) -> Result<(), AppError> {
@@ -83,7 +92,8 @@ async fn read_match(app: &AppState, match_id: Uuid) -> Result<(), AppError> {
 // showing the match hear of any change (the statistics among them). A failed read counts as one that found
 // nothing, so it backs off too.
 async fn read_room(app: &AppState, mp_id: i64) -> Result<(), AppError> {
-    let token = osu_api::token::app_token(&app.osu_client, &app.osu_app_token).await?;
+    let token =
+        osu_api::token::app_token(&app.osu_client, &app.oauth_http, &app.osu_app_token).await?;
     let games = match osu_api::matches::fetch_games(&app.http_client, &token, mp_id).await {
         Ok(games) => games,
         Err(err) => {

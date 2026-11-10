@@ -40,7 +40,7 @@ export function useStageEditor(userId: string) {
 
   useEffect(() => {
     loadStages().catch((e) => setError(errorMessage(e)));
-  }, [loadStages]);
+  }, [loadStages, setError]);
 
   useEffect(() => {
     if (selectedId) rememberStage(userId, selectedId);
@@ -59,7 +59,7 @@ export function useStageEditor(userId: string) {
     return () => {
       active = false;
     };
-  }, [selectedId]);
+  }, [selectedId, setError]);
 
   async function reloadDetail() {
     if (selectedId) setDetail(await api.fetchStage(selectedId));

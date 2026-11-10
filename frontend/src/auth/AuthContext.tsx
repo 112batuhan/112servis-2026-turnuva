@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { fetchCurrentUser, logout } from "../api/auth";
+import { onUnauthenticated } from "../api/client";
 import type { User } from "../api/types";
 
 interface AuthState {
@@ -8,6 +9,9 @@ interface AuthState {
   error: string | null;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** A request found the session gone while the page thought it was signed in. */
+  sessionExpired: boolean;
+  dismissSessionExpired: () => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -15,6 +19,7 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -34,7 +39,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh();
   }, [refresh]);
 
-  const value = useMemo(() => ({ user, error, refresh, signOut }), [user, error, refresh, signOut]);
+  // The 7-day session ran out (or ended in another tab): show the page signed out.
+  const signedIn = useRef(false);
+  signedIn.current = !!user;
+  useEffect(() => {
+    onUnauthenticated(() => {
+      if (!signedIn.current) return;
+      setUser(null);
+      setSessionExpired(true);
+    });
+    return () => onUnauthenticated(null);
+  }, []);
+
+  const dismissSessionExpired = useCallback(() => setSessionExpired(false), []);
+
+  const value = useMemo(
+    () => ({ user, error, refresh, signOut, sessionExpired, dismissSessionExpired }),
+    [user, error, refresh, signOut, sessionExpired, dismissSessionExpired],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

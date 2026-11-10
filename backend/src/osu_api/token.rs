@@ -3,9 +3,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use oauth2::{basic::BasicClient, reqwest::async_http_client, Scope, TokenResponse};
+use oauth2::{Scope, TokenResponse};
 
-use crate::error::AppError;
+use crate::{error::AppError, OAuthClient};
 
 // A cached osu! app access token obtained via the client-credentials grant, used
 // for public API calls (fetching beatmap data). It's an ephemeral credential, so
@@ -20,7 +20,8 @@ pub struct OsuAppToken {
 // expires and otherwise fetching a fresh one. Concurrent callers may occasionally
 // each fetch once; that's harmless.
 pub async fn app_token(
-    client: &BasicClient,
+    client: &OAuthClient,
+    http: &reqwest::Client,
     cache: &Mutex<Option<OsuAppToken>>,
 ) -> Result<String, AppError> {
     {
@@ -35,7 +36,7 @@ pub async fn app_token(
     let response = client
         .exchange_client_credentials()
         .add_scope(Scope::new("public".to_string()))
-        .request_async(async_http_client)
+        .request_async(http)
         .await
         .map_err(|err| AppError::OsuTokenExchange(crate::error::chain(&err)))?;
 

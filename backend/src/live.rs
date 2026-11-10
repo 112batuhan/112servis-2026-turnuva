@@ -198,6 +198,9 @@ struct Inner {
     // Public match pages.
     spectators: Mutex<Presence>,
     next_tab: AtomicU64,
+    // Users whose roles changed or who logged out: their open sockets check again what
+    // they're allowed.
+    users: broadcast::Sender<Uuid>,
 }
 
 // The hub every tab's socket listens to. Cheap to clone.
@@ -212,11 +215,21 @@ impl Default for Live {
             presence: Mutex::default(),
             spectators: Mutex::default(),
             next_tab: AtomicU64::new(1),
+            users: broadcast::channel(BUFFER).0,
         }))
     }
 }
 
 impl Live {
+    // The user's roles changed, or they logged out.
+    pub fn user_changed(&self, user_id: Uuid) {
+        let _ = self.0.users.send(user_id);
+    }
+
+    pub fn user_changes(&self) -> broadcast::Receiver<Uuid> {
+        self.0.users.subscribe()
+    }
+
     fn emit(&self, msg: &ServerMsg, staff_only: bool) {
         self.send(msg, staff_only, None, None, None);
     }

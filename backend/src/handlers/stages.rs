@@ -10,7 +10,12 @@ use uuid::Uuid;
 
 use super::ReorderBody;
 use crate::{
-    auth::AuthUser, db, discord::jobs::Job, draft::DraftOrder, error::AppError, role::Role,
+    auth::AuthUser,
+    db,
+    discord::jobs::Job,
+    draft::DraftOrder,
+    error::{AppError, ErrorCode},
+    role::Role,
     services, AppState,
 };
 
@@ -24,9 +29,9 @@ pub fn routes() -> Router<AppState> {
         .route("/stages", post(create_stage))
         .route("/stages/reorder", post(reorder_stages))
         .route("/stages/qualifier", put(set_qualifier_stage))
-        .route("/stages/:id", patch(update_stage).delete(delete_stage))
-        .route("/stages/:id/best-of", put(set_stage_best_of))
-        .route("/stages/:id/draft-order", put(set_stage_draft_order))
+        .route("/stages/{id}", patch(update_stage).delete(delete_stage))
+        .route("/stages/{id}/best-of", put(set_stage_best_of))
+        .route("/stages/{id}/draft-order", put(set_stage_draft_order))
 }
 
 #[derive(Debug, Deserialize)]
@@ -43,7 +48,7 @@ async fn create_stage(
     user.require_role(Role::Host)?;
     let name = body.name.trim();
     if name.is_empty() {
-        return Err(AppError::BadRequest("stage name is required"));
+        return Err(AppError::BadRequest(ErrorCode::NameRequired));
     }
     Ok(Json(db::stages::create_stage(&state.db, name).await?))
 }
@@ -85,7 +90,7 @@ async fn update_stage(
     let name = body.name.as_deref().map(str::trim);
     if let Some(n) = name {
         if n.is_empty() {
-            return Err(AppError::BadRequest("stage name is required"));
+            return Err(AppError::BadRequest(ErrorCode::NameRequired));
         }
     }
     Ok(Json(
@@ -121,9 +126,9 @@ async fn set_qualifier_stage(
         Ok(true) => Ok(StatusCode::NO_CONTENT),
         Ok(false) => Err(AppError::NotFound),
         // Another host picked one at the same moment.
-        Err(sqlx::Error::Database(e)) if e.constraint() == Some("stages_qualifier_key") => Err(
-            AppError::Conflict("the qualifier stage just changed, try again"),
-        ),
+        Err(sqlx::Error::Database(e)) if e.constraint() == Some("stages_qualifier_key") => {
+            Err(AppError::Conflict(ErrorCode::QualifierStageChanged))
+        }
         Err(err) => Err(err.into()),
     }
 }
@@ -147,16 +152,16 @@ async fn set_stage_best_of(
     user.require_role(Role::Host)?;
     if let Some(n) = body.best_of {
         if !(1..=MAX_BEST_OF).contains(&n) || n % 2 == 0 {
-            return Err(AppError::BadRequest(
-                "best of must be an odd number from 1 to 25",
-            ));
+            return Err(AppError::BadRequest(ErrorCode::BadBestOf));
         }
     }
-    let matches = db::stages::set_stage_best_of(&state.db, id, body.best_of)
+    let mut tx = state.db.begin().await?;
+    let matches = db::stages::set_stage_best_of(&mut tx, id, body.best_of)
         .await?
         .ok_or(AppError::NotFound)?;
     let jobs = Job::sync_matches(matches);
-    state.discord.enqueue(&state.db, &jobs).await?;
+    state.discord.enqueue(&mut *tx, &jobs).await?;
+    tx.commit().await?;
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)
 }
