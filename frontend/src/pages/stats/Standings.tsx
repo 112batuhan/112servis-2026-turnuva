@@ -86,7 +86,7 @@ export function Standings({ kind, index, ownTeam }: Props) {
     };
     const maps: Column = {
       id: "maps",
-      label: "Map",
+      label: "Oynanan mapler",
       title: q ? "Oynanan mapler / havuz" : "Oynanan map sayısı",
       className: "is-num",
       value: (s) => s.plays,
@@ -121,24 +121,12 @@ export function Standings({ kind, index, ownTeam }: Props) {
         };
     const accuracy: Column = {
       id: "accuracy",
-      label: "Ort. doğruluk",
+      label: "Ort. accuracy",
       className: "is-num is-opt",
       value: (s) => s.avg_accuracy ?? -1,
       render: (s) => (
         <span className="num" title={s.avg_accuracy === null ? accuracyUnknown : undefined}>
           {formatAccuracy(s.avg_accuracy)}
-        </span>
-      ),
-    };
-    const record: Column = {
-      id: "record",
-      label: "Map G–K",
-      title: "Takımın kazandığı ve kaybettiği mapler",
-      className: "is-num is-opt2",
-      value: (s) => s.map_wins - s.map_losses,
-      render: (s) => (
-        <span className="num">
-          {s.map_wins}–{s.map_losses}
         </span>
       ),
     };
@@ -161,9 +149,7 @@ export function Standings({ kind, index, ownTeam }: Props) {
           <span className="standings-none">—</span>
         ),
     };
-    const out: Column[] = [zSum, maps];
-    if (!q) out.push(record);
-    out.push(score, accuracy);
+    const out: Column[] = [zSum, maps, score, accuracy];
     if (kind === "players") {
       out.push({
         id: "team-best",
@@ -172,18 +158,6 @@ export function Standings({ kind, index, ownTeam }: Props) {
         className: "is-num is-opt2",
         value: (s) => s.team_best,
         render: (s) => <span className="num">{s.team_best}</span>,
-      });
-    } else if (!q) {
-      out.push({
-        id: "draft",
-        label: "Pick · ban",
-        className: "is-num is-opt2",
-        value: (s) => s.picks,
-        render: (s) => (
-          <span className="num">
-            {s.picks} · {s.bans}
-          </span>
-        ),
       });
     }
     out.push(best);
@@ -244,7 +218,7 @@ export function Standings({ kind, index, ownTeam }: Props) {
                   ["z", "Z"],
                   ["rank", "Sıra"],
                   ["score", "Skor"],
-                  ["accuracy", "Doğruluk"],
+                  ["accuracy", "Accuracy"],
                 ] as const
               ).map(([id, label]) => (
                 <button key={id} type="button" className="bracket-view-tab" aria-pressed={metric === id} onClick={() => setMetric(id)}>
@@ -256,7 +230,7 @@ export function Standings({ kind, index, ownTeam }: Props) {
           <input
             type="search"
             className="input stats-search"
-            placeholder={kind === "teams" ? "Takım ya da oyuncu ara" : "Oyuncu ya da takım ara"}
+            placeholder="Oyuncu ya da takım ara"
             aria-label="Ara"
             value={query}
             onChange={(e) => setQuery(e.target.value)}

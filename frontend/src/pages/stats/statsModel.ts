@@ -74,7 +74,7 @@ export function formatMods(mods: string | null): string {
   return shown || "NM";
 }
 
-export const accuracyUnknown = "Doğruluk osu!'nun maç kaydından okunur; henüz okunmadı.";
+export const accuracyUnknown = "Accuracy osu!'nun maç kaydından okunur; henüz okunmadı.";
 
 /** The viewer's team in these statistics, if they play. */
 export function ownTeamId(index: StatsIndex, userId: string | undefined): string | null {

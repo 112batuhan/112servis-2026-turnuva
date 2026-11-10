@@ -124,7 +124,7 @@ export function MapBoard({ kind, index, ownTeam, mapId, onMap }: Props) {
         <input
           type="search"
           className="input stats-search"
-          placeholder={kind === "players" ? "Oyuncu ya da takım ara" : "Takım ya da oyuncu ara"}
+          placeholder="Oyuncu ya da takım ara"
           aria-label="Ara"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -141,7 +141,7 @@ export function MapBoard({ kind, index, ownTeam, mapId, onMap }: Props) {
                 <th className="is-rank">Sıra</th>
                 <th className="is-who">{kind === "players" ? "Oyuncu" : "Takım"}</th>
                 <th className="is-num">Skor</th>
-                <th className="is-num is-opt">Doğruluk</th>
+                <th className="is-num is-opt">Accuracy</th>
                 {kind === "players" && <th className="is-opt">Mod</th>}
                 {kind === "teams" && !index.qualifier && <th className="is-opt2">Sonuç</th>}
                 <th className="is-z">Z</th>

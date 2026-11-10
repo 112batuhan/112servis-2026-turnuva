@@ -71,7 +71,7 @@ export function PoolStats({ index, ownTeam, onOpenMap }: Props) {
             <>
               <span>Pick</span>
               <span>Ban</span>
-              <span title="Map'i pick eden takımın onu kazandığı oyunlar">Pick eden kazandı</span>
+              <span title="Map'i pick eden takımın onu kazandığı oyunlar">Pick'leyenlerin kazanma oranı</span>
             </>
           ) : (
             <span>Oynayan</span>
@@ -151,7 +151,7 @@ function PoolRow({ entry, stat, index, ownTeam, matches, onOpen }: RowProps) {
         <>
           <Rate area="pick" label="Pick" count={stat?.picks ?? 0} of={matches} />
           <Rate area="ban" label="Ban" count={stat?.bans ?? 0} of={matches} quiet />
-          <span className="pool-stats-cell is-picker" data-label="Pick eden kazandı">
+          <span className="pool-stats-cell is-picker" data-label="Pick'leyenlerin kazanma oranı">
             {stat && stat.picker_plays > 0 ? (
               <>
                 <span className="pool-stats-figure">

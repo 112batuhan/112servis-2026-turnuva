@@ -349,13 +349,25 @@
   font-weight: 800;
 }
 
+/* A Z score sits at the column's end, so its figure lines up under the head: the head stops
+   where the figure does, short of the meter beside it. */
 .stats-table .is-z {
   width: 1%;
+  text-align: right;
   white-space: nowrap;
 }
 
-.stats-table th.is-num .stats-sort {
-  justify-content: flex-end;
+.stats-table th.is-z {
+  padding-right: calc(var(--space-3) + var(--space-2) + var(--zval-bar-w));
+}
+
+/* A right-aligned head that sorts keeps its arrow before the label, so the label (not the arrow,
+   hidden until it sorts) ends where the column's figures end. */
+.stats-table th.is-num .stats-sort,
+.stats-table th.is-rank .stats-sort,
+.stats-table th.is-z .stats-sort {
+  flex-direction: row-reverse;
+  justify-content: flex-start;
 }
 
 .stats-mods {
@@ -434,6 +446,10 @@
 
   .stats-table .zval-bar {
     display: none;
+  }
+
+  .stats-table th.is-z {
+    padding-right: var(--space-2);
   }
 
   .stats-table .zval-num {

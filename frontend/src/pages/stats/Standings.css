@@ -137,8 +137,9 @@
 }
 
 /* A cell, lit in ink in proportion to how far above the map's field it was (--heat, 0..1); one
-   below the field stays on the ground in muted ink. */
-.stats-matrix-cell {
+   below the field stays on the ground in muted ink. Scoped to the matrix so it outranks the
+   shared table's left-aligned cells and sits centred under its map's head. */
+.stats-matrix .stats-matrix-cell {
   min-width: 64px;
   padding: var(--space-2);
   background: color-mix(in srgb, var(--color-text) calc(var(--heat, 0) * 22%), transparent);

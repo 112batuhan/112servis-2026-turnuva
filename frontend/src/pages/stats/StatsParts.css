@@ -1,5 +1,10 @@
 /* A Z score: the figure, then a meter centred on the map's mean. Above it in ink, below it in
    muted ink; a missing qualifier map (scored as a 0) in danger, since it's a penalty. */
+/* The meter's width, which a table's Z head also reads to line up with the figure. */
+:root {
+  --zval-bar-w: 52px;
+}
+
 .zval {
   display: inline-flex;
   align-items: center;
@@ -34,7 +39,7 @@
 .zval-bar {
   position: relative;
   flex: none;
-  width: 52px;
+  width: var(--zval-bar-w);
   height: 6px;
   border-radius: var(--radius-full);
   background: var(--color-surface-sunken);

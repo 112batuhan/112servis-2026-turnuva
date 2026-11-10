@@ -203,13 +203,7 @@ pub struct Standing {
     pub total_score: i64,
     pub avg_score: f64,
     pub avg_accuracy: Option<f64>,
-    // Bracket stages: the maps their team won and lost.
-    pub map_wins: usize,
-    pub map_losses: usize,
-    // Teams: their picks and bans. Players: the plays on which they outscored their
-    // teammate.
-    pub picks: usize,
-    pub bans: usize,
+    // Players: the plays on which they outscored their teammate.
     pub team_best: usize,
     // Qualifier: their lobby isn't over, so their missing maps don't count yet.
     pub pending: bool,
@@ -481,13 +475,6 @@ pub fn compute(input: &Input) -> Stats {
                     per_map.push(cell);
                 }
             }
-            let draft = |ban: bool| {
-                input
-                    .drafts
-                    .iter()
-                    .filter(|d| d.team_id == team_id && d.ban == ban)
-                    .count()
-            };
             standing(
                 team_id,
                 team_id,
@@ -499,14 +486,11 @@ pub fn compute(input: &Input) -> Stats {
                         score: p.score,
                         rank: p.rank,
                         accuracy: p.accuracy,
-                        won: p.won,
                         team_best: false,
                     })
                     .collect::<Vec<_>>(),
                 per_map,
                 pending,
-                draft(false),
-                draft(true),
                 &maps,
                 |m| m.teams.count,
             )
@@ -538,7 +522,6 @@ pub fn compute(input: &Input) -> Stats {
                         score: me.score,
                         rank: me.rank,
                         accuracy: me.accuracy,
-                        won: p.won,
                         // Level with their teammate isn't outscoring them.
                         team_best: p.players.len() > 1
                             && p.players[0].user_id == user_id
@@ -564,8 +547,6 @@ pub fn compute(input: &Input) -> Stats {
                 &mine,
                 per_map,
                 pending,
-                0,
-                0,
                 &maps,
                 |m| m.players.count,
             ));
@@ -591,7 +572,6 @@ struct Played {
     score: i64,
     rank: usize,
     accuracy: Option<f64>,
-    won: Option<bool>,
     team_best: bool,
 }
 
@@ -627,15 +607,12 @@ fn cell_of(
     })
 }
 
-#[allow(clippy::too_many_arguments)]
 fn standing(
     id: Uuid,
     team_id: Uuid,
     played: &[Played],
     per_map: Vec<Cell>,
     pending: bool,
-    picks: usize,
-    bans: usize,
     maps: &[MapStats],
     field_size: impl Fn(&MapStats) -> usize,
 ) -> Standing {
@@ -670,10 +647,6 @@ fn standing(
             total_score as f64 / played.len() as f64
         },
         avg_accuracy: mean(played.iter().filter_map(|p| p.accuracy)),
-        map_wins: played.iter().filter(|p| p.won == Some(true)).count(),
-        map_losses: played.iter().filter(|p| p.won == Some(false)).count(),
-        picks,
-        bans,
         team_best: played.iter().filter(|p| p.team_best).count(),
         pending,
         best,
@@ -901,9 +874,6 @@ mod tests {
         assert_eq!((map1.picks, map1.bans), (1, 1));
         assert_eq!((map1.picker_plays, map1.picker_wins), (1, 1));
         assert_eq!(map1.best_player.as_ref().unwrap().score, 600);
-        let team1 = stats.teams.iter().find(|t| t.id == id(101)).unwrap();
-        assert_eq!((team1.map_wins, team1.map_losses), (1, 1));
-        assert_eq!((team1.picks, team1.bans), (2, 0));
         // Player 11 outscored their teammate on map 1 only.
         let p11 = stats.players.iter().find(|p| p.id == id(11)).unwrap();
         assert_eq!(p11.team_best, 1);

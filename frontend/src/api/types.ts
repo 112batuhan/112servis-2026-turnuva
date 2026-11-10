@@ -1104,10 +1104,6 @@ export interface StatStanding {
   total_score: number;
   avg_score: number;
   avg_accuracy: number | null;
-  map_wins: number;
-  map_losses: number;
-  picks: number;
-  bans: number;
   /** Players: the plays on which they outscored their teammate. */
   team_best: number;
   /** Qualifier: their lobby isn't over, so missing maps don't count yet. */
