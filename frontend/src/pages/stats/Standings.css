@@ -132,6 +132,13 @@
   width: 100%;
 }
 
+/* The sort mark hangs past the map's label (its width given back) so the label stays centred
+   over its figures. */
+.stats-matrix-map .stats-sort-mark {
+  flex: none;
+  margin-right: calc(-12px - var(--space-1));
+}
+
 .stats-matrix-map .stat-map-label {
   font-size: var(--text-md);
 }
@@ -165,4 +172,75 @@
   color: var(--color-danger);
   outline: 1px dashed color-mix(in srgb, var(--color-danger) 55%, transparent);
   outline-offset: -4px;
+}
+
+/* A map drafted in the row's team's matches. A played one was picked: its figure takes the
+   picker's colour (the team's mavi, its opponents' kırmızı), softer under the field like the
+   cell's ink. A banned one is an empty cell: a small dot for each side that banned it. */
+.stats-matrix .stats-matrix-cell.picked-by-team {
+  color: var(--color-draft-team);
+}
+
+.stats-matrix .stats-matrix-cell.picked-by-opponent {
+  color: var(--color-draft-opponent);
+}
+
+.stats-matrix .stats-matrix-cell.is-below.picked-by-team {
+  color: color-mix(in srgb, var(--color-draft-team) 72%, transparent);
+}
+
+.stats-matrix .stats-matrix-cell.is-below.picked-by-opponent {
+  color: color-mix(in srgb, var(--color-draft-opponent) 72%, transparent);
+}
+
+.draft-dots {
+  display: inline-flex;
+  gap: var(--space-1);
+  vertical-align: middle;
+}
+
+.draft-dot {
+  display: block;
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-draft-team);
+}
+
+.draft-dot.is-opponent {
+  background: var(--color-draft-opponent);
+}
+
+/* The toggle that shows the dots leads with a pair of them: grey while off, in their colours on. */
+.draft-toggle-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.draft-toggle[aria-pressed="false"] .draft-dot {
+  background: var(--color-text-subtle);
+}
+
+/* The dots' key, over the matrix. */
+.draft-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-5);
+  margin-bottom: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.draft-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.draft-legend-note {
+  color: var(--color-text-subtle);
+  font-weight: 400;
 }

@@ -124,6 +124,8 @@
 .stats-stage-facts {
   display: flex;
   flex-wrap: wrap;
+  /* On one baseline, so a fact with a bigger figure in it doesn't drop the others. */
+  align-items: baseline;
   gap: var(--space-1) var(--space-4);
   margin: 0;
   color: var(--color-text-muted);
@@ -138,6 +140,11 @@
 .stats-stage-live {
   color: var(--color-primary);
   font-weight: 600;
+}
+
+/* Its figure set like the other facts', in the live frost. */
+.stats-stage-facts .stats-stage-live .num {
+  color: var(--color-primary);
 }
 
 .stats-explain {
@@ -236,16 +243,23 @@
   font-size: var(--text-md);
 }
 
+/* Held to the right, even on a line of their own, so the control that closes the row (the
+   standings' view switch) never moves when the ones before it change. */
 .stats-toolbar-controls {
   display: flex;
   flex: none;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-2) var(--space-3);
+  margin-left: auto;
 }
 
+/* A set width (a percentage can't count while the controls size to their content, so the field
+   would always drop to a row of its own), the height of the button groups beside it. */
 .stats-search {
-  width: min(260px, 100%);
+  width: 240px;
+  max-width: 100%;
 }
 
 .stats-empty {
@@ -460,6 +474,12 @@
 @media (max-width: 720px) {
   .stats-toolbar-controls {
     flex: 1 1 100%;
+    justify-content: flex-start;
+  }
+
+  /* Stacked, the view switch leads instead, where it can't be pushed about either. */
+  .stats-view-switch {
+    order: -1;
   }
 }
 

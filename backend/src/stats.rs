@@ -46,6 +46,8 @@ pub struct DraftIn {
     pub match_id: Uuid,
     pub map_id: Uuid,
     pub team_id: Uuid,
+    // The other team of the match.
+    pub opponent_id: Option<Uuid>,
     pub ban: bool,
 }
 
@@ -176,6 +178,17 @@ pub struct Cell {
     pub missing: bool,
 }
 
+// A team's bans and picks of one map over a bracket stage's matches: its own, and its
+// opponents' against it.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct DraftTally {
+    pub map_id: Uuid,
+    pub picked: usize,
+    pub banned: usize,
+    pub picked_against: usize,
+    pub banned_against: usize,
+}
+
 // The play furthest above its field.
 #[derive(Debug, Clone, Serialize)]
 pub struct Standout {
@@ -209,6 +222,8 @@ pub struct Standing {
     pub pending: bool,
     pub best: Option<Standout>,
     pub per_map: Vec<Cell>,
+    // The maps the team (a player's team) or its opponents picked or banned, in pool order.
+    pub drafts: Vec<DraftTally>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -475,25 +490,28 @@ pub fn compute(input: &Input) -> Stats {
                     per_map.push(cell);
                 }
             }
-            standing(
-                team_id,
-                team_id,
-                &own.iter()
-                    .map(|p| Played {
-                        map_id: p.map_id,
-                        match_id: p.match_id,
-                        z: p.z,
-                        score: p.score,
-                        rank: p.rank,
-                        accuracy: p.accuracy,
-                        team_best: false,
-                    })
-                    .collect::<Vec<_>>(),
-                per_map,
-                pending,
-                &maps,
-                |m| m.teams.count,
-            )
+            Standing {
+                drafts: drafts_of(team_id, input),
+                ..standing(
+                    team_id,
+                    team_id,
+                    &own.iter()
+                        .map(|p| Played {
+                            map_id: p.map_id,
+                            match_id: p.match_id,
+                            z: p.z,
+                            score: p.score,
+                            rank: p.rank,
+                            accuracy: p.accuracy,
+                            team_best: false,
+                        })
+                        .collect::<Vec<_>>(),
+                    per_map,
+                    pending,
+                    &maps,
+                    |m| m.teams.count,
+                )
+            }
         })
         .collect();
 
@@ -502,6 +520,7 @@ pub fn compute(input: &Input) -> Stats {
     for &team_id in &team_ids {
         let pending = input.qualifier && !lobby_over(team_id);
         let own: Vec<&TeamPlay> = plays.iter().filter(|p| p.team_id == team_id).collect();
+        let drafts = drafts_of(team_id, input);
         let mut users: Vec<Uuid> = input.members.get(&team_id).cloned().unwrap_or_default();
         for p in &own {
             for pp in &p.players {
@@ -541,15 +560,12 @@ pub fn compute(input: &Input) -> Stats {
                     per_map.push(cell);
                 }
             }
-            players.push(standing(
-                user_id,
-                team_id,
-                &mine,
-                per_map,
-                pending,
-                &maps,
-                |m| m.players.count,
-            ));
+            players.push(Standing {
+                drafts: drafts.clone(),
+                ..standing(user_id, team_id, &mine, per_map, pending, &maps, |m| {
+                    m.players.count
+                })
+            });
         }
     }
 
@@ -607,6 +623,32 @@ fn cell_of(
     })
 }
 
+// What a team and its opponents picked and banned, map by map; maps nobody drafted against
+// it are left out.
+fn drafts_of(team_id: Uuid, input: &Input) -> Vec<DraftTally> {
+    input
+        .maps
+        .iter()
+        .filter_map(|&map_id| {
+            let mut t = DraftTally {
+                map_id,
+                ..DraftTally::default()
+            };
+            for d in input.drafts.iter().filter(|d| d.map_id == map_id) {
+                let count = match (d.team_id == team_id, d.opponent_id == Some(team_id), d.ban) {
+                    (true, _, false) => &mut t.picked,
+                    (true, _, true) => &mut t.banned,
+                    (false, true, false) => &mut t.picked_against,
+                    (false, true, true) => &mut t.banned_against,
+                    (false, false, _) => continue,
+                };
+                *count += 1;
+            }
+            (t.picked + t.banned + t.picked_against + t.banned_against > 0).then_some(t)
+        })
+        .collect()
+}
+
 fn standing(
     id: Uuid,
     team_id: Uuid,
@@ -651,6 +693,7 @@ fn standing(
         pending,
         best,
         per_map,
+        drafts: Vec::new(),
     }
 }
 
@@ -847,18 +890,21 @@ mod tests {
                 match_id: id(60),
                 map_id: id(1),
                 team_id: id(101),
+                opponent_id: Some(id(102)),
                 ban: false,
             },
             DraftIn {
                 match_id: id(60),
                 map_id: id(2),
                 team_id: id(101),
+                opponent_id: Some(id(102)),
                 ban: false,
             },
             DraftIn {
                 match_id: id(60),
                 map_id: id(1),
                 team_id: id(102),
+                opponent_id: Some(id(101)),
                 ban: true,
             },
         ];
@@ -878,6 +924,24 @@ mod tests {
         let p11 = stats.players.iter().find(|p| p.id == id(11)).unwrap();
         assert_eq!(p11.team_best, 1);
         assert_eq!(stats.matches_played, 1);
+        // Each team's own marks and its opponent's against it; a player carries their team's.
+        let tally = |map, picked, banned, picked_against, banned_against| DraftTally {
+            map_id: id(map),
+            picked,
+            banned,
+            picked_against,
+            banned_against,
+        };
+        let team = |t| stats.teams.iter().find(|s| s.id == id(t)).unwrap();
+        assert_eq!(
+            team(101).drafts,
+            vec![tally(1, 1, 0, 0, 1), tally(2, 1, 0, 0, 0)]
+        );
+        assert_eq!(
+            team(102).drafts,
+            vec![tally(1, 0, 1, 1, 0), tally(2, 0, 0, 1, 0)]
+        );
+        assert_eq!(p11.drafts, team(101).drafts);
     }
 
     #[test]

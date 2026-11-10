@@ -1090,6 +1090,15 @@ export interface StatCell {
   missing: boolean;
 }
 
+/** A team's bans and picks of one map over a bracket stage: its own, and its opponents' against it. */
+export interface StatDraftTally {
+  map_id: string;
+  picked: number;
+  banned: number;
+  picked_against: number;
+  banned_against: number;
+}
+
 export interface StatStanding {
   /** The team's, or the player's. */
   id: string;
@@ -1110,6 +1119,8 @@ export interface StatStanding {
   pending: boolean;
   best: { map_id: string; match_id: string; z: number; score: number; rank: number; field: number } | null;
   per_map: StatCell[];
+  /** The maps the team (a player's team) or its opponents picked or banned, in pool order. */
+  drafts: StatDraftTally[];
 }
 
 export interface StatMatch {

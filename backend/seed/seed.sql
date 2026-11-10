@@ -1,6 +1,56 @@
 -- Dummy data for local testing. Dummy accounts use negative osu_ids so they can
 -- never collide with real ones; run clear.sql first to reset them.
 
+-- How the seed makes up scores, so every saved score, chat line and statistic agrees.
+-- Each map has its own centre (380k-820k) and spread (8-30%); each player a skill that
+-- holds across maps; each play its own luck, now and then a choke. Scores bend softly
+-- under 1M rather than piling up at a cap. Dropped again at the end of the file.
+CREATE OR REPLACE FUNCTION pg_temp.seed_uniform(key text) RETURNS float8
+LANGUAGE sql IMMUTABLE AS $$ SELECT (abs(hashtext(key)) % 100000) / 100000.0 $$;
+
+-- Roughly normal (mean 0, deviation 1): four uniforms summed.
+CREATE OR REPLACE FUNCTION pg_temp.seed_normal(key text) RETURNS float8
+LANGUAGE sql IMMUTABLE AS $$
+    SELECT (pg_temp.seed_uniform(key || '/a') + pg_temp.seed_uniform(key || '/b')
+            + pg_temp.seed_uniform(key || '/c') + pg_temp.seed_uniform(key || '/d') - 2) * sqrt(3)
+$$;
+
+-- A player's score on a map (`map_key`) in one play of it (`play_key`).
+CREATE OR REPLACE FUNCTION pg_temp.seed_score(player text, map_key text, play_key text) RETURNS int
+LANGUAGE sql IMMUTABLE AS $$
+    SELECT GREATEST(40000, CASE WHEN raw > 800000
+                                THEN 800000 + 199000 * tanh((raw - 800000) / 199000.0)
+                                ELSE raw END)::int
+    FROM (
+        SELECT (380000 + pg_temp.seed_uniform(map_key || ':centre') * 440000)
+               * (1 + (0.08 + pg_temp.seed_uniform(map_key || ':spread') * 0.22)
+                      * (0.8 * pg_temp.seed_normal(player || ':skill')
+                         + 0.6 * pg_temp.seed_normal(player || ':' || map_key || ':' || play_key)))
+               * CASE WHEN pg_temp.seed_uniform(player || ':' || map_key || ':' || play_key || ':choke') < 0.05
+                      THEN 0.45 + pg_temp.seed_uniform(player || ':' || map_key || ':' || play_key || ':how') * 0.25
+                      ELSE 1 END AS raw
+    ) x
+$$;
+
+-- The same in a bracket match, where the map's result is already decided: when the
+-- losing side's made-up total would beat the winner's, its scores are scaled to finish
+-- 2-17% short of it.
+CREATE OR REPLACE FUNCTION pg_temp.seed_versus_score(player text, team1 bool, team1_names text[],
+                                                     team2_names text[], team1_wins bool,
+                                                     map_key text, play_key text) RETURNS int
+LANGUAGE sql IMMUTABLE AS $$
+    SELECT CASE WHEN team1 <> team1_wins AND own >= opp
+                THEN (pg_temp.seed_score(player, map_key, play_key) * opp / own
+                      * (0.83 + pg_temp.seed_uniform(map_key || ':' || play_key || ':margin') * 0.15))::int
+                ELSE pg_temp.seed_score(player, map_key, play_key) END
+    FROM (
+        SELECT (SELECT sum(pg_temp.seed_score(u, map_key, play_key))
+                FROM unnest(CASE WHEN team1 THEN team1_names ELSE team2_names END) u)::float8 AS own,
+               (SELECT sum(pg_temp.seed_score(u, map_key, play_key))
+                FROM unnest(CASE WHEN team1 THEN team2_names ELSE team1_names END) u)::float8 AS opp
+    ) t
+$$;
+
 INSERT INTO osu_users (osu_id, username, avatar_url, country_code, global_rank, country_rank, roles) VALUES
     (-1,   'DevHost',    'https://a.ppy.sh/', 'TR', 52000, 900,  '{host}'),
     (-2,   'DevPooler',  'https://a.ppy.sh/', 'TR', 41000, 700,  '{map_pooler}'),
@@ -655,9 +705,13 @@ WHERE b.side = 'winners' AND b.number = 1
   AND EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id);
 
 WITH w1 AS (
-    SELECT m.starts_at AS t0, b.team1_id, b.team2_id, b.stage_id, ref.username AS referee,
+    SELECT m.id, m.starts_at AS t0, b.team1_id, b.team2_id, b.stage_id, ref.username AS referee,
            ARRAY(SELECT r.mp_id FROM match_rooms r WHERE r.match_id = m.id
-                 ORDER BY r.added_at) AS rooms
+                 ORDER BY r.added_at) AS rooms,
+           ARRAY(SELECT u.username FROM team_members tm JOIN osu_users u ON u.id = tm.user_id
+                 WHERE tm.team_id = b.team1_id) AS team1_names,
+           ARRAY(SELECT u.username FROM team_members tm JOIN osu_users u ON u.id = tm.user_id
+                 WHERE tm.team_id = b.team2_id) AS team2_names
     FROM bracket_matches b
     JOIN matches m ON m.id = b.match_id
     LEFT JOIN osu_users ref ON ref.id = m.referee_id
@@ -681,12 +735,13 @@ maps AS (
            interval '3 minutes' + (pk.k - 1) * interval '6 minutes'
                + CASE WHEN pk.k > 3 THEN interval '3 minutes' ELSE interval '0' END AS at,
            COALESCE(pm.beatmap_id, 4000000 + pk.k) AS beatmap_id,
+           COALESCE(pm.id::text, 'map' || pk.k) AS map_key,
            COALESCE(pm.artist || ' - ' || pm.title || ' [' || pm.version || ']',
                     'Seed Artist - Map ' || pk.k || ' [Tournament]') AS name
     FROM w1
     CROSS JOIN picks pk
     LEFT JOIN LATERAL (
-        SELECT pm.beatmap_id, pm.artist, pm.title, pm.version
+        SELECT pm.id, pm.beatmap_id, pm.artist, pm.title, pm.version
         FROM stage_categories c
         JOIN category_slots s ON s.category_id = c.id
         JOIN pool_maps pm ON pm.slot_id = s.id
@@ -756,10 +811,10 @@ lines (room, at, sender, text) AS (
     UNION ALL
     SELECT m.room, m.at + interval '4 minutes' + p.slot * interval '1 second', 'BanchoBot',
            p.username || ' finished playing (Score: '
-               || CASE WHEN p.team1 = (m.k NOT IN (2, 4, 6)) THEN 700000 ELSE 450000 END
-                  + p.slot * 13579 + m.k * 2468
+               || pg_temp.seed_versus_score(p.username, p.team1, w1.team1_names, w1.team2_names,
+                                            m.k NOT IN (2, 4, 6), m.map_key, w1.id::text)
                || ', PASSED).'
-    FROM maps m, players p
+    FROM maps m, players p, w1
     UNION ALL
     SELECT m.room, m.at + interval '4 minutes 10 seconds', 'BanchoBot', 'The match has finished!'
     FROM maps m
@@ -818,7 +873,11 @@ WITH live AS (
            m.id, b.side, m.starts_at AS t0, b.team1_id, b.team2_id, b.stage_id,
            ref.username AS referee,
            (SELECT r.mp_id FROM match_rooms r WHERE r.match_id = m.id
-            ORDER BY r.added_at DESC LIMIT 1) AS mp_id
+            ORDER BY r.added_at DESC LIMIT 1) AS mp_id,
+           ARRAY(SELECT u.username FROM team_members tm JOIN osu_users u ON u.id = tm.user_id
+                 WHERE tm.team_id = b.team1_id) AS team1_names,
+           ARRAY(SELECT u.username FROM team_members tm JOIN osu_users u ON u.id = tm.user_id
+                 WHERE tm.team_id = b.team2_id) AS team2_names
     FROM bracket_matches b
     JOIN matches m ON m.id = b.match_id
     LEFT JOIN osu_users ref ON ref.id = m.referee_id
@@ -866,17 +925,19 @@ maps AS (
         OFFSET pk.slot LIMIT 1
     ) pm ON true
 ),
--- Each player's score and mods on the finished maps, like W1's chat makes them up.
+-- Each player's score and mods on the finished maps, made up like W1's.
 scores AS (
     SELECT m.match_id, m.k, p.user_id, p.username, p.slot, p.team1,
-           CASE WHEN p.team1 = m.team1_wins THEN 700000 ELSE 450000 END
-               + p.slot * 13579 + m.k * 2468 AS score,
+           pg_temp.seed_versus_score(p.username, p.team1, live.team1_names, live.team2_names,
+                                     m.team1_wins, COALESCE(m.map_id::text, 'map' || m.k),
+                                     m.match_id::text) AS score,
            CASE m.category
                WHEN 'NM' THEN 'NF' WHEN 'HD' THEN 'HDNF' WHEN 'HR' THEN 'HRNF' WHEN 'DT' THEN 'DTNF'
                ELSE (ARRAY['HD', 'HR', '', 'HDHR'])[p.slot]
            END AS mods
     FROM maps m
     JOIN players p ON p.match_id = m.match_id
+    JOIN live ON live.id = m.match_id
     WHERE m.finished
 ),
 lines (match_id, at, sender, text) AS (
@@ -991,15 +1052,29 @@ JOIN maps m ON m.match_id = sc.match_id AND m.k = sc.k
 WHERE m.map_id IS NOT NULL;
 
 -- The saved map results of every concluded seeded bracket match, as the referee page
--- would have saved them with the score: maps from its stage's pool in W1's pick order,
--- with the tiebreaker for a 5-4, the losing team taking the even maps up to its score.
--- Each player's score is made up like W1's chat (so W1's agree with it), and their
--- mods are the category's plus NoFail, or their own on FM and TB.
+-- would have saved them with the score, and its picks and bans. W1's picks were seeded
+-- with its chat, so it plays them in that order. Every other match drafts its own: its
+-- stage's pool (the tiebreaker aside) shuffled for that match, the teams picking in turn
+-- from blue (team 1) as p1-p2-b2-b1-p1-* has it, red and then blue banning the next two
+-- maps of the shuffle, and the tiebreaker after a 4-4. Each team wins its own picks, the
+-- loser only up to its score; the winner takes the rest. Scores are made up like W1's
+-- chat (so W1's agree with it), and the mods are the category's plus NoFail, or each
+-- player's own on FM and TB.
 WITH done AS (
-    SELECT b.match_id, b.stage_id, b.team1_id, b.team2_id,
+    SELECT b.match_id, b.stage_id, b.team1_id, b.team2_id, m.starts_at AS t0,
            b.team1_score > b.team2_score AS team1_won,
            LEAST(b.team1_score, b.team2_score) AS lost_maps,
-           b.team1_score + b.team2_score AS played
+           b.team1_score + b.team2_score AS played,
+           -- A one-map margin with maps on both sides went to the tiebreaker, which
+           -- nobody picks.
+           b.team1_score + b.team2_score
+               - CASE WHEN abs(b.team1_score - b.team2_score) = 1
+                           AND LEAST(b.team1_score, b.team2_score) > 0 THEN 1 ELSE 0 END AS picked,
+           ARRAY(SELECT u.username FROM team_members tm JOIN osu_users u ON u.id = tm.user_id
+                 WHERE tm.team_id = b.team1_id) AS team1_names,
+           ARRAY(SELECT u.username FROM team_members tm JOIN osu_users u ON u.id = tm.user_id
+                 WHERE tm.team_id = b.team2_id) AS team2_names,
+           EXISTS (SELECT 1 FROM match_picks x WHERE x.match_id = b.match_id) AS drafted
     FROM bracket_matches b
     JOIN matches m ON m.id = b.match_id
     WHERE m.concluded_at IS NOT NULL AND b.forfeit_slot IS NULL
@@ -1010,23 +1085,53 @@ WITH done AS (
           WHERE tm.team_id IN (b.team1_id, b.team2_id) AND u.osu_id >= 0
       )
 ),
-picks (k, category, slot) AS (
-    VALUES (1, 'NM', 0), (2, 'HD', 0), (3, 'HR', 0), (4, 'DT', 0),
-           (5, 'NM', 1), (6, 'FM', 0), (7, 'DT', 1), (8, 'HR', 1), (9, 'TB', 0)
-),
-maps AS (
-    SELECT d.match_id, pk.category, pm.id AS map_id,
-           row_number() OVER (PARTITION BY d.match_id ORDER BY pk.k)::int AS position,
-           -- The winner's maps are the odd ones and every one after the loser's last.
-           (pk.k % 2 = 1 OR pk.k > 2 * d.lost_maps) = d.team1_won AS team1_wins
-    FROM done d
-    JOIN picks pk ON pk.k <= d.played
-    JOIN stage_categories c ON c.stage_id = d.stage_id AND c.name = pk.category
-    JOIN category_slots s ON s.category_id = c.id AND s.position = pk.slot
+pool AS (
+    SELECT c.stage_id, c.name AS category, pm.id AS map_id
+    FROM stage_categories c
+    JOIN category_slots s ON s.category_id = c.id
     JOIN pool_maps pm ON pm.slot_id = s.id
 ),
+shuffled AS (
+    SELECT d.match_id, p.map_id,
+           row_number() OVER (PARTITION BY d.match_id
+                              ORDER BY md5(d.match_id::text || p.map_id::text))::int AS n
+    FROM done d
+    JOIN pool p ON p.stage_id = d.stage_id AND p.category <> 'TB'
+    WHERE NOT d.drafted
+),
+draft AS (
+    SELECT x.match_id, x.pool_map_id AS map_id,
+           row_number() OVER (PARTITION BY x.match_id ORDER BY x.created_at)::int AS k
+    FROM done d
+    JOIN match_picks x ON x.match_id = d.match_id
+    WHERE d.drafted
+    UNION ALL
+    SELECT match_id, map_id, n FROM shuffled
+),
+played AS (
+    SELECT d.match_id, dr.k AS position, dr.map_id, dr.k % 2 = 1 AS team1_picked, false AS tb
+    FROM done d
+    JOIN draft dr ON dr.match_id = d.match_id AND dr.k <= d.picked
+    UNION ALL
+    SELECT d.match_id, d.played, p.map_id, NULL, true
+    FROM done d
+    JOIN LATERAL (SELECT map_id FROM pool WHERE stage_id = d.stage_id AND category = 'TB'
+                  LIMIT 1) p ON true
+    WHERE d.picked < d.played
+),
+maps AS (
+    SELECT pl.match_id, pl.position, pl.map_id, pl.team1_picked, p.category,
+           CASE WHEN NOT pl.tb AND pl.team1_picked <> d.team1_won
+                     AND row_number() OVER (PARTITION BY pl.match_id, pl.tb, pl.team1_picked
+                                            ORDER BY pl.position) <= d.lost_maps
+                THEN NOT d.team1_won
+                ELSE d.team1_won END AS team1_wins
+    FROM played pl
+    JOIN done d ON d.match_id = pl.match_id
+    JOIN pool p ON p.stage_id = d.stage_id AND p.map_id = pl.map_id
+),
 players AS (
-    SELECT d.match_id, u.id AS user_id, tm.team_id = d.team1_id AS team1,
+    SELECT d.match_id, u.id AS user_id, u.username, tm.team_id = d.team1_id AS team1,
            row_number() OVER (PARTITION BY d.match_id
                               ORDER BY tm.team_id = d.team1_id DESC, u.username) AS slot
     FROM done d
@@ -1035,15 +1140,31 @@ players AS (
 ),
 scores AS (
     SELECT m.match_id, m.position, p.user_id, p.team1,
-           CASE WHEN p.team1 = m.team1_wins THEN 700000 ELSE 450000 END
-               + p.slot * 13579 + m.position * 2468 AS score,
+           pg_temp.seed_versus_score(p.username, p.team1, d.team1_names, d.team2_names,
+                                     m.team1_wins, m.map_id::text, m.match_id::text) AS score,
            CASE m.category
                WHEN 'NM' THEN 'NF' WHEN 'HD' THEN 'HDNF' WHEN 'HR' THEN 'HRNF' WHEN 'DT' THEN 'DTNF'
                WHEN 'FM' THEN (ARRAY['HD', 'HR', '', 'HDHR'])[p.slot]
                ELSE (ARRAY['HR', 'HDHR', 'HD', ''])[p.slot]
            END AS mods
     FROM maps m
+    JOIN done d ON d.match_id = m.match_id
     JOIN players p ON p.match_id = m.match_id
+),
+picks AS (
+    INSERT INTO match_picks (match_id, pool_map_id, team_id, created_at)
+    SELECT d.match_id, m.map_id, CASE WHEN m.team1_picked THEN d.team1_id ELSE d.team2_id END,
+           d.t0 + interval '2 minutes' + m.position * interval '6 minutes'
+    FROM done d
+    JOIN maps m ON m.match_id = d.match_id
+    WHERE NOT d.drafted AND m.team1_picked IS NOT NULL
+),
+bans AS (
+    INSERT INTO match_bans (match_id, pool_map_id, team_id, created_at)
+    SELECT d.match_id, sh.map_id, CASE WHEN sh.n = d.picked + 1 THEN d.team2_id ELSE d.team1_id END,
+           d.t0 + interval '13 minutes' + (sh.n - d.picked) * interval '20 seconds'
+    FROM done d
+    JOIN shuffled sh ON sh.match_id = d.match_id AND sh.n IN (d.picked + 1, d.picked + 2)
 ),
 results AS (
     INSERT INTO match_map_results (match_id, position, pool_map_id, team1_score, team2_score)
@@ -1053,7 +1174,6 @@ results AS (
            (SELECT sum(sc.score) FROM scores sc
             WHERE sc.match_id = m.match_id AND sc.position = m.position AND NOT sc.team1)
     FROM maps m
-    RETURNING match_id
 )
 INSERT INTO match_map_scores (match_id, position, user_id, score, mods, passed)
 SELECT match_id, position, user_id, score, mods, true
@@ -1153,10 +1273,10 @@ timed AS (
 ),
 scores AS (
     SELECT t.k, p.username, p.slot,
-           -- Slightly better players up front, then a per-map swing that reshuffles them.
-           (CASE WHEN f.failed THEN 180000 ELSE 420000 END
-               + (15 - p.slot) * 5000
-               + abs(hashtext(p.username || ':' || t.k)) % 300000)::int AS score,
+           -- Each play made up like every other seeded score (k tells the first map's two
+           -- plays apart); a fail ends well short of it.
+           (pg_temp.seed_score(p.username, t.map_id::text, 'q' || t.k)
+               * CASE WHEN f.failed THEN 0.4 ELSE 1 END)::int AS score,
            f.failed
     FROM timed t
     JOIN players p ON NOT (t.k = 0 AND p.late)
@@ -1226,7 +1346,7 @@ FROM lobby, lines l
 ORDER BY l.at;
 
 -- The other seeded lobbies' saved results (they have no chat): every map of the
--- qualifier pool once, scored like the first lobby's, except that Rank Uçtu missed the
+-- qualifier pool once, made up like the first lobby's, except that Rank Uçtu missed the
 -- pool's last two maps, so the statistics count them as a 0 for its seeding.
 WITH lobbies AS (
     SELECT m.id AS match_id
@@ -1250,7 +1370,7 @@ results AS (
 )
 INSERT INTO match_map_scores (match_id, position, user_id, score, mods, passed)
 SELECT l.match_id, p.n, u.id,
-       (420000 + abs(hashtext(u.username || ':' || p.n)) % 300000)::int,
+       pg_temp.seed_score(u.username, p.map_id::text, 'q' || p.n),
        CASE p.category WHEN 'HD' THEN 'HDNF' WHEN 'HR' THEN 'HRNF' WHEN 'DT' THEN 'DTNF' ELSE 'NF' END,
        true
 FROM lobbies l
@@ -1350,3 +1470,5 @@ SELECT user_id, id,
        least(first_start, now()) - interval '2 hours' - r1 * interval '7 minutes'
 FROM rolls
 WHERE stage <> 'Semifinals' OR r2 % 10 < 6;
+
+DROP FUNCTION pg_temp.seed_versus_score, pg_temp.seed_score, pg_temp.seed_normal, pg_temp.seed_uniform;

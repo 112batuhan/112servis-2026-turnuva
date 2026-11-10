@@ -50,6 +50,9 @@
   gap: var(--space-3) var(--space-5);
   padding-bottom: var(--space-3);
   border-bottom: var(--rule-heavy);
+  /* As much room as the toolbar under it leaves above the table, so it sits centred between the
+     two rules. */
+  margin-bottom: var(--space-3);
 }
 
 .map-board-cover {

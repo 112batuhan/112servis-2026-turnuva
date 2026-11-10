@@ -41,7 +41,9 @@
   line-height: 1;
 }
 
-.pool-stats-group:first-of-type .pool-stats-category {
+/* The first category sits straight under the head line, as far below the column names as they
+   are below the sheet's rule (the head is a div too, so the group is never :first-of-type). */
+.pool-stats-head + .pool-stats-group .pool-stats-category {
   margin-top: 0;
 }
 

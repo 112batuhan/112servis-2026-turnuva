@@ -256,7 +256,11 @@ function StageSummary({ stage, index }: { stage: Stage; index: StatsIndex }) {
           <span>
             <span className="num">{stats.plays.length}</span> takım skoru
           </span>
-          {live > 0 && <span className="stats-stage-live">{live} maç sürüyor, map bittikçe güncellenir</span>}
+          {live > 0 && (
+            <span className="stats-stage-live">
+              <span className="num">{live}</span> maç oynanıyor
+            </span>
+          )}
         </p>
         <ZExplainer qualifier={stage.is_qualifier} />
       </div>

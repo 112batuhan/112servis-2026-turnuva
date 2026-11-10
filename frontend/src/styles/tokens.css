@@ -84,6 +84,11 @@
   --color-state-due: var(--color-red);
   --color-state-done: var(--color-green);
 
+  /* a map's bans and picks on the statistics matrix (the dot beside a cell's figure): the row's
+     team's own in mavi, its opponents' against it in kırmızı */
+  --color-draft-team: var(--color-cyan);
+  --color-draft-opponent: var(--color-red);
+
   /* outlines text drawn over user images, which can be any colour */
   --color-text-outline: #000000;
 

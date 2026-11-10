@@ -163,6 +163,7 @@ async fn count_stage(state: &AppState, id: Uuid) -> Result<Bytes, AppError> {
                 match_id: d.match_id,
                 map_id: d.map_id,
                 team_id: d.team_id,
+                opponent_id: d.opponent_id,
                 ban: d.ban,
             })
             .collect::<Vec<_>>(),

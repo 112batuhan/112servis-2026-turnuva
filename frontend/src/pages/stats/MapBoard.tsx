@@ -123,7 +123,7 @@ export function MapBoard({ kind, index, ownTeam, mapId, onMap }: Props) {
         </p>
         <input
           type="search"
-          className="input stats-search"
+          className="input input-sm stats-search"
           placeholder="Oyuncu ya da takım ara"
           aria-label="Ara"
           value={query}

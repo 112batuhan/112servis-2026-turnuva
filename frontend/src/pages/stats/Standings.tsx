@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { StatCell, StatStanding } from "../../api/types";
+import type { StatCell, StatDraftTally, StatStanding } from "../../api/types";
 import { Icon } from "../../components/Icon";
 import { MapLabel, PlayerName, TeamWho, ZValue } from "./StatsParts";
 import {
@@ -61,7 +61,20 @@ export function Standings({ kind, index, ownTeam }: Props) {
       },
       { replace: true },
     );
-  const [metric, setMetric] = useState<Metric>("z");
+  // The matrix's pick and ban dots are off until asked for, and in the URL (?drafts=1) like the
+  // matrix itself.
+  const showDrafts = params.get("drafts") === "1";
+  const toggleDrafts = () =>
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (showDrafts) next.delete("drafts");
+        else next.set("drafts", "1");
+        return next;
+      },
+      { replace: true },
+    );
+  const [metric, setMetric] = useState<Metric>("score");
   const [sort, setSort] = useState<Sort>(RANK_SORT);
   const rows = kind === "teams" ? index.data.stats.teams : index.data.stats.players;
   const q = index.qualifier;
@@ -164,30 +177,46 @@ export function Standings({ kind, index, ownTeam }: Props) {
     return out;
   }, [q, kind, index, poolSize]);
 
+  const filtered = useMemo(
+    () =>
+      rows.filter((s) => {
+        if (kind === "teams") {
+          const team = index.team.get(s.id);
+          return matchesQuery(query, team?.name, ...(team?.players.map((p) => p.username) ?? []));
+        }
+        return matchesQuery(query, index.player.get(s.id)?.username, index.team.get(s.team_id)?.name);
+      }),
+    [rows, query, kind, index],
+  );
+
+  // The standings table's order.
   const shown = useMemo(() => {
-    const filtered = rows.filter((s) => {
-      if (kind === "teams") {
-        const team = index.team.get(s.id);
-        return matchesQuery(query, team?.name, ...(team?.players.map((p) => p.username) ?? []));
-      }
-      return matchesQuery(query, index.player.get(s.id)?.username, index.team.get(s.team_id)?.name);
-    });
     if (sort.id === "rank") {
       return sort.dir === "best" ? filtered : [...filtered].reverse();
     }
-    const value =
-      columns.find((c) => c.id === sort.id)?.value ??
-      ((s: StatStanding) => s.per_map.find((c) => c.map_id === sort.id)?.z ?? -Infinity);
+    const value = columns.find((c) => c.id === sort.id)?.value;
+    if (!value) return filtered;
     const sign = sort.dir === "best" ? 1 : -1;
     return [...filtered].sort((a, b) => sign * (value(b) - value(a)));
-  }, [rows, query, sort, columns, kind, index]);
+  }, [filtered, sort, columns]);
+
+  // The matrix keeps its own order: by one map, on whatever its cells show, best first (level
+  // rows keep the standings' order); a second click on the map hands them back to the standings.
+  const [mapSort, setMapSort] = useState<string | null>(null);
+  const matrixRows = useMemo(() => {
+    if (!mapSort) return filtered;
+    const value = (s: StatStanding) => cellValue(s.per_map.find((c) => c.map_id === mapSort), metric);
+    return [...filtered].sort((a, b) => value(b) - value(a));
+  }, [filtered, mapSort, metric]);
 
   const toggleSort = (id: string) =>
     setSort((s) => (s.id === id ? { id, dir: s.dir === "best" ? "reverse" : "best" } : { id, dir: "best" }));
+  const toggleMapSort = (id: string) => setMapSort((m) => (m === id ? null : id));
   const ariaSort = (id: string): "ascending" | "descending" | undefined =>
     sort.id !== id ? undefined : (id === "rank") === (sort.dir === "best") ? "ascending" : "descending";
 
   const pending = rows.filter((s) => s.pending).length;
+  const drafted = rows.some((s) => s.drafts.length > 0);
 
   return (
     <section className="standings" aria-label={kind === "teams" ? "Takım sıralaması" : "Oyuncu sıralaması"}>
@@ -203,22 +232,14 @@ export function Standings({ kind, index, ownTeam }: Props) {
           {pending > 0 && ` ${pending} ${kind === "teams" ? "takımın" : "oyuncunun"} lobisi henüz bitmedi; eksik mapleri bitince sayılır.`}
         </p>
         <div className="stats-toolbar-controls">
-          <div className="bracket-view-tabs" role="group" aria-label="Görünüm">
-            <button type="button" className="bracket-view-tab" aria-pressed={view === "table"} onClick={() => setView("table")}>
-              Sıralama
-            </button>
-            <button type="button" className="bracket-view-tab" aria-pressed={view === "matrix"} onClick={() => setView("matrix")}>
-              Map tablosu
-            </button>
-          </div>
           {view === "matrix" && (
             <div className="bracket-view-tabs" role="group" aria-label="Hücrede">
               {(
                 [
-                  ["z", "Z"],
-                  ["rank", "Sıra"],
                   ["score", "Skor"],
                   ["accuracy", "Accuracy"],
+                  ["z", "Z"],
+                  ["rank", "Sıra"],
                 ] as const
               ).map(([id, label]) => (
                 <button key={id} type="button" className="bracket-view-tab" aria-pressed={metric === id} onClick={() => setMetric(id)}>
@@ -227,14 +248,34 @@ export function Standings({ kind, index, ownTeam }: Props) {
               ))}
             </div>
           )}
+          {view === "matrix" && drafted && (
+            <div className="bracket-view-tabs">
+              <button type="button" className="bracket-view-tab draft-toggle" aria-pressed={showDrafts} onClick={toggleDrafts}>
+                <span className="draft-toggle-dots" aria-hidden="true">
+                  <span className="draft-dot is-team" />
+                  <span className="draft-dot is-opponent" />
+                </span>
+                Pick ve banlar
+              </button>
+            </div>
+          )}
           <input
             type="search"
-            className="input stats-search"
+            className="input input-sm stats-search"
             placeholder="Oyuncu ya da takım ara"
             aria-label="Ara"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          {/* Last, so it holds still at the row's end while the matrix's controls come and go. */}
+          <div className="bracket-view-tabs stats-view-switch" role="group" aria-label="Görünüm">
+            <button type="button" className="bracket-view-tab" aria-pressed={view === "table"} onClick={() => setView("table")}>
+              Sıralama
+            </button>
+            <button type="button" className="bracket-view-tab" aria-pressed={view === "matrix"} onClick={() => setView("matrix")}>
+              Map tablosu
+            </button>
+          </div>
         </div>
       </div>
 
@@ -283,17 +324,21 @@ export function Standings({ kind, index, ownTeam }: Props) {
           </table>
         </div>
       ) : (
-        <Matrix
-          rows={shown}
-          index={index}
-          metric={metric}
-          who={who}
-          isOwn={isOwn}
-          sortedBy={sort.id}
-          onSort={toggleSort}
-          total={(s) => (q ? s.z_sum : s.z_avg)}
-          whoLabel={`${kind === "teams" ? "Takım" : "Oyuncu"} · ${q ? "Z toplamı" : "Ort. Z"}`}
-        />
+        <>
+          {drafted && showDrafts && <DraftLegend kind={kind} />}
+          <Matrix
+            rows={matrixRows}
+            index={index}
+            metric={metric}
+            showDrafts={showDrafts}
+            who={who}
+            isOwn={isOwn}
+            sortedBy={mapSort}
+            onSort={toggleMapSort}
+            total={(s) => (q ? s.z_sum : s.z_avg)}
+            whoLabel={`${kind === "teams" ? "Takım" : "Oyuncu"} · ${q ? "Z toplamı" : "Ort. Z"}`}
+          />
+        </>
       )}
     </section>
   );
@@ -328,13 +373,102 @@ function SortHeader({
   );
 }
 
+/** What can be drafted on a map in the row's team's matches: by the team itself, or by its
+ * opponents. A played map was picked, so its figure takes the picker's colour; a banned one was
+ * never played, so its empty cell takes a dot in the banner's. The words keep everything. */
+const DRAFT_MARKS = [
+  { key: "picked", side: "team", ban: false, label: "Pick'ledi" },
+  { key: "banned", side: "team", ban: true, label: "Banladı" },
+  { key: "picked_against", side: "opponent", ban: false, label: "Rakibi pick'ledi" },
+  { key: "banned_against", side: "opponent", ban: true, label: "Rakibi banladı" },
+] as const;
+
+type DraftSide = (typeof DRAFT_MARKS)[number]["side"];
+
+interface DraftMarks {
+  /** Who picked it, the team first should both have (in different matches). */
+  picker: DraftSide | null;
+  /** Who banned it, the team first. */
+  banners: DraftSide[];
+  text: string;
+}
+
+/** A cell's marks and their words, or null when nobody drafted the map against the row. */
+function draftMarks(draft: StatDraftTally | undefined): DraftMarks | null {
+  if (!draft) return null;
+  const on = DRAFT_MARKS.filter((m) => draft[m.key] > 0);
+  if (on.length === 0) return null;
+  return {
+    picker: on.find((m) => !m.ban)?.side ?? null,
+    banners: on.filter((m) => m.ban).map((m) => m.side),
+    text: on.map((m) => (draft[m.key] > 1 ? `${m.label} ×${draft[m.key]}` : m.label)).join(" · "),
+  };
+}
+
+/** A ban: one dot per side that banned the map, in place of the empty cell's figure. */
+function DraftDots({ sides }: { sides: DraftSide[] }) {
+  return (
+    <span className="draft-dots" aria-hidden="true">
+      {sides.map((side) => (
+        <span key={side} className={`draft-dot is-${side}`} />
+      ))}
+    </span>
+  );
+}
+
+/** What the two colours mean: the row's team's picks and bans, and its opponents'. */
+function DraftLegend({ kind }: { kind: Kind }) {
+  const sides = [
+    { side: "team", label: kind === "teams" ? "Takımın pick ve banları" : "Takımının pick ve banları" },
+    { side: "opponent", label: "Rakibinin pick ve banları" },
+  ];
+  return (
+    <div className="draft-legend" role="group" aria-label="Pick ve ban renkleri">
+      {sides.map((s) => (
+        <span key={s.side} className="draft-legend-item">
+          <span className={`draft-dot is-${s.side}`} aria-hidden="true" />
+          {s.label}
+        </span>
+      ))}
+      <span className="draft-legend-note">Renkli skor: pick'lenip oynanmış map · nokta: banlanmış map</span>
+    </div>
+  );
+}
+
+/** "Sort by …" in Turkish takes the dative: skora, accuracy'ye, Z'ye, sıraya. */
+const METRIC_DATIVE: Record<Metric, string> = {
+  score: "skora",
+  accuracy: "accuracy'ye",
+  z: "Z'ye",
+  rank: "sıraya",
+};
+
+/** A matrix cell as a sort key, higher first: its score, accuracy or Z, or its place turned
+ * round so first comes first. A map the row has no figure for sorts last; a missing qualifier
+ * map counts as the 0 it was scored as. */
+function cellValue(cell: StatCell | undefined, metric: Metric): number {
+  if (!cell) return -Infinity;
+  switch (metric) {
+    case "score":
+      return cell.score ?? 0;
+    case "accuracy":
+      return cell.accuracy ?? -Infinity;
+    case "z":
+      return cell.z;
+    case "rank":
+      return cell.rank === null ? -Infinity : -cell.rank;
+  }
+}
+
 interface MatrixProps {
   rows: StatStanding[];
   index: StatsIndex;
   metric: Metric;
+  showDrafts: boolean;
   who: (s: StatStanding) => ReactNode;
   isOwn: (s: StatStanding) => boolean;
-  sortedBy: string;
+  /** The map the rows are sorted by, on the cells' metric; null for the standings' order. */
+  sortedBy: string | null;
   onSort: (id: string) => void;
   total: (s: StatStanding) => number;
   whoLabel: string;
@@ -345,7 +479,7 @@ interface MatrixProps {
  * shaded brighter the further above the map's field they were. A missing qualifier map shows the
  * 0 it was scored as.
  */
-function Matrix({ rows, index, metric, who, isOwn, sortedBy, onSort, total, whoLabel }: MatrixProps) {
+function Matrix({ rows, index, metric, showDrafts, who, isOwn, sortedBy, onSort, total, whoLabel }: MatrixProps) {
   return (
     <div className="stats-matrix-wrap">
       <table className="stats-table stats-matrix">
@@ -354,14 +488,21 @@ function Matrix({ rows, index, metric, who, isOwn, sortedBy, onSort, total, whoL
             <th className="is-rank">Sıra</th>
             <th className="stats-matrix-who">{whoLabel}</th>
             {index.entries.map((e) => (
-              <th key={e.map.id} className="stats-matrix-map" aria-sort={sortedBy === e.map.id ? "descending" : undefined}>
+              <th
+                key={e.map.id}
+                className="stats-matrix-map"
+                aria-sort={sortedBy !== e.map.id ? undefined : metric === "rank" ? "ascending" : "descending"}
+              >
                 <button
                   type="button"
                   className={sortedBy === e.map.id ? "stats-sort is-sorted" : "stats-sort"}
                   onClick={() => onSort(e.map.id)}
-                  title={`${e.map.title} [${e.map.version}]: bu map'teki Z'ye göre sırala`}
+                  title={`${e.map.title} [${e.map.version}]: ${
+                    sortedBy === e.map.id ? "sıralamaya dön" : `bu map'teki ${METRIC_DATIVE[metric]} göre sırala`
+                  }`}
                 >
                   <MapLabel entry={e} />
+                  <Icon name={metric === "rank" ? "arrowUp" : "arrowDown"} size={12} className="stats-sort-mark" />
                 </button>
               </th>
             ))}
@@ -378,7 +519,12 @@ function Matrix({ rows, index, metric, who, isOwn, sortedBy, onSort, total, whoL
                 </span>
               </td>
               {index.entries.map((e) => (
-                <MatrixCell key={e.map.id} cell={s.per_map.find((c) => c.map_id === e.map.id)} metric={metric} />
+                <MatrixCell
+                  key={e.map.id}
+                  cell={s.per_map.find((c) => c.map_id === e.map.id)}
+                  draft={showDrafts ? s.drafts.find((d) => d.map_id === e.map.id) : undefined}
+                  metric={metric}
+                />
               ))}
             </tr>
           ))}
@@ -388,11 +534,18 @@ function Matrix({ rows, index, metric, who, isOwn, sortedBy, onSort, total, whoL
   );
 }
 
-function MatrixCell({ cell, metric }: { cell: StatCell | undefined; metric: Metric }) {
+function MatrixCell({ cell, draft, metric }: { cell: StatCell | undefined; draft: StatDraftTally | undefined; metric: Metric }) {
+  const marks = draftMarks(draft);
+  const said = marks && <span className="sr-only">{`, ${marks.text}`}</span>;
   if (!cell) {
     return (
-      <td className="stats-matrix-cell is-empty">
-        <span aria-label="Oynanmadı">·</span>
+      <td className="stats-matrix-cell is-empty" title={marks?.text}>
+        {marks && marks.banners.length > 0 ? (
+          <DraftDots sides={marks.banners} />
+        ) : (
+          <span aria-label="Oynanmadı">·</span>
+        )}
+        {said}
       </td>
     );
   }
@@ -415,11 +568,14 @@ function MatrixCell({ cell, metric }: { cell: StatCell | undefined; metric: Metr
           : formatAccuracy(cell.accuracy);
   return (
     <td
-      className={cell.z < 0 ? "stats-matrix-cell is-below" : "stats-matrix-cell"}
+      className={["stats-matrix-cell", cell.z < 0 && "is-below", marks?.picker && `picked-by-${marks.picker}`]
+        .filter(Boolean)
+        .join(" ")}
       style={{ "--heat": heat } as CSSProperties}
-      title={`Z ${formatZ(cell.z)} · ${formatScore(cell.score ?? 0)} · ${formatAccuracy(cell.accuracy)}${cell.plays > 1 ? ` · ${cell.plays} oyun` : ""}`}
+      title={`Z ${formatZ(cell.z)} · ${formatScore(cell.score ?? 0)} · ${formatAccuracy(cell.accuracy)}${cell.plays > 1 ? ` · ${cell.plays} oyun` : ""}${marks ? `\n${marks.text}` : ""}`}
     >
       {text}
+      {said}
     </td>
   );
 }

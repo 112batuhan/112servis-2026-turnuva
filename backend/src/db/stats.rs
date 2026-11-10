@@ -361,17 +361,23 @@ pub struct DraftMark {
     pub match_id: Uuid,
     pub map_id: Uuid,
     pub team_id: Uuid,
+    // The other team of the match; None while its slot is empty.
+    pub opponent_id: Option<Uuid>,
     pub ban: bool,
 }
 
 pub async fn drafts(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<DraftMark>> {
     sqlx::query_as::<_, DraftMark>(
         r#"
-        SELECT x.match_id, x.pool_map_id AS map_id, x.team_id, true AS ban
+        SELECT x.match_id, x.pool_map_id AS map_id, x.team_id,
+               CASE WHEN x.team_id = b.team1_id THEN b.team2_id ELSE b.team1_id END AS opponent_id,
+               true AS ban
         FROM match_bans x JOIN bracket_matches b ON b.match_id = x.match_id
         WHERE b.stage_id = $1
         UNION ALL
-        SELECT x.match_id, x.pool_map_id AS map_id, x.team_id, false AS ban
+        SELECT x.match_id, x.pool_map_id AS map_id, x.team_id,
+               CASE WHEN x.team_id = b.team1_id THEN b.team2_id ELSE b.team1_id END AS opponent_id,
+               false AS ban
         FROM match_picks x JOIN bracket_matches b ON b.match_id = x.match_id
         WHERE b.stage_id = $1
         "#,
