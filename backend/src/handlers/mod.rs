@@ -33,7 +33,7 @@ use uuid::Uuid;
 use crate::{
     auth::AuthUser,
     db::matches::MatchState,
-    error::{AppError, ErrorCode},
+    error::{AppError, AuthError, MatchError},
     role::Role,
     AppState,
 };
@@ -43,7 +43,7 @@ fn check_origin(state: &AppState, headers: &HeaderMap) -> Result<(), AppError> {
     if let Some(origin) = headers.get(header::ORIGIN) {
         let ours = state.config.frontend_url.trim_end_matches('/');
         if origin.as_bytes() != ours.as_bytes() {
-            return Err(AppError::Forbidden);
+            return Err(AuthError::Forbidden.into());
         }
     }
     Ok(())
@@ -62,7 +62,7 @@ fn require_runs(user: &AuthUser) -> Result<(), AppError> {
 // Once a match is concluded only hosts can change it (notes aside).
 fn require_unconcluded(user: &AuthUser, m: &MatchState) -> Result<(), AppError> {
     if m.concluded() && !is_host(user) {
-        return Err(AppError::Conflict(ErrorCode::MatchConcluded));
+        return Err(MatchError::Concluded.into());
     }
     Ok(())
 }

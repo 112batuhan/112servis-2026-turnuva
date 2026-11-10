@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::{
     auth::AuthUser,
     db,
-    error::{AppError, ErrorCode},
+    error::{AppError, AuthError},
     role::{self, Role},
     AppState,
 };
@@ -52,7 +52,7 @@ async fn set_roles(
     user.require_role(Role::Host)?;
     let roles = role::normalize(body.roles);
     if user_id == user.id && !roles.contains(&Role::Host) {
-        return Err(AppError::BadRequest(ErrorCode::OwnHostRole));
+        return Err(AuthError::OwnHostRole.into());
     }
 
     let updated = db::admin::set_roles(&state.db, user_id, &roles).await?;

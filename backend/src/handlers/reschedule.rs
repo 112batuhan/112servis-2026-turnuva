@@ -13,7 +13,7 @@ use crate::{
     auth::AuthUser,
     db::{self, bracket::BracketLock, bracket::Side, reschedule::ProposalRow, team::Player},
     discord::jobs::Job,
-    error::{AppError, ErrorCode},
+    error::{AppError, GeneralError, MatchError, ScheduleError},
     AppState,
 };
 
@@ -40,10 +40,10 @@ fn is_open(starts_at: Option<OffsetDateTime>, has_room: bool, now: OffsetDateTim
 
 fn require_open(m: &BracketLock) -> Result<(), AppError> {
     if m.concluded() {
-        return Err(AppError::Conflict(ErrorCode::MatchConcluded));
+        return Err(MatchError::Concluded.into());
     }
     if !is_open(m.starts_at, m.has_room, OffsetDateTime::now_utc()) {
-        return Err(AppError::Conflict(ErrorCode::MatchStarted));
+        return Err(ScheduleError::MatchStarted.into());
     }
     Ok(())
 }
@@ -169,22 +169,22 @@ async fn propose(
 ) -> Result<impl IntoResponse, AppError> {
     let team_id = user.team_id(&state.db).await?;
     if body.starts_at <= OffsetDateTime::now_utc() {
-        return Err(AppError::BadRequest(ErrorCode::TimeInPast));
+        return Err(ScheduleError::TimeInPast.into());
     }
 
     let mut tx = state.db.begin().await?;
     let m = db::potential::lock_schedulable(&mut tx, body.match_id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     if !plays(&m, team_id) {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     let (Some(team1_id), Some(team2_id)) = (m.team1_id, m.team2_id) else {
-        return Err(AppError::Conflict(ErrorCode::NoOpponent));
+        return Err(ScheduleError::NoOpponent.into());
     };
     require_open(&m)?;
     if m.starts_at == Some(body.starts_at) {
-        return Err(AppError::BadRequest(ErrorCode::SameTime));
+        return Err(ScheduleError::SameTime.into());
     }
     let opponent_id = if team1_id == team_id {
         team2_id
@@ -192,14 +192,14 @@ async fn propose(
         team1_id
     };
     if db::reschedule::proposal_exists(&mut tx, body.match_id, opponent_id, body.starts_at).await? {
-        return Err(AppError::Conflict(ErrorCode::TheyProposedTime));
+        return Err(ScheduleError::TheyProposedTime.into());
     }
     if db::reschedule::count_proposals(&mut tx, body.match_id, team_id).await? >= PROPOSAL_LIMIT {
-        return Err(AppError::Conflict(ErrorCode::TooManyProposals));
+        return Err(ScheduleError::TooManyProposals.into());
     }
     db::reschedule::create_proposal(&mut tx, body.match_id, team_id, user.id, body.starts_at)
         .await?
-        .ok_or(AppError::Conflict(ErrorCode::AlreadyProposed))?;
+        .ok_or(ScheduleError::AlreadyProposed)?;
     db::notifications::notify_proposed(&mut tx, body.match_id, opponent_id, user.id).await?;
     state
         .discord
@@ -225,7 +225,7 @@ async fn delete_proposal(
 ) -> Result<impl IntoResponse, AppError> {
     let team_id = user.team_id(&state.db).await?;
     if !db::reschedule::delete_proposal(&state.db, id, team_id).await? {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     Ok(StatusCode::NO_CONTENT)
 }
@@ -243,25 +243,25 @@ async fn accept(
     let team_id = user.team_id(&state.db).await?;
     let match_id = db::reschedule::find_proposal(&state.db, id)
         .await?
-        .ok_or(AppError::NotFound)?
+        .ok_or(GeneralError::NotFound)?
         .match_id;
 
     let mut tx = state.db.begin().await?;
     let m = db::potential::lock_schedulable(&mut tx, match_id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     let proposal = db::reschedule::find_proposal(&mut *tx, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     if !plays(&m, team_id) || !plays(&m, proposal.team_id) {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     if proposal.team_id == team_id {
-        return Err(AppError::BadRequest(ErrorCode::OwnProposal));
+        return Err(ScheduleError::OwnProposal.into());
     }
     require_open(&m)?;
     if proposal.starts_at <= OffsetDateTime::now_utc() {
-        return Err(AppError::Conflict(ErrorCode::TimePassed));
+        return Err(ScheduleError::TimePassed.into());
     }
     db::reschedule::reschedule(&mut tx, match_id, proposal.starts_at).await?;
     db::notifications::notify_rescheduled(

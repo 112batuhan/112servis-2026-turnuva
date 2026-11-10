@@ -18,7 +18,7 @@ use crate::{
         pickem::{MatchRow, Mode, PredictionRow, StageRow},
         team::Player,
     },
-    error::{AppError, ErrorCode},
+    error::{AppError, GeneralError, MatchError, PickemError},
     pickem::{self, Status, Tally, Window},
     role::Role,
     AppState,
@@ -413,17 +413,17 @@ fn open_match(snap: &Snapshot, match_id: Uuid) -> Result<(&MatchRow, i32), AppEr
     let m = snap
         .every_match()
         .find(|m| m.id == match_id)
-        .ok_or(AppError::NotFound)?;
-    let w = snap.window(m.stage_id).ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
+    let w = snap.window(m.stage_id).ok_or(GeneralError::NotFound)?;
     if w.status != Status::Open {
-        return Err(AppError::Conflict(ErrorCode::PickemClosed));
+        return Err(PickemError::Closed.into());
     }
     let best_of = m
         .stage_id
         .and_then(|s| snap.stage(s))
         .and_then(|s| s.best_of);
     if !pickem::predictable(m, best_of, OffsetDateTime::now_utc()) {
-        return Err(AppError::Conflict(ErrorCode::CantPredict));
+        return Err(PickemError::CantPredict.into());
     }
     Ok((m, best_of.unwrap_or(1)))
 }
@@ -447,11 +447,11 @@ async fn predict(
     let snap = Snapshot::load(&state).await?;
     let (m, best_of) = open_match(&snap, match_id)?;
     if Some(body.team_id) != m.team1_id && Some(body.team_id) != m.team2_id {
-        return Err(AppError::BadRequest(ErrorCode::TeamNotInMatch));
+        return Err(MatchError::TeamNotInMatch.into());
     }
     let winner_score = pickem::first_to(best_of);
     if !(0..winner_score).contains(&body.loser_score) {
-        return Err(AppError::BadRequest(ErrorCode::ImpossibleScore));
+        return Err(PickemError::ImpossibleScore.into());
     }
     db::pickem::save_prediction(
         &state.db,
@@ -494,7 +494,7 @@ async fn set_mode(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     if !db::pickem::set_mode(&state.db, id, body.mode).await? {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     Ok(StatusCode::NO_CONTENT)
 }

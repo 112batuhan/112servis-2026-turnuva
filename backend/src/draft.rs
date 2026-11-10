@@ -8,7 +8,7 @@
 use serde::Serialize;
 use uuid::Uuid;
 
-use crate::error::ErrorCode;
+use crate::error::PoolError;
 
 // What a stage that has no order of its own plays: two bans, then picks in turn from
 // the team that didn't ban first.
@@ -47,7 +47,7 @@ impl Default for DraftOrder {
 impl DraftOrder {
     // Reads an order, ignoring case and spaces. The error says what's wrong, for the host
     // who typed it.
-    pub fn parse(text: &str) -> Result<Self, ErrorCode> {
+    pub fn parse(text: &str) -> Result<Self, PoolError> {
         let text: String = text
             .chars()
             .filter(|c| !c.is_whitespace())
@@ -59,10 +59,10 @@ impl DraftOrder {
             _ => (false, &tokens[..]),
         };
         if tokens.is_empty() || tokens == [""] {
-            return Err(ErrorCode::DraftOrderEmpty);
+            return Err(PoolError::DraftOrderEmpty);
         }
         if tokens.len() > MAX_STEPS {
-            return Err(ErrorCode::DraftOrderTooLong);
+            return Err(PoolError::DraftOrderTooLong);
         }
         let steps = tokens
             .iter()
@@ -71,12 +71,12 @@ impl DraftOrder {
                 let kind = match chars.next() {
                     Some('p') => StepKind::Pick,
                     Some('b') => StepKind::Ban,
-                    _ => return Err(ErrorCode::DraftOrderStep),
+                    _ => return Err(PoolError::DraftOrderStep),
                 };
                 let team = match (chars.next(), chars.next()) {
                     (Some('1'), None) => 1,
                     (Some('2'), None) => 2,
-                    _ => return Err(ErrorCode::DraftOrderStep),
+                    _ => return Err(PoolError::DraftOrderStep),
                 };
                 Ok(Step { kind, team })
             })

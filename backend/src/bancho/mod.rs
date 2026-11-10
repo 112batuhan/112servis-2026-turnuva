@@ -30,7 +30,7 @@ use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 use crate::{
-    error::{AppError, ErrorCode},
+    error::{AppError, BanchoError},
     osu_api::matches::MatchGame,
     AppState,
 };
@@ -211,7 +211,7 @@ pub struct Bancho {
     tx: mpsc::UnboundedSender<Request>,
 }
 
-const GONE: AppError = AppError::Conflict(ErrorCode::BanchoRestarting);
+const GONE: BanchoError = BanchoError::Restarting;
 
 impl Bancho {
     // The handle, and what `spawn` starts the manager with.
@@ -243,7 +243,7 @@ impl Bancho {
     pub async fn create_room(&self, match_id: Uuid) -> Result<i64, AppError> {
         self.ask(|reply| Request::CreateRoom { match_id, reply })
             .await
-            .unwrap_or(Err(GONE))
+            .unwrap_or(Err(GONE.into()))
     }
 
     // The bot a room made elsewhere is handed to: the least busy one with room for it.
@@ -260,14 +260,14 @@ impl Bancho {
             reply,
         })
         .await
-        .unwrap_or(Err(GONE))
+        .unwrap_or(Err(GONE.into()))
     }
 
     // Saves the score as the bots count it, now; returns once it's saved.
     pub async fn save_score(&self, match_id: Uuid) -> Result<(), AppError> {
         self.ask(|reply| Request::SaveScore { match_id, reply })
             .await
-            .unwrap_or(Err(GONE))
+            .unwrap_or(Err(GONE.into()))
     }
 
     // osu!'s record of the match's rooms, read as of `at`: it takes the place of the

@@ -14,7 +14,7 @@ use crate::{
     auth::AuthUser,
     db::{self, discord::Settings, matches::MatchKind},
     discord::jobs::Job,
-    error::{AppError, ErrorCode},
+    error::{AppError, DiscordError, GeneralError, MatchError},
     role::Role,
     services::matches::load_match,
     AppState,
@@ -176,7 +176,7 @@ async fn sync(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     if !state.discord.enabled() {
-        return Err(AppError::Conflict(ErrorCode::DiscordBotOff));
+        return Err(DiscordError::BotOff.into());
     }
     state.discord.enqueue(&state.db, &[Job::SyncAll]).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -197,7 +197,7 @@ async fn set_active(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     let Some(bot) = state.discord.configured() else {
-        return Err(AppError::Conflict(ErrorCode::DiscordBotMissing));
+        return Err(DiscordError::BotMissing.into());
     };
     // Off in memory first, so nothing is queued after the queue is cleared.
     let was = bot.active();
@@ -245,7 +245,7 @@ async fn delete_channels(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     if !state.discord.enabled() {
-        return Err(AppError::Conflict(ErrorCode::DiscordBotOff));
+        return Err(DiscordError::BotOff.into());
     }
     state
         .discord
@@ -285,10 +285,10 @@ async fn subscribe(
     user.require_discord_verified()?;
     let m = load_match(&state, id).await?;
     if m.kind != MatchKind::Bracket {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     if m.concluded() {
-        return Err(AppError::Conflict(ErrorCode::MatchConcluded));
+        return Err(MatchError::Concluded.into());
     }
     db::discord::subscribe(&state.db, id, user.id).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -321,21 +321,21 @@ async fn ping(
     // The match has to exist.
     load_match(&state, id).await?;
     let Some(bot) = state.discord.bot() else {
-        return Err(AppError::Conflict(ErrorCode::DiscordBotOff));
+        return Err(DiscordError::BotOff.into());
     };
     let players = db::discord::match_players(&state.db, id).await?;
     let player = players
         .iter()
         .find(|p| p.user_id == body.user_id)
-        .ok_or(AppError::BadRequest(ErrorCode::PlayerNotInMatch))?;
+        .ok_or(MatchError::PlayerNotInMatch)?;
     if player.discord_id.is_none() || player.in_guild == Some(false) {
-        return Err(AppError::Conflict(ErrorCode::PlayerNotInServer));
+        return Err(DiscordError::PlayerNotInServer.into());
     }
     if db::discord::channel_of(&state.db, id).await?.is_none() {
-        return Err(AppError::Conflict(ErrorCode::NoDiscordChannel));
+        return Err(DiscordError::NoChannel.into());
     }
     if !bot.take_ping(body.user_id) {
-        return Err(AppError::Conflict(ErrorCode::PingCooldown));
+        return Err(DiscordError::PingCooldown.into());
     }
     state
         .discord

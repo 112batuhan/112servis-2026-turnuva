@@ -9,7 +9,7 @@ use crate::{
         matches::{MatchKind, MatchState},
     },
     discord::jobs::Job,
-    error::{AppError, ErrorCode},
+    error::{AppError, GeneralError, RoomError},
     AppState,
 };
 
@@ -19,7 +19,7 @@ pub async fn load_match(state: &AppState, id: Uuid) -> Result<MatchState, AppErr
     db::matches::find_match(&state.db, id)
         .await?
         .filter(|m| m.kind != MatchKind::Potential)
-        .ok_or(AppError::NotFound)
+        .ok_or(GeneralError::NotFound.into())
 }
 
 // Puts a room on its match, from a link or as a bot made it, and tells Discord and the
@@ -36,7 +36,7 @@ pub async fn link_room(
     match db::bancho::add_room(&mut *tx, match_id, mp_id, bot, bot_made).await {
         Ok(()) => {}
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("match_rooms_pkey") => {
-            return Err(AppError::Conflict(ErrorCode::RoomTaken));
+            return Err(RoomError::Taken.into());
         }
         Err(err) => return Err(err.into()),
     }

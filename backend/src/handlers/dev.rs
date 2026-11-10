@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::{
     auth, db,
-    error::{AppError, ErrorCode},
+    error::{AppError, AuthError, GeneralError, TeamError},
     AppState,
 };
 
@@ -35,7 +35,7 @@ async fn login_as(
     jar: CookieJar,
 ) -> Result<impl IntoResponse, AppError> {
     if !db::dev::user_exists(&state.db, id).await? {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     let jar = auth::end_session(&state, jar).await?;
     let jar = jar.add(auth::start_session(&state, id).await?);
@@ -65,8 +65,8 @@ async fn seed_live(
             state.live.bracket_changed();
             Ok(StatusCode::NO_CONTENT)
         }
-        db::dev::LiveSeed::Dummy => Err(AppError::BadRequest(ErrorCode::DevLiveNeedsRealAccount)),
-        db::dev::LiveSeed::InTeam => Err(AppError::Conflict(ErrorCode::AlreadyInTeam)),
+        db::dev::LiveSeed::Dummy => Err(AuthError::DevLiveNeedsRealAccount.into()),
+        db::dev::LiveSeed::InTeam => Err(TeamError::AlreadyInTeam.into()),
     }
 }
 

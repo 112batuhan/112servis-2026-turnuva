@@ -11,7 +11,7 @@ use crate::{
         notifications::{Response, StaffRole},
     },
     discord::jobs::Job,
-    error::{AppError, ErrorCode},
+    error::{AppError, GeneralError, MatchError, ScheduleError},
     AppState,
 };
 
@@ -25,7 +25,7 @@ pub async fn answer_as(
     response: Response,
 ) -> Result<(), AppError> {
     // A question nobody answered is replaced when the match is moved again.
-    const GONE: AppError = AppError::Conflict(ErrorCode::MovedAgain);
+    const GONE: ScheduleError = ScheduleError::MovedAgain;
     let match_id = db::notifications::confirm_match_id(&state.db, id, user_id)
         .await?
         .ok_or(GONE)?;
@@ -33,25 +33,25 @@ pub async fn answer_as(
     let mut tx = state.db.begin().await?;
     let m = db::potential::lock_schedulable(&mut tx, match_id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     let n = db::notifications::lock_confirm(&mut tx, id, user_id)
         .await?
         .ok_or(GONE)?;
     if n.response.is_some() {
-        return Err(AppError::Conflict(ErrorCode::AlreadyAnswered));
+        return Err(ScheduleError::AlreadyAnswered.into());
     }
     if m.concluded() {
-        return Err(AppError::Conflict(ErrorCode::MatchConcluded));
+        return Err(MatchError::Concluded.into());
     }
     let holder = match n.staff_role {
         StaffRole::Referee => m.referee_id,
         StaffRole::Streamer => m.streamer_id,
     };
     if holder != Some(user_id) {
-        return Err(AppError::Conflict(ErrorCode::NoLongerOnMatch));
+        return Err(ScheduleError::NoLongerOnMatch.into());
     }
     if m.starts_at != Some(n.new_starts_at) {
-        return Err(AppError::Conflict(ErrorCode::TimeChanged));
+        return Err(ScheduleError::TimeChanged.into());
     }
 
     db::notifications::respond(&mut tx, id, response).await?;

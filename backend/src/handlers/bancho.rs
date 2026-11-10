@@ -13,7 +13,7 @@ use crate::{
     auth::AuthUser,
     bancho::{BotLimits, BotStatus, RoomCommand, LIMITS},
     db::{self, bancho::BotRow},
-    error::{AppError, ErrorCode},
+    error::{AppError, AuthError, BanchoError, GeneralError, MatchError, RoomError},
     role::Role,
     secret::BotSecret,
     services::matches::load_match,
@@ -100,7 +100,7 @@ fn bot_secret(state: &AppState) -> Result<&BotSecret, AppError> {
     state
         .bot_secret
         .as_deref()
-        .ok_or(AppError::BadRequest(ErrorCode::BotSecretMissing))
+        .ok_or(BanchoError::BotSecretMissing.into())
 }
 
 #[derive(Debug, Serialize)]
@@ -117,16 +117,16 @@ async fn create_bot(
     user.require_role(Role::Host)?;
     let username = body.username.trim();
     if !valid_username(username) {
-        return Err(AppError::BadRequest(ErrorCode::BadUsername));
+        return Err(BanchoError::BadUsername.into());
     }
     if !valid_password(&body.irc_password) {
-        return Err(AppError::BadRequest(ErrorCode::BadIrcPassword));
+        return Err(BanchoError::BadIrcPassword.into());
     }
     let sealed = bot_secret(&state)?.seal(&body.irc_password);
     let id = match db::bancho::create_bot(&state.db, username, &sealed).await {
         Ok(id) => id,
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("bancho_bots_username_key") => {
-            return Err(AppError::Conflict(ErrorCode::AlreadyABot))
+            return Err(BanchoError::AlreadyABot.into())
         }
         Err(err) => return Err(err.into()),
     };
@@ -154,16 +154,16 @@ async fn update_bot(
     user.require_role(Role::Host)?;
     if let Some(password) = &body.irc_password {
         if !valid_password(password) {
-            return Err(AppError::BadRequest(ErrorCode::BadIrcPassword));
+            return Err(BanchoError::BadIrcPassword.into());
         }
         let sealed = bot_secret(&state)?.seal(password);
         if !db::bancho::set_password(&state.db, id, &sealed).await? {
-            return Err(AppError::NotFound);
+            return Err(GeneralError::NotFound.into());
         }
     }
     if let Some(active) = body.active {
         if !db::bancho::set_active(&state.db, id, active).await? {
-            return Err(AppError::NotFound);
+            return Err(GeneralError::NotFound.into());
         }
     }
     state.bancho.bots_changed();
@@ -178,7 +178,7 @@ async fn delete_bot(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     if !db::bancho::delete_bot(&state.db, id).await? {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     state.bancho.bots_changed();
     state.bancho.resync();
@@ -190,7 +190,7 @@ async fn check_runs(state: &AppState, user: &AuthUser, id: Uuid) -> Result<(), A
     let m = load_match(state, id).await?;
     require_runs(user)?;
     if m.concluded() {
-        return Err(AppError::Conflict(ErrorCode::MatchConcluded));
+        return Err(MatchError::Concluded.into());
     }
     Ok(())
 }
@@ -225,14 +225,14 @@ async fn command(
     check_runs(&state, &user, id).await?;
     if let RoomCommand::Say { text, by } = &mut command {
         if !user.roles.has(Role::Host) {
-            return Err(AppError::Forbidden);
+            return Err(AuthError::Forbidden.into());
         }
         if text.trim().is_empty() {
-            return Err(AppError::BadRequest(ErrorCode::EmptyMessage));
+            return Err(RoomError::EmptyMessage.into());
         }
         let profile = db::user::find_user(&state.db, user.id)
             .await?
-            .ok_or(AppError::Unauthenticated)?;
+            .ok_or(AuthError::Unauthenticated)?;
         *by = profile.osu.username;
     }
     state.bancho.command(id, command).await?;

@@ -30,7 +30,7 @@ use super::{
 };
 use crate::{
     db::{self, bancho::BotLogin, matches::MatchKind, stats::QualifierMapRow, user::StaffMember},
-    error::{AppError, ErrorCode},
+    error::{AppError, BanchoError, GeneralError, MatchError, RoomError},
     live::Change,
     osu_api,
     osu_api::matches::MatchGame,
@@ -452,9 +452,7 @@ impl Manager {
         bot.online = false;
         bot.online_since = None;
         if let Some(making) = bot.making.take() {
-            let _ = making
-                .reply
-                .send(Err(AppError::Conflict(ErrorCode::BotTurnedOff)));
+            let _ = making.reply.send(Err(BanchoError::BotTurnedOff.into()));
         }
         self.bot_offline(id);
     }
@@ -539,7 +537,7 @@ impl Manager {
             .filter(|b| b.login.active && b.online && !skip.contains(&b.login.id))
             .collect();
         if online.is_empty() {
-            return Err(AppError::Conflict(ErrorCode::NoBotConnected));
+            return Err(BanchoError::NoBotConnected.into());
         }
         online
             .into_iter()
@@ -549,7 +547,7 @@ impl Manager {
             .filter(|(load, _)| *load < ROOM_LIMIT)
             .min_by(|(a, x), (b, y)| a.cmp(b).then(x.login.username.cmp(&y.login.username)))
             .map(|(_, b)| b.login.id)
-            .ok_or(AppError::Conflict(ErrorCode::BotsFull))
+            .ok_or(BanchoError::BotsFull.into())
     }
 
     // ---------- rooms and runs ----------
@@ -1013,9 +1011,7 @@ impl Manager {
                     bot.online_since = None;
                     bot.error = Some(reason);
                     if let Some(making) = bot.making.take() {
-                        let _ = making
-                            .reply
-                            .send(Err(AppError::Conflict(ErrorCode::BotDisconnected)));
+                        let _ = making.reply.send(Err(BanchoError::BotDisconnected.into()));
                     }
                     if login_failed {
                         bot.refused_password = Some(bot.login.irc_password.clone());
@@ -1208,7 +1204,7 @@ impl Manager {
 
     fn start_making(&mut self, bot_id: Uuid, mut making: Making) {
         let Some(run) = self.runs.get(&making.match_id) else {
-            let _ = making.reply.send(Err(AppError::NotFound));
+            let _ = making.reply.send(Err(GeneralError::NotFound.into()));
             return;
         };
         let name = run.ctx.room_name.clone();
@@ -1620,7 +1616,7 @@ impl Manager {
             if let Some(making) = bot.making.take_if(|m| m.deadline <= now) {
                 let _ = making
                     .reply
-                    .send(Err(AppError::Conflict(ErrorCode::BanchobotNoAnswer)));
+                    .send(Err(BanchoError::BanchobotNoAnswer.into()));
                 self.status_changed = true;
             }
         }
@@ -1804,11 +1800,11 @@ impl Manager {
                     );
                 }
                 Ok(Some(_)) => {
-                    let _ = reply.send(Err(AppError::Conflict(ErrorCode::MatchConcluded)));
+                    let _ = reply.send(Err(MatchError::Concluded.into()));
                     return;
                 }
                 Ok(None) => {
-                    let _ = reply.send(Err(AppError::NotFound));
+                    let _ = reply.send(Err(GeneralError::NotFound.into()));
                     return;
                 }
                 Err(err) => {
@@ -1835,11 +1831,11 @@ impl Manager {
 
     fn save_now(&mut self, match_id: Uuid, reply: oneshot::Sender<Result<(), AppError>>) {
         let Some(run) = self.runs.get(&match_id) else {
-            let _ = reply.send(Err(AppError::Conflict(ErrorCode::MatchNotRun)));
+            let _ = reply.send(Err(RoomError::MatchNotRun.into()));
             return;
         };
         let Some([a, b]) = run.ctx.sides.clone() else {
-            let _ = reply.send(Err(AppError::BadRequest(ErrorCode::NeedsBothTeams)));
+            let _ = reply.send(Err(MatchError::NeedsBothTeams.into()));
             return;
         };
         let rooms: Vec<ViewRoom> = self
@@ -1875,23 +1871,16 @@ impl Manager {
     }
 
     fn command(&mut self, match_id: Uuid, command: RoomCommand) -> Result<(), AppError> {
-        let run = self
-            .runs
-            .get(&match_id)
-            .ok_or(AppError::Conflict(ErrorCode::MatchNeedsRoom))?;
+        let run = self.runs.get(&match_id).ok_or(MatchError::NeedsRoom)?;
         let ctx = run.ctx.clone();
-        let mp_id = self
-            .latest_room(match_id)
-            .ok_or(AppError::Conflict(ErrorCode::MatchNeedsRoom))?;
+        let mp_id = self.latest_room(match_id).ok_or(MatchError::NeedsRoom)?;
         let room = &self.rooms[&mp_id];
-        let bot = room
-            .bot
-            .ok_or(AppError::Conflict(ErrorCode::RoomWithoutBot))?;
+        let bot = room.bot.ok_or(RoomError::WithoutBot)?;
         if room.closed {
-            return Err(AppError::Conflict(ErrorCode::RoomClosed));
+            return Err(RoomError::Closed.into());
         }
         if !self.bot_online(Some(bot)) {
-            return Err(AppError::Conflict(ErrorCode::RoomBotOffline));
+            return Err(RoomError::BotOffline.into());
         }
         if let RoomCommand::Rejoin = command {
             if let Some(room) = self.rooms.get_mut(&mp_id) {
@@ -1902,7 +1891,7 @@ impl Manager {
             return Ok(());
         }
         if !room.joined {
-            return Err(AppError::Conflict(ErrorCode::BotNotInRoom));
+            return Err(RoomError::BotNotInRoom.into());
         }
         let state = &room.state;
         let slot_at = |n: i32| {
@@ -1911,7 +1900,7 @@ impl Manager {
                 .iter()
                 .find(|s| s.slot == n)
                 .cloned()
-                .ok_or(AppError::BadRequest(ErrorCode::SlotEmpty))
+                .ok_or(RoomError::SlotEmpty)
         };
         let with_id = |slot: RoomSlot| match ctx
             .roster
@@ -1933,7 +1922,7 @@ impl Manager {
             RoomCommand::Settings => vec![refresh()],
             RoomCommand::Invite { osu_id } => {
                 if !ctx.roster.iter().any(|r| r.osu_id == osu_id) {
-                    return Err(AppError::BadRequest(ErrorCode::PlayerNotInMatch));
+                    return Err(MatchError::PlayerNotInMatch.into());
                 }
                 vec![format!("!mp invite {}", player_ref(osu_id))]
             }
@@ -1945,7 +1934,7 @@ impl Manager {
             RoomCommand::Move { slot, to, team } => {
                 let mover = with_id(slot_at(slot)?);
                 if to.is_some_and(|t| !(1..=16).contains(&t)) {
-                    return Err(AppError::BadRequest(ErrorCode::BadRoomSlot));
+                    return Err(RoomError::BadSlot.into());
                 }
                 let mut lines = move_commands(state, &mover, to, team, None);
                 if !lines.is_empty() {
@@ -1964,7 +1953,7 @@ impl Manager {
             RoomCommand::Kick { slot } => vec![kick_command(&slot_at(slot)?)],
             RoomCommand::KickOutsiders => {
                 if !self.staff_loaded {
-                    return Err(AppError::Conflict(ErrorCode::StaffNotLoaded));
+                    return Err(RoomError::StaffNotLoaded.into());
                 }
                 state
                     .slots
@@ -1989,16 +1978,16 @@ impl Manager {
                     .entries
                     .iter()
                     .find(|e| e.map_id == map_id)
-                    .ok_or(AppError::BadRequest(ErrorCode::MapNotInPool))?;
+                    .ok_or(MatchError::MapNotInPool)?;
                 vec![
                     map_command(entry.beatmap_id, &entry.mode),
                     mods_command(&entry.mods, entry.freemod, ctx.settings.no_fail),
                 ]
             }
             RoomCommand::AnnounceScore => {
-                let view = self.view_of(match_id).ok_or(AppError::NotFound)?;
+                let view = self.view_of(match_id).ok_or(GeneralError::NotFound)?;
                 let (Some([a, b]), Some(t)) = (&ctx.sides, view.tally) else {
-                    return Err(AppError::BadRequest(ErrorCode::NeedsBothTeams));
+                    return Err(MatchError::NeedsBothTeams.into());
                 };
                 let next = view.next_turn.and_then(|turn| {
                     [a, b]
@@ -2018,19 +2007,19 @@ impl Manager {
                             .iter()
                             .any(|r| s.roles.contains(r))
                     })
-                    .ok_or(AppError::BadRequest(ErrorCode::CantBeRoomReferee))?;
+                    .ok_or(RoomError::CantBeReferee)?;
                 if self.is_bot_name(&member.username) {
-                    return Err(AppError::BadRequest(ErrorCode::BotInBotRoom));
+                    return Err(RoomError::BotInBotRoom.into());
                 }
                 // Streamers and commentators can play; a referee of the room could run it.
                 if ctx.roster.iter().any(|p| p.osu_id == member.osu_id) {
-                    return Err(AppError::BadRequest(ErrorCode::PlayerCantReferee));
+                    return Err(RoomError::PlayerCantReferee.into());
                 }
                 vec![add_ref_command(&member.username)]
             }
             RoomCommand::RemoveRef { username } => {
                 if !state.is_ref(&username) {
-                    return Err(AppError::BadRequest(ErrorCode::NotRoomReferee));
+                    return Err(RoomError::NotReferee.into());
                 }
                 let nick = normalize_name(&username);
                 if let Some(run) = self.runs.get_mut(&match_id) {
@@ -2052,7 +2041,7 @@ impl Manager {
                         .unwrap_or_default()
                         .to_lowercase();
                     if ["make", "addref", "removeref"].contains(&verb.as_str()) {
-                        return Err(AppError::BadRequest(ErrorCode::RefsFromSettings));
+                        return Err(RoomError::RefsFromSettings.into());
                     }
                     vec![text.to_string()]
                 } else if self

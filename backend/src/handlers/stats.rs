@@ -23,7 +23,7 @@ use crate::{
         stats::{StatMatch, StatScore},
         team::Player,
     },
-    error::AppError,
+    error::{AppError, GeneralError},
     stats::{self, DraftIn, Input, MatchIn, ScoreIn, Stats},
     views::{group_teams, lobby_name, Team},
     AppState,
@@ -94,7 +94,7 @@ async fn get_stage_stats(
         .await?
         .is_none()
     {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     let body = state
         .stats_cache
@@ -107,7 +107,7 @@ async fn get_stage_stats(
 async fn count_stage(state: &AppState, id: Uuid) -> Result<Bytes, AppError> {
     let stage = db::stages::get_published_stage(&state.db, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     let qualifier = stage.is_qualifier;
     let categories = db::mappool::list_categories(&state.db, id).await?;
     let slots = db::mappool::list_public_slots(&state.db, id).await?;

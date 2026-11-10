@@ -12,7 +12,7 @@ use super::ReorderBody;
 use crate::{
     auth::AuthUser,
     db,
-    error::{AppError, ErrorCode},
+    error::{AppError, AuthError, GeneralError, PoolError},
     osu_api,
     role::Role,
     AppState,
@@ -56,7 +56,7 @@ fn view_guard(user: &AuthUser) -> Result<(), AppError> {
     if user.roles.can_view_pool() {
         Ok(())
     } else {
-        Err(AppError::Forbidden)
+        Err(AuthError::Forbidden.into())
     }
 }
 
@@ -80,7 +80,7 @@ async fn get_stage(
     view_guard(&user)?;
     let stage = db::stages::get_stage(&state.db, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     let categories = db::mappool::list_categories(&state.db, id).await?;
     let slots = db::mappool::list_slots(&state.db, id).await?;
     let maps = db::mappool::list_stage_maps(&state.db, id).await?;
@@ -112,19 +112,18 @@ async fn set_stage_pack_url(
     let url = match body.pack_url.as_deref().map(str::trim) {
         None | Some("") => None,
         Some(text) => {
-            let parsed = reqwest::Url::parse(text)
-                .map_err(|_| AppError::BadRequest(ErrorCode::BadPackLink))?;
+            let parsed = reqwest::Url::parse(text).map_err(|_| PoolError::BadPackLink)?;
             if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
-                return Err(AppError::BadRequest(ErrorCode::PackLinkScheme));
+                return Err(PoolError::PackLinkScheme.into());
             }
             if text.len() > MAX_PACK_URL {
-                return Err(AppError::BadRequest(ErrorCode::PackLinkTooLong));
+                return Err(PoolError::PackLinkTooLong.into());
             }
             Some(text)
         }
     };
     if !db::stages::set_stage_pack_url(&state.db, id, url).await? {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     Ok(StatusCode::NO_CONTENT)
 }
@@ -145,7 +144,7 @@ async fn create_category(
     guard(&user)?;
     let name = body.name.trim();
     if name.is_empty() {
-        return Err(AppError::BadRequest(ErrorCode::NameRequired));
+        return Err(PoolError::NameRequired.into());
     }
     Ok(Json(
         db::mappool::create_category(&state.db, stage_id, name).await?,
@@ -183,7 +182,7 @@ async fn update_category(
     let name = body.name.as_deref().map(str::trim);
     if let Some(n) = name {
         if n.is_empty() {
-            return Err(AppError::BadRequest(ErrorCode::NameRequired));
+            return Err(PoolError::NameRequired.into());
         }
     }
     Ok(Json(
@@ -334,7 +333,7 @@ async fn add_map(
     let id = db::mappool::add_pool_map(&state.db, &new, user.id).await?;
     let map = db::mappool::get_pool_map(&state.db, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     Ok(Json(map))
 }
 
@@ -357,7 +356,7 @@ async fn move_map(
     db::mappool::move_pool_map(&state.db, id, body.slot_id).await?;
     let map = db::mappool::get_pool_map(&state.db, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     Ok(Json(map))
 }
 
@@ -372,7 +371,7 @@ async fn recompute_map_stats(
     guard(&user)?;
     let map = db::mappool::get_pool_map(&state.db, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     let token =
         osu_api::token::app_token(&state.osu_client, &state.oauth_http, &state.osu_app_token)
             .await?;
@@ -381,7 +380,7 @@ async fn recompute_map_stats(
     db::mappool::update_pool_map_stats(&state.db, id, &stats).await?;
     let map = db::mappool::get_pool_map(&state.db, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     Ok(Json(map))
 }
 
@@ -435,7 +434,7 @@ async fn get_public_stage(
 ) -> Result<impl IntoResponse, AppError> {
     let stage = db::stages::get_published_stage(&state.db, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     let categories = db::mappool::list_categories(&state.db, id).await?;
     let slots = db::mappool::list_public_slots(&state.db, id).await?;
     let maps = db::mappool::list_public_maps(&state.db, id).await?;

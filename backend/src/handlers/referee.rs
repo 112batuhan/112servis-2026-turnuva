@@ -23,7 +23,7 @@ use crate::{
         team::{Player, TeamMemberRow},
     },
     draft::DraftOrder,
-    error::{AppError, ErrorCode},
+    error::{AppError, GeneralError, MatchError},
     role::Role,
     services::matches::load_match,
     views::{
@@ -229,7 +229,7 @@ async fn get_room(
     user.require_role(Role::Referee)?;
     let row = db::matches::find_room(&state.db, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     let teams = room_teams(&state, &row, AdminTeamPlayer::from_row).await?;
     let stage = room_stage(&row);
     let pool = match &stage {
@@ -323,7 +323,7 @@ async fn get_public_match(
 ) -> Result<impl IntoResponse, AppError> {
     let row = db::matches::find_room(&state.db, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     let teams = room_teams(&state, &row, |r| r.player).await?;
     let stage = room_stage(&row);
     // An unpublished pool stays hidden, even while its matches are played.
@@ -381,7 +381,7 @@ pub struct RoomChat {
 async fn load_chat(state: &AppState, id: Uuid) -> Result<Vec<RoomChat>, AppError> {
     let m = db::matches::find_match(&state.db, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     let mut rooms = Vec::with_capacity(m.mp_ids.len());
     for mp_id in m.mp_ids {
         let messages = db::chat::list_messages(&state.db, mp_id).await?;
@@ -438,7 +438,7 @@ async fn set_room_options(
 ) -> Result<impl IntoResponse, AppError> {
     check_runs(&state, &user, id).await?;
     if !(0..=3).contains(&body.score_mode) {
-        return Err(AppError::BadRequest(ErrorCode::BadScoreMode));
+        return Err(MatchError::BadScoreMode.into());
     }
     db::referee::set_options(
         &state.db,
@@ -491,14 +491,14 @@ async fn set_next_pick(
     Json(body): Json<NextPickBody>,
 ) -> Result<impl IntoResponse, AppError> {
     if check_runs(&state, &user, id).await? != MatchKind::Bracket {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     if let Some(team_id) = body.team_id {
         let teams = db::bracket::find_match(&state.db, id)
             .await?
-            .ok_or(AppError::NotFound)?;
+            .ok_or(GeneralError::NotFound)?;
         if Some(team_id) != teams.team1_id && Some(team_id) != teams.team2_id {
-            return Err(AppError::BadRequest(ErrorCode::TeamNotInMatch));
+            return Err(MatchError::TeamNotInMatch.into());
         }
     }
     db::referee::set_next_pick(&state.db, id, body.team_id).await?;
@@ -526,7 +526,7 @@ async fn set_ignored_map(
 ) -> Result<impl IntoResponse, AppError> {
     check_runs(&state, &user, id).await?;
     if body.key.is_empty() || body.key.len() > MAP_KEY_MAX {
-        return Err(AppError::BadRequest(ErrorCode::NotAMatchMap));
+        return Err(MatchError::NotAMatchMap.into());
     }
     if body.ignored {
         db::referee::ignore_map(&state.db, id, &body.key).await?;

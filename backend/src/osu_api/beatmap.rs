@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use crate::error::AppError;
+use crate::error::{AppError, GeneralError};
 
 // Relevant fields of osu! API v2 GET /beatmaps/{id}. Note the API names OD `accuracy`.
 #[derive(Debug, Deserialize)]
@@ -47,7 +47,7 @@ pub async fn fetch(
         .map_err(AppError::OsuApiRequest)?;
 
     if resp.status() == reqwest::StatusCode::NOT_FOUND {
-        return Err(AppError::BeatmapNotFound(beatmap_id));
+        return Err(GeneralError::BeatmapNotFound.into());
     }
 
     resp.error_for_status()

@@ -10,7 +10,7 @@ use time::OffsetDateTime;
 use crate::{
     auth::AuthUser,
     db,
-    error::{AppError, ErrorCode},
+    error::{AppError, RulesError},
     role::Role,
     AppState,
 };
@@ -48,11 +48,11 @@ async fn save_rules(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     if body.bbcode.len() > MAX_LENGTH {
-        return Err(AppError::BadRequest(ErrorCode::RulesTooLong));
+        return Err(RulesError::TooLong.into());
     }
 
     let saved = db::rules::save(&state.db, &body.bbcode, body.base, user.id)
         .await?
-        .ok_or(AppError::Conflict(ErrorCode::RulesChanged))?;
+        .ok_or(RulesError::Changed)?;
     Ok(Json(saved))
 }

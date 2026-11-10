@@ -25,7 +25,7 @@ use crate::{
         team::{Player, TeamMemberRow},
     },
     discord::jobs::Job,
-    error::{AppError, ErrorCode},
+    error::{AppError, AuthError, BracketError, GeneralError, MatchError, PoolError, StaffError},
     role::Role,
     services::{
         bracket::{conclude, save_score},
@@ -296,19 +296,13 @@ async fn list_bracket(
 fn edit_error(err: sqlx::Error) -> AppError {
     if let sqlx::Error::Database(e) = &err {
         match e.constraint() {
-            Some("bracket_matches_code_key") => {
-                return AppError::Conflict(ErrorCode::MatchNumberTaken)
-            }
-            Some("bracket_links_target_key") => {
-                return AppError::Conflict(ErrorCode::SlotHasSource)
-            }
-            Some("bracket_links_target_id_fkey") => return AppError::NotFound,
+            Some("bracket_matches_code_key") => return BracketError::MatchNumberTaken.into(),
+            Some("bracket_links_target_key") => return BracketError::SlotHasSource.into(),
+            Some("bracket_links_target_id_fkey") => return GeneralError::NotFound.into(),
             Some("bracket_matches_team1_id_fkey" | "bracket_matches_team2_id_fkey") => {
-                return AppError::BadRequest(ErrorCode::UnknownTeam)
+                return BracketError::UnknownTeam.into()
             }
-            Some("bracket_matches_stage_id_fkey") => {
-                return AppError::BadRequest(ErrorCode::UnknownStage)
-            }
+            Some("bracket_matches_stage_id_fkey") => return PoolError::UnknownStage.into(),
             _ => {}
         }
     }
@@ -388,10 +382,10 @@ async fn update_match(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     if body.number < 1 {
-        return Err(AppError::BadRequest(ErrorCode::BadMatchNumber));
+        return Err(BracketError::BadMatchNumber.into());
     }
     if body.team1_id.is_some() && body.team1_id == body.team2_id {
-        return Err(AppError::BadRequest(ErrorCode::TeamPlaysItself));
+        return Err(BracketError::TeamPlaysItself.into());
     }
     let mut new_links = Vec::new();
     for (outcome, next) in [
@@ -400,10 +394,10 @@ async fn update_match(
     ] {
         let Some(next) = next else { continue };
         if next.slot != 1 && next.slot != 2 {
-            return Err(AppError::BadRequest(ErrorCode::BadSlot));
+            return Err(BracketError::BadSlot.into());
         }
         if next.match_id == id {
-            return Err(AppError::BadRequest(ErrorCode::LinkToItself));
+            return Err(BracketError::LinkToItself.into());
         }
         new_links.push(LinkRow {
             source_id: id,
@@ -417,7 +411,7 @@ async fn update_match(
     db::potential::lock(&mut tx).await?;
     let current = db::bracket::lock_match(&mut tx, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     let links = db::bracket::list_links(&mut *tx).await?;
     let mut old_links: Vec<LinkRow> = links
         .iter()
@@ -431,11 +425,11 @@ async fn update_match(
             || current.team2_id != body.team2_id
             || old_links != new_links)
     {
-        return Err(AppError::Conflict(ErrorCode::MatchConcludedTeams));
+        return Err(MatchError::ConcludedTeams.into());
     }
     let targets: Vec<Uuid> = new_links.iter().map(|l| l.target_id).collect();
     if leads_back(&links, id, &targets) {
-        return Err(AppError::BadRequest(ErrorCode::BracketLoop));
+        return Err(BracketError::Loop.into());
     }
 
     let update = MatchUpdate {
@@ -524,7 +518,7 @@ async fn move_match(
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
     if !db::bracket::move_match(&state.db, id, body.pos_x, body.pos_y).await? {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     Ok(StatusCode::NO_CONTENT)
 }
@@ -546,7 +540,7 @@ async fn delete_match(
     let mut jobs = db::potential::remove_of_match(&mut tx, id).await?;
     // Its rooms go with it; the bot closes the ones it made (crate::bancho).
     if !db::bracket::delete_match(&mut *tx, id).await? {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     jobs.extend(db::potential::sync(&mut tx, &[]).await?);
     if let Some(channel_id) = channel {
@@ -591,7 +585,7 @@ async fn set_score(
 ) -> Result<impl IntoResponse, AppError> {
     let m = load_match(&state, id).await?;
     if m.kind != MatchKind::Bracket {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     require_runs(&user)?;
     save_score(
@@ -621,18 +615,18 @@ async fn check_map_team(
 ) -> Result<(), AppError> {
     let m = load_match(state, id).await?;
     if m.kind != MatchKind::Bracket {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     require_runs(user)?;
     require_unconcluded(user, &m)?;
     let teams = db::bracket::find_match(&state.db, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     if Some(team_id) != teams.team1_id && Some(team_id) != teams.team2_id {
-        return Err(AppError::BadRequest(ErrorCode::TeamNotInMatch));
+        return Err(MatchError::TeamNotInMatch.into());
     }
     if !db::bracket::map_in_pool(&state.db, id, map_id).await? {
-        return Err(AppError::BadRequest(ErrorCode::MapNotInPool));
+        return Err(MatchError::MapNotInPool.into());
     }
     Ok(())
 }
@@ -664,15 +658,15 @@ async fn set_mark(
     let (marked, taken) = match mark {
         Mark::Ban => (
             db::bracket::set_ban(&state.db, id, map_id, team_id).await?,
-            ErrorCode::MapPicked,
+            MatchError::MapPicked,
         ),
         Mark::Pick => (
             db::bracket::set_pick(&state.db, id, map_id, team_id).await?,
-            ErrorCode::MapBanned,
+            MatchError::MapBanned,
         ),
     };
     if !marked {
-        return Err(AppError::Conflict(taken));
+        return Err(taken.into());
     }
     marks_changed(state, id).await
 }
@@ -690,7 +684,7 @@ async fn remove_mark(
         Mark::Pick => db::bracket::delete_pick(&state.db, id, map_id).await?,
     };
     if !removed {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     marks_changed(state, id).await
 }
@@ -759,11 +753,11 @@ async fn forfeit(
 ) -> Result<impl IntoResponse, AppError> {
     let m = load_match(&state, id).await?;
     if m.kind != MatchKind::Bracket {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     require_runs(&user)?;
     if !(1..=2).contains(&body.slot) {
-        return Err(AppError::BadRequest(ErrorCode::BadSlot));
+        return Err(BracketError::BadSlot.into());
     }
     conclude(&state, id, Some(body.slot)).await?;
     state.live.bracket_changed();
@@ -784,11 +778,11 @@ pub struct ManualResultBody {
 async fn check_results(state: &AppState, user: &AuthUser, id: Uuid) -> Result<(), AppError> {
     let m = load_match(state, id).await?;
     if m.kind != MatchKind::Bracket {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     require_runs(user)?;
     if m.concluded() {
-        return Err(AppError::Conflict(ErrorCode::MatchConcludedResults));
+        return Err(MatchError::ConcludedResults.into());
     }
     Ok(())
 }
@@ -805,18 +799,18 @@ async fn add_manual_result(
     check_results(&state, &user, id).await?;
     let teams = db::bracket::find_match(&state.db, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     if Some(body.team_id) != teams.team1_id && Some(body.team_id) != teams.team2_id {
-        return Err(AppError::BadRequest(ErrorCode::TeamNotInMatch));
+        return Err(MatchError::TeamNotInMatch.into());
     }
     if let Some(map_id) = body.map_id {
         if !db::bracket::map_in_pool(&state.db, id, map_id).await? {
-            return Err(AppError::BadRequest(ErrorCode::MapNotInPool));
+            return Err(MatchError::MapNotInPool.into());
         }
     }
     let note = body.note.trim();
     if note.chars().count() > RESULT_NOTE_MAX {
-        return Err(AppError::BadRequest(ErrorCode::NoteTooLong));
+        return Err(MatchError::NoteTooLong.into());
     }
     let result_id =
         db::bracket::add_manual_result(&state.db, id, body.map_id, body.team_id, note).await?;
@@ -832,7 +826,7 @@ async fn remove_manual_result(
 ) -> Result<impl IntoResponse, AppError> {
     check_results(&state, &user, id).await?;
     if !db::bracket::delete_manual_result(&state.db, id, result_id).await? {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     state.live.match_changed(id);
     Ok(StatusCode::NO_CONTENT)
@@ -860,7 +854,7 @@ async fn set_streamer(
         None => (
             db::potential::find(&state.db, id)
                 .await?
-                .ok_or(AppError::NotFound)?,
+                .ok_or(GeneralError::NotFound)?,
             true,
         ),
     };
@@ -868,7 +862,7 @@ async fn set_streamer(
     if is_host(&user) {
         if let Some(streamer_id) = body.streamer_id {
             if !db::bracket::can_stream(&state.db, streamer_id).await? {
-                return Err(AppError::BadRequest(ErrorCode::NotAStreamer));
+                return Err(StaffError::NotAStreamer.into());
             }
         }
         let mut tx = state.db.begin().await?;
@@ -889,7 +883,7 @@ async fn set_streamer(
     }
 
     if m.concluded() {
-        return Err(AppError::Conflict(ErrorCode::MatchConcluded));
+        return Err(MatchError::Concluded.into());
     }
     let mut tx = state.db.begin().await?;
     match body.streamer_id {
@@ -899,23 +893,23 @@ async fn set_streamer(
                 return Ok(StatusCode::NO_CONTENT);
             }
             if !user.roles.has(Role::Streamer) {
-                return Err(AppError::Forbidden);
+                return Err(AuthError::Forbidden.into());
             }
             if let Some(team_id) = db::team::find_team_id(&state.db, user.id).await? {
                 if m.team1_id == Some(team_id) || m.team2_id == Some(team_id) {
-                    return Err(AppError::BadRequest(ErrorCode::StreamOwnMatch));
+                    return Err(StaffError::StreamOwnMatch.into());
                 }
             }
             if !db::matches::claim_stream(&mut *tx, id, user.id).await? {
-                return Err(AppError::Conflict(ErrorCode::HasStreamer));
+                return Err(StaffError::HasStreamer.into());
             }
         }
         None => {
             if !db::matches::release_stream(&mut *tx, id, user.id).await? {
-                return Err(AppError::Forbidden);
+                return Err(AuthError::Forbidden.into());
             }
         }
-        Some(_) => return Err(AppError::Forbidden),
+        Some(_) => return Err(AuthError::Forbidden.into()),
     }
     streamer_changed(
         &state,

@@ -14,7 +14,7 @@ use crate::{
     db,
     discord::jobs::Job,
     draft::DraftOrder,
-    error::{AppError, ErrorCode},
+    error::{AppError, GeneralError, PoolError},
     role::Role,
     services, AppState,
 };
@@ -48,7 +48,7 @@ async fn create_stage(
     user.require_role(Role::Host)?;
     let name = body.name.trim();
     if name.is_empty() {
-        return Err(AppError::BadRequest(ErrorCode::NameRequired));
+        return Err(PoolError::NameRequired.into());
     }
     Ok(Json(db::stages::create_stage(&state.db, name).await?))
 }
@@ -90,7 +90,7 @@ async fn update_stage(
     let name = body.name.as_deref().map(str::trim);
     if let Some(n) = name {
         if n.is_empty() {
-            return Err(AppError::BadRequest(ErrorCode::NameRequired));
+            return Err(PoolError::NameRequired.into());
         }
     }
     Ok(Json(
@@ -124,10 +124,10 @@ async fn set_qualifier_stage(
     user.require_role(Role::Host)?;
     match db::stages::set_qualifier_stage(&state.db, body.stage_id).await {
         Ok(true) => Ok(StatusCode::NO_CONTENT),
-        Ok(false) => Err(AppError::NotFound),
+        Ok(false) => Err(GeneralError::NotFound.into()),
         // Another host picked one at the same moment.
         Err(sqlx::Error::Database(e)) if e.constraint() == Some("stages_qualifier_key") => {
-            Err(AppError::Conflict(ErrorCode::QualifierStageChanged))
+            Err(PoolError::QualifierStageChanged.into())
         }
         Err(err) => Err(err.into()),
     }
@@ -152,13 +152,13 @@ async fn set_stage_best_of(
     user.require_role(Role::Host)?;
     if let Some(n) = body.best_of {
         if !(1..=MAX_BEST_OF).contains(&n) || n % 2 == 0 {
-            return Err(AppError::BadRequest(ErrorCode::BadBestOf));
+            return Err(PoolError::BadBestOf.into());
         }
     }
     let mut tx = state.db.begin().await?;
     let matches = db::stages::set_stage_best_of(&mut tx, id, body.best_of)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     let jobs = Job::sync_matches(matches);
     state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await?;
@@ -184,14 +184,10 @@ async fn set_stage_draft_order(
     user.require_role(Role::Host)?;
     let order = match body.draft_order.as_deref().map(str::trim) {
         None | Some("") => None,
-        Some(text) => Some(
-            DraftOrder::parse(text)
-                .map_err(AppError::BadRequest)?
-                .format(),
-        ),
+        Some(text) => Some(DraftOrder::parse(text)?.format()),
     };
     if !db::stages::set_stage_draft_order(&state.db, id, order.as_deref()).await? {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     state.live.bracket_changed();
     Ok(StatusCode::NO_CONTENT)

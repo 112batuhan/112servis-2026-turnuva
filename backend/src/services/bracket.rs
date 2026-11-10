@@ -13,7 +13,7 @@ use crate::{
         potential::Before,
     },
     discord::jobs::Job,
-    error::{AppError, ErrorCode},
+    error::{AppError, GeneralError, MatchError},
     AppState,
 };
 
@@ -35,26 +35,26 @@ pub async fn save_score(
 ) -> Result<(), AppError> {
     let valid = |score: Option<i32>| score.is_none_or(|s| (0..=SCORE_MAX).contains(&s));
     if !valid(team1_score) || !valid(team2_score) {
-        return Err(AppError::BadRequest(ErrorCode::BadScore));
+        return Err(MatchError::BadScore.into());
     }
     if let Some(maps) = maps {
         if maps.len() > MAP_RESULTS_MAX {
-            return Err(AppError::BadRequest(ErrorCode::TooManyResults));
+            return Err(MatchError::TooManyResults.into());
         }
         if maps.iter().any(|m| m.team1_score < 0 || m.team2_score < 0) {
-            return Err(AppError::BadRequest(ErrorCode::NegativeMapScore));
+            return Err(MatchError::NegativeMapScore.into());
         }
         for map in maps {
             let mut seen = HashSet::new();
             for p in &map.players {
                 if p.score < 0 || !seen.insert(p.user_id) {
-                    return Err(AppError::BadRequest(ErrorCode::BadMapScores));
+                    return Err(MatchError::BadMapScores.into());
                 }
                 // Mod acronyms: "HDHR", "NF".
                 if p.mods.as_deref().is_some_and(|m| {
                     m.len() > MODS_MAX || !m.chars().all(|c| c.is_ascii_alphanumeric())
                 }) {
-                    return Err(AppError::BadRequest(ErrorCode::BadMapMods));
+                    return Err(MatchError::BadMapMods.into());
                 }
             }
         }
@@ -63,20 +63,20 @@ pub async fn save_score(
             .flat_map(|m| m.players.iter().map(|p| p.user_id))
             .collect();
         if !db::bracket::players_in_match(&state.db, id, &players).await? {
-            return Err(AppError::BadRequest(ErrorCode::PlayerNotInMatch));
+            return Err(MatchError::PlayerNotInMatch.into());
         }
         let Some(ids) = maps.iter().map(|m| m.map_id).collect::<Option<Vec<Uuid>>>() else {
-            return Err(AppError::BadRequest(ErrorCode::ResultNeedsMap));
+            return Err(MatchError::ResultNeedsMap.into());
         };
         if !db::bracket::maps_in_pool(&state.db, id, &ids).await? {
-            return Err(AppError::BadRequest(ErrorCode::MapNotInPool));
+            return Err(MatchError::MapNotInPool.into());
         }
     }
     // The match card in its Discord channel shows the running score, so it's synced
     // with every change; the open pages hear it right away.
     let mut tx = state.db.begin().await?;
     if !db::bracket::set_score(&mut *tx, id, team1_score, team2_score).await? {
-        return Err(AppError::Conflict(ErrorCode::MatchConcludedScore));
+        return Err(MatchError::ConcludedScore.into());
     }
     if let Some(maps) = maps {
         db::bracket::replace_map_results(&mut tx, id, maps).await?;
@@ -117,18 +117,18 @@ pub async fn conclude(state: &AppState, id: Uuid, forfeit: Option<i16>) -> Resul
     db::potential::lock(&mut tx).await?;
     let mut m = db::bracket::lock_match(&mut tx, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     if m.concluded() {
-        return Err(AppError::Conflict(ErrorCode::MatchConcluded));
+        return Err(MatchError::Concluded.into());
     }
     if forfeit.is_none() && !m.has_room {
-        return Err(AppError::BadRequest(ErrorCode::MatchNeedsRoom));
+        return Err(MatchError::NeedsRoom.into());
     }
     if m.team1_id.is_none() || m.team2_id.is_none() {
-        return Err(AppError::BadRequest(ErrorCode::NeedsBothTeams));
+        return Err(MatchError::NeedsBothTeams.into());
     }
     m.forfeit_slot = forfeit;
-    let (winner, loser) = outcome(&m).ok_or(AppError::BadRequest(ErrorCode::NeedsWinner))?;
+    let (winner, loser) = outcome(&m).ok_or(MatchError::NeedsWinner)?;
     if forfeit.is_some() {
         db::bracket::set_forfeit(&mut tx, id, forfeit).await?;
     }
@@ -141,7 +141,7 @@ pub async fn conclude(state: &AppState, id: Uuid, forfeit: Option<i16>) -> Resul
     ];
     for target in db::bracket::lock_targets(&mut tx, id).await? {
         if target.concluded_at.is_some() {
-            return Err(AppError::Conflict(ErrorCode::NextMatchConcluded));
+            return Err(MatchError::NextConcluded.into());
         }
         let team = match target.outcome {
             Outcome::Winner => winner,
@@ -159,7 +159,7 @@ pub async fn conclude(state: &AppState, id: Uuid, forfeit: Option<i16>) -> Resul
     };
     // The row is locked, so this only fails if the room was removed in between.
     if !concluded {
-        return Err(AppError::Conflict(ErrorCode::MatchChanged));
+        return Err(MatchError::Changed.into());
     }
     // The pairings its teams were in narrow down: the loser's go, and a match that now
     // has both teams takes over its own.
@@ -176,7 +176,7 @@ pub async fn reopen(state: &AppState, id: Uuid) -> Result<(), AppError> {
     db::potential::lock(&mut tx).await?;
     let m = db::bracket::lock_match(&mut tx, id)
         .await?
-        .ok_or(AppError::NotFound)?;
+        .ok_or(GeneralError::NotFound)?;
     if !m.concluded() {
         return Ok(());
     }
@@ -189,7 +189,7 @@ pub async fn reopen(state: &AppState, id: Uuid) -> Result<(), AppError> {
     let mut before = Vec::new();
     for target in db::bracket::lock_targets(&mut tx, id).await? {
         if target.concluded_at.is_some() {
-            return Err(AppError::Conflict(ErrorCode::NextMatchConcluded));
+            return Err(MatchError::NextConcluded.into());
         }
         let Some((winner, loser)) = result else {
             continue;

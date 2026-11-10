@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::{
     db,
-    error::{AppError, ErrorCode},
+    error::{AppError, AuthError, TeamError},
     role::{Role, Roles},
     AppState,
 };
@@ -57,7 +57,7 @@ impl FromRequestParts<AppState> for AuthUser {
     ) -> Result<Self, Self::Rejection> {
         <AuthUser as OptionalFromRequestParts<AppState>>::from_request_parts(parts, state)
             .await?
-            .ok_or(AppError::Unauthenticated)
+            .ok_or(AuthError::Unauthenticated.into())
     }
 }
 
@@ -110,7 +110,7 @@ impl AuthUser {
         if self.roles.allows(required) {
             Ok(())
         } else {
-            Err(AppError::Forbidden)
+            Err(AuthError::Forbidden.into())
         }
     }
 
@@ -120,7 +120,7 @@ impl AuthUser {
         if self.discord_verified {
             Ok(())
         } else {
-            Err(AppError::DiscordVerificationRequired)
+            Err(AuthError::DiscordRequired.into())
         }
     }
 
@@ -128,7 +128,7 @@ impl AuthUser {
     pub async fn team_id(&self, db: &PgPool) -> Result<Uuid, AppError> {
         db::team::find_team_id(db, self.id)
             .await?
-            .ok_or(AppError::BadRequest(ErrorCode::NotInTeam))
+            .ok_or(TeamError::NotInTeam.into())
     }
 }
 

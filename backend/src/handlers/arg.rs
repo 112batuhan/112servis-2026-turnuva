@@ -20,7 +20,7 @@ use crate::{
     auth::AuthUser,
     config::ArgMessage,
     db,
-    error::{AppError, ErrorCode},
+    error::{AppError, ArgError, GeneralError},
     AppState,
 };
 
@@ -44,7 +44,11 @@ pub fn routes() -> Router<AppState> {
 // The puzzle's messages, for a signed-in player with a linked Discord; 404 while it's off.
 fn messages_for<'a>(state: &'a AppState, user: &AuthUser) -> Result<[ArgMessage<'a>; 3], AppError> {
     user.require_discord_verified()?;
-    state.config.arg.messages().ok_or(AppError::NotFound)
+    state
+        .config
+        .arg
+        .messages()
+        .ok_or(GeneralError::NotFound.into())
 }
 
 // Answers match ignoring case and how the words are spaced. Turkish and English disagree
@@ -87,7 +91,7 @@ async fn guess(
     let messages = messages_for(&state, &user)?;
     let guess = body.guess.trim();
     if guess.is_empty() || guess.chars().count() > MAX_GUESS_LENGTH {
-        return Err(AppError::BadRequest(ErrorCode::InvalidGuess));
+        return Err(ArgError::InvalidGuess.into());
     }
 
     let message = matching(&messages, guess);
@@ -95,7 +99,7 @@ async fn guess(
     // One guess per player at a time, so parallel requests can't all pass the count.
     db::arg::lock_player(&mut tx, user.id).await?;
     if db::arg::recent_attempts(&mut *tx, user.id).await? >= GUESS_LIMIT {
-        return Err(AppError::TooManyRequests(ErrorCode::TooManyGuesses));
+        return Err(ArgError::TooManyGuesses.into());
     }
     db::arg::record_attempt(&mut tx, user.id, message, guess).await?;
     if let Some(message) = message {
@@ -122,11 +126,15 @@ async fn guess(
 // The results page and its reset are for whoever has ARG_RESULTS_TOKEN: 404 for any other
 // token, or when it isn't set.
 fn check_token(state: &AppState, token: &str) -> Result<(), AppError> {
-    let expected = state.config.arg.results_token().ok_or(AppError::NotFound)?;
+    let expected = state
+        .config
+        .arg
+        .results_token()
+        .ok_or(GeneralError::NotFound)?;
     // Comparing digests rather than the strings keeps the time taken from saying how
     // much of a guessed token was right.
     if Sha256::digest(token.as_bytes()) != Sha256::digest(expected.as_bytes()) {
-        return Err(AppError::NotFound);
+        return Err(GeneralError::NotFound.into());
     }
     Ok(())
 }

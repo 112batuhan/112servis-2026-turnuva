@@ -7,7 +7,7 @@ use uuid::Uuid;
 use crate::{
     db::{self, ranks::RankChange},
     discord::jobs::Job,
-    error::{AppError, ErrorCode},
+    error::{AppError, TeamError},
     osu_api::{self, user::USERS_PER_REQUEST},
     team_rank, AppState,
 };
@@ -146,9 +146,9 @@ pub async fn refresh_team_members(state: &AppState) -> Result<FullRefresh, AppEr
     let _running = state
         .rank_refresh_lock
         .try_lock()
-        .map_err(|_| AppError::Conflict(ErrorCode::RankUpdateRunning))?;
+        .map_err(|_| TeamError::RankUpdateRunning)?;
     if db::settings::teams_frozen(&state.db).await? {
-        return Err(AppError::Conflict(ErrorCode::TeamsFrozen));
+        return Err(TeamError::Frozen.into());
     }
     let ids = db::ranks::team_member_osu_ids(&state.db).await?;
     let updated = refresh(state, &ids).await?;

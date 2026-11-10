@@ -1,6 +1,11 @@
 use axum::{extract::State, response::IntoResponse, routing::get, Json, Router};
 
-use crate::{auth::AuthUser, db, error::AppError, AppState};
+use crate::{
+    auth::AuthUser,
+    db,
+    error::{AppError, AuthError},
+    AppState,
+};
 
 // Routes under the `/api` nest.
 pub fn routes() -> Router<AppState> {
@@ -13,7 +18,7 @@ pub fn routes() -> Router<AppState> {
 async fn me(State(state): State<AppState>, user: AuthUser) -> Result<impl IntoResponse, AppError> {
     let profile = db::user::find_user(&state.db, user.id)
         .await?
-        .ok_or(AppError::Unauthenticated)?;
+        .ok_or(AuthError::Unauthenticated)?;
     Ok(Json(profile))
 }
 
