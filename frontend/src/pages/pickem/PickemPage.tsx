@@ -7,9 +7,10 @@ import { Countdown } from "../../components/Countdown";
 import { useLinkedMatch } from "../../components/bracket/BracketViewTabs";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { IconButton } from "../../components/IconButton";
+import { PickemPotentials } from "../../components/pickem/PickemPotentials";
 import { PickemRow } from "../../components/pickem/PickemRow";
 import { bestOfLabel } from "../../lib/bestOf";
-import { compareByTime, incomingSources, withPotentials } from "../../lib/bracket";
+import { compareByTime, incomingSources, isUndecided, potentialRows } from "../../lib/bracket";
 import { formatMatchTime } from "../../lib/format";
 import { canPredictMatch, defaultStage, isLocked, POINTS, STATUS_LABELS } from "../../lib/pickem";
 import { PickemStandings } from "./PickemStandings";
@@ -60,11 +61,20 @@ export function PickemPage() {
   const stages = useMemo(() => overview?.stages ?? [], [overview]);
   const stage = stages.find((s) => s.id === picked) ?? defaultStage(stages);
   const sources = useMemo(() => incomingSources(matches), [matches]);
-  const rows = useMemo(
-    // A match still waiting on its week is predicted as each pairing it may be.
-    () => (stage ? withPotentials(matches.filter((m) => m.stage?.id === stage.id)).sort(compareByTime) : []),
-    [matches, stage],
-  );
+  // The stage's matches in time order. A match still waiting on its week is predicted as each pairing
+  // it may be, grouped under it and placed by its earliest pairing.
+  const entries = useMemo(() => {
+    if (!stage) return [];
+    return matches
+      .filter((m) => m.stage?.id === stage.id)
+      .map((m) => {
+        const potentials = isUndecided(m) ? potentialRows(m).sort(compareByTime) : [];
+        return { match: m, potentials, lead: potentials[0] ?? m };
+      })
+      .sort((a, b) => compareByTime(a.lead, b.lead));
+  }, [matches, stage]);
+  // What can be predicted: each match, or each of its pairings.
+  const rows = useMemo(() => entries.flatMap((e) => (e.potentials.length > 0 ? e.potentials : [e.match])), [entries]);
   const viewer = overview?.standings.find((s) => s.player.id === user?.id);
   const [railRef, railMore] = useMoreBelow(overview !== null && overview.stages.length > 0);
   const openStage = stages.find((s) => s.status === "open");
@@ -157,24 +167,33 @@ export function PickemPage() {
                   <p className="status">Bu stage'de henüz maç yok.</p>
                 ) : (
                   <ul className="pickem-list">
-                    {rows.map((m) => (
-                      <PickemRow
-                        key={m.id}
-                        match={m}
-                        team1={m.team1_id ? teams.get(m.team1_id) : undefined}
-                        team2={m.team2_id ? teams.get(m.team2_id) : undefined}
-                        sources={sources.get(m.id)}
-                        stage={stage}
-                        prediction={mine.get(m.id)}
-                        split={splits.get(m.id)}
-                        canPredict={overview.can_predict}
-                        ownTeamId={data.bracket?.my_team_id}
-                        onPredict={(teamId, loser) => data.predict(m, teamId, loser)}
-                        onWithdraw={() => data.withdraw(m)}
-                        expanded={expanded.has(m.id)}
-                        onToggle={() => toggle(m.id)}
-                      />
-                    ))}
+                    {entries.map(({ match, potentials }) => {
+                      const row = (m: BracketMatch) => (
+                        <PickemRow
+                          key={m.id}
+                          match={m}
+                          team1={m.team1_id ? teams.get(m.team1_id) : undefined}
+                          team2={m.team2_id ? teams.get(m.team2_id) : undefined}
+                          sources={sources.get(m.id)}
+                          stage={stage}
+                          prediction={mine.get(m.id)}
+                          split={splits.get(m.id)}
+                          canPredict={overview.can_predict}
+                          ownTeamId={data.bracket?.my_team_id}
+                          onPredict={(teamId, loser) => data.predict(m, teamId, loser)}
+                          onWithdraw={() => data.withdraw(m)}
+                          expanded={expanded.has(m.id)}
+                          onToggle={() => toggle(m.id)}
+                        />
+                      );
+                      return potentials.length > 0 ? (
+                        <PickemPotentials key={match.id} match={match}>
+                          {potentials.map(row)}
+                        </PickemPotentials>
+                      ) : (
+                        row(match)
+                      );
+                    })}
                   </ul>
                 )}
               </section>

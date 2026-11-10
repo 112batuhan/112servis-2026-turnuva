@@ -64,15 +64,13 @@
   text-underline-offset: 3px;
 }
 
-.pickem-row-potential {
-  color: var(--color-text-muted);
-  font-size: var(--text-md);
-  font-style: italic;
-}
-
-/* A pairing that may never be played sits on a dashed rule. */
+/* A pairing that may never be played sits on a dashed rule, its chip where the code would be. */
 .pickem-row.is-potential {
   border-bottom-style: dashed;
+}
+
+.pickem-row-when > .status-chip {
+  align-self: flex-start;
 }
 
 .pickem-row-time {

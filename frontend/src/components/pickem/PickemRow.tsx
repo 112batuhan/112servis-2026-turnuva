@@ -7,6 +7,7 @@ import { formatShortMatchTime } from "../../lib/format";
 import { canPredictMatch, isMatchLocked, pointsLabel, predictionScore, predictionSlot } from "../../lib/pickem";
 import { Icon } from "../Icon";
 import { LiveMark } from "../LiveMark";
+import { StatusChip } from "../StatusChip";
 import { TeamBanner } from "../bracket/TeamBanner";
 import { TeamPopover } from "../TeamPopover";
 import { PickemClear } from "./PickemClear";
@@ -41,7 +42,7 @@ interface Props {
  * shows. Once it locks, the teams and the score are back, the pick is said in words at the end,
  * and the split of everyone's winner picks sits under them, with the score distribution a click
  * away. A potential match is predicted like a match, but only counts if the match turns out to be
- * that pairing.
+ * that pairing; it goes in a PickemPotentials under its match, and leads with "Olası" for the code.
  */
 export function PickemRow({
   match,
@@ -63,6 +64,7 @@ export function PickemRow({
   const open = canPredictMatch(stage, match);
   const locked = isMatchLocked(stage, match);
   const live = isLive(match);
+  const potential = match.potential_of !== undefined;
   const slot = prediction ? predictionSlot(match, prediction) : null;
   const picked = prediction && slot ? predictionScore(slot, prediction) : null;
   const winner = winningSlot(match);
@@ -132,16 +134,18 @@ export function PickemRow({
   return (
     <li
       id={`pickem-${match.id}`}
-      className={`pickem-row${ballot ? " is-ballot" : locked && split ? " has-extra" : ""}${live ? " is-live" : ""}${match.potential_of !== undefined ? " is-potential" : ""}`}
+      className={`pickem-row${ballot ? " is-ballot" : locked && split ? " has-extra" : ""}${live ? " is-live" : ""}${potential ? " is-potential" : ""}`}
     >
       <span className="pickem-row-when">
-        <Link to={fixturePath(match)} className={`pickem-row-code is-${match.side}`}>
-          {matchCode(match)}
-        </Link>
-        {match.potential_of !== undefined && (
-          <span className="pickem-row-potential" title="Yalnız maç bu eşleşme olursa puan getirir">
-            olası
-          </span>
+        {/* A potential match sits under its match's head (PickemPotentials), which carries the code. */}
+        {potential ? (
+          <StatusChip state="potential" title="Yalnız maç bu eşleşme olursa puan getirir">
+            Olası
+          </StatusChip>
+        ) : (
+          <Link to={fixturePath(match)} className={`pickem-row-code is-${match.side}`}>
+            {matchCode(match)}
+          </Link>
         )}
         {live ? (
           <LiveMark compact />

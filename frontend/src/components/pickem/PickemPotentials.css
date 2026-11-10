@@ -1,0 +1,126 @@
+/* A match still waiting on its pairings, in a .pickem-list: its head line, the note, and its potential
+   matches branching off a rail under its code, as the bracket list hangs them off their match. */
+.pickem-potentials {
+  --branch-x: 14px;
+  --branch-indent: var(--space-5);
+  border-bottom: var(--rule);
+}
+
+.pickem-potentials-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-3) var(--space-2) 0;
+}
+
+.pickem-potentials-code {
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.pickem-potentials-code.is-winners {
+  color: var(--color-code-winners);
+}
+
+.pickem-potentials-code.is-losers {
+  color: var(--color-code-losers);
+}
+
+.pickem-potentials-code:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.pickem-potentials-when {
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+  font-style: italic;
+}
+
+/* The rail starts under the code and runs down the note into the branches. */
+.pickem-potentials-note,
+.pickem-potentials-list > .pickem-row {
+  position: relative;
+}
+
+.pickem-potentials-note {
+  max-width: 72ch;
+  margin: 0;
+  padding: var(--space-2) var(--space-2) var(--space-3) var(--branch-indent);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.pickem-potentials-note::before,
+.pickem-potentials-list > .pickem-row:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--color-border-strong);
+}
+
+.pickem-potentials-note::before {
+  top: var(--space-1);
+  left: var(--branch-x);
+}
+
+.pickem-potentials-list {
+  margin: 0;
+  padding: 0 0 0 var(--branch-indent);
+  list-style: none;
+}
+
+/* Each pairing's elbow off the rail, meeting the row at its code line. The rail stops at the last. */
+.pickem-potentials-list > .pickem-row {
+  --branch-y: 50%;
+}
+
+.pickem-potentials-list > .pickem-row.has-extra {
+  --branch-y: calc(var(--space-3) + var(--text-xl) / 2 + var(--space-2));
+}
+
+.pickem-potentials-list > .pickem-row::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: calc(var(--branch-x) - var(--branch-indent));
+  width: calc(var(--branch-indent) - var(--branch-x) - 2px);
+  height: var(--branch-y);
+  border-left: 1px solid var(--color-border-strong);
+  border-bottom: 1px solid var(--color-border-strong);
+  border-bottom-left-radius: var(--radius-sm);
+}
+
+.pickem-potentials-list > .pickem-row::after {
+  left: calc(var(--branch-x) - var(--branch-indent));
+}
+
+.pickem-potentials-list > .pickem-row:first-child {
+  border-top: 1px dashed var(--color-border);
+}
+
+.pickem-potentials-list > .pickem-row:last-child {
+  border-bottom: none;
+}
+
+/* Narrow: the code line is the row's first line, so the elbow meets it there. */
+@container pickem-list (max-width: 720px) {
+  .pickem-potentials {
+    --branch-x: 10px;
+    --branch-indent: var(--space-4);
+  }
+
+  .pickem-potentials-list > .pickem-row,
+  .pickem-potentials-list > .pickem-row.has-extra {
+    --branch-y: calc(var(--space-3) + 11px);
+  }
+}
