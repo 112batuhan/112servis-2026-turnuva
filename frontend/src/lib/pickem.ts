@@ -86,16 +86,30 @@ export function matchStarted(m: BracketMatch, now = Date.now()): boolean {
 }
 
 /**
- * Whether a match's predictions are past changing, so its split is public: its stage is locked, or
- * it has started in a stage a host opened (each of its matches then locks on its own).
+ * Whether a match takes no more predictions (pickem::match_locked): once it has begun, except
+ * that in a stage a host opened the clock is overridden, and only its room or its result locks it.
  */
-export function isMatchLocked(stage: Pick<PickemStage, "status">, m: BracketMatch, now = Date.now()): boolean {
-  return isLocked(stage.status) || (stage.status === "open" && matchStarted(m, now));
+export function matchClosed(stage: Pick<PickemStage, "mode">, m: BracketMatch, now = Date.now()): boolean {
+  return stage.mode === "open" ? !!m.concluded_at || m.rooms.length > 0 : matchStarted(m, now);
+}
+
+/**
+ * Whether a match's predictions are past changing, so its split is public: its stage is locked, or
+ * it's locked on its own in a stage a host opened.
+ */
+export function isMatchLocked(stage: Pick<PickemStage, "status" | "mode">, m: BracketMatch, now = Date.now()): boolean {
+  return isLocked(stage.status) || (stage.status === "open" && matchClosed(stage, m, now));
 }
 
 /** Whether a match can be predicted now: the server checks the same. */
-export function canPredictMatch(stage: Pick<PickemStage, "status" | "best_of">, m: BracketMatch, now = Date.now()): boolean {
-  return stage.status === "open" && stage.best_of !== null && m.team1_id !== null && m.team2_id !== null && !matchStarted(m, now);
+export function canPredictMatch(
+  stage: Pick<PickemStage, "status" | "mode" | "best_of">,
+  m: BracketMatch,
+  now = Date.now(),
+): boolean {
+  return (
+    stage.status === "open" && stage.best_of !== null && m.team1_id !== null && m.team2_id !== null && !matchClosed(stage, m, now)
+  );
 }
 
 /** The stage the page opens on: the open one, else the last that locked, else the first. */

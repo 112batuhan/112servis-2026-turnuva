@@ -21,7 +21,7 @@ interface Props {
   team2: Team | undefined;
   /** What feeds each empty slot ("W3 kazananı"). */
   sources?: [Source | null, Source | null];
-  stage: Pick<PickemStage, "status" | "best_of">;
+  stage: Pick<PickemStage, "status" | "mode" | "best_of">;
   prediction: MyPrediction | undefined;
   split: PickemSplit | undefined;
   canPredict: CanPredict;

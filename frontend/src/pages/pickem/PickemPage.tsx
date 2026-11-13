@@ -11,7 +11,6 @@ import { PickemPotentials } from "../../components/pickem/PickemPotentials";
 import { PickemRow } from "../../components/pickem/PickemRow";
 import { bestOfLabel } from "../../lib/bestOf";
 import { compareByTime, incomingSources, isUndecided, potentialRows } from "../../lib/bracket";
-import { formatMatchTime } from "../../lib/format";
 import { canPredictMatch, defaultStage, isLocked, POINTS, STATUS_LABELS } from "../../lib/pickem";
 import { PickemStandings } from "./PickemStandings";
 import { usePickem } from "./usePickem";
@@ -145,9 +144,6 @@ export function PickemPage() {
                     <span className={`pickem-stage-status is-${stage.status}`}>{STATUS_LABELS[stage.status]}</span>
                   </div>
                   <StageSummary stage={stage} viewer={viewer} rows={rows} mine={mine} />
-                  <p className="pickem-stage-when">
-                    <StageWhen stage={stage} onElapsed={data.reload} />
-                  </p>
                   <ul className="pickem-legend" aria-label="Puanlama">
                     <li>
                       <span className="num">{POINTS.exact}</span> kazanan ve skor
@@ -336,36 +332,6 @@ function WideTrack({ stages, selectedId, onSelect, viewer }: TrackProps) {
       </ol>
     </nav>
   );
-}
-
-/** When the stage opens or locks, in words, with the time left while it's open. */
-function StageWhen({ stage, onElapsed }: { stage: PickemStage; onElapsed: () => void }) {
-  switch (stage.status) {
-    case "open":
-      if (stage.mode === "open") {
-        // Opened by hand: each match locks as it starts, closes_at being the next one's time.
-        if (!stage.closes_at) return <>Her maç kendi saatinde kilitlenir.</>;
-        return (
-          <>
-            Her maç kendi saatinde kilitlenir. Sıradaki: <time dateTime={stage.closes_at}>{formatMatchTime(stage.closes_at)}</time>
-            <Countdown to={stage.closes_at} suffix="kaldı" className="pickem-stage-countdown" onElapsed={onElapsed} />
-          </>
-        );
-      }
-      if (!stage.closes_at) return <>Kilit, stage'in ilk maçının saati belli olunca belli olur.</>;
-      return (
-        <>
-          İlk maçla kilitlenir: <time dateTime={stage.closes_at}>{formatMatchTime(stage.closes_at)}</time>
-          <Countdown to={stage.closes_at} suffix="kaldı" className="pickem-stage-countdown" onElapsed={onElapsed} />
-        </>
-      );
-    case "upcoming":
-      return <>{stage.previous ? `${stage.previous} bitince tahmine açılır.` : "Yakında tahmine açılır."}</>;
-    case "locked":
-      return <>Kilitlendi. Herkesin tahmini açıklandı; puanlar maçlar bittikçe gelir.</>;
-    case "finished":
-      return <>Bitti. Bütün maçlar oynandı, puanlar kesinleşti.</>;
-  }
 }
 
 /** The viewer's part in the stage: their points once it's locked, how far along they are while it's open. */

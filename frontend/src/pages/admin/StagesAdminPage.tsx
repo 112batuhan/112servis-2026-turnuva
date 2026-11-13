@@ -348,7 +348,7 @@ function OrderPreview({ order, fallback }: { order: DraftOrder; fallback: boolea
 
 const PICKEM_MODES: { mode: PickemMode; label: string; hint: string }[] = [
   { mode: "auto", label: "Otomatik", hint: "Önceki stage bitince açılır, ilk maçla kilitlenir" },
-  { mode: "open", label: "Aç", hint: "Şimdi açık, başlamış olsa bile; her maç kendi saatinde kilitlenir" },
+  { mode: "open", label: "Aç", hint: "Şimdi açık, saati geçmiş olsa bile; her maç odası açılınca ya da bitince kilitlenir" },
   { mode: "closed", label: "Kapat", hint: "Şimdi kilitli; tahminlerin dağılımı açıklanır" },
 ];
 

@@ -254,7 +254,7 @@ pub struct Overview {
     // The viewer's own predictions, whatever the stage, potential matches included.
     mine: Vec<MyPrediction>,
     // Every match with both teams whose predictions are past changing (its stage is locked,
-    // or it has started in a stage a host opened), potential matches included.
+    // or it's locked on its own in a stage a host opened), potential matches included.
     splits: Vec<Split>,
     standings: Vec<Standing>,
 }
@@ -320,7 +320,7 @@ async fn overview(
         .filter(|m| m.team1_id.is_some() && m.team2_id.is_some())
         .filter(|m| {
             snap.window(m.stage_id)
-                .is_some_and(|w| pickem::revealed(w.status, m, now))
+                .is_some_and(|w| pickem::revealed(w, m, now))
         })
         .map(|m| {
             split(
@@ -343,8 +343,8 @@ async fn overview(
 pub struct MatchPickem {
     stage_id: Uuid,
     stage_name: String,
-    // The stage's, except that a match that has started in a stage a host opened is
-    // locked on its own.
+    // The stage's, except that a match in a stage a host opened is locked on its own once
+    // its room opens or it has a result.
     status: Status,
     // When predictions on this match lock.
     #[serde(with = "time::serde::rfc3339::option")]
@@ -384,7 +384,7 @@ async fn match_pickem(
         .map(|p| my_prediction(p, m));
     let has_teams = m.team1_id.is_some() && m.team2_id.is_some();
     let now = OffsetDateTime::now_utc();
-    let status = if w.status == Status::Open && pickem::started(m, now) {
+    let status = if w.status == Status::Open && pickem::match_locked(m, w.mode, now) {
         Status::Locked
     } else {
         w.status
@@ -393,16 +393,17 @@ async fn match_pickem(
         stage_id: stage.id,
         stage_name: stage.name.clone(),
         status,
-        // Opened by hand, each match locks as it starts.
+        // Opened by hand, each match locks on its own: at its time, if that's still to come
+        // (it locks for good once its room opens).
         closes_at: if stage.pickem_mode == Mode::Open {
-            m.starts_at
+            m.starts_at.filter(|&t| t > now)
         } else {
             w.closes_at
         },
-        predictable: status == Status::Open && pickem::predictable(m, stage.best_of, now),
+        predictable: pickem::predictable(w, m, stage.best_of, now),
         can_predict: can_predict(user.as_ref()),
         total: refs.iter().filter(|p| pickem::counts(p, m)).count(),
-        split: (has_teams && pickem::revealed(status, m, now)).then(|| split(m, &refs)),
+        split: (has_teams && pickem::revealed(w, m, now)).then(|| split(m, &refs)),
         mine,
     })))
 }
@@ -422,7 +423,7 @@ fn open_match(snap: &Snapshot, match_id: Uuid) -> Result<(&MatchRow, i32), AppEr
         .stage_id
         .and_then(|s| snap.stage(s))
         .and_then(|s| s.best_of);
-    if !pickem::predictable(m, best_of, OffsetDateTime::now_utc()) {
+    if !pickem::predictable(w, m, best_of, OffsetDateTime::now_utc()) {
         return Err(PickemError::CantPredict.into());
     }
     Ok((m, best_of.unwrap_or(1)))

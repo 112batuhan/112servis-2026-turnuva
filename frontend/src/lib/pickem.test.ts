@@ -5,6 +5,7 @@ import {
   countsByOutcome,
   defaultStage,
   isMatchLocked,
+  matchClosed,
   matchStarted,
   outcomeKey,
   outcomes,
@@ -16,7 +17,8 @@ import {
 } from "./pickem";
 
 // What the page shows of the pick'em rules, which are the server's (backend/src/pickem.rs):
-// `matchStarted` mirrors `started`, `canPredictMatch` `predictable`, `isMatchLocked` `revealed`.
+// `matchStarted` mirrors `started`, `matchClosed` `match_locked`, `canPredictMatch` `predictable`,
+// `isMatchLocked` `revealed`.
 
 const NOW = Date.parse("2026-11-10T12:00:00Z");
 const at = (minutes: number) => new Date(NOW + minutes * 60_000).toISOString();
@@ -84,20 +86,31 @@ describe("a match's window", () => {
   });
 
   it("can be predicted in an open stage with a best of, both teams and time left", () => {
-    const open = { status: "open", best_of: 9 } as const;
+    const open = { status: "open", mode: "auto", best_of: 9 } as const;
     expect(canPredictMatch(open, match(60), NOW)).toBe(true);
     expect(canPredictMatch(open, match(-1), NOW)).toBe(false);
     expect(canPredictMatch(open, match(60, { team2_id: null }), NOW)).toBe(false);
-    expect(canPredictMatch({ status: "open", best_of: null }, match(60), NOW)).toBe(false);
-    expect(canPredictMatch({ status: "locked", best_of: 9 }, match(60), NOW)).toBe(false);
+    expect(canPredictMatch({ ...open, best_of: null }, match(60), NOW)).toBe(false);
+    expect(canPredictMatch({ ...open, status: "locked" }, match(60), NOW)).toBe(false);
   });
 
-  it("shows its split once the stage locks, or once it starts in a stage a host opened", () => {
-    expect(isMatchLocked({ status: "locked" }, match(60), NOW)).toBe(true);
-    expect(isMatchLocked({ status: "finished" }, match(60), NOW)).toBe(true);
-    expect(isMatchLocked({ status: "open" }, match(60), NOW)).toBe(false);
-    expect(isMatchLocked({ status: "open" }, match(-1), NOW)).toBe(true);
-    expect(isMatchLocked({ status: "upcoming" }, match(-1), NOW)).toBe(false);
+  it("in a stage a host opened, locks on its room or its result, not on the clock", () => {
+    const opened = { status: "open", mode: "open", best_of: 9 } as const;
+    expect(matchClosed(opened, match(-60), NOW)).toBe(false);
+    expect(matchClosed(opened, match(60, { rooms: [{ mp_id: 1, url: "" }] }), NOW)).toBe(true);
+    expect(matchClosed(opened, match(-60, { concluded_at: at(-5) }), NOW)).toBe(true);
+    expect(canPredictMatch(opened, match(-60), NOW)).toBe(true);
+    expect(isMatchLocked(opened, match(-60), NOW)).toBe(false);
+    expect(isMatchLocked(opened, match(-60, { rooms: [{ mp_id: 1, url: "" }] }), NOW)).toBe(true);
+  });
+
+  it("shows its split once the stage locks, or once it's locked in a stage a host opened", () => {
+    const stage = (status: string, mode = "auto") => ({ status, mode }) as Parameters<typeof isMatchLocked>[0];
+    expect(isMatchLocked(stage("locked"), match(60), NOW)).toBe(true);
+    expect(isMatchLocked(stage("finished"), match(60), NOW)).toBe(true);
+    expect(isMatchLocked(stage("open"), match(60), NOW)).toBe(false);
+    expect(isMatchLocked(stage("open"), match(-1), NOW)).toBe(true);
+    expect(isMatchLocked(stage("upcoming"), match(-1), NOW)).toBe(false);
   });
 });
 

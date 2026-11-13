@@ -84,82 +84,65 @@ export function MatchPickem({ match }: { match: PublicMatch }) {
         </Link>
       </header>
 
-      {data.status === "upcoming" && <p className="match-pickem-note">Önceki stage bitince tahmine açılır.</p>}
-
-      {data.status === "open" &&
-        (data.predictable && team1 && team2 && bestOf !== null ? (
-          <div className="match-pickem-ballot">
-            <p className="match-pickem-ask">Kim, kaça kaç kazanır?</p>
-            <PickemSlider
-              bestOf={bestOf}
-              teams={[team1, team2]}
-              picked={mineSlot && data.mine ? { slot: mineSlot, loser: data.mine.loser_score } : null}
-              canPredict={data.can_predict}
-              saving={saving !== null}
-              label="Skor tahmini"
-              named
-              onPick={pick}
-              onClear={withdraw}
-            />
-            <div className="match-pickem-foot">
-              {error ? (
-                <span className="match-pickem-error" role="alert">
-                  {error}
-                </span>
-              ) : data.can_predict === "sign_in" ? (
-                <span>Tahmin için giriş yap.</span>
-              ) : data.can_predict === "discord" ? (
-                <span>
-                  Tahmin için <Link to="/discord">Discord hesabını bağla</Link>.
-                </span>
-              ) : data.mine ? (
-                <span className="match-pickem-saved">
-                  <Icon name="check" size={14} />
-                  Tahminin kaydedildi
-                  <PickemClear label="Tahminini sil" disabled={saving !== null} onClick={withdraw} />
-                </span>
-              ) : (
-                <span>Kazanacak takıma doğru çek: ne kadar uzağa, o kadar farklı. Maç başlayana kadar değiştirebilirsin.</span>
-              )}
-              <span className="match-pickem-count">
-                <span className="num">{data.total}</span> kişi tahmin etti · dağılım kilitlenince açıklanır
+      {data.status === "open" && data.predictable && team1 && team2 && bestOf !== null && (
+        <div className="match-pickem-ballot">
+          <p className="match-pickem-ask">Tahmin yap</p>
+          <PickemSlider
+            bestOf={bestOf}
+            teams={[team1, team2]}
+            picked={mineSlot && data.mine ? { slot: mineSlot, loser: data.mine.loser_score } : null}
+            canPredict={data.can_predict}
+            saving={saving !== null}
+            label="Skor tahmini"
+            named
+            onPick={pick}
+            onClear={withdraw}
+          />
+          <div className="match-pickem-foot">
+            {error ? (
+              <span className="match-pickem-error" role="alert">
+                {error}
               </span>
-            </div>
+            ) : data.can_predict === "sign_in" ? (
+              <span>Tahmin için giriş yap.</span>
+            ) : data.can_predict === "discord" ? (
+              <span>
+                Tahmin için <Link to="/discord">Discord hesabını bağla</Link>.
+              </span>
+            ) : data.mine ? (
+              <span className="match-pickem-saved">
+                <Icon name="check" size={14} />
+                Tahminin kaydedildi
+                <PickemClear label="Tahminini sil" disabled={saving !== null} onClick={withdraw} />
+              </span>
+            ) : null}
+            <span className="match-pickem-count">
+              <span className="num">{data.total}</span> kişi tahmin etti
+            </span>
           </div>
-        ) : (
-          <p className="match-pickem-note">Takımlar belli olunca tahmin edilebilir.</p>
-        ))}
+        </div>
+      )}
 
       {isLocked(data.status) && data.split && (
         <div className="match-pickem-reveal">
           <PickemSplitBar team1={data.split.team1} team2={data.split.team2} names={names} named mine={mineSlot} />
-          <p className="match-pickem-mine">
-            {!data.mine ? (
-              <span className="match-pickem-note">Bu maç için tahmin yapmadın.</span>
-            ) : data.mine.void ? (
-              <span className="match-pickem-note">Tahmin ettiğin takım artık bu maçta değil.</span>
-            ) : (
-              <>
-                <span>
-                  Senin tahminin{" "}
-                  <strong className="num">
-                    {names[(mineSlot ?? 1) - 1]} {data.mine.winner_score}–{data.mine.loser_score}
-                  </strong>
+          {data.mine && !data.mine.void && (
+            <p className="match-pickem-mine">
+              <span>
+                Senin tahminin{" "}
+                <strong className="num">
+                  {names[(mineSlot ?? 1) - 1]} {data.mine.winner_score}–{data.mine.loser_score}
+                </strong>
+              </span>
+              {data.mine.points !== null && (
+                <span className={`match-pickem-points${data.mine.points === 0 ? " is-zero" : ""}`}>
+                  <span className="num">{data.mine.points > 0 ? `+${data.mine.points}` : "0"}</span>{" "}
+                  {pointsLabel(data.mine.points)}
                 </span>
-                {data.mine.points !== null && (
-                  <span className={`match-pickem-points${data.mine.points === 0 ? " is-zero" : ""}`}>
-                    <span className="num">{data.mine.points > 0 ? `+${data.mine.points}` : "0"}</span>{" "}
-                    {pointsLabel(data.mine.points)}
-                  </span>
-                )}
-              </>
-            )}
-          </p>
+              )}
+            </p>
+          )}
         </div>
-      )}
-
-      {isLocked(data.status) && !data.split && (
-        <p className="match-pickem-note">Stage kilitlendiğinde takımlar belli değildi; bu maç tahmin edilmedi.</p>
       )}
     </section>
   );

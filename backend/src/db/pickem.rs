@@ -12,7 +12,8 @@ use super::team::Player;
 pub enum Mode {
     // Opens once the stage before it is played, locks when its first match starts.
     Auto,
-    // Open now, whatever the stage before it; still locks when its first match starts.
+    // Open now, whatever the stage before it or the clock; each match locks on its own once
+    // its room opens or it has a result.
     Open,
     // Locked now.
     Closed,

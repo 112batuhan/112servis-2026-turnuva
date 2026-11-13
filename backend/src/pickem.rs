@@ -3,8 +3,10 @@
 //! A stage's pick'em opens once every match of the stage before it (the qualifier lobbies,
 //! for the first bracket stage) is concluded and locks as its first match starts, unless a
 //! host has opened or locked it by hand. A stage a host has opened stays open while any of
-//! its matches is still to start, each match locking on its own as it starts, so a stage
-//! already under way can be opened again for the rest of its matches. A prediction is a winner and a score, and scores
+//! its matches is still to be played, each match locking on its own once its room opens or
+//! it has a result (the clock doesn't lock it, so a match running late or one whose time
+//! was set in the past can still be predicted), so a stage already under way can be opened
+//! again for the rest of its matches. A prediction is a winner and a score, and scores
 //! 3 with both right, 2 with only the winner right, 1 with only the score right (the
 //! figures, whoever won), else 0. A forfeit has no score, so only its winner can score.
 
@@ -39,11 +41,14 @@ impl Status {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Window {
     pub stage_id: Uuid,
+    // How it opens and locks, as a host set it.
+    pub mode: Mode,
     pub status: Status,
     // When the stage before it was played out; None while it isn't, or without one.
     pub opens_at: Option<OffsetDateTime>,
     // When predictions next lock: its first match's time, or for a stage a host has opened,
-    // the next match's still to start (each locks on its own). None while none is scheduled.
+    // the next time still to come of a match still open (each locks on its own). None while
+    // none is scheduled.
     pub closes_at: Option<OffsetDateTime>,
     // The stage it waits for.
     pub previous: Option<Uuid>,
@@ -53,6 +58,16 @@ pub struct Window {
 // open for it or it's over.
 pub fn started(m: &MatchRow, now: OffsetDateTime) -> bool {
     m.concluded_at.is_some() || m.has_room || m.starts_at.is_some_and(|t| t <= now)
+}
+
+// Whether a match takes no more predictions. By the rule it's once it has started; in a
+// stage a host opened the clock is overridden, so only its room opening or its result
+// locks it.
+pub fn match_locked(m: &MatchRow, mode: Mode, now: OffsetDateTime) -> bool {
+    match mode {
+        Mode::Open => m.concluded_at.is_some() || m.has_room,
+        Mode::Auto | Mode::Closed => started(m, now),
+    }
 }
 
 // The pick'em window of every stage that has bracket matches and isn't the qualifier
@@ -106,18 +121,18 @@ pub fn windows(
             }
             None => (true, None),
         };
-        let begun = own.iter().any(|m| started(m, now));
-        let pending = own.iter().any(|m| !started(m, now));
-        // Opened by hand, it only locks once every match has started.
-        let locked = match stage.pickem_mode {
+        let mode = stage.pickem_mode;
+        // Opened by hand, it only locks once every match is locked on its own.
+        let locked = match mode {
             Mode::Closed => true,
-            Mode::Open => !pending,
-            Mode::Auto => begun,
+            Mode::Open => own.iter().all(|m| match_locked(m, mode, now)),
+            Mode::Auto => own.iter().any(|m| started(m, now)),
         };
-        let closes_at = if stage.pickem_mode == Mode::Open && !locked {
+        let closes_at = if mode == Mode::Open && !locked {
             own.iter()
-                .filter(|m| !started(m, now))
+                .filter(|m| !match_locked(m, mode, now))
                 .filter_map(|m| m.starts_at)
+                .filter(|&t| t > now)
                 .min()
         } else {
             own.iter().filter_map(|m| m.starts_at).min()
@@ -128,13 +143,14 @@ pub fn windows(
             } else {
                 Status::Locked
             }
-        } else if stage.pickem_mode == Mode::Open || prev_done {
+        } else if mode == Mode::Open || prev_done {
             Status::Open
         } else {
             Status::Upcoming
         };
         out.push(Window {
             stage_id: stage.id,
+            mode,
             status,
             opens_at,
             closes_at,
@@ -144,16 +160,20 @@ pub fn windows(
     out
 }
 
-// Whether how a match was predicted can be shown: its stage is locked, or it has started
-// in a stage a host opened, so its predictions can't change any more.
-pub fn revealed(status: Status, m: &MatchRow, now: OffsetDateTime) -> bool {
-    status.locked() || started(m, now)
+// Whether how a match was predicted can be shown: its stage is locked, or the match is
+// locked on its own in a stage a host opened, so its predictions can't change any more.
+pub fn revealed(w: &Window, m: &MatchRow, now: OffsetDateTime) -> bool {
+    w.status.locked() || (w.status == Status::Open && match_locked(m, w.mode, now))
 }
 
-// Whether a match of an open stage can be predicted: both teams known, not begun, and a
-// best of to say what the scores can be.
-pub fn predictable(m: &MatchRow, best_of: Option<i32>, now: OffsetDateTime) -> bool {
-    m.team1_id.is_some() && m.team2_id.is_some() && best_of.is_some() && !started(m, now)
+// Whether a match can be predicted now: its stage is open, both teams are known, the match
+// isn't locked, and there's a best of to say what the scores can be.
+pub fn predictable(w: &Window, m: &MatchRow, best_of: Option<i32>, now: OffsetDateTime) -> bool {
+    w.status == Status::Open
+        && m.team1_id.is_some()
+        && m.team2_id.is_some()
+        && best_of.is_some()
+        && !match_locked(m, w.mode, now)
 }
 
 // Map wins a team needs under a best of.
@@ -427,12 +447,20 @@ mod tests {
         let w = windows(&stages, &matches, &[], now);
         assert_eq!(w[1].status, Status::Open);
         assert_eq!(w[1].closes_at, matches[3].starts_at);
-        assert!(revealed(w[1].status, &matches[2], now));
-        assert!(!revealed(w[1].status, &matches[3], now));
-        assert!(!predictable(&matches[1], Some(9), now));
-        assert!(predictable(&matches[3], Some(9), now));
+        assert!(revealed(&w[1], &matches[1], now));
+        assert!(!predictable(&w[1], &matches[1], Some(9), now));
+        assert!(!revealed(&w[1], &matches[3], now));
+        assert!(predictable(&w[1], &matches[3], Some(9), now));
+        // The clock doesn't lock it: a match past its time with no room yet is still open.
+        assert!(!revealed(&w[1], &matches[2], now));
+        assert!(predictable(&w[1], &matches[2], Some(9), now));
+        // Its room opening does.
+        matches[2].has_room = true;
+        let w = windows(&stages, &matches, &[], now);
+        assert!(revealed(&w[1], &matches[2], now));
+        assert!(!predictable(&w[1], &matches[2], Some(9), now));
 
-        // Once every match has started it locks, and finishes once they're all played.
+        // Once every match has a room it locks, and finishes once they're all played.
         matches[3].has_room = true;
         matches[4].has_room = true;
         let w = windows(&stages, &matches, &[], now);
@@ -452,6 +480,27 @@ mod tests {
         ];
         let w = windows(&stages, &matches, &[], now);
         assert_eq!(w[1].status, Status::Locked);
+    }
+
+    #[test]
+    fn opening_by_hand_reopens_a_stage_whose_times_have_passed() {
+        let now = OffsetDateTime::now_utc();
+        let matches = [
+            game(1, Some(-30), true, now),
+            game(2, Some(-3), false, now),
+            game(2, Some(-2), false, now),
+        ];
+        // By the rule it's locked: its matches' times have come.
+        let stages = [stage(1, 0, Mode::Auto), stage(2, 1, Mode::Auto)];
+        let w = windows(&stages, &matches, &[], now);
+        assert_eq!(w[1].status, Status::Locked);
+        // Opened, both matches take predictions until their rooms open, with no time to lock at.
+        let stages = [stage(1, 0, Mode::Auto), stage(2, 1, Mode::Open)];
+        let w = windows(&stages, &matches, &[], now);
+        assert_eq!(w[1].status, Status::Open);
+        assert_eq!(w[1].closes_at, None);
+        assert!(predictable(&w[1], &matches[1], Some(9), now));
+        assert!(predictable(&w[1], &matches[2], Some(9), now));
     }
 
     #[test]

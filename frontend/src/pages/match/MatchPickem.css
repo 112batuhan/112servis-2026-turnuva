@@ -69,12 +69,6 @@
   color: var(--color-text);
 }
 
-.match-pickem-note {
-  margin: 0;
-  color: var(--color-text-subtle);
-  font-size: var(--text-sm);
-}
-
 .match-pickem-ballot {
   display: flex;
   flex-direction: column;
