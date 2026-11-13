@@ -17,6 +17,7 @@ mod role;
 mod room_scores;
 mod secret;
 mod services;
+mod stage_track;
 mod stats;
 mod stats_cache;
 mod supervise;

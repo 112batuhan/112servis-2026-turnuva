@@ -16,7 +16,7 @@ use crate::{
     draft::DraftOrder,
     error::{AppError, GeneralError, PoolError},
     role::Role,
-    services, AppState,
+    services, stage_track, AppState,
 };
 
 // Routes under the `/api` nest. Stages are the tournament's rounds, which bracket matches
@@ -45,10 +45,13 @@ async fn list_stages(
     Ok(Json(db::stages::list_stages(&state.db).await?))
 }
 
-// GET /api/public/stages — the published stages only, no auth, each with how many of its
-// matches are played and being played and whether the tournament is in it (the stage tabs).
+// GET /api/public/stages — every stage, published or not, no auth: the tournament's track
+// (crate::stage_track), with how many of each stage's matches are played and being played.
+// The pages that open a stage's pool or statistics offer only the published ones.
 async fn list_public_stages(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    Ok(Json(db::stages::list_published_stages(&state.db).await?))
+    let rows = db::stages::list_public_stages(&state.db).await?;
+    let progress = db::stages::tournament_progress(&state.db).await?;
+    Ok(Json(stage_track::track(rows, &progress)))
 }
 
 #[derive(Debug, Deserialize)]

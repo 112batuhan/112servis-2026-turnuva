@@ -18,7 +18,8 @@ import { useLiveBracket } from "../live/LiveContext";
 const poolCache = createStageCache(fetchPublicStage);
 
 export function PublicPoolPage() {
-  // Each stage comes with where the tournament is: whether it's the current one and how many of its matches are played and being played.
+  // The published stages (only they have a pool to show), each with where the tournament is: its
+  // state on the track and how many of its matches are played and being played.
   const [stages, setStages] = useState<PublicStage[] | null>(null);
   const [fallback, setFallback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,15 +30,14 @@ export function PublicPoolPage() {
   // The open stage lives in the URL (?stage=…) so links to a stage can be shared.
   const requested = searchParams.get("stage");
   const selectedId = stages?.some((s) => s.id === requested) ? requested : fallback;
-  const selected = stages?.find((s) => s.id === selectedId);
 
-  const currentId = stages?.find((s) => s.current)?.id ?? null;
+  const currentId = stages?.find((s) => s.state === "current")?.id ?? null;
   const live = useMemo(() => new Map(stages?.filter((s) => s.live > 0).map((s) => [s.id, s.live])), [stages]);
 
   // A failed refresh keeps the stages shown; only the first reading reports.
   const loadStages = useCallback((initial: boolean) => {
     fetchPublicStages()
-      .then(setStages)
+      .then((all) => setStages(all.filter((s) => s.published)))
       .catch((e) => initial && setError(errorMessage(e)));
   }, []);
 
@@ -55,7 +55,7 @@ export function PublicPoolPage() {
     if (!stages || stages.length === 0 || fallback) return;
     const playing = stages.find((s) => s.live > 0);
     const played = [...stages].reverse().find((s) => s.played > 0);
-    setFallback((stages.find((s) => s.current) ?? playing ?? played ?? stages[0]).id);
+    setFallback((stages.find((s) => s.state === "current") ?? playing ?? played ?? stages[0]).id);
   }, [stages, fallback]);
 
   // The last pool shown stays until the selected one is in, dimmed if that takes a moment.
@@ -88,13 +88,14 @@ export function PublicPoolPage() {
           currentId={currentId}
           live={live}
         >
-          {selected?.pack_url && (
+          {/* The pack of the pool on screen: the stage list has no pack links, the pool does. */}
+          {detail?.pack_url && (
             <a
               className="btn btn-primary"
-              href={selected.pack_url}
+              href={detail.pack_url}
               target="_blank"
               rel="noopener noreferrer"
-              title={`${selected.name} beatmap pack'ini indir`}
+              title={`${detail.name} beatmap pack'ini indir`}
             >
               <Icon name="download" />
               Toplu indir

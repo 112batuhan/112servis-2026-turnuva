@@ -69,14 +69,25 @@ export interface Stage {
   updated_at: string;
 }
 
-/** A published stage as `/api/public/stages` has it, with what the stage tabs say about it. */
-export interface PublicStage extends Stage {
+/** Where a stage is on the tournament's track (backend `stage_track.rs`, the only place that decides it). */
+export type StageState = "done" | "current" | "upcoming";
+
+/**
+ * A stage as `/api/public/stages` has it: every stage, published or not (the track names every
+ * round), without its draft order or pack link. Only published ones have a pool or statistics to open.
+ */
+export interface PublicStage {
+  id: string;
+  name: string;
+  position: number;
+  published: boolean;
+  is_qualifier: boolean;
+  best_of: number | null;
   /** Its matches with a saved map (the qualifier's: its lobbies). */
   played: number;
   /** Its matches being played now: a room open, not concluded. */
   live: number;
-  /** The tournament is in it, by the rule of `lib/stageTrack.ts` (the backend mirrors it). */
-  current: boolean;
+  state: StageState;
 }
 
 export interface Category {

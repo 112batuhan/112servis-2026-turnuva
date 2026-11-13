@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { errorMessage } from "../../api/client";
 import { fetchPublicStages } from "../../api/mappool";
-import type { Stage, StageActivity } from "../../api/types";
+import type { PublicStage, StageActivity } from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { IconButton } from "../../components/IconButton";
@@ -24,12 +24,13 @@ import "./StatsPage.css";
 export function StatsPage() {
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
-  const [stages, setStages] = useState<Stage[] | null>(null);
+  const [stages, setStages] = useState<PublicStage[] | null>(null);
   const [stagesError, setStagesError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Only a published stage has statistics to show; the rest are on the landing page's track.
     fetchPublicStages()
-      .then(setStages)
+      .then((all) => setStages(all.filter((s) => s.published)))
       .catch((e) => setStagesError(errorMessage(e)));
   }, []);
 
@@ -188,7 +189,7 @@ function TabPanel({ tab, index, ownTeam, mapId, onMap, onOpenMap }: PanelProps) 
 }
 
 interface TrackProps {
-  stages: Stage[];
+  stages: PublicStage[];
   activity: StageActivity[] | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
@@ -237,7 +238,7 @@ function StageTrack({ stages, activity, selectedId, onSelect, onPrefetch }: Trac
 }
 
 /** The stage's name and what's counted so far, with how the Z scores are worked out. */
-function StageSummary({ stage, index }: { stage: Stage; index: StatsIndex }) {
+function StageSummary({ stage, index }: { stage: PublicStage; index: StatsIndex }) {
   const { stats, matches } = index.data;
   const live = matches.filter((m) => m.live).length;
   return (

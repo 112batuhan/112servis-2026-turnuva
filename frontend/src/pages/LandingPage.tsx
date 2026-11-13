@@ -5,14 +5,13 @@ import { fetchPublicBracket } from "../api/bracket";
 import { errorMessage } from "../api/client";
 import { fetchPublicStages } from "../api/mappool";
 import { fetchPublicQualifiers } from "../api/matches";
-import type { BracketMatch, PublicBracket, PublicQualifiers, Stage } from "../api/types";
+import type { BracketMatch, PublicBracket, PublicQualifiers, PublicStage } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { canPlay } from "../auth/roles";
 import { Countdown } from "../components/Countdown";
 import { FixtureRow } from "../components/FixtureRow";
 import { compareByTime, fixturePath, incomingSources, withPotentials, withScore } from "../lib/bracket";
 import { formatMatchTime } from "../lib/format";
-import { stageTrack } from "../lib/stageTrack";
 import { useLiveRefresh } from "../lib/useLiveRefresh";
 import { useLiveBracket } from "../live/LiveContext";
 import bannerLarge from "../assets/banner-1316.webp";
@@ -26,7 +25,8 @@ const RESULTS_LIMIT = 4;
 interface Data {
   bracket: PublicBracket | null;
   qualifiers: PublicQualifiers | null;
-  stages: Stage[] | null;
+  /** Every stage, published or not, each marked done, current or upcoming by the backend: the track. */
+  stages: PublicStage[] | null;
 }
 
 /**
@@ -60,7 +60,14 @@ export function LandingPage() {
     [],
   );
   useLiveRefresh(matches, refreshBracket);
-  // Saved scores arrive the moment the referee saves them; other changes reload the bracket.
+  // A match ending or the bracket moving on can move the track's current stage.
+  const refreshBracketAndTrack = useCallback(() => {
+    refreshBracket();
+    fetchPublicStages()
+      .then((stages) => setData((d) => (d ? { ...d, stages } : d)))
+      .catch(() => {});
+  }, [refreshBracket]);
+  // Saved scores arrive the moment the referee saves them; other changes reload the bracket and the track.
   useLiveBracket(
     (e) =>
       setData((d) =>
@@ -71,14 +78,11 @@ export function LandingPage() {
             }
           : d,
       ),
-    refreshBracket,
+    refreshBracketAndTrack,
   );
   const teamsById = useMemo(() => new Map(data?.bracket?.teams.map((t) => [t.id, t])), [data]);
   const sources = useMemo(() => incomingSources(matches), [matches]);
-  const track = useMemo(
-    () => (data ? stageTrack(data.bracket?.matches ?? [], data.qualifiers?.lobbies ?? [], data.stages ?? []) : []),
-    [data],
-  );
+  const track = data?.stages ?? [];
 
   // Potential matches are played too, if their teams get there: they're listed in their bracket match's place.
   const upcoming = withPotentials(matches)

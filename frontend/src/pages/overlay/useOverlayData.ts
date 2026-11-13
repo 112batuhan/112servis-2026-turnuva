@@ -36,7 +36,7 @@ export function useQualifierSeeds(): ReadonlyMap<string, number> {
     let stopped = false;
     const load = async () => {
       try {
-        const qualifier = (await fetchPublicStages()).find((s) => s.is_qualifier);
+        const qualifier = (await fetchPublicStages()).find((s) => s.is_qualifier && s.published);
         if (!qualifier) return;
         const stats = await fetchStageStats(qualifier.id);
         if (stopped) return;

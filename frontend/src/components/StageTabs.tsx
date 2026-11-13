@@ -3,15 +3,18 @@ import type { Stage } from "../api/types";
 import { bestOfLabel, firstTo } from "../lib/bestOf";
 import "./StageTabs.css";
 
+/** What the tabs show of a stage: the editor's `Stage` and the public `PublicStage` both have it. */
+type TabStage = Pick<Stage, "id" | "name" | "published" | "is_qualifier" | "best_of">;
+
 interface Props {
-  stages: Stage[];
+  stages: TabStage[];
   selectedId: string | null;
   onSelect: (id: string) => void;
   /** A stage about to be picked (hovered, focused): start reading it, so the click finds it there. */
   onPrefetch?: (id: string) => void;
-  /** The stage the tournament is in (`current` on /api/public/stages): lit in frost with the crystal's glow, "Şu an" under it. */
+  /** The stage the tournament is in (`state` "current" on /api/public/stages): lit in frost with the crystal's glow, "Şu an" under it. */
   currentId?: string | null;
-  /** Matches being played now, by stage (the stats' activity): said in frost under the stage's name. */
+  /** Matches being played now, by stage (`live` on /api/public/stages): said in frost under the stage's name. */
   live?: ReadonlyMap<string, number>;
   /** Say on each stage whether it's published or a draft (editor only). */
   showStatus?: boolean;
@@ -63,7 +66,7 @@ export function StageTabs({ stages, selectedId, onSelect, onPrefetch, currentId,
 }
 
 interface NoteProps {
-  stage: Stage;
+  stage: TabStage;
   current: boolean;
   live: number;
   showStatus?: boolean;
