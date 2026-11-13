@@ -60,22 +60,30 @@ pub async fn delete_stage(pool: &PgPool, id: Uuid) -> sqlx::Result<()> {
     Ok(())
 }
 
-// Updates a stage's name and/or published flag; each field changes only when Some(..).
-// Published stages are visible on the public page.
-pub async fn update_stage(
-    pool: &PgPool,
-    id: Uuid,
-    name: Option<&str>,
-    published: Option<bool>,
-) -> sqlx::Result<Stage> {
+// None when there's no such stage.
+pub async fn rename_stage(pool: &PgPool, id: Uuid, name: &str) -> sqlx::Result<Option<Stage>> {
     sqlx::query_as::<_, Stage>(
-        "UPDATE stages SET name = COALESCE($2, name), published = COALESCE($3, published), \
-         updated_at = now() WHERE id = $1 RETURNING *",
+        "UPDATE stages SET name = $2, updated_at = now() WHERE id = $1 RETURNING *",
     )
     .bind(id)
     .bind(name)
+    .fetch_optional(pool)
+    .await
+}
+
+// Publishes or unpublishes a stage's pool; published stages are visible on the public
+// pages. None when there's no such stage.
+pub async fn set_stage_published(
+    pool: &PgPool,
+    id: Uuid,
+    published: bool,
+) -> sqlx::Result<Option<Stage>> {
+    sqlx::query_as::<_, Stage>(
+        "UPDATE stages SET published = $2, updated_at = now() WHERE id = $1 RETURNING *",
+    )
+    .bind(id)
     .bind(published)
-    .fetch_one(pool)
+    .fetch_optional(pool)
     .await
 }
 

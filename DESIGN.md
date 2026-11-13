@@ -360,7 +360,7 @@ The bot that runs the room sits in the match column's room bar as a 24px pill wi
 The signed-in player's team and next match on the landing: a frost-wash row with 8px radius (22% frost on hover), its section head ruled in frost instead of ink, the "Takımın" label in frost display type.
 
 ### Stage track
-The stages in play order as a horizontal strip of 3px top rules: done in muted, upcoming in hairline, current in frost with the crystal glow on its rule and "Şu an" under its name.
+The stages in play order as a horizontal strip of 3px top rules: done in muted, upcoming in hairline, current in frost with the crystal glow on its rule and "Şu an" under its name. Where it picks the stage a page shows (`/stats`, pick'em, and `StageTabs` on `/mappool` and the mappool editor), each stage is a button that wraps into a grid rather than scrolling, its note line in 12px under the name, and the shown one on the hover wash in ink at 800. On the mappool pages the best of follows the name on its baseline as a subtle display figure (muted when shown), the shown stage's rule turns ink, the stage the tournament is in keeps its frost rule and glow with "Şu an" (or "2 maç oynanıyor" while matches are on) in frost under it, the editor adds "Yayında"/"Taslak" with their dots and dashes a draft's rule, and the page's own controls (the pack's "Toplu indir", the editor's buttons) follow the track, under it once there are six stages or more.
 
 ### Atmosphere and artwork
 - **Gear linework and grain:** on the page ground only, site-wide, behind all content. Never inside a surface, a card or a section.

@@ -12,6 +12,7 @@ import { Countdown } from "../components/Countdown";
 import { FixtureRow } from "../components/FixtureRow";
 import { compareByTime, fixturePath, incomingSources, withPotentials, withScore } from "../lib/bracket";
 import { formatMatchTime } from "../lib/format";
+import { stageTrack } from "../lib/stageTrack";
 import { useLiveRefresh } from "../lib/useLiveRefresh";
 import { useLiveBracket } from "../live/LiveContext";
 import bannerLarge from "../assets/banner-1316.webp";
@@ -26,14 +27,6 @@ interface Data {
   bracket: PublicBracket | null;
   qualifiers: PublicQualifiers | null;
   stages: Stage[] | null;
-}
-
-type StageState = "done" | "current" | "upcoming";
-
-interface TrackStage {
-  id: string;
-  name: string;
-  state: StageState;
 }
 
 /**
@@ -82,7 +75,10 @@ export function LandingPage() {
   );
   const teamsById = useMemo(() => new Map(data?.bracket?.teams.map((t) => [t.id, t])), [data]);
   const sources = useMemo(() => incomingSources(matches), [matches]);
-  const track = useMemo(() => (data ? stageTrack(data) : []), [data]);
+  const track = useMemo(
+    () => (data ? stageTrack(data.bracket?.matches ?? [], data.qualifiers?.lobbies ?? [], data.stages ?? []) : []),
+    [data],
+  );
 
   // Potential matches are played too, if their teams get there: they're listed in their bracket match's place.
   const upcoming = withPotentials(matches)
@@ -297,37 +293,3 @@ function MyTeamSection({ data, myTeamId }: { data: PublicBracket; myTeamId: stri
   );
 }
 
-/**
- * The tournament's stages in play order (the qualifier first), each marked done, current or
- * upcoming from its matches: the current one is where the earliest unfinished match is.
- */
-function stageTrack({ bracket, qualifiers, stages }: Data): TrackStage[] {
-  const matches = bracket?.matches ?? [];
-  const byId = new Map<string, { id: string; name: string; position: number; qualifier: boolean }>();
-  for (const s of stages ?? []) byId.set(s.id, { id: s.id, name: s.name, position: s.position, qualifier: s.is_qualifier });
-  for (const m of matches) {
-    if (m.stage && !byId.has(m.stage.id))
-      byId.set(m.stage.id, { id: m.stage.id, name: m.stage.name, position: m.stage.position, qualifier: false });
-  }
-  const ordered = [...byId.values()].sort((a, b) => Number(b.qualifier) - Number(a.qualifier) || a.position - b.position);
-
-  const lobbies = qualifiers?.lobbies ?? [];
-  const qualifiersOpen = lobbies.some((l) => !l.concluded_at);
-  const nextMatch = matches.filter((m) => !m.concluded_at).sort(compareByTime)[0];
-  // Once a bracket match is played the qualifiers are over, even if a lobby was never closed.
-  const bracketStarted = matches.some((m) => m.concluded_at);
-  const currentId = qualifiersOpen && !bracketStarted
-    ? ordered.find((s) => s.qualifier)?.id
-    : nextMatch?.stage?.id;
-
-  const currentIndex = ordered.findIndex((s) => s.id === currentId);
-  return ordered.map((s, i) => {
-    const own = matches.filter((m) => m.stage?.id === s.id);
-    const finished = s.qualifier
-      ? (lobbies.length > 0 && !qualifiersOpen) || bracketStarted
-      : own.length > 0 && own.every((m) => m.concluded_at);
-    const state: StageState =
-      s.id === currentId ? "current" : finished || (currentIndex >= 0 && i < currentIndex) ? "done" : "upcoming";
-    return { id: s.id, name: s.name, state };
-  });
-}

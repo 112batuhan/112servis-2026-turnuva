@@ -18,30 +18,33 @@ use crate::{
     AppState,
 };
 
-// Routes under the `/api` nest: the stages' map pools. The authed endpoints require
-// map_pooler+, except that pool testers and custom mappers can also read the stages
-// (`view_guard`) but change nothing. Managing the stages themselves is in
-// handlers/stages.rs. The two `/public/*` ones take no AuthUser and only expose
+// Routes under the `/api` nest: the stages' map pools, all under `/mappool` (and
+// `/public/mappool`). The authed endpoints require map_pooler+, except that pool testers
+// and custom mappers can also read a stage's pool (`view_guard`) but change nothing. The
+// stages themselves (creating, renaming, ordering, listing them) are in
+// handlers/stages.rs. The `/public/mappool/*` one takes no AuthUser and only exposes
 // published stages.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/stages", get(list_stages))
-        .route("/stages/{id}", get(get_stage))
-        .route("/stages/{id}/pack", put(set_stage_pack_url))
-        .route("/stages/{id}/categories", post(create_category))
-        .route("/categories/reorder", post(reorder_categories))
+        .route("/mappool/stages/{id}", get(get_stage))
+        .route("/mappool/stages/{id}/published", put(set_stage_published))
+        .route("/mappool/stages/{id}/pack", put(set_stage_pack_url))
+        .route("/mappool/stages/{id}/categories", post(create_category))
+        .route("/mappool/categories/reorder", post(reorder_categories))
         .route(
-            "/categories/{id}",
+            "/mappool/categories/{id}",
             delete(delete_category).patch(update_category),
         )
-        .route("/categories/{id}/slots", post(add_slot))
-        .route("/slots/{id}", patch(update_slot).delete(delete_slot))
-        .route("/pool", post(add_map))
-        .route("/maps/{id}", patch(move_map).delete(delete_map))
-        .route("/maps/{id}/notes", patch(update_map_notes))
-        .route("/maps/{id}/stats", post(recompute_map_stats))
-        .route("/public/stages", get(list_public_stages))
-        .route("/public/stages/{id}", get(get_public_stage))
+        .route("/mappool/categories/{id}/slots", post(add_slot))
+        .route(
+            "/mappool/slots/{id}",
+            patch(update_slot).delete(delete_slot),
+        )
+        .route("/mappool/maps", post(add_map))
+        .route("/mappool/maps/{id}", patch(move_map).delete(delete_map))
+        .route("/mappool/maps/{id}/notes", patch(update_map_notes))
+        .route("/mappool/maps/{id}/stats", post(recompute_map_stats))
+        .route("/public/mappool/stages/{id}", get(get_public_stage))
 }
 
 // Every authed map pool endpoint that changes something requires the map_pooler role
@@ -51,8 +54,8 @@ fn guard(user: &AuthUser) -> Result<(), AppError> {
 }
 
 // Reading the editor's view (unpublished stages, editor notes) is also open to pool
-// testers and custom mappers.
-fn view_guard(user: &AuthUser) -> Result<(), AppError> {
+// testers and custom mappers; handlers/stages.rs lists the stages behind it too.
+pub(super) fn view_guard(user: &AuthUser) -> Result<(), AppError> {
     if user.roles.can_view_pool() {
         Ok(())
     } else {
@@ -62,15 +65,7 @@ fn view_guard(user: &AuthUser) -> Result<(), AppError> {
 
 // ---------- stages ----------
 
-async fn list_stages(
-    State(state): State<AppState>,
-    user: AuthUser,
-) -> Result<impl IntoResponse, AppError> {
-    view_guard(&user)?;
-    Ok(Json(db::stages::list_stages(&state.db).await?))
-}
-
-// GET /api/stages/:id — a stage with its categories and every relevant map (the
+// GET /api/mappool/stages/:id — a stage with its categories and every relevant map (the
 // global generic pool plus this stage's categorised maps).
 async fn get_stage(
     State(state): State<AppState>,
@@ -100,7 +95,28 @@ pub struct PackUrlBody {
 // The longest pack link kept; the column allows the same.
 const MAX_PACK_URL: usize = 2048;
 
-// PUT /api/stages/:id/pack — map poolers. The link to the stage's beatmap pack, hosted
+#[derive(Debug, Deserialize)]
+pub struct PublishedBody {
+    published: bool,
+}
+
+// PUT /api/mappool/stages/:id/published — map poolers. Publishes or unpublishes the
+// stage's pool, which the public mappool page and the stage lists then show.
+async fn set_stage_published(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<PublishedBody>,
+) -> Result<impl IntoResponse, AppError> {
+    guard(&user)?;
+    Ok(Json(
+        db::stages::set_stage_published(&state.db, id, body.published)
+            .await?
+            .ok_or(GeneralError::NotFound)?,
+    ))
+}
+
+// PUT /api/mappool/stages/:id/pack — map poolers. The link to the stage's beatmap pack, hosted
 // elsewhere; empty or null takes it off. The public mappool page offers it.
 async fn set_stage_pack_url(
     State(state): State<AppState>,
@@ -160,7 +176,7 @@ pub struct UpdateCategoryBody {
     color: Option<String>,
 }
 
-// POST /api/categories/reorder — persist a new category order.
+// POST /api/mappool/categories/reorder — persist a new category order.
 async fn reorder_categories(
     State(state): State<AppState>,
     user: AuthUser,
@@ -171,7 +187,7 @@ async fn reorder_categories(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// PATCH /api/categories/:id — rename and/or recolour a category.
+// PATCH /api/mappool/categories/:id — rename and/or recolour a category.
 async fn update_category(
     State(state): State<AppState>,
     user: AuthUser,
@@ -202,7 +218,7 @@ async fn delete_category(
 
 // ---------- category slots ----------
 
-// POST /api/categories/:id/slots — add a slot to a category.
+// POST /api/mappool/categories/:id/slots — add a slot to a category.
 async fn add_slot(
     State(state): State<AppState>,
     user: AuthUser,
@@ -217,7 +233,7 @@ pub struct UpdateSlotBody {
     editor_notes: String,
 }
 
-// PATCH /api/slots/:id — update a slot's editor notes.
+// PATCH /api/mappool/slots/:id — update a slot's editor notes.
 async fn update_slot(
     State(state): State<AppState>,
     user: AuthUser,
@@ -230,7 +246,7 @@ async fn update_slot(
     ))
 }
 
-// DELETE /api/slots/:id — remove a slot.
+// DELETE /api/mappool/slots/:id — remove a slot.
 async fn delete_slot(
     State(state): State<AppState>,
     user: AuthUser,
@@ -300,7 +316,7 @@ pub struct AddMapBody {
     mods: String,
 }
 
-// POST /api/pool — add a map (beatmap id + mods) to the generic pool. The beatmap is
+// POST /api/mappool/maps — add a map (beatmap id + mods) to the generic pool. The beatmap is
 // fetched from the osu! API, its mod stats are resolved, and the whole thing (metadata +
 // locked stats) is stored self-contained in one pool_maps row.
 async fn add_map(
@@ -344,7 +360,7 @@ pub struct MoveMapBody {
     slot_id: Option<Uuid>,
 }
 
-// PATCH /api/maps/:id — assign a map to a slot or back to the generic pool. Stats and
+// PATCH /api/mappool/maps/:id — assign a map to a slot or back to the generic pool. Stats and
 // mods are locked, so nothing about them changes.
 async fn move_map(
     State(state): State<AppState>,
@@ -360,7 +376,7 @@ async fn move_map(
     Ok(Json(map))
 }
 
-// POST /api/maps/:id/stats — resolve the map's stats again from osu! and lock them in
+// POST /api/mappool/maps/:id/stats — resolve the map's stats again from osu! and lock them in
 // anew: for maps added while AR/OD missed their mods or before HR stats were stored, or
 // a beatmap osu! has since changed. Mods, metadata, slot and notes stay.
 async fn recompute_map_stats(
@@ -384,7 +400,7 @@ async fn recompute_map_stats(
     Ok(Json(map))
 }
 
-// DELETE /api/maps/:id — remove a map from the pool entirely.
+// DELETE /api/mappool/maps/:id — remove a map from the pool entirely.
 async fn delete_map(
     State(state): State<AppState>,
     user: AuthUser,
@@ -404,7 +420,7 @@ pub struct UpdateMapNotesBody {
     editor_notes: Option<String>,
 }
 
-// PATCH /api/maps/:id/notes — update a map's public and/or editor notes.
+// PATCH /api/mappool/maps/:id/notes — update a map's public and/or editor notes.
 async fn update_map_notes(
     State(state): State<AppState>,
     user: AuthUser,
@@ -424,10 +440,7 @@ async fn update_map_notes(
 
 // ---------- public (unauthenticated) — published stages only ----------
 
-async fn list_public_stages(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    Ok(Json(db::stages::list_published_stages(&state.db).await?))
-}
-
+// GET /api/public/mappool/stages/:id
 async fn get_public_stage(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

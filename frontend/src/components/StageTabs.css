@@ -1,72 +1,162 @@
+/* The stages as the site's stage track (see /stats' .stats-track): 3px rules over the names,
+   wrapping into a grid rather than scrolling, with the page's own controls after it. */
 .stage-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2) var(--space-3);
-  margin-bottom: var(--space-4);
+  gap: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-5);
 }
 
 .stage-tabs {
+  flex: 1 1 24rem;
+  min-width: 0;
+}
+
+/* A full tournament's worth of stages takes the whole row, so it stays on one line where it fits;
+   the controls go under it. */
+.stage-bar:has(.stage-tabs li:nth-child(6)) .stage-tabs {
+  flex-basis: 100%;
+}
+
+.stage-tabs ol {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-tabs li {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  flex: 1 1 auto;
 }
 
 .stage-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  height: var(--control-height);
-  padding: 0 var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  font-size: var(--text-md);
-  font-weight: 500;
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: var(--space-2);
+  border: none;
+  border-top: 3px solid var(--color-border);
+  background: none;
+  color: var(--color-text-subtle);
+  text-align: left;
   transition:
-    color var(--duration-fast) ease,
-    border-color var(--duration-fast) ease,
-    background-color var(--duration-fast) ease;
+    background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
 }
 
 .stage-tab:hover {
-  color: var(--color-text);
-  border-color: var(--color-border-strong);
+  background: var(--color-hover);
+  color: var(--color-text-muted);
 }
 
-.stage-tab[aria-current="page"] {
+/* The shown stage: on the wash in ink, its rule in ink, its name at 800. */
+.stage-tab[aria-pressed="true"] {
+  border-top-color: var(--color-text);
+  background: var(--color-hover);
   color: var(--color-text);
-  border-color: var(--color-primary);
-  background: var(--color-primary-soft);
 }
 
-/* How many maps the stage's matches go to, as a quiet figure after its name. */
+/* The stage the tournament is in keeps its frost rule when shown, and glows like the crystal;
+   a shadow over the rule keeps the glow on it. */
+.stage-tab.is-current {
+  border-top-color: var(--color-primary);
+}
+
+.stage-tab.is-current::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: 0;
+  left: 0;
+  height: 3px;
+  box-shadow: var(--glow);
+  pointer-events: none;
+}
+
+/* A draft (editor only) isn't public yet: its rule is dashed, like the "not yet" status chips. */
+.stage-tab.is-draft {
+  border-top-style: dashed;
+}
+
+/* The name and, on its baseline, the best of. */
+.stage-tab-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+}
+
+.stage-tab-name {
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.stage-tab[aria-pressed="true"] .stage-tab-name {
+  font-weight: 800;
+}
+
+.stage-tab-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+/* How many maps the stage's matches go to, as a quiet display figure after the name. */
 .stage-tab-bo {
   color: var(--color-text-subtle);
   font-family: var(--font-display);
   font-stretch: var(--font-display-stretch);
   font-size: var(--text-md);
   font-weight: 700;
+  line-height: 1.1;
   font-variant-numeric: tabular-nums;
 }
 
-.stage-tab[aria-current="page"] .stage-tab-bo {
+.stage-tab[aria-pressed="true"] .stage-tab-bo {
   color: var(--color-text-muted);
 }
 
-/* Published = filled green; draft = hollow amber ring, so it isn't colour-only. */
+.stage-tab-now {
+  color: var(--color-primary);
+}
+
+.stage-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Published = filled green; draft = hollow amber ring, beside its word. */
 .stage-dot {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
 }
 
-.stage-dot.is-published {
+.stage-status.is-published .stage-dot {
   background: var(--color-success);
 }
 
-.stage-dot.is-draft {
+.stage-status.is-draft .stage-dot {
   border: 2px solid var(--color-warning);
+}
+
+.stage-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
 }

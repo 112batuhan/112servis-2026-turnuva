@@ -2,7 +2,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{patch, post, put},
+    routing::{get, patch, post, put},
     Json, Router,
 };
 use serde::Deserialize;
@@ -22,16 +22,32 @@ use crate::{
 // Routes under the `/api` nest. Stages are the tournament's rounds, which bracket matches
 // also point at, so only hosts create, rename, reorder and delete them and say how their
 // matches are played (the qualifier stage, best of, ban and pick order). Map poolers
-// publish them and fill their pools (handlers/mappool.rs, which also lists and reads
-// them); the pick'em's window per stage is in handlers/pickem.rs.
+// publish them and fill their pools (handlers/mappool.rs, under `/mappool`); the
+// pick'em's window per stage is in handlers/pickem.rs.
 pub fn routes() -> Router<AppState> {
     Router::new()
-        .route("/stages", post(create_stage))
+        .route("/stages", get(list_stages).post(create_stage))
         .route("/stages/reorder", post(reorder_stages))
         .route("/stages/qualifier", put(set_qualifier_stage))
-        .route("/stages/{id}", patch(update_stage).delete(delete_stage))
+        .route("/stages/{id}", patch(rename_stage).delete(delete_stage))
         .route("/stages/{id}/best-of", put(set_stage_best_of))
         .route("/stages/{id}/draft-order", put(set_stage_draft_order))
+        .route("/public/stages", get(list_public_stages))
+}
+
+// GET /api/stages — every stage, published or not; readable by whoever may view the
+// map pool editor (`mappool::view_guard`).
+async fn list_stages(
+    State(state): State<AppState>,
+    user: AuthUser,
+) -> Result<impl IntoResponse, AppError> {
+    super::mappool::view_guard(&user)?;
+    Ok(Json(db::stages::list_stages(&state.db).await?))
+}
+
+// GET /api/public/stages — the published stages only, no auth.
+async fn list_public_stages(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
+    Ok(Json(db::stages::list_published_stages(&state.db).await?))
 }
 
 #[derive(Debug, Deserialize)]
@@ -68,33 +84,27 @@ async fn delete_stage(
 }
 
 #[derive(Debug, Deserialize)]
-pub struct UpdateStageBody {
-    // Each field is optional — only the ones present are changed.
-    #[serde(default)]
-    name: Option<String>,
-    #[serde(default)]
-    published: Option<bool>,
+pub struct RenameStageBody {
+    name: String,
 }
 
-// PATCH /api/stages/:id — rename (host-only) and/or publish/unpublish a stage's pool.
-async fn update_stage(
+// PATCH /api/stages/:id — host-only. Renames a stage. Publishing its pool is
+// `PUT /api/mappool/stages/:id/published`.
+async fn rename_stage(
     State(state): State<AppState>,
     user: AuthUser,
     Path(id): Path<Uuid>,
-    Json(body): Json<UpdateStageBody>,
+    Json(body): Json<RenameStageBody>,
 ) -> Result<impl IntoResponse, AppError> {
-    user.require_role(Role::MapPooler)?;
-    if body.name.is_some() {
-        user.require_role(Role::Host)?;
-    }
-    let name = body.name.as_deref().map(str::trim);
-    if let Some(n) = name {
-        if n.is_empty() {
-            return Err(PoolError::NameRequired.into());
-        }
+    user.require_role(Role::Host)?;
+    let name = body.name.trim();
+    if name.is_empty() {
+        return Err(PoolError::NameRequired.into());
     }
     Ok(Json(
-        db::stages::update_stage(&state.db, id, name, body.published).await?,
+        db::stages::rename_stage(&state.db, id, name)
+            .await?
+            .ok_or(GeneralError::NotFound)?,
     ))
 }
 
