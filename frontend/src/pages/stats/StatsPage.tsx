@@ -11,7 +11,7 @@ import { formatClock } from "../../lib/format";
 import { MapBoard } from "./MapBoard";
 import { PoolStats } from "./PoolStats";
 import { Standings } from "./Standings";
-import { buildIndex, isTab, ownTeamId, TABS, type StatsIndex, type StatsTab } from "./statsModel";
+import { buildIndex, isTab, ownTeamId, TABS, ToolsSlot, type StatsIndex, type StatsTab } from "./statsModel";
 import { statsCache, useStageStats } from "./useStageStats";
 import "./StatsPage.css";
 
@@ -26,6 +26,7 @@ export function StatsPage() {
   const [params, setParams] = useSearchParams();
   const [stages, setStages] = useState<PublicStage[] | null>(null);
   const [stagesError, setStagesError] = useState<string | null>(null);
+  const [toolsSlot, setToolsSlot] = useState<HTMLDivElement | null>(null);
 
   useEffect(() => {
     // Only a published stage has statistics to show; the rest are on the landing page's track.
@@ -114,20 +115,23 @@ export function StatsPage() {
       {shown && index && (
         <div className={stats.stale ? "stats-body is-stale" : "stats-body"} aria-busy={stats.stale}>
           <StageSummary stage={shown} index={index} />
-          <nav className="stats-tabs" aria-label="İstatistik bölümleri">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                className="stats-tab"
-                aria-pressed={t.id === tab}
-                onClick={() => update({ tab: t.id })}
-              >
-                {t.label}
-                <span className="stats-tab-count">{tabCount(t.id, index)}</span>
-              </button>
-            ))}
-          </nav>
+          <div className="stats-bar">
+            <nav className="stats-tabs" aria-label="İstatistik bölümleri">
+              {TABS.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  className="stats-tab"
+                  aria-pressed={t.id === tab}
+                  onClick={() => update({ tab: t.id })}
+                >
+                  {t.label}
+                  <span className="stats-tab-count">{tabCount(t.id, index)}</span>
+                </button>
+              ))}
+            </nav>
+            <div className="stats-tools" ref={setToolsSlot} />
+          </div>
           {index.data.stats.plays.length === 0 && tab !== "teams" && tab !== "players" ? (
             <p className="stats-empty">
               {shown.is_qualifier
@@ -135,14 +139,16 @@ export function StatsPage() {
                 : "Bu stage'de henüz oynanmış bir map yok. Maçlar oynandıkça her map bittiğinde skorlar burada görünür."}
             </p>
           ) : (
-            <TabPanel
-              tab={tab}
-              index={index}
-              ownTeam={ownTeam}
-              mapId={params.get("map")}
-              onMap={(id) => update({ map: id })}
-              onOpenMap={(id) => update({ tab: "map-players", map: id })}
-            />
+            <ToolsSlot.Provider value={toolsSlot}>
+              <TabPanel
+                tab={tab}
+                index={index}
+                ownTeam={ownTeam}
+                mapId={params.get("map")}
+                onMap={(id) => update({ map: id })}
+                onOpenMap={(id) => update({ tab: "map-players", map: id })}
+              />
+            </ToolsSlot.Provider>
           )}
         </div>
       )}
@@ -281,13 +287,15 @@ function ZExplainer({ qualifier }: { qualifier: boolean }) {
     <details className="stats-explain">
       <summary>Z skoru nasıl hesaplanıyor?</summary>
       <div className="stats-explain-body">
+        <p className="stats-formula">Z = (skor − ortalama) / standart sapma</p>
+        <p>Standart sapma, o map'teki skorların ortalamadan ne kadar saptığının ölçüsüdür:</p>
+        <p className="stats-formula">σ = √( Σ(skor − ortalama)² / (skor sayısı − 1) )</p>
         <p>
-          Her map'te, o map'i oynayanların skorlarının ortalaması ve standart sapması alınır. Bir skorun Z'si, o
-          ortalamadan kaç standart sapma yukarıda (+) ya da aşağıda (−) olduğudur. Böylece zor ve kolay mapler aynı
-          ağırlıkla sayılır: herkesin düşük aldığı bir mapte iyi oynamak, herkesin yüksek aldığı bir mapteki kadar
-          değerlidir. Takımların Z'si iki oyuncunun toplam skorundan, oyuncularınki kendi skorlarından hesaplanır.
+          Z sayısı, skorun ortalamadan ne kadar yukarıda veya aşağıda olduğunu hesaplar. Bu sayede herkesin iyi
+          oynadığı map'lerde düşük skor yapmak ya da herkesin kötü oynadığı map'te iyi skor yapmak, herkese yakın skor
+          yapmaktan daha ağırlıklıdır.
         </p>
-        {qualifier ? (
+        {qualifier && (
           <>
             <p>
               <strong>Seeding:</strong> takımlar bütün maplerdeki Z'lerinin toplamına göre sıralanır; bracket'taki
@@ -299,11 +307,6 @@ function ZExplainer({ qualifier }: { qualifier: boolean }) {
               oynanmamış ya da sürmekte olan takımların eksik mapleri henüz sayılmaz.
             </p>
           </>
-        ) : (
-          <p>
-            Sıralama, oynanan maplerdeki Z'lerin ortalamasıdır. Bir takım aynı map'i iki maçta oynadıysa ikisi de
-            sayılır. Pick ve ban oranları, stage'de oynanmış maçlara göredir.
-          </p>
         )}
       </div>
     </details>

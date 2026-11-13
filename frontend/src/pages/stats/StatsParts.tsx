@@ -1,4 +1,5 @@
-import type { CSSProperties } from "react";
+import { useContext, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import type { Team } from "../../api/types";
 import { TeamBanner } from "../../components/bracket/TeamBanner";
@@ -6,8 +7,14 @@ import { LiveMark } from "../../components/LiveMark";
 import { TeamPopover } from "../../components/TeamPopover";
 import { matchPagePath } from "../../lib/bracket";
 import type { PoolEntry } from "../../lib/matchPool";
-import { formatZ, type StatPlayer, type StatsIndex } from "./statsModel";
+import { formatZ, ToolsSlot, type StatPlayer, type StatsIndex } from "./statsModel";
 import "./StatsParts.css";
+
+/** A section's controls (search, ordering, view), set at the end of the tab strip's row. */
+export function PanelTools({ children }: { children: ReactNode }) {
+  const slot = useContext(ToolsSlot);
+  return slot ? createPortal(children, slot) : null;
+}
 
 // How many deviations fill half the meter.
 const Z_SPAN = 3;

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { StatMap } from "../../api/types";
 import type { PoolEntry } from "../../lib/matchPool";
-import { MapLabel, MatchCode, PlayerName, TeamName } from "./StatsParts";
+import { MapLabel, MatchCode, PanelTools, PlayerName, TeamName } from "./StatsParts";
 import { accuracyUnknown, formatAccuracy, formatMods, formatScore, formatShare, type StatsIndex } from "./statsModel";
 import "./PoolStats.css";
 
@@ -40,13 +40,8 @@ export function PoolStats({ index, ownTeam, onOpenMap }: Props) {
 
   return (
     <section className="pool-stats" aria-label="Mappool istatistikleri">
-      <div className="stats-toolbar">
-        <p className="stats-toolbar-note">
-          {bracket
-            ? `Pick ve ban oranları stage'de oynanmış ${matches} maça göre. En iyi skorlar bu stage'in maçlarından.`
-            : "Her map'in kaç takımca oynandığı, ortalaması ve en iyi skorları. Takım skoru iki oyuncunun toplamıdır."}
-        </p>
-        {bracket && (
+      {bracket && (
+        <PanelTools>
           <div className="bracket-view-tabs" role="group" aria-label="Sıralama">
             {(
               [
@@ -60,8 +55,8 @@ export function PoolStats({ index, ownTeam, onOpenMap }: Props) {
               </button>
             ))}
           </div>
-        )}
-      </div>
+        </PanelTools>
+      )}
 
       <div className={bracket ? "pool-stats-sheet is-bracket" : "pool-stats-sheet"}>
         <div className="pool-stats-head" aria-hidden="true">

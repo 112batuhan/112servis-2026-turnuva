@@ -42,17 +42,14 @@
   color: var(--color-text-subtle);
 }
 
-/* The map shown: its cover, label and title over a heavy rule, the field's figures at its end. */
+/* The map shown: its cover, label and title, the field's figures at its end. The table's own heavy
+   rule (or the empty note's) closes it. */
 .map-board-head {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3) var(--space-5);
-  padding-bottom: var(--space-3);
-  border-bottom: var(--rule-heavy);
-  /* As much room as the toolbar under it leaves above the table, so it sits centred between the
-     two rules. */
-  margin-bottom: var(--space-3);
+  padding-bottom: var(--space-4);
 }
 
 .map-board-cover {

@@ -1,5 +1,9 @@
+import { createContext } from "react";
 import type { Player, StageStats, StatMap, StatMatch, Team } from "../../api/types";
 import { poolEntries, type PoolEntry } from "../../lib/matchPool";
+
+/** Where the open section puts its controls: the end of the tab strip's row (`PanelTools`). */
+export const ToolsSlot = createContext<HTMLElement | null>(null);
 
 export type StatsTab = "pool" | "map-players" | "map-teams" | "players" | "teams";
 

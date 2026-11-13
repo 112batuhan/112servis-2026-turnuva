@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { StatPlayerPlay, StatTeamPlay } from "../../api/types";
-import { MapLabel, MatchCode, PlayerName, TeamWho, ZValue } from "./StatsParts";
+import { MapLabel, MatchCode, PanelTools, PlayerName, TeamWho, ZValue } from "./StatsParts";
 import {
   accuracyUnknown,
   formatAccuracy,
@@ -113,14 +113,7 @@ export function MapBoard({ kind, index, ownTeam, mapId, onMap }: Props) {
         )}
       </header>
 
-      <div className="stats-toolbar">
-        <p className="stats-toolbar-note">
-          {kind === "players"
-            ? "Map'teki her oyuncu skoru. Z, bu map'i oynayan bütün oyunculara göre."
-            : index.qualifier
-              ? "Her takımın bu map'teki skoru (son denemesi). Z, bu map'i oynayan bütün takımlara göre."
-              : "Her takım skoru; bir takım map'i iki maçta oynadıysa ikisi de listelenir."}
-        </p>
+      <PanelTools>
         <input
           type="search"
           className="input input-sm stats-search"
@@ -129,7 +122,7 @@ export function MapBoard({ kind, index, ownTeam, mapId, onMap }: Props) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-      </div>
+      </PanelTools>
 
       {teamRows.length === 0 ? (
         <p className="stats-empty">Bu map henüz oynanmadı.</p>

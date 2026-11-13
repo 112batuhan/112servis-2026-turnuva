@@ -2,7 +2,7 @@ import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { StatCell, StatDraftTally, StatStanding } from "../../api/types";
 import { Icon } from "../../components/Icon";
-import { MapLabel, PlayerName, TeamWho, ZValue } from "./StatsParts";
+import { MapLabel, PanelTools, PlayerName, TeamWho, ZValue } from "./StatsParts";
 import {
   accuracyUnknown,
   formatAccuracy,
@@ -215,69 +215,28 @@ export function Standings({ kind, index, ownTeam }: Props) {
   const ariaSort = (id: string): "ascending" | "descending" | undefined =>
     sort.id !== id ? undefined : (id === "rank") === (sort.dir === "best") ? "ascending" : "descending";
 
-  const pending = rows.filter((s) => s.pending).length;
   const drafted = rows.some((s) => s.drafts.length > 0);
 
   return (
     <section className="standings" aria-label={kind === "teams" ? "Takım sıralaması" : "Oyuncu sıralaması"}>
-      <div className="stats-toolbar">
-        <p className="stats-toolbar-note">
-          {kind === "teams"
-            ? q
-              ? "Seeding: takımlar bütün maplerdeki Z'lerinin toplamına göre sıralanır."
-              : "Takımlar oynadıkları maplerdeki Z'lerin ortalamasına göre sıralanır."
-            : q
-              ? "Oyuncular bütün maplerdeki kendi Z'lerinin toplamına göre sıralanır."
-              : "Oyuncular oynadıkları maplerdeki kendi Z'lerinin ortalamasına göre sıralanır."}
-          {pending > 0 && ` ${pending} ${kind === "teams" ? "takımın" : "oyuncunun"} lobisi henüz bitmedi; eksik mapleri bitince sayılır.`}
-        </p>
-        <div className="stats-toolbar-controls">
-          {view === "matrix" && (
-            <div className="bracket-view-tabs" role="group" aria-label="Hücrede">
-              {(
-                [
-                  ["score", "Skor"],
-                  ["accuracy", "Accuracy"],
-                  ["z", "Z"],
-                  ["rank", "Sıra"],
-                ] as const
-              ).map(([id, label]) => (
-                <button key={id} type="button" className="bracket-view-tab" aria-pressed={metric === id} onClick={() => setMetric(id)}>
-                  {label}
-                </button>
-              ))}
-            </div>
-          )}
-          {view === "matrix" && drafted && (
-            <div className="bracket-view-tabs">
-              <button type="button" className="bracket-view-tab draft-toggle" aria-pressed={showDrafts} onClick={toggleDrafts}>
-                <span className="draft-toggle-dots" aria-hidden="true">
-                  <span className="draft-dot is-team" />
-                  <span className="draft-dot is-opponent" />
-                </span>
-                Pick ve banlar
-              </button>
-            </div>
-          )}
-          <input
-            type="search"
-            className="input input-sm stats-search"
-            placeholder="Oyuncu ya da takım ara"
-            aria-label="Ara"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          {/* Last, so it holds still at the row's end while the matrix's controls come and go. */}
-          <div className="bracket-view-tabs stats-view-switch" role="group" aria-label="Görünüm">
-            <button type="button" className="bracket-view-tab" aria-pressed={view === "table"} onClick={() => setView("table")}>
-              Sıralama
-            </button>
-            <button type="button" className="bracket-view-tab" aria-pressed={view === "matrix"} onClick={() => setView("matrix")}>
-              Map tablosu
-            </button>
-          </div>
+      <PanelTools>
+        <input
+          type="search"
+          className="input input-sm stats-search"
+          placeholder="Oyuncu ya da takım ara"
+          aria-label="Ara"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <div className="bracket-view-tabs stats-view-switch" role="group" aria-label="Görünüm">
+          <button type="button" className="bracket-view-tab" aria-pressed={view === "table"} onClick={() => setView("table")}>
+            Sıralama
+          </button>
+          <button type="button" className="bracket-view-tab" aria-pressed={view === "matrix"} onClick={() => setView("matrix")}>
+            Map tablosu
+          </button>
         </div>
-      </div>
+      </PanelTools>
 
       {rows.length === 0 ? (
         <p className="stats-empty">Henüz sıralanacak bir skor yok.</p>
@@ -325,7 +284,35 @@ export function Standings({ kind, index, ownTeam }: Props) {
         </div>
       ) : (
         <>
-          {drafted && showDrafts && <DraftLegend kind={kind} />}
+          {/* What the matrix's cells show, over the matrix itself. */}
+          <div className="standings-matrix-bar">
+            <div className="bracket-view-tabs" role="group" aria-label="Hücrede">
+              {(
+                [
+                  ["score", "Skor"],
+                  ["accuracy", "Accuracy"],
+                  ["z", "Z"],
+                  ["rank", "Sıra"],
+                ] as const
+              ).map(([id, label]) => (
+                <button key={id} type="button" className="bracket-view-tab" aria-pressed={metric === id} onClick={() => setMetric(id)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {drafted && (
+              <div className="bracket-view-tabs">
+                <button type="button" className="bracket-view-tab draft-toggle" aria-pressed={showDrafts} onClick={toggleDrafts}>
+                  <span className="draft-toggle-dots" aria-hidden="true">
+                    <span className="draft-dot is-team" />
+                    <span className="draft-dot is-opponent" />
+                  </span>
+                  Pick ve banlar
+                </button>
+              </div>
+            )}
+            {drafted && showDrafts && <DraftLegend kind={kind} />}
+          </div>
           <Matrix
             rows={matrixRows}
             index={index}
