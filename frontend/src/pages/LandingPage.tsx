@@ -150,10 +150,20 @@ export function LandingPage() {
               </>
             )}
           </p>
+          {!user && (
+            <p id="landing-invite" className="landing-invite">
+              Turnuvaya kayıt olmak için, Pick'em ve daha fazlası için <strong>osu! ile giriş yap!</strong>
+            </p>
+          )}
           <div className="landing-actions">
             {!user ? (
               <>
-                <button type="button" className="btn btn-primary btn-lg" onClick={loginWithOsu}>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-lg"
+                  onClick={loginWithOsu}
+                  aria-describedby="landing-invite"
+                >
                   osu! ile giriş yap
                 </button>
                 <Link className="btn btn-secondary btn-lg" to="/mappool">
