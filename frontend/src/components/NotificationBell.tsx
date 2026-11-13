@@ -111,7 +111,7 @@ export function NotificationBell() {
   function decline(n: AppNotification) {
     const role = n.staff_role ? ROLE_AS[n.staff_role] : "";
     const others = n.staff_role === "referee" ? "hakemlere" : "yayıncılara";
-    if (window.confirm(`Maçtan ${role} olarak çıkarılacaksın ve diğer ${others} ve host'lara haber verilecek. Emin misin?`)) {
+    if (window.confirm(`Maçtan ${role} olarak çıkarılacaksın ve diğer ${others} ve hostlara haber verilecek. Emin misin?`)) {
       answer(() => declineNotification(n.id));
     }
   }
@@ -185,7 +185,11 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
   const classes = ["notif-item", !n.read && "is-unread", pending && "is-pending"].filter(Boolean).join(" ");
   // The player notifications lead to the team page; a host is sent to the teams admin instead.
   const teamPath = (n.kind === "rank_over_limit" || n.kind === "discord_left") && isHost ? "/admin/teams" : "/team";
-  const forPlayers = n.kind === "reschedule_proposed" || n.kind === "rank_over_limit" || n.kind === "discord_left";
+  const forPlayers =
+    n.kind === "reschedule_proposed" ||
+    n.kind === "reschedule_accepted" ||
+    n.kind === "rank_over_limit" ||
+    n.kind === "discord_left";
 
   let title: string;
   let body: string;
@@ -211,11 +215,15 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
           ? `${actor} maç için yeni bir saat önerdi. Bekleyen ${n.pending_proposals} öneri var.`
           : `${actor} maç için yeni bir saat önerdi. Bekleyen öneri kalmadı.`;
       break;
+    case "reschedule_accepted":
+      title = "Maç saati değişti";
+      body = `${actor} önerilen saati kabul etti, maç yeni saatine alındı.`;
+      break;
     case "rank_over_limit":
       title = "Takım rank limitini aştı";
       body =
         `${actor} oyuncusunun rank'ı ${formatRank(n.old_rank)} → ${formatRank(n.new_rank)} oldu; takım değeri ` +
-        `${formatTeamValue(n.team_value)} ile ${formatTeamValue(n.limit)} limitini aşıyor. Bundan sonrasına host'lar karar verecek.`;
+        `${formatTeamValue(n.team_value)} ile ${formatTeamValue(n.limit)} limitini aşıyor.${isHost ? "" : " Hostlar bilgilendirildi."}`;
       break;
     case "discord_left":
       title = "Oyuncu Discord'dan ayrıldı";

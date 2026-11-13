@@ -59,7 +59,7 @@ export function MatchReschedules({ onRescheduled, onError }: Props) {
       </h2>
       <p className="muted reschedule-hint">
         Rakibine istediğin kadar saat önerebilirsin. Önerilerden birini karşı takımdan bir oyuncunun kabul etmesi
-        yeterli: maç o saate alınır ve iki taraftaki diğer tüm öneriler iptal olur.
+        yeterli. Kabul ettiklerinde maç saati değişir.
       </p>
       {!data ? (
         <p className="status">Yükleniyor…</p>
@@ -114,7 +114,7 @@ function MatchCard({ match, limit, busy, run }: CardProps) {
       {match.potential && (
         <p className="muted reschedule-note">
           Bu eşleşme bu haftaki maçların sonucuna bağlı. Saatini şimdiden ayarlayın: iki takım da {matchCode(match)}{" "}
-          maçına gelirse maç burada anlaştığınız saatte oynanır, gelmezse eşleşme kendiliğinden kalkar.
+          maçına gelirse maç burada anlaştığınız saatte oynanır.
         </p>
       )}
       <p className="reschedule-current">

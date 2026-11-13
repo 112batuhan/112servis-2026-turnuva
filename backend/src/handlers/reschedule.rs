@@ -232,8 +232,8 @@ async fn delete_proposal(
 
 // POST /api/reschedules/:id/accept — a player of the other team accepts a proposed
 // time: the match moves there and every other proposal for it, from either side, is
-// dropped. Its referee and streamer are asked to confirm the new time and the hosts
-// are told (handlers/notifications.rs). The match is locked before the proposal is
+// dropped. Its referee and streamer are asked to confirm the new time, and the hosts
+// and both teams' other players are told (handlers/notifications.rs). The match is locked before the proposal is
 // read again, so of two accepts at once the second finds its proposal gone.
 async fn accept(
     State(state): State<AppState>,
@@ -270,6 +270,15 @@ async fn accept(
         user.id,
         m.referee_id,
         m.streamer_id,
+        m.starts_at,
+        proposal.starts_at,
+    )
+    .await?;
+    db::notifications::notify_players_rescheduled(
+        &mut tx,
+        match_id,
+        [team_id, proposal.team_id],
+        user.id,
         m.starts_at,
         proposal.starts_at,
     )

@@ -15,6 +15,7 @@ pub enum NotificationKind {
     RescheduleProposed,
     RankOverLimit,
     DiscordLeft,
+    RescheduleAccepted,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
@@ -383,6 +384,42 @@ pub async fn notify_proposed(
     .bind(match_id)
     .bind(team_id)
     .bind(actor_id)
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+// After a match's teams move it: every player of both teams but the one who accepted
+// is told, replacing their unread notice of an earlier move of the match.
+pub async fn notify_players_rescheduled(
+    conn: &mut PgConnection,
+    match_id: Uuid,
+    team_ids: [Uuid; 2],
+    actor_id: Uuid,
+    old_starts_at: Option<OffsetDateTime>,
+    new_starts_at: OffsetDateTime,
+) -> sqlx::Result<()> {
+    sqlx::query(
+        "DELETE FROM notifications WHERE match_id = $1 AND kind = 'reschedule_accepted' AND read_at IS NULL",
+    )
+    .bind(match_id)
+    .execute(&mut *conn)
+    .await?;
+    sqlx::query(
+        r#"
+        INSERT INTO notifications
+            (user_id, kind, match_id, team_id, actor_id, old_starts_at, new_starts_at)
+        SELECT tm.user_id, 'reschedule_accepted'::notification_kind, $1, tm.team_id, $4, $5, $6
+        FROM team_members tm
+        WHERE tm.team_id IN ($2, $3) AND tm.user_id <> $4
+        "#,
+    )
+    .bind(match_id)
+    .bind(team_ids[0])
+    .bind(team_ids[1])
+    .bind(actor_id)
+    .bind(old_starts_at)
+    .bind(new_starts_at)
     .execute(conn)
     .await?;
     Ok(())

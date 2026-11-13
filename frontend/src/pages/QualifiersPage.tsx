@@ -69,7 +69,7 @@ export function QualifiersPage() {
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
       {!data && !error && <p className="status">Yükleniyor…</p>}
 
-      {data && (
+      {data && (myTeamId || canPlay(user)) && (
         <section className={myLobby ? "qualifiers-summary is-mine" : "qualifiers-summary"}>
           {myLobby ? (
             <>
@@ -87,16 +87,11 @@ export function QualifiersPage() {
               )}
             </>
           ) : myTeamId ? (
-            <p>
-              Takımın henüz bir lobiye kayıtlı değil. Aşağıdan size uyan bir lobi seçin; her lobide en fazla{" "}
-              {data.capacity} takım olabilir.
-            </p>
-          ) : canPlay(user) ? (
+            <p>Takımın henüz bir lobiye kayıtlı değil. Aşağıdan size uyan bir lobi seçin.</p>
+          ) : (
             <p>
               Lobi seçmek için önce bir <Link to="/team">takım kur</Link>.
             </p>
-          ) : (
-            <p>Her takım, en fazla {data.capacity} takımın oynadığı eleme lobilerinden birini seçer.</p>
           )}
         </section>
       )}

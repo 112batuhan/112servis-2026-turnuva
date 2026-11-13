@@ -68,7 +68,7 @@ pub struct Notification {
     read: bool,
     #[serde(with = "time::serde::rfc3339")]
     created_at: OffsetDateTime,
-    // reschedule_proposed: the recipient's team; rank_over_limit: the team over the limit.
+    // reschedule_proposed, reschedule_accepted: the recipient's team; rank_over_limit: the team over the limit.
     team_id: Option<Uuid>,
     team_name: Option<String>,
     // rank_over_limit: the actor's rank before and after, and the team value it led to.

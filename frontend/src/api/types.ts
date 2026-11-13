@@ -440,7 +440,8 @@ export type NotificationKind =
   | "staff_declined"
   | "reschedule_proposed"
   | "rank_over_limit"
-  | "discord_left";
+  | "discord_left"
+  | "reschedule_accepted";
 export type MatchStaffRole = "referee" | "streamer";
 
 /**
@@ -449,7 +450,8 @@ export type MatchStaffRole = "referee" | "streamer";
  * or a host moved it); staff_declined
  * tells everyone who could take their place that one of them couldn't.
  * For players: reschedule_proposed says the opponent proposed times for a match (one notice for
- * every proposal made before it's read); rank_over_limit says a rank update took the team over the
+ * every proposal made before it's read); reschedule_accepted says a player accepted a proposed time
+ * and the match moved (to every player of both teams but them); rank_over_limit says a rank update took the team over the
  * limit (also sent to the hosts); discord_left says a team member left the Discord server (to their
  * teammate and the hosts).
  */
@@ -477,14 +479,14 @@ export interface AppNotification {
   staff_role: MatchStaffRole | null;
   /** null when the match had no time before. */
   old_starts_at: string | null;
-  /** null for the player notifications. */
+  /** null for the player notifications but reschedule_accepted. */
   new_starts_at: string | null;
   /** The answer to a confirm_time. */
   response: "confirmed" | "declined" | null;
   responded_at: string | null;
   read: boolean;
   created_at: string;
-  /** reschedule_proposed: the recipient's team; rank_over_limit: the team over the limit. */
+  /** reschedule_proposed, reschedule_accepted: the recipient's team; rank_over_limit: the team over the limit. */
   team_id: string | null;
   team_name: string | null;
   /** rank_over_limit: the actor's rank before and after, the team value it led to and the limit. */

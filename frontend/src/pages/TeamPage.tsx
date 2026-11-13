@@ -41,8 +41,7 @@ function LeftDiscordNotice({ team, left, myId }: { team: Team; left: string[]; m
   if (left.includes(myId)) {
     return (
       <p className="alert alert-error team-rank-warning" role="status">
-        Turnuvanın Discord sunucusundan ayrıldın. Maçlarının kanallarını görebilmek için sunucuya geri dön; Discord
-        hesabını <Link to="/discord">yeniden bağlarsan</Link> seni sunucuya geri ekleriz.
+        Turnuvanın Discord sunucusundan ayrıldın. Maçlarının kanallarını görebilmek için sunucuya geri dön.
       </p>
     );
   }
@@ -103,7 +102,7 @@ export function TeamPage() {
 
       {staffOnly && (
         <section className="panel">
-          <p className="status">Yetkililer (host'lar, map pooler'lar ve hakemler) turnuvayı yönettiği için takıma katılamaz. Yayıncılar oynayabilir.</p>
+          <p className="status">Yetkililer (hostlar, map pooler'lar ve hakemler) turnuvayı yönettiği için takıma katılamaz. Yayıncılar oynayabilir.</p>
         </section>
       )}
 
@@ -112,7 +111,7 @@ export function TeamPage() {
           <RankSummary status={status} />
           {frozen && (
             <section className="panel">
-              <p className="status">Host'lar takımları dondurdu, artık takım kurulamaz veya değiştirilemez.</p>
+              <p className="status">Hostlar takımları dondurdu, artık takım kurulamaz veya değiştirilemez.</p>
             </section>
           )}
           {!user.discord && !status.team && !frozen && (
@@ -131,9 +130,9 @@ export function TeamPage() {
                 {status.team.rank_warning && (
                   <p className="alert alert-error team-rank-warning" role="status">
                     {status.team.rank_warning === "over_limit"
-                      ? `Bir rank güncellemesinden sonra takım değerin ${formatTeamValue(status.team.team_value)} oldu ve ${formatTeamValue(status.limit)} limitini aşıyor.`
-                      : "Birinizin artık global rank'ı yok, bu yüzden takım limite göre kontrol edilemiyor."}{" "}
-                    Bundan sonrasına host'lar karar verecek.
+                      ? `Rank güncellemesinden sonra takımın değeri ${formatTeamValue(status.team.team_value)} oldu ve ${formatTeamValue(status.limit)} limitini aşıyor.`
+                      : "Takımdan birinin artık rank'ı yok (restrict ya da ban olabilir), bu yüzden takım limite göre kontrol edilemiyor."}{" "}
+                    Hostlar bilgilendirildi.
                   </p>
                 )}
                 <LeftDiscordNotice team={status.team} left={status.left_discord} myId={user.id} />
@@ -421,10 +420,6 @@ function RankSummary({ status }: { status: TeamStatus }) {
         >
           <span style={{ width: `${Math.min(100, (value / status.limit) * 100)}%` }} />
         </div>
-        <p className="muted team-limit-note">
-          İki oyuncunun rank'ından hesaplanır ve en fazla {formatTeamValue(status.limit)} olabilir.
-          {status.global_rank && <> Senin rank'ın {formatRank(status.global_rank)}.</>}
-        </p>
       </section>
     );
   }
