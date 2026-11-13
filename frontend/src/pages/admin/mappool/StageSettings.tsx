@@ -88,7 +88,7 @@ function PackUrlForm({
             if (e.key === "Escape") setUrl(saved);
           }}
           placeholder="https://…"
-          aria-describedby={hintId}
+          aria-describedby={saved ? hintId : undefined}
         />
         <button
           type="submit"
@@ -110,13 +110,13 @@ function PackUrlForm({
           </a>
         )}
       </form>
-      <p className="stage-pack-hint" id={hintId}>
-        {!saved
-          ? "Pack'i yüklediğin yerin linkini yapıştır. Link olunca Mappool sayfasında “Toplu indir” butonu çıkar."
-          : detail.published
+      {saved && (
+        <p className="stage-pack-hint" id={hintId}>
+          {detail.published
             ? "Mappool sayfasındaki “Toplu indir” butonu bu linke gidiyor."
             : "Stage yayınlanınca Mappool sayfasında “Toplu indir” butonu bu linke gidecek."}
-      </p>
+        </p>
+      )}
     </div>
   );
 }

@@ -32,6 +32,7 @@ import {
 import { STATUS_LABELS } from "../../lib/pickem";
 import { useDragReorder } from "../../lib/dragAndDrop";
 import { moveBy, moveToTarget, sortByIds } from "../../lib/reorder";
+import { readString, removeString, writeString } from "../../lib/storage";
 import { rememberStage } from "./mappool/useStageEditor";
 import "../../components/bracket/BracketViewTabs.css";
 import "./StagesAdminPage.css";
@@ -125,18 +126,7 @@ export function StagesAdminPage() {
         <h1>Stage'ler</h1>
         {stages && <span className="badge">{stages.length} stage</span>}
       </div>
-      <p className="stages-admin-hint">
-        Stage'ler turnuvanın turları. Her birinin bir mappool'u olur ve bracket maçları bir stage'de oynanır. Mappool'un
-        kategorilerini ve map'lerini <Link to="/admin/mappool">Mappool</Link> sekmesinde, maçların stage'ini{" "}
-        <Link to="/admin/bracket">Bracket</Link> sekmesindeki maç panelinden ayarla. Bo, stage'in maçlarının kaç map
-        üzerinden oynandığı: hakem sayfası skoru buna göre takip eder, beraberlikte tiebreaker'ı açar, maç sayfası ve
-        Discord da gösterir. Pick-ban sırası maçların ban ve pick'lerini sırayla yazar: <code>p</code> seçilip oynanan
-        map, <code>b</code> ban; <code>1</code> hakem sayfasında ilk pick'i ya da ban'ı işaretlenen takım (roll'u
-        kazanan taraf), <code>2</code> diğeri; sondaki <code>*</code> sonrasında pick'lerin sırayla gittiğini söyler
-        (ör. <code>{EXAMPLE_DRAFT_ORDER}</code>). Boş bırakılan stage <code>{DEFAULT_DRAFT_ORDER}</code> ile oynanır.
-        Pick'em, bir önceki stage'in bütün maçları bitince açılır ve stage'in ilk maçıyla kilitlenir; gerekirse "Aç" ile
-        erken açabilir (ilk maç başlayınca yine kilitlenir) ya da "Kapat" ile hemen kilitleyebilirsin.
-      </p>
+      <StagesHelp />
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
 
       <NewStageForm busy={busy} onCreate={(name) => run(() => createStage(name))} />
@@ -382,6 +372,128 @@ function PickemControl({
         ))}
       </span>
     </span>
+  );
+}
+
+const HELP_COLLAPSED_KEY = "stages-admin-help-collapsed";
+/** The best of the help's example uses: the bracket's usual length. */
+const BEST_OF_EXAMPLE = 9;
+
+/**
+ * How the page works, as a ruled sheet: one row per control on a stage's row, in the row's order.
+ * Open until a host closes it; that's remembered.
+ */
+function StagesHelp() {
+  const [open, setOpen] = useState(() => readString(HELP_COLLAPSED_KEY) === null);
+  const example = parseDraftOrder(EXAMPLE_DRAFT_ORDER);
+  return (
+    <details
+      className="stages-help"
+      open={open}
+      onToggle={(e) => {
+        const next = e.currentTarget.open;
+        setOpen(next);
+        if (next) removeString(HELP_COLLAPSED_KEY);
+        else writeString(HELP_COLLAPSED_KEY, "1");
+      }}
+    >
+      <summary>Nasıl çalışır?</summary>
+      <div className="stages-help-sheet">
+        <section className="stages-help-row">
+          <h2>Stage'ler</h2>
+          <div className="stages-help-body">
+            <p>
+              Turnuvanın turları, oynandıkları sırayla: sürükleyerek ya da oklarla sırala, kalemle yeniden adlandır.
+              Kategoriler, map'ler ve yayınlama <Link to="/admin/mappool">Mappool</Link> sekmesinde (yayınlanana kadar
+              mappool <em>Taslak</em>); bir maçın stage'i <Link to="/admin/bracket">Bracket</Link> sekmesindeki maç
+              panelinde seçilir.
+            </p>
+          </div>
+        </section>
+
+        <section className="stages-help-row">
+          <h2>Eleme mappool'u</h2>
+          <div className="stages-help-body">
+            <p>
+              Eleme lobileri seçilen stage'in map'leriyle oynanır. Eleme stage'inin pick-ban sırası ve pick'em'i olmaz.
+            </p>
+          </div>
+        </section>
+
+        <section className="stages-help-row">
+          <h2>Bo</h2>
+          <div className="stages-help-body">
+            <p>
+              Maçların kaç map üzerinden oynandığı: <span className="stages-help-code">Bo{BEST_OF_EXAMPLE}</span>'da{" "}
+              <span className="num">{firstTo(BEST_OF_EXAMPLE)}</span> map alan kazanır. Hakem sayfası skoru buna göre
+              tutar ve beraberlikte tiebreaker'ı açar; maç sayfası ve Discord da gösterir. Bo'su seçilmemiş stage'in
+              maçları pick'em'de tahmin edilemez.
+            </p>
+          </div>
+        </section>
+
+        <section className="stages-help-row">
+          <h2>Pick-ban sırası</h2>
+          <div className="stages-help-body">
+            <p>Maçın ban ve pick'leri sırayla, tireyle ayrılmış:</p>
+            <dl className="stages-help-list is-codes">
+              <div>
+                <dt className="stages-help-code">p</dt>
+                <dd>pick, oynanan map</dd>
+              </div>
+              <div>
+                <dt className="stages-help-code">b</dt>
+                <dd>ban</dd>
+              </div>
+              <div>
+                <dt className="stages-help-code">1</dt>
+                <dd>roll'u kazanan: hakem sayfasında ilk pick'i ya da ban'ı işaretlenen takım</dd>
+              </div>
+              <div>
+                <dt className="stages-help-code">2</dt>
+                <dd>diğer takım</dd>
+              </div>
+              <div>
+                <dt className="stages-help-code">*</dt>
+                <dd>sonda: ardından pick'ler sırayla</dd>
+              </div>
+            </dl>
+            {"order" in example && (
+              <p className="stages-help-example">
+                <span className="stages-help-code">{EXAMPLE_DRAFT_ORDER}</span>
+                <Icon name="arrowRight" size={12} />
+                <OrderPreview order={example.order} fallback={false} />
+              </p>
+            )}
+            <p>
+              Boş bırakılırsa <span className="stages-help-code">{DEFAULT_DRAFT_ORDER}</span>. Yazarken alanın altında
+              böyle okunur; Enter kaydeder, Esc vazgeçer.
+            </p>
+          </div>
+        </section>
+
+        <section className="stages-help-row">
+          <h2>Pick'em</h2>
+          <div className="stages-help-body">
+            <p>Bracket maçı olan, eleme dışındaki stage'lerde. Durumu satırda yazar; düğmeler:</p>
+            <dl className="stages-help-list">
+              <div>
+                <dt>Otomatik</dt>
+                <dd>Önceki stage'in bütün maçları bitince açılır, stage'in ilk maçı başlayınca kilitlenir.</dd>
+              </div>
+              <div>
+                <dt>Aç</dt>
+                <dd>Şimdi açar, saati geçmiş olsa bile; her maç kendi odası açılınca ya da sonucu girilince kilitlenir.</dd>
+              </div>
+              <div>
+                <dt>Kapat</dt>
+                <dd>Hemen kilitler; tahminlerin dağılımı açıklanır.</dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+      </div>
+    </details>
   );
 }
 
