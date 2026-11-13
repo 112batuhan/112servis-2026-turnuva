@@ -64,7 +64,8 @@ pub struct AppState {
     pub discord_client: OAuthClient,
     // For osu! and Discord API calls.
     pub http_client: reqwest::Client,
-    // For OAuth token exchanges: no redirects, as oauth2 asks.
+    // For OAuth token exchanges (no redirects, as oauth2 asks), and the profile
+    // request right after each, which reuses the exchange's connection.
     pub oauth_http: reqwest::Client,
     pub db: PgPool,
     pub oauth_states: auth::OAuthStates,

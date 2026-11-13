@@ -148,8 +148,10 @@ async fn osu_sign_in(state: &AppState, code: String) -> Result<Uuid, AppError> {
         .await
         .map_err(|err| AppError::OsuTokenExchange(crate::error::chain(&err)))?;
 
+    // On oauth_http so it reuses the connection the token exchange just opened to
+    // osu!, rather than paying for a second TLS handshake.
     let profile =
-        osu_api::user::fetch_current(&state.http_client, token.access_token().secret()).await?;
+        osu_api::user::fetch_current(&state.oauth_http, token.access_token().secret()).await?;
 
     let before = db::ranks::find_by_osu_id(&state.db, profile.id).await?;
     let user = db::user::upsert_osu_user(&state.db, &profile).await?;
@@ -248,8 +250,9 @@ async fn link_discord(state: &AppState, user: AuthUser, code: String) -> Result<
         .await
         .map_err(|err| AppError::DiscordTokenExchange(crate::error::chain(&err)))?;
 
+    // On oauth_http, reusing the token exchange's connection (as for osu!).
     let profile =
-        discord_api::user::fetch_current(&state.http_client, token.access_token().secret()).await?;
+        discord_api::user::fetch_current(&state.oauth_http, token.access_token().secret()).await?;
 
     // The session reads Discord status from the database, so the link applies to
     // the very next request with no cookie changes.
