@@ -627,7 +627,7 @@ function Setup({
           onSave(url.trim() || DEFAULT_OBS_URL, password, tosu.trim() || DEFAULT_TOSU_ADDR);
         }}
       >
-        <p className="dock-hint">OBS'te Araçlar → WebSocket Sunucu Ayarları'ndan sunucuyu aç; şifre oradaki.</p>
+        <p className="dock-hint">OBS'te Araçlar → WebSocket Sunucu Ayarları'ndan sunucuyu aç, oradaki şifreyi yaz</p>
         <label>
           <span>OBS adresi</span>
           <input className="input input-sm" value={url} onChange={(e) => setUrl(e.target.value)} spellCheck={false} />
@@ -651,10 +651,6 @@ function Setup({
         </button>
       </form>
       <div className="dock-sources">
-        <p className="dock-hint">
-          Overlay, turnuva istemcisinin üstüne 1920×1080 bir tarayıcı kaynağı olarak eklenir; sayfa düğmeleri ve otomatik geçiş
-          onu değiştirir.
-        </p>
         <div className="dock-source">
           <span className="dock-source-name">Overlay</span>
           <code className="dock-source-url">{link}</code>
