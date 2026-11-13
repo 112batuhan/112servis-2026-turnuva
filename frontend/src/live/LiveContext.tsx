@@ -5,7 +5,8 @@ import { useAuth } from "../auth/AuthContext";
 
 // One WebSocket per tab to the server's live hub (handlers/live.rs): score changes as
 // they're saved, a signal to reload the bracket when anything else about it changes,
-// and, for staff, who has each match's referee page open and what changed on it. Pages subscribe to the
+// and, for staff, who has each match's referee page open and what changed on it; a signed-in
+// user's tabs also hear when their notifications change. Pages subscribe to the
 // events; the referee page says which match it shows, and the match pages which match they
 // follow (`watch`): its room as the bots read it and its chat, as they change. The public
 // match page is counted among that match's spectators and is sent who else is watching. It reconnects on its own and
@@ -23,7 +24,9 @@ export type LiveEvent =
   /** The watched match's room as its bot reads it now. */
   | { type: "room"; match_id: string; room: LiveRoom }
   /** Staff: a bot connected, dropped, or took or left a room. */
-  | { type: "bancho" };
+  | { type: "bancho" }
+  /** The signed-in user's notifications changed (one arrived, was read or answered, or was replaced). */
+  | { type: "notifications" };
 
 type ServerMsg =
   | LiveEvent
@@ -221,8 +224,8 @@ export function useLiveBracket(onScore: (event: Extract<LiveEvent, { type: "scor
         callbacks.current.onScore(event);
         return;
       }
-      // None of them changes what the bracket shows.
-      if (["match", "referee", "chat", "room", "bancho"].includes(event.type)) return;
+      // The others don't change what the bracket shows.
+      if (event.type !== "bracket") return;
       window.clearTimeout(timer);
       timer = window.setTimeout(() => callbacks.current.onChanged(), RELOAD_DELAY_MS);
     });

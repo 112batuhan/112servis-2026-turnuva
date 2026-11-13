@@ -454,6 +454,7 @@ async fn update_match(
     // A match that already has a channel hears about its new time there; one that
     // gets its channel now has the time on its card.
     let mut jobs = vec![Job::SyncMatch { match_id: id }];
+    let mut notified = Vec::new();
     if current.starts_at != body.starts_at {
         for match_id in
             db::potential::follow_time(&mut tx, id, current.starts_at, body.starts_at).await?
@@ -483,7 +484,7 @@ async fn update_match(
             && new_starts_at > OffsetDateTime::now_utc()
             && (current.referee_id.is_some() || current.streamer_id.is_some())
         {
-            db::notifications::ask_confirm_time(
+            notified = db::notifications::ask_confirm_time(
                 &mut tx,
                 id,
                 user.id,
@@ -499,6 +500,7 @@ async fn update_match(
     state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await.map_err(edit_error)?;
     state.live.bracket_changed();
+    state.live.notifications_changed(notified);
     Ok(StatusCode::NO_CONTENT)
 }
 

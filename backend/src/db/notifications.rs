@@ -1,3 +1,7 @@
+//! Notification rows. Every write that adds or drops a user's notifications returns
+//! those users, so the caller can tell their open tabs once it commits
+//! (`Live::notifications_changed`).
+
 use serde::{Deserialize, Serialize};
 use sqlx::{PgConnection, PgPool};
 use time::OffsetDateTime;
@@ -175,32 +179,35 @@ pub async fn ask_confirm_time(
     streamer_id: Option<Uuid>,
     old_starts_at: Option<OffsetDateTime>,
     new_starts_at: OffsetDateTime,
-) -> sqlx::Result<()> {
-    sqlx::query(
-        "DELETE FROM notifications WHERE match_id = $1 AND kind = 'confirm_time' AND response IS NULL",
+) -> sqlx::Result<Vec<Uuid>> {
+    let mut users: Vec<Uuid> = sqlx::query_scalar(
+        "DELETE FROM notifications WHERE match_id = $1 AND kind = 'confirm_time' AND response IS NULL RETURNING user_id",
     )
     .bind(match_id)
-    .execute(&mut *conn)
+    .fetch_all(&mut *conn)
     .await?;
-    sqlx::query(
-        r#"
-        INSERT INTO notifications
-            (user_id, kind, match_id, actor_id, staff_role, old_starts_at, new_starts_at)
-        SELECT s.user_id, 'confirm_time'::notification_kind, $1, $2, s.role, $5, $6
-        FROM (VALUES ($3::uuid, 'referee'::match_staff_role),
-                     ($4::uuid, 'streamer'::match_staff_role)) AS s (user_id, role)
-        WHERE s.user_id IS NOT NULL AND s.user_id <> $2
-        "#,
-    )
-    .bind(match_id)
-    .bind(actor_id)
-    .bind(referee_id)
-    .bind(streamer_id)
-    .bind(old_starts_at)
-    .bind(new_starts_at)
-    .execute(conn)
-    .await?;
-    Ok(())
+    users.extend(
+        sqlx::query_scalar::<_, Uuid>(
+            r#"
+            INSERT INTO notifications
+                (user_id, kind, match_id, actor_id, staff_role, old_starts_at, new_starts_at)
+            SELECT s.user_id, 'confirm_time'::notification_kind, $1, $2, s.role, $5, $6
+            FROM (VALUES ($3::uuid, 'referee'::match_staff_role),
+                         ($4::uuid, 'streamer'::match_staff_role)) AS s (user_id, role)
+            WHERE s.user_id IS NOT NULL AND s.user_id <> $2
+            RETURNING user_id
+            "#,
+        )
+        .bind(match_id)
+        .bind(actor_id)
+        .bind(referee_id)
+        .bind(streamer_id)
+        .bind(old_starts_at)
+        .bind(new_starts_at)
+        .fetch_all(conn)
+        .await?,
+    );
+    Ok(users)
 }
 
 // After a match's teams move it: its referee and streamer are asked to confirm the new
@@ -213,8 +220,8 @@ pub async fn notify_rescheduled(
     streamer_id: Option<Uuid>,
     old_starts_at: Option<OffsetDateTime>,
     new_starts_at: OffsetDateTime,
-) -> sqlx::Result<()> {
-    ask_confirm_time(
+) -> sqlx::Result<Vec<Uuid>> {
+    let mut users = ask_confirm_time(
         &mut *conn,
         match_id,
         actor_id,
@@ -224,25 +231,28 @@ pub async fn notify_rescheduled(
         new_starts_at,
     )
     .await?;
-    sqlx::query(
-        r#"
-        INSERT INTO notifications
-            (user_id, kind, match_id, actor_id, staff_role, old_starts_at, new_starts_at)
-        SELECT u.id, 'match_rescheduled'::notification_kind, $1, $2, NULL::match_staff_role, $5, $6
-        FROM osu_users u
-        WHERE 'host' = ANY(u.roles)
-          AND u.id IS DISTINCT FROM $3 AND u.id IS DISTINCT FROM $4
-        "#,
-    )
-    .bind(match_id)
-    .bind(actor_id)
-    .bind(referee_id)
-    .bind(streamer_id)
-    .bind(old_starts_at)
-    .bind(new_starts_at)
-    .execute(conn)
-    .await?;
-    Ok(())
+    users.extend(
+        sqlx::query_scalar::<_, Uuid>(
+            r#"
+            INSERT INTO notifications
+                (user_id, kind, match_id, actor_id, staff_role, old_starts_at, new_starts_at)
+            SELECT u.id, 'match_rescheduled'::notification_kind, $1, $2, NULL::match_staff_role, $5, $6
+            FROM osu_users u
+            WHERE 'host' = ANY(u.roles)
+              AND u.id IS DISTINCT FROM $3 AND u.id IS DISTINCT FROM $4
+            RETURNING user_id
+            "#,
+        )
+        .bind(match_id)
+        .bind(actor_id)
+        .bind(referee_id)
+        .bind(streamer_id)
+        .bind(old_starts_at)
+        .bind(new_starts_at)
+        .fetch_all(conn)
+        .await?,
+    );
+    Ok(users)
 }
 
 pub async fn confirm_match_id(
@@ -327,8 +337,8 @@ pub async fn notify_declined(
     role: StaffRole,
     old_starts_at: Option<OffsetDateTime>,
     new_starts_at: OffsetDateTime,
-) -> sqlx::Result<()> {
-    sqlx::query(
+) -> sqlx::Result<Vec<Uuid>> {
+    sqlx::query_scalar(
         r#"
         INSERT INTO notifications
             (user_id, kind, match_id, actor_id, staff_role, old_starts_at, new_starts_at)
@@ -347,6 +357,7 @@ pub async fn notify_declined(
                       WHERE b.match_id = $1 AND tm.user_id = u.id
                   )
               END
+        RETURNING user_id
         "#,
     )
     .bind(match_id)
@@ -354,9 +365,8 @@ pub async fn notify_declined(
     .bind(role)
     .bind(old_starts_at)
     .bind(new_starts_at)
-    .execute(conn)
-    .await?;
-    Ok(())
+    .fetch_all(conn)
+    .await
 }
 
 // Tells both players of `team_id` that their opponent proposed a time for the match,
@@ -367,8 +377,8 @@ pub async fn notify_proposed(
     match_id: Uuid,
     team_id: Uuid,
     actor_id: Uuid,
-) -> sqlx::Result<()> {
-    sqlx::query(
+) -> sqlx::Result<Vec<Uuid>> {
+    sqlx::query_scalar(
         r#"
         INSERT INTO notifications (user_id, kind, match_id, team_id, actor_id)
         SELECT tm.user_id, 'reschedule_proposed', $1, $2, $3
@@ -379,14 +389,14 @@ pub async fn notify_proposed(
               WHERE n.user_id = tm.user_id AND n.kind = 'reschedule_proposed'
                 AND n.match_id = $1 AND n.read_at IS NULL
           )
+        RETURNING user_id
         "#,
     )
     .bind(match_id)
     .bind(team_id)
     .bind(actor_id)
-    .execute(conn)
-    .await?;
-    Ok(())
+    .fetch_all(conn)
+    .await
 }
 
 // After a match's teams move it: every player of both teams but the one who accepted
@@ -398,31 +408,34 @@ pub async fn notify_players_rescheduled(
     actor_id: Uuid,
     old_starts_at: Option<OffsetDateTime>,
     new_starts_at: OffsetDateTime,
-) -> sqlx::Result<()> {
-    sqlx::query(
-        "DELETE FROM notifications WHERE match_id = $1 AND kind = 'reschedule_accepted' AND read_at IS NULL",
+) -> sqlx::Result<Vec<Uuid>> {
+    let mut users: Vec<Uuid> = sqlx::query_scalar(
+        "DELETE FROM notifications WHERE match_id = $1 AND kind = 'reschedule_accepted' AND read_at IS NULL RETURNING user_id",
     )
     .bind(match_id)
-    .execute(&mut *conn)
+    .fetch_all(&mut *conn)
     .await?;
-    sqlx::query(
-        r#"
-        INSERT INTO notifications
-            (user_id, kind, match_id, team_id, actor_id, old_starts_at, new_starts_at)
-        SELECT tm.user_id, 'reschedule_accepted'::notification_kind, $1, tm.team_id, $4, $5, $6
-        FROM team_members tm
-        WHERE tm.team_id IN ($2, $3) AND tm.user_id <> $4
-        "#,
-    )
-    .bind(match_id)
-    .bind(team_ids[0])
-    .bind(team_ids[1])
-    .bind(actor_id)
-    .bind(old_starts_at)
-    .bind(new_starts_at)
-    .execute(conn)
-    .await?;
-    Ok(())
+    users.extend(
+        sqlx::query_scalar::<_, Uuid>(
+            r#"
+            INSERT INTO notifications
+                (user_id, kind, match_id, team_id, actor_id, old_starts_at, new_starts_at)
+            SELECT tm.user_id, 'reschedule_accepted'::notification_kind, $1, tm.team_id, $4, $5, $6
+            FROM team_members tm
+            WHERE tm.team_id IN ($2, $3) AND tm.user_id <> $4
+            RETURNING user_id
+            "#,
+        )
+        .bind(match_id)
+        .bind(team_ids[0])
+        .bind(team_ids[1])
+        .bind(actor_id)
+        .bind(old_starts_at)
+        .bind(new_starts_at)
+        .fetch_all(conn)
+        .await?,
+    );
+    Ok(users)
 }
 
 // Tells a team's players and the hosts that `actor_id`'s rank change took the team
@@ -434,8 +447,8 @@ pub async fn notify_over_limit(
     old_rank: Option<i64>,
     new_rank: Option<i64>,
     team_value: f64,
-) -> sqlx::Result<()> {
-    sqlx::query(
+) -> sqlx::Result<Vec<Uuid>> {
+    sqlx::query_scalar(
         r#"
         INSERT INTO notifications (user_id, kind, team_id, actor_id, old_rank, new_rank, team_value)
         SELECT r.id, 'rank_over_limit', $1, $2, $3, $4, $5
@@ -444,6 +457,7 @@ pub async fn notify_over_limit(
             UNION
             SELECT id FROM osu_users WHERE 'host' = ANY(roles)
         ) AS r
+        RETURNING user_id
         "#,
     )
     .bind(team_id)
@@ -451,7 +465,6 @@ pub async fn notify_over_limit(
     .bind(old_rank)
     .bind(new_rank)
     .bind(team_value)
-    .execute(pool)
-    .await?;
-    Ok(())
+    .fetch_all(pool)
+    .await
 }

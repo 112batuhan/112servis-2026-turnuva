@@ -200,7 +200,8 @@ async fn propose(
     db::reschedule::create_proposal(&mut tx, body.match_id, team_id, user.id, body.starts_at)
         .await?
         .ok_or(ScheduleError::AlreadyProposed)?;
-    db::notifications::notify_proposed(&mut tx, body.match_id, opponent_id, user.id).await?;
+    let notified =
+        db::notifications::notify_proposed(&mut tx, body.match_id, opponent_id, user.id).await?;
     state
         .discord
         .enqueue(
@@ -213,6 +214,7 @@ async fn propose(
         )
         .await?;
     tx.commit().await?;
+    state.live.notifications_changed(notified);
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -264,7 +266,7 @@ async fn accept(
         return Err(ScheduleError::TimePassed.into());
     }
     db::reschedule::reschedule(&mut tx, match_id, proposal.starts_at).await?;
-    db::notifications::notify_rescheduled(
+    let mut notified = db::notifications::notify_rescheduled(
         &mut tx,
         match_id,
         user.id,
@@ -274,15 +276,17 @@ async fn accept(
         proposal.starts_at,
     )
     .await?;
-    db::notifications::notify_players_rescheduled(
-        &mut tx,
-        match_id,
-        [team_id, proposal.team_id],
-        user.id,
-        m.starts_at,
-        proposal.starts_at,
-    )
-    .await?;
+    notified.extend(
+        db::notifications::notify_players_rescheduled(
+            &mut tx,
+            match_id,
+            [team_id, proposal.team_id],
+            user.id,
+            m.starts_at,
+            proposal.starts_at,
+        )
+        .await?,
+    );
     // A match without a time had no channel yet.
     state
         .discord
@@ -301,5 +305,6 @@ async fn accept(
         .await?;
     tx.commit().await?;
     state.live.bracket_changed();
+    state.live.notifications_changed(notified);
     Ok(StatusCode::NO_CONTENT)
 }

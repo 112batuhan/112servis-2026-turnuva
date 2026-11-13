@@ -65,7 +65,7 @@ pub async fn notify_over_limit(state: &AppState, changes: &[RankChange]) {
                 continue;
             };
             let team_value = team_rank::team_value(rank_a, rank_b);
-            db::notifications::notify_over_limit(
+            let notified = db::notifications::notify_over_limit(
                 &state.db,
                 a.team_id,
                 cause.user_id,
@@ -87,6 +87,7 @@ pub async fn notify_over_limit(state: &AppState, changes: &[RankChange]) {
                     }],
                 )
                 .await?;
+            state.live.notifications_changed(notified);
         }
         Ok::<_, sqlx::Error>(())
     }

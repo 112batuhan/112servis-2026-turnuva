@@ -11,11 +11,13 @@ import {
 import type { AppNotification, MatchStaffRole } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { hasRole } from "../auth/roles";
+import { RELOAD_DELAY_MS, useLive } from "../live/LiveContext";
 import { bracketMatchPath, matchCode } from "../lib/bracket";
 import { formatDateTime, formatRank, formatShortMatchTime, formatTeamValue } from "../lib/format";
 import { IconButton } from "./IconButton";
 import "./NotificationBell.css";
 
+/** Only while the live socket is down; otherwise it says when the count changes. */
 const POLL_MS = 60_000;
 
 const ROLE_AS: Record<MatchStaffRole, string> = { referee: "hakem", streamer: "yayıncı" };
@@ -35,6 +37,9 @@ export function NotificationBell() {
   const rootRef = useRef<HTMLDivElement>(null);
   const { pathname, search } = useLocation();
   const isHost = hasRole(useAuth().user, "host");
+  const { connected, subscribe } = useLive();
+  const openRef = useRef(open);
+  openRef.current = open;
 
   const refreshCount = useCallback(() => {
     fetchNotificationCount()
@@ -53,8 +58,30 @@ export function NotificationBell() {
     }
   }, [refreshCount]);
 
+  useEffect(refreshCount, [refreshCount]);
+
+  // The socket says when this user's notifications change, and `bracket` when a match moves or
+  // concludes, which can make a question no longer answerable (and after a reconnect). An open
+  // panel shows what arrived and marks it read.
   useEffect(() => {
-    refreshCount();
+    let timer: number | undefined;
+    const off = subscribe((event) => {
+      if (event.type !== "notifications" && event.type !== "bracket") return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (openRef.current) load().catch((e) => setError(errorMessage(e)));
+        else refreshCount();
+      }, RELOAD_DELAY_MS);
+    });
+    return () => {
+      off();
+      window.clearTimeout(timer);
+    };
+  }, [subscribe, load, refreshCount]);
+
+  // Without the socket it polls, and looks again whenever the tab is shown.
+  useEffect(() => {
+    if (connected) return;
     const timer = setInterval(refreshCount, POLL_MS);
     const onVisible = () => {
       if (document.visibilityState === "visible") refreshCount();
@@ -64,7 +91,7 @@ export function NotificationBell() {
       clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [refreshCount]);
+  }, [connected, refreshCount]);
 
   useEffect(() => {
     if (!open) return;

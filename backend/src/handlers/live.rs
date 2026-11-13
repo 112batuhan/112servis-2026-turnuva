@@ -170,6 +170,7 @@ async fn tab(
     let id = live.next_tab();
     let mut filter = TabFilter {
         staff,
+        user: session.as_ref().map(|(user_id, _)| *user_id),
         ..TabFilter::default()
     };
     let mut events = live.events();

@@ -156,6 +156,8 @@ async fn mark_read(
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
     db::notifications::mark_all_read(&state.db, user.id).await?;
+    // Their other tabs' bells.
+    state.live.notifications_changed([user.id]);
     Ok(StatusCode::NO_CONTENT)
 }
 

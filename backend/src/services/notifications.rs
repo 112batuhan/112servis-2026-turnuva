@@ -55,18 +55,22 @@ pub async fn answer_as(
     }
 
     db::notifications::respond(&mut tx, id, response).await?;
+    // Their own count drops too, on every tab they have open.
+    let mut notified = vec![user_id];
     let declined = response == Response::Declined;
     if declined {
         db::notifications::clear_staff(&mut tx, n.match_id, n.staff_role).await?;
-        db::notifications::notify_declined(
-            &mut tx,
-            n.match_id,
-            user_id,
-            n.staff_role,
-            n.old_starts_at,
-            n.new_starts_at,
-        )
-        .await?;
+        notified.extend(
+            db::notifications::notify_declined(
+                &mut tx,
+                n.match_id,
+                user_id,
+                n.staff_role,
+                n.old_starts_at,
+                n.new_starts_at,
+            )
+            .await?,
+        );
     }
     let answered = Job::StaffAnswered {
         match_id: n.match_id,
@@ -86,5 +90,10 @@ pub async fn answer_as(
     };
     state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await?;
+    // Declining took them off the match, which the bracket shows.
+    if declined {
+        state.live.bracket_changed();
+    }
+    state.live.notifications_changed(notified);
     Ok(())
 }

@@ -20,6 +20,9 @@
 //! by name, each user once, and a count of the tabs nobody is signed in on). Staff
 //! also hear `bancho` when a bot connects, drops or takes a room, for the bots page.
 //!
+//! A signed-in user's tabs hear `notifications` when their notifications change (one
+//! arrives, is read or answered, or is replaced), so the bell reads its count again.
+//!
 //! The room manager (crate::bancho) and the statistics cache listen too, through
 //! `changes`: whatever the pages are told changed about a match, they read again.
 
@@ -71,6 +74,7 @@ enum ServerMsg<'a> {
         room: &'a LiveRoom,
     },
     Bancho,
+    Notifications,
     Presence {
         match_id: Uuid,
         viewers: &'a [Viewer],
@@ -89,19 +93,29 @@ enum ServerMsg<'a> {
 #[derive(Debug)]
 pub struct Event {
     json: String,
+    to: Audience,
+}
+
+// Which tabs an event is for: every tab, unless one of these narrows it.
+#[derive(Debug, Default)]
+struct Audience {
     staff_only: bool,
-    // Only for the tabs watching this room's match.
+    // Only the tabs watching this room's match.
     room: Option<i64>,
-    // Only for the tabs counted among this match's spectators.
+    // Only the tabs counted among this match's spectators.
     watchers_of: Option<Uuid>,
-    // Only for the tabs watching this match, spectating or not.
+    // Only the tabs watching this match, spectating or not.
     watching: Option<Uuid>,
+    // Only this user's tabs.
+    user: Option<Uuid>,
 }
 
 // What a tab has asked for, which decides the events it's sent.
 #[derive(Debug, Default)]
 pub struct TabFilter {
     pub staff: bool,
+    // Who is signed in on the tab.
+    pub user: Option<Uuid>,
     // The rooms whose chat the tab is sent, and their match.
     pub rooms: HashSet<i64>,
     pub watched: Option<Uuid>,
@@ -116,10 +130,12 @@ impl Event {
 
     // Whether a tab is sent this event.
     pub fn reaches(&self, tab: &TabFilter) -> bool {
-        (!self.staff_only || tab.staff)
-            && self.room.is_none_or(|room| tab.rooms.contains(&room))
-            && self.watchers_of.is_none_or(|m| tab.spectating == Some(m))
-            && self.watching.is_none_or(|m| tab.watched == Some(m))
+        let to = &self.to;
+        (!to.staff_only || tab.staff)
+            && to.room.is_none_or(|room| tab.rooms.contains(&room))
+            && to.watchers_of.is_none_or(|m| tab.spectating == Some(m))
+            && to.watching.is_none_or(|m| tab.watched == Some(m))
+            && to.user.is_none_or(|u| tab.user == Some(u))
     }
 }
 
@@ -231,28 +247,21 @@ impl Live {
     }
 
     fn emit(&self, msg: &ServerMsg, staff_only: bool) {
-        self.send(msg, staff_only, None, None, None);
+        self.send(
+            msg,
+            Audience {
+                staff_only,
+                ..Audience::default()
+            },
+        );
     }
 
-    fn send(
-        &self,
-        msg: &ServerMsg,
-        staff_only: bool,
-        room: Option<i64>,
-        watchers_of: Option<Uuid>,
-        watching: Option<Uuid>,
-    ) {
+    fn send(&self, msg: &ServerMsg, to: Audience) {
         let Ok(json) = serde_json::to_string(msg) else {
             return;
         };
         // An error only means no tab is listening.
-        let _ = self.0.events.send(Arc::new(Event {
-            json,
-            staff_only,
-            room,
-            watchers_of,
-            watching,
-        }));
+        let _ = self.0.events.send(Arc::new(Event { json, to }));
     }
 
     fn changed(&self, change: Change) {
@@ -326,10 +335,10 @@ impl Live {
     pub fn chat(&self, mp_id: i64, message: &ChatMessage) {
         self.send(
             &ServerMsg::Chat { mp_id, message },
-            false,
-            Some(mp_id),
-            None,
-            None,
+            Audience {
+                room: Some(mp_id),
+                ..Audience::default()
+            },
         );
     }
 
@@ -337,11 +346,26 @@ impl Live {
     pub fn room(&self, match_id: Uuid, room: &LiveRoom) {
         self.send(
             &ServerMsg::Room { match_id, room },
-            false,
-            None,
-            None,
-            Some(match_id),
+            Audience {
+                watching: Some(match_id),
+                ..Audience::default()
+            },
         );
+    }
+
+    // These users' notifications changed: each one's tabs read the bell's count again.
+    // Call after the change is committed, with what the db::notifications writes return.
+    pub fn notifications_changed(&self, users: impl IntoIterator<Item = Uuid>) {
+        let users: HashSet<Uuid> = users.into_iter().collect();
+        for user in users {
+            self.send(
+                &ServerMsg::Notifications,
+                Audience {
+                    user: Some(user),
+                    ..Audience::default()
+                },
+            );
+        }
     }
 
     // A bot connected, dropped, or took or left a room; staff only.
@@ -376,10 +400,10 @@ impl Live {
                     viewers: &viewers,
                     guests: spectators.guests(id),
                 },
-                false,
-                None,
-                Some(id),
-                None,
+                Audience {
+                    watchers_of: Some(id),
+                    ..Audience::default()
+                },
             );
         }
     }
