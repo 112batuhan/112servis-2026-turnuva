@@ -106,6 +106,13 @@
   font-size: var(--text-md);
 }
 
+/* The last stage's data kept on screen while the selected one's is on its way (lib/useStageCache.ts).
+   It dims only on the way out: the new data comes in at full strength at once. */
+.is-stale {
+  opacity: 0.55;
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+
 /* While a page that loads on first opening is on its way. */
 .page-loading {
   padding: var(--space-6) var(--space-4);

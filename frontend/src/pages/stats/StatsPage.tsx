@@ -12,7 +12,7 @@ import { MapBoard } from "./MapBoard";
 import { PoolStats } from "./PoolStats";
 import { Standings } from "./Standings";
 import { buildIndex, isTab, ownTeamId, TABS, type StatsIndex, type StatsTab } from "./statsModel";
-import { useStageStats } from "./useStageStats";
+import { statsCache, useStageStats } from "./useStageStats";
 import "./StatsPage.css";
 
 /**
@@ -47,10 +47,12 @@ export function StatsPage() {
     setFallback(live?.stage_id ?? played?.stage_id ?? stages[0].id);
   }, [stages, stats.activity, fallback]);
 
-  const selected = stages?.find((s) => s.id === selectedId) ?? null;
+  // What's on screen is the stage whose statistics are in, which stays the last one until the
+  // selected one's arrive: everything that describes them goes by it, only the track by the selection.
+  const shown = stages?.find((s) => s.id === stats.shownId) ?? null;
   const index = useMemo(() => (stats.data ? buildIndex(stats.data) : null), [stats.data]);
   const requestedTab = params.get("tab");
-  const tab: StatsTab = isTab(requestedTab) ? requestedTab : selected?.is_qualifier ? "teams" : "pool";
+  const tab: StatsTab = isTab(requestedTab) ? requestedTab : shown?.is_qualifier ? "teams" : "pool";
 
   const update = (changes: Record<string, string | null>) =>
     setParams(
@@ -104,12 +106,13 @@ export function StatsPage() {
           activity={stats.activity}
           selectedId={selectedId}
           onSelect={(id) => update({ stage: id, map: null })}
+          onPrefetch={statsCache.prefetch}
         />
       )}
 
-      {selected && index && (
-        <>
-          <StageSummary stage={selected} index={index} />
+      {shown && index && (
+        <div className={stats.stale ? "stats-body is-stale" : "stats-body"} aria-busy={stats.stale}>
+          <StageSummary stage={shown} index={index} />
           <nav className="stats-tabs" aria-label="İstatistik bölümleri">
             {TABS.map((t) => (
               <button
@@ -126,7 +129,7 @@ export function StatsPage() {
           </nav>
           {index.data.stats.plays.length === 0 && tab !== "teams" && tab !== "players" ? (
             <p className="stats-empty">
-              {selected.is_qualifier
+              {shown.is_qualifier
                 ? "Henüz oynanmış bir lobi yok. Lobiler oynandıkça her map bittiğinde skorlar burada görünür."
                 : "Bu stage'de henüz oynanmış bir map yok. Maçlar oynandıkça her map bittiğinde skorlar burada görünür."}
             </p>
@@ -140,9 +143,9 @@ export function StatsPage() {
               onOpenMap={(id) => update({ tab: "map-players", map: id })}
             />
           )}
-        </>
+        </div>
       )}
-      {selected && !index && !error && <p className="status">Yükleniyor…</p>}
+      {selectedId && !index && !error && <p className="status">Yükleniyor…</p>}
     </div>
   );
 }
@@ -189,13 +192,15 @@ interface TrackProps {
   activity: StageActivity[] | null;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  /** A stage about to be picked (hovered, focused): start reading it. */
+  onPrefetch: (id: string) => void;
 }
 
 /**
  * The published stages as the track's rules: a stage with matches being played lit in frost,
  * one with scores in muted ink, one without any on a hairline. It wraps rather than scrolls.
  */
-function StageTrack({ stages, activity, selectedId, onSelect }: TrackProps) {
+function StageTrack({ stages, activity, selectedId, onSelect, onPrefetch }: TrackProps) {
   return (
     <nav className="stats-track" aria-label="Stage'ler">
       <ol>
@@ -217,6 +222,8 @@ function StageTrack({ stages, activity, selectedId, onSelect }: TrackProps) {
                 className={`stats-track-item ${state}`}
                 aria-pressed={s.id === selectedId}
                 onClick={() => onSelect(s.id)}
+                onPointerEnter={() => onPrefetch(s.id)}
+                onFocus={() => onPrefetch(s.id)}
               >
                 <span className="stats-track-name">{s.name}</span>
                 <span className="stats-track-note">{note}</span>

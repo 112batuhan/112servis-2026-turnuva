@@ -3,6 +3,7 @@ import type {
   Category,
   MapNoteField,
   PoolMap,
+  PublicStage,
   PublicStageDetail,
   Slot,
   Stage,
@@ -62,5 +63,5 @@ export const recomputeMapStats = (mapId: string) => post<PoolMap>(`/api/mappool/
 export const deleteMap = (mapId: string) => del(`/api/mappool/maps/${mapId}`);
 
 // ---- public (published stages only, no auth) ----
-export const fetchPublicStages = () => get<Stage[]>("/api/public/stages");
+export const fetchPublicStages = () => get<PublicStage[]>("/api/public/stages");
 export const fetchPublicStage = (id: string) => get<PublicStageDetail>(`/api/public/mappool/stages/${id}`);

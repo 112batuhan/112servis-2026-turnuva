@@ -7,7 +7,9 @@ interface Props {
   stages: Stage[];
   selectedId: string | null;
   onSelect: (id: string) => void;
-  /** The stage the tournament is in (lib/stageTrack.ts): lit in frost with the crystal's glow, "Şu an" under it. */
+  /** A stage about to be picked (hovered, focused): start reading it, so the click finds it there. */
+  onPrefetch?: (id: string) => void;
+  /** The stage the tournament is in (`current` on /api/public/stages): lit in frost with the crystal's glow, "Şu an" under it. */
   currentId?: string | null;
   /** Matches being played now, by stage (the stats' activity): said in frost under the stage's name. */
   live?: ReadonlyMap<string, number>;
@@ -22,7 +24,7 @@ interface Props {
  * rule over each stage's name and best of, the shown one on the hover wash in ink, the current
  * one lit. It wraps into a grid rather than scrolling. In the editor a draft's rule is dashed.
  */
-export function StageTabs({ stages, selectedId, onSelect, currentId, live, showStatus, children }: Props) {
+export function StageTabs({ stages, selectedId, onSelect, onPrefetch, currentId, live, showStatus, children }: Props) {
   return (
     <div className="stage-bar">
       <nav className="stage-tabs" aria-label="Stage'ler">
@@ -37,6 +39,8 @@ export function StageTabs({ stages, selectedId, onSelect, currentId, live, showS
                   className={classes.filter(Boolean).join(" ")}
                   aria-pressed={stage.id === selectedId}
                   onClick={() => onSelect(stage.id)}
+                  onPointerEnter={onPrefetch && (() => onPrefetch(stage.id))}
+                  onFocus={onPrefetch && (() => onPrefetch(stage.id))}
                 >
                   <span className="stage-tab-head">
                     <span className="stage-tab-name">{stage.name}</span>

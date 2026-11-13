@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { errorMessage } from "../../api/client";
+import { useCallback, useEffect, useState } from "react";
 import { fetchStageActivity, fetchStageStats } from "../../api/stats";
-import type { StageActivity, StageStats } from "../../api/types";
+import type { StageActivity } from "../../api/types";
+import { createStageCache, useStageCache } from "../../lib/useStageCache";
 import { useLive } from "../../live/LiveContext";
 
 // A finished map pushes a score (bracket) or a match change (a lobby, osu!'s accuracy):
@@ -10,43 +10,31 @@ const RELOAD_DELAY_MS = 1500;
 // The statistics don't need the socket: they're read again this often while the tab is shown.
 const POLL_MS = 60_000;
 
+/** Every stage's statistics as last read: a stage opened again shows them at once while they're read again. */
+export const statsCache = createStageCache(fetchStageStats);
+
 /**
  * A stage's statistics, kept current: read again after the live socket says a score or a match
- * changed, every minute while the tab is visible, and when the tab comes back into view.
+ * changed, every minute while the tab is visible, and when the tab comes back into view. While
+ * another stage's are on their way the last ones shown stay (`shownId`, `stale`: lib/useStageCache.ts).
  */
 export function useStageStats(stageId: string | null) {
-  const [data, setData] = useState<StageStats | null>(null);
+  const stage = useStageCache(statsCache, stageId);
   const [activity, setActivity] = useState<StageActivity[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loadedAt, setLoadedAt] = useState<Date | null>(null);
-  const [loading, setLoading] = useState(false);
-  const current = useRef(stageId);
-  current.current = stageId;
+  const reloadStage = stage.reload;
 
-  const reload = useCallback(async () => {
-    const id = current.current;
+  const loadActivity = useCallback(() => {
     fetchStageActivity()
       .then(setActivity)
       .catch(() => {});
-    if (!id) return;
-    setLoading(true);
-    try {
-      const next = await fetchStageStats(id);
-      // A stage picked while this was on its way wins.
-      if (current.current !== id) return;
-      setData(next);
-      setLoadedAt(new Date());
-      setError(null);
-    } catch (e) {
-      if (current.current === id) setError(errorMessage(e));
-    } finally {
-      if (current.current === id) setLoading(false);
-    }
   }, []);
 
-  useEffect(() => {
-    void reload();
-  }, [stageId, reload]);
+  const reload = useCallback(async () => {
+    loadActivity();
+    await reloadStage();
+  }, [loadActivity, reloadStage]);
+
+  useEffect(loadActivity, [loadActivity]);
 
   const { subscribe } = useLive();
   useEffect(() => {
@@ -76,13 +64,5 @@ export function useStageStats(stageId: string | null) {
     };
   }, [reload]);
 
-  return {
-    data: data && data.pool.id === stageId ? data : null,
-    activity,
-    error,
-    clearError: () => setError(null),
-    loadedAt,
-    loading,
-    reload,
-  };
+  return { ...stage, activity, reload };
 }

@@ -69,6 +69,16 @@ export interface Stage {
   updated_at: string;
 }
 
+/** A published stage as `/api/public/stages` has it, with what the stage tabs say about it. */
+export interface PublicStage extends Stage {
+  /** Its matches with a saved map (the qualifier's: its lobbies). */
+  played: number;
+  /** Its matches being played now: a room open, not concluded. */
+  live: number;
+  /** The tournament is in it, by the rule of `lib/stageTrack.ts` (the backend mirrors it). */
+  current: boolean;
+}
+
 export interface Category {
   id: string;
   stage_id: string;

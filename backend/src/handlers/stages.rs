@@ -45,7 +45,8 @@ async fn list_stages(
     Ok(Json(db::stages::list_stages(&state.db).await?))
 }
 
-// GET /api/public/stages — the published stages only, no auth.
+// GET /api/public/stages — the published stages only, no auth, each with how many of its
+// matches are played and being played and whether the tournament is in it (the stage tabs).
 async fn list_public_stages(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
     Ok(Json(db::stages::list_published_stages(&state.db).await?))
 }

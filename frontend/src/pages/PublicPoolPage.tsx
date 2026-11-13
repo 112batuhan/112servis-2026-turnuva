@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { fetchPublicBracket } from "../api/bracket";
 import { errorMessage } from "../api/client";
 import { fetchPublicStage, fetchPublicStages } from "../api/mappool";
-import { fetchPublicQualifiers } from "../api/matches";
-import { fetchStageActivity } from "../api/stats";
-import type { BracketMatch, Category, Lobby, PublicStageDetail, Stage, StageActivity } from "../api/types";
+import type { Category, PublicStage, PublicStageDetail } from "../api/types";
 import { ErrorAlert } from "../components/ErrorAlert";
 import { Icon } from "../components/Icon";
 import { MapCard } from "../components/MapCard";
@@ -13,35 +10,16 @@ import { PoolSection } from "../components/PoolSection";
 import { EmptySlot, Slot } from "../components/Slot";
 import { StageTabs } from "../components/StageTabs";
 import { showsHrStats } from "../lib/bancho";
-import { currentStageId } from "../lib/stageTrack";
 import { useStoredSet } from "../lib/useExpandedSet";
+import { createStageCache, useStageCache } from "../lib/useStageCache";
 import { useLiveBracket } from "../live/LiveContext";
 
-/** Where the tournament is: its matches and lobbies (which stage it's in) and what's being played, by stage. */
-interface Progress {
-  matches: BracketMatch[];
-  lobbies: Lobby[];
-  activity: StageActivity[];
-}
-
-/** Each part degrades on its own: without the bracket there's no current stage, without the activity nothing is live. */
-async function fetchProgress(): Promise<Progress> {
-  const [bracket, qualifiers, activity] = await Promise.allSettled([
-    fetchPublicBracket(),
-    fetchPublicQualifiers(),
-    fetchStageActivity(),
-  ]);
-  return {
-    matches: bracket.status === "fulfilled" ? bracket.value.matches : [],
-    lobbies: qualifiers.status === "fulfilled" ? qualifiers.value.lobbies : [],
-    activity: activity.status === "fulfilled" ? activity.value : [],
-  };
-}
+/** Every published pool as last read: a stage opened again shows at once while it's read again. */
+const poolCache = createStageCache(fetchPublicStage);
 
 export function PublicPoolPage() {
-  const [stages, setStages] = useState<Stage[] | null>(null);
-  const [detail, setDetail] = useState<PublicStageDetail | null>(null);
-  const [progress, setProgress] = useState<Progress | null>(null);
+  // Each stage comes with where the tournament is: whether it's the current one and how many of its matches are played and being played.
+  const [stages, setStages] = useState<PublicStage[] | null>(null);
   const [fallback, setFallback] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -53,59 +31,52 @@ export function PublicPoolPage() {
   const selectedId = stages?.some((s) => s.id === requested) ? requested : fallback;
   const selected = stages?.find((s) => s.id === selectedId);
 
-  // The stage the tournament is in (the qualifier's comes from the published stages), and the matches being played.
-  const currentId = useMemo(
-    () => (progress ? currentStageId(progress.matches, progress.lobbies, stages ?? []) : null),
-    [progress, stages],
-  );
-  const live = useMemo(
-    () => new Map(progress?.activity.filter((a) => a.live > 0).map((a) => [a.stage_id, a.live])),
-    [progress],
-  );
+  const currentId = stages?.find((s) => s.current)?.id ?? null;
+  const live = useMemo(() => new Map(stages?.filter((s) => s.live > 0).map((s) => [s.id, s.live])), [stages]);
 
-  const loadProgress = useCallback(() => {
-    fetchProgress().then(setProgress);
-  }, []);
-
-  useEffect(() => {
+  // A failed refresh keeps the stages shown; only the first reading reports.
+  const loadStages = useCallback((initial: boolean) => {
     fetchPublicStages()
       .then(setStages)
-      .catch((e) => setError(errorMessage(e)));
-    loadProgress();
-  }, [loadProgress]);
+      .catch((e) => initial && setError(errorMessage(e)));
+  }, []);
+
+  useEffect(() => loadStages(true), [loadStages]);
 
   // A room opening, a match ending or the bracket moving on can change which stage is lit.
-  useLiveBracket(() => {}, loadProgress);
+  useLiveBracket(
+    () => {},
+    () => loadStages(false),
+  );
 
   // Without a stage in the URL, open the one the tournament is in, else one being played, else the
   // latest with scores. It's chosen once, so the page doesn't jump while it's being read.
   useEffect(() => {
-    if (!stages || stages.length === 0 || !progress || fallback) return;
-    const published = (id: string | null | undefined) => (id && stages.some((s) => s.id === id) ? id : null);
-    const playing = progress.activity.find((a) => a.live > 0)?.stage_id;
-    const played = [...progress.activity].reverse().find((a) => a.played > 0)?.stage_id;
-    setFallback(published(currentId) ?? published(playing) ?? published(played) ?? stages[0].id);
-  }, [stages, progress, currentId, fallback]);
+    if (!stages || stages.length === 0 || fallback) return;
+    const playing = stages.find((s) => s.live > 0);
+    const played = [...stages].reverse().find((s) => s.played > 0);
+    setFallback((stages.find((s) => s.current) ?? playing ?? played ?? stages[0]).id);
+  }, [stages, fallback]);
 
-  useEffect(() => {
-    if (!selectedId) return;
-    let active = true;
-    fetchPublicStage(selectedId)
-      .then((d) => active && setDetail(d))
-      .catch((e) => active && setError(errorMessage(e)));
-    return () => {
-      active = false;
-    };
-  }, [selectedId]);
+  // The last pool shown stays until the selected one is in, dimmed if that takes a moment.
+  const pool = useStageCache(poolCache, selectedId);
+  const detail = pool.data;
+  const shownError = error ?? pool.error;
 
   return (
     <div className="page">
       <div className="page-header">
         <h1>Mappool</h1>
       </div>
-      <ErrorAlert message={error} onDismiss={() => setError(null)} />
+      <ErrorAlert
+        message={shownError}
+        onDismiss={() => {
+          setError(null);
+          pool.clearError();
+        }}
+      />
 
-      {stages === null && !error && <p className="status">Yükleniyor…</p>}
+      {stages === null && !shownError && <p className="status">Yükleniyor…</p>}
       {stages?.length === 0 && <p className="status">Henüz yayınlanmış bir stage yok.</p>}
 
       {stages && stages.length > 0 && (
@@ -113,6 +84,7 @@ export function PublicPoolPage() {
           stages={stages}
           selectedId={selectedId}
           onSelect={(id) => setSearchParams({ stage: id })}
+          onPrefetch={poolCache.prefetch}
           currentId={currentId}
           live={live}
         >
@@ -131,8 +103,8 @@ export function PublicPoolPage() {
         </StageTabs>
       )}
 
-      {detail && detail.id === selectedId && (
-        <div className="pool-board is-public">
+      {detail && (
+        <div className={pool.stale ? "pool-board is-public is-stale" : "pool-board is-public"} aria-busy={pool.stale}>
           {detail.categories.length === 0 && <p className="status">Bu stage'de henüz kategori yok.</p>}
           {detail.categories.map((category) => (
             <PublicCategory
@@ -145,6 +117,7 @@ export function PublicPoolPage() {
           ))}
         </div>
       )}
+      {selectedId && !detail && !shownError && <p className="status">Yükleniyor…</p>}
     </div>
   );
 }

@@ -1,8 +1,9 @@
 import type { BracketMatch, Stage } from "../api/types";
 import { compareByTime } from "./bracket";
 
-// Which stage the tournament is in, from its matches. The landing page's track and the mappool
-// page (which opens on it and lights it) read it from here, so they always agree.
+// Which stage the tournament is in, from its matches, for the landing page's track. The mappool
+// page gets the same answer from the backend (`current` on /api/public/stages, worked out in
+// db::stages::list_published_stages) so it doesn't read the whole bracket: change both together.
 
 export type StageState = "done" | "current" | "upcoming";
 

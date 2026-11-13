@@ -169,10 +169,73 @@ pub async fn set_stage_best_of(
     Ok(Some(matches))
 }
 
-pub async fn list_published_stages(pool: &PgPool) -> sqlx::Result<Vec<Stage>> {
-    sqlx::query_as::<_, Stage>("SELECT * FROM stages WHERE published ORDER BY position, created_at")
-        .fetch_all(pool)
-        .await
+// A published stage as the public stage tabs show it: how far it has got (counted as
+// db::stats::stage_activity counts it: its matches with a saved map, and those with a room
+// that aren't concluded; the qualifier's are the lobbies) and whether the tournament is in
+// it. That's the rule of the landing page's track (frontend/src/lib/stageTrack.ts): the
+// qualifier while a lobby is open and no bracket match is over, else the stage of the
+// earliest unfinished bracket match (by time, the unscheduled last, then W before L and
+// by number).
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct PublicStage {
+    #[serde(flatten)]
+    #[sqlx(flatten)]
+    pub stage: Stage,
+    pub played: i64,
+    pub live: i64,
+    pub current: bool,
+}
+
+pub async fn list_published_stages(pool: &PgPool) -> sqlx::Result<Vec<PublicStage>> {
+    sqlx::query_as::<_, PublicStage>(
+        r#"
+        WITH progress AS (
+            SELECT EXISTS (
+                       SELECT 1 FROM matches
+                       WHERE kind = 'qualifier' AND concluded_at IS NULL
+                   ) AS qualifiers_open,
+                   EXISTS (
+                       SELECT 1 FROM bracket_matches b JOIN matches m ON m.id = b.match_id
+                       WHERE m.concluded_at IS NOT NULL
+                   ) AS bracket_started,
+                   (
+                       SELECT b.stage_id FROM bracket_matches b JOIN matches m ON m.id = b.match_id
+                       WHERE m.concluded_at IS NULL
+                       ORDER BY m.starts_at ASC NULLS LAST, b.side, b.number
+                       LIMIT 1
+                   ) AS next_stage_id
+        )
+        SELECT s.*,
+               CASE WHEN s.is_qualifier THEN (
+                   SELECT count(*) FROM matches m
+                   WHERE m.kind = 'qualifier'
+                     AND EXISTS (SELECT 1 FROM match_map_results q WHERE q.match_id = m.id)
+               ) ELSE (
+                   SELECT count(*) FROM bracket_matches b
+                   WHERE b.stage_id = s.id
+                     AND EXISTS (SELECT 1 FROM match_map_results r WHERE r.match_id = b.match_id)
+               ) END AS played,
+               CASE WHEN s.is_qualifier THEN (
+                   SELECT count(*) FROM matches m
+                   WHERE m.kind = 'qualifier' AND m.concluded_at IS NULL
+                     AND EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id)
+               ) ELSE (
+                   SELECT count(*) FROM bracket_matches b
+                   JOIN matches m ON m.id = b.match_id
+                   WHERE b.stage_id = s.id AND m.concluded_at IS NULL
+                     AND EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id)
+               ) END AS live,
+               CASE WHEN p.qualifiers_open AND NOT p.bracket_started THEN s.is_qualifier
+                    ELSE COALESCE(s.id = p.next_stage_id, false)
+               END AS current
+        FROM stages s
+        CROSS JOIN progress p
+        WHERE s.published
+        ORDER BY s.position, s.created_at
+        "#,
+    )
+    .fetch_all(pool)
+    .await
 }
 
 pub async fn get_published_stage(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<Stage>> {
