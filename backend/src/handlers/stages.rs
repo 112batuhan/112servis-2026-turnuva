@@ -30,6 +30,7 @@ pub fn routes() -> Router<AppState> {
         .route("/stages/reorder", post(reorder_stages))
         .route("/stages/qualifier", put(set_qualifier_stage))
         .route("/stages/{id}", patch(rename_stage).delete(delete_stage))
+        .route("/stages/{id}/abbreviation", put(set_stage_abbreviation))
         .route("/stages/{id}/best-of", put(set_stage_best_of))
         .route("/stages/{id}/draft-order", put(set_stage_draft_order))
         .route("/public/stages", get(list_public_stages))
@@ -145,6 +146,38 @@ async fn set_qualifier_stage(
         }
         Err(err) => Err(err.into()),
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AbbreviationBody {
+    abbreviation: Option<String>,
+}
+
+// The longest short name, in characters; the column allows the same.
+const MAX_ABBREVIATION: usize = 6;
+
+// PUT /api/stages/:id/abbreviation — host-only. The stage's short name ("QF"), which the
+// bracket board writes on each of its matches' cards; empty or null takes it off.
+async fn set_stage_abbreviation(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<AbbreviationBody>,
+) -> Result<impl IntoResponse, AppError> {
+    user.require_role(Role::Host)?;
+    let abbreviation = body
+        .abbreviation
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    if abbreviation.is_some_and(|s| s.chars().count() > MAX_ABBREVIATION) {
+        return Err(PoolError::AbbreviationTooLong.into());
+    }
+    if !db::stages::set_stage_abbreviation(&state.db, id, abbreviation).await? {
+        return Err(GeneralError::NotFound.into());
+    }
+    state.live.bracket_changed();
+    Ok(StatusCode::NO_CONTENT)
 }
 
 #[derive(Debug, Deserialize)]

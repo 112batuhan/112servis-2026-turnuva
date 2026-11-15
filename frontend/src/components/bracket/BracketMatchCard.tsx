@@ -10,6 +10,7 @@ import {
   winningSlot,
   type Source,
 } from "../../lib/bracket";
+import { stageLabel } from "../../lib/bestOf";
 import { Icon } from "../Icon";
 import { LiveMark } from "../LiveMark";
 import { MatchPageLink } from "../MatchPageLink";
@@ -60,6 +61,12 @@ export function BracketMatchCard({
     <div className={live ? "bm-card is-live" : "bm-card"}>
       <div className="bm-card-header">
         <span className={`bm-card-code is-${match.side}`}>{matchCode(match)}</span>
+        {match.stage?.abbreviation && (
+          // Its stage, short, so the card says it wherever the board is scrolled; hovered, in full.
+          <abbr className="bm-card-stage" title={stageLabel(match.stage)}>
+            {match.stage.abbreviation}
+          </abbr>
+        )}
         {live && <LiveMark compact />}
         <span className="bm-card-time">
           {isUndecided(match) ? (

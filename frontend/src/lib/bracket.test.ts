@@ -121,7 +121,7 @@ describe("overlapsAny", () => {
 });
 
 describe("currentStageId", () => {
-  const stage = (id: string, position: number) => ({ id, name: id, published: true, position, best_of: 7 });
+  const stage = (id: string, position: number) => ({ id, name: id, abbreviation: null, published: true, position, best_of: 7 });
   const r16 = stage("r16", 1);
   const qf = stage("qf", 2);
 

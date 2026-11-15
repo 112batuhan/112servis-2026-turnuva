@@ -81,6 +81,8 @@ pub struct NextMatch {
 pub struct MatchStage {
     id: Uuid,
     name: String,
+    // Its short name for the board's cards ("QF"); null when the hosts haven't given one.
+    abbreviation: Option<String>,
     published: bool,
     position: i32,
     // How many maps the match is played to; null when the hosts haven't set it.
@@ -181,6 +183,7 @@ fn to_match(
         (Some(id), Some(name), Some(published), Some(position)) => Some(MatchStage {
             id,
             name,
+            abbreviation: row.stage_abbreviation,
             published,
             position,
             best_of: row.stage_best_of,

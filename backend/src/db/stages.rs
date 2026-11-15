@@ -10,6 +10,8 @@ use uuid::Uuid;
 pub struct Stage {
     pub id: Uuid,
     pub name: String,
+    // Its short name for the bracket board's cards ("QF"); null: none.
+    pub abbreviation: Option<String>,
     pub position: i32,
     pub published: bool,
     // Whether this is the qualifier lobbies' map pool; at most one stage is.
@@ -133,6 +135,22 @@ pub async fn set_stage_draft_order(
         .execute(pool)
         .await?;
     Ok(found.rows_affected() > 0)
+}
+
+// Sets a stage's short name (None: none). False when there's no such stage.
+pub async fn set_stage_abbreviation(
+    pool: &PgPool,
+    id: Uuid,
+    abbreviation: Option<&str>,
+) -> sqlx::Result<bool> {
+    let found =
+        sqlx::query("UPDATE stages SET abbreviation = $2, updated_at = now() WHERE id = $1")
+            .bind(id)
+            .bind(abbreviation)
+            .execute(pool)
+            .await?
+            .rows_affected();
+    Ok(found > 0)
 }
 
 // Sets the link to a stage's beatmap pack (None: no pack). False when there's no such

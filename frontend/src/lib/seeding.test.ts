@@ -5,6 +5,7 @@ import { bracketWeeks, defaultStages } from "./seeding";
 const stage = (name: string, position: number): Stage => ({
   id: name,
   name,
+  abbreviation: null,
   position,
   published: true,
   is_qualifier: false,

@@ -56,6 +56,7 @@ export const ERROR_TEXT = {
     bad_pack_link: "Paket linki geçerli bir adres değil.",
     pack_link_scheme: "Paket linki http:// ya da https:// ile başlamalı.",
     pack_link_too_long: "Paket linki çok uzun.",
+    abbreviation_too_long: "Kısaltma en fazla 6 karakter olabilir.",
   },
   bracket: {
     bad_match_number: "Maç numaraları 1'den başlar.",

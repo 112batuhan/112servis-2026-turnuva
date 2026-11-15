@@ -11,6 +11,7 @@ import {
   renameStage,
   reorderStages,
   setQualifierStage,
+  setStageAbbreviation,
   setStageBestOf,
   setStageDraftOrder,
 } from "../../api/mappool";
@@ -83,6 +84,15 @@ export function StagesAdminPage() {
   function applyBestOf(stage: Stage, bestOf: number | null) {
     setStages((list) => list && list.map((s) => (s.id === stage.id ? { ...s, best_of: bestOf } : s)));
     setStageBestOf(stage.id, bestOf).catch((e) => {
+      setError(errorMessage(e));
+      load().catch(() => {});
+    });
+  }
+
+  // Applies right away and saves in the background, like the order; null takes it off.
+  function applyAbbreviation(stage: Stage, abbreviation: string | null) {
+    setStages((list) => list && list.map((s) => (s.id === stage.id ? { ...s, abbreviation } : s)));
+    setStageAbbreviation(stage.id, abbreviation).catch((e) => {
       setError(errorMessage(e));
       load().catch(() => {});
     });
@@ -170,6 +180,7 @@ export function StagesAdminPage() {
                     onSave={(name) => run(() => renameStage(stage.id, name))}
                   />
                 </span>
+                <AbbreviationField stage={stage} onSave={(value) => applyAbbreviation(stage, value)} />
                 {stage.is_qualifier && <span className="badge badge-info">Eleme</span>}
                 <span
                   className={`badge ${stage.published ? "badge-success" : "badge-warning"}`}
@@ -233,6 +244,47 @@ export function StagesAdminPage() {
         </ol>
       )}
     </section>
+  );
+}
+
+/** The longest short name; the server and the column allow the same. */
+const MAX_ABBREVIATION = 6;
+
+/**
+ * A stage's short name, which the bracket board writes on each of its matches' cards. Enter or
+ * leaving the field saves it; Escape puts back the saved one; emptied, the stage has none.
+ */
+function AbbreviationField({ stage, onSave }: { stage: Stage; onSave: (value: string | null) => void }) {
+  const saved = stage.abbreviation ?? "";
+  const [text, setText] = useState(saved);
+  useEffect(() => setText(saved), [saved]);
+
+  function commit() {
+    const next = text.trim();
+    setText(next);
+    if (next !== saved) onSave(next || null);
+  }
+
+  return (
+    <input
+      className="input input-sm stage-row-abbr"
+      value={text}
+      placeholder="Kısa"
+      maxLength={MAX_ABBREVIATION}
+      spellCheck={false}
+      autoComplete="off"
+      aria-label={`${stage.name}: kısaltma`}
+      title="Bracket'te maç kartlarının üstünde yazan kısaltma, ör. QF"
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          setText(saved);
+          e.currentTarget.blur();
+        }
+      }}
+    />
   );
 }
 
@@ -407,6 +459,18 @@ function StagesHelp() {
               Kategoriler, map'ler ve yayınlama <Link to="/admin/mappool">Mappool</Link> sekmesinde (yayınlanana kadar
               mappool <em>Taslak</em>); bir maçın stage'i <Link to="/admin/bracket">Bracket</Link> sekmesindeki maç
               panelinde seçilir.
+            </p>
+          </div>
+        </section>
+
+        <section className="stages-help-row">
+          <h2>Kısaltma</h2>
+          <div className="stages-help-body">
+            <p>
+              Adın yanındaki kısa alan, en fazla {MAX_ABBREVIATION} karakter (ör.{" "}
+              <span className="stages-help-code">QF</span>, <span className="stages-help-code">GF</span>): bracket
+              tablosunda her maç kartının üstünde kodun yanında yazar, üzerine gelince stage'in tam adı görünür. Boş
+              bırakılırsa kartta yalnızca maç kodu olur.
             </p>
           </div>
         </section>

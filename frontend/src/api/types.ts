@@ -67,6 +67,8 @@ export interface AdminUser {
 export interface Stage {
   id: string;
   name: string;
+  /** Its short name for the bracket board's cards ("QF"); null: none. */
+  abbreviation: string | null;
   position: number;
   published: boolean;
   /** The qualifier lobbies' map pool; at most one stage is. */
@@ -385,6 +387,8 @@ export interface MatchStreamer {
 export interface MatchStage {
   id: string;
   name: string;
+  /** Its short name, on the bracket board's cards ("QF"); null: none. */
+  abbreviation: string | null;
   /** Whether its map pool is on the public mappool page. */
   published: boolean;
   /** Orders the stages. */

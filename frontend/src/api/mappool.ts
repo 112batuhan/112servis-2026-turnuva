@@ -22,6 +22,9 @@ export const setQualifierStage = (stageId: string | null) =>
 export const setStageBestOf = (stageId: string, bestOf: number | null) =>
   put<void>(`/api/stages/${stageId}/best-of`, { best_of: bestOf });
 /** null (or empty) goes back to the default order. */
+/** null (or empty) takes the short name off. */
+export const setStageAbbreviation = (stageId: string, abbreviation: string | null) =>
+  put<void>(`/api/stages/${stageId}/abbreviation`, { abbreviation });
 export const setStageDraftOrder = (stageId: string, order: string | null) =>
   put<void>(`/api/stages/${stageId}/draft-order`, { draft_order: order });
 

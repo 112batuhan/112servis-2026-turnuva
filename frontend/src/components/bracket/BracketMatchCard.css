@@ -35,6 +35,26 @@
   color: var(--color-code-losers);
 }
 
+/* The stage, short, after the code: a muted figure ruled off from it, so the code stays the card's name. */
+.bm-card-stage {
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--color-border-strong);
+  color: var(--color-text-muted);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.bm-card-stage:hover {
+  color: var(--color-text);
+}
+
 .bm-card-time {
   flex: 1;
   min-width: 0;

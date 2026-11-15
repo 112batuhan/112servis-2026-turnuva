@@ -361,6 +361,8 @@ pub enum PoolError {
     PackLinkScheme,
     #[error("the pack link is too long")]
     PackLinkTooLong,
+    #[error("a stage's short name is at most 6 characters")]
+    AbbreviationTooLong,
 }
 
 impl PoolError {
@@ -374,7 +376,8 @@ impl PoolError {
             | Self::DraftOrderTooLong
             | Self::BadPackLink
             | Self::PackLinkScheme
-            | Self::PackLinkTooLong => StatusCode::BAD_REQUEST,
+            | Self::PackLinkTooLong
+            | Self::AbbreviationTooLong => StatusCode::BAD_REQUEST,
             Self::QualifierStageChanged => StatusCode::CONFLICT,
         }
     }

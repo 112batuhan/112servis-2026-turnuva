@@ -261,6 +261,15 @@ FROM (VALUES ('Round of 32', 'p1-p2-b2-b1-p1-*'), ('Round of 16', 'p1-p2-b2-b1-p
     AS v (name, draft_order)
 WHERE s.name = v.name AND s.draft_order IS NULL AND NOT s.is_qualifier;
 
+-- Their short names, as the bracket board writes them on the cards. A reused stage
+-- keeps one a host gave it.
+UPDATE stages s
+SET abbreviation = v.abbreviation
+FROM (VALUES ('Qualifiers', 'Q'), ('Round of 32', 'RO32'), ('Round of 16', 'RO16'),
+             ('Quarterfinals', 'QF'), ('Semifinals', 'SF'), ('Finals', 'F'), ('Grand Final', 'GF'))
+    AS v (name, abbreviation)
+WHERE s.name = v.name AND s.abbreviation IS NULL;
+
 -- Map pools for the seeded stages, from real ranked maps: for each stage and mod, the
 -- most played map whose star rating fits that stage's band (rising from 5.0* in the
 -- qualifiers to 5.9* in the grand final, with HR, DT and TB picked lower or higher to

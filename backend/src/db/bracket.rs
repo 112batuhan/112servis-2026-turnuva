@@ -49,6 +49,7 @@ pub struct BracketRow {
     pub streamer_avatar_url: Option<String>,
     pub stage_id: Option<Uuid>,
     pub stage_name: Option<String>,
+    pub stage_abbreviation: Option<String>,
     pub stage_published: Option<bool>,
     pub stage_position: Option<i32>,
     pub stage_best_of: Option<i32>,
@@ -109,8 +110,9 @@ pub async fn list_matches(pool: &PgPool) -> sqlx::Result<Vec<BracketRow>> {
                d.discord_id AS referee_discord_id, d.username AS referee_discord_username,
                s.id AS streamer_id, s.osu_id AS streamer_osu_id,
                s.username AS streamer_username, s.avatar_url AS streamer_avatar_url,
-               st.id AS stage_id, st.name AS stage_name, st.published AS stage_published,
-               st.position AS stage_position, st.best_of AS stage_best_of
+               st.id AS stage_id, st.name AS stage_name, st.abbreviation AS stage_abbreviation,
+               st.published AS stage_published, st.position AS stage_position,
+               st.best_of AS stage_best_of
         FROM bracket_matches b
         JOIN matches m ON m.id = b.match_id
         LEFT JOIN osu_users u ON u.id = m.referee_id
