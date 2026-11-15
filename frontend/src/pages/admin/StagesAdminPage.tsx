@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { fetchBracket } from "../../api/bracket";
 import { fetchPickem, setStagePickemMode } from "../../api/pickem";
@@ -166,78 +166,110 @@ export function StagesAdminPage() {
 
       {stages && stages.length > 0 && (
         <ol className="stage-list">
+          {/* Names the grid's columns; each control carries its own label for screen readers. */}
+          <li className="stage-list-head" aria-hidden="true">
+            <span className="stage-list-head-name">Stage</span>
+            <span className="stage-list-head-abbr">Kısa</span>
+            <span className="stage-list-head-bo">Bo</span>
+            <span className="stage-list-head-order">Pick-ban</span>
+            <span className="stage-list-head-pickem">Pick'em</span>
+            <span className="stage-list-head-meta">Maç</span>
+          </li>
           {stages.map((stage, i) => {
             const count = matchCounts.get(stage.id) ?? 0;
             return (
               <li key={stage.id} className="stage-row" {...reorderProps(stage.id)}>
-                <span className="stage-row-grip" title="Sıralamak için sürükle">
-                  <Icon name="grip" />
+                {/* Moving the stage: the grip to drag it, the arrows for a step at a time. */}
+                <span className="stage-row-move">
+                  <span className="stage-row-grip" title="Sıralamak için sürükle">
+                    <Icon name="grip" />
+                  </span>
+                  <IconButton
+                    icon="arrowUp"
+                    label={`${stage.name} stage'ini yukarı taşı`}
+                    disabled={i === 0}
+                    onClick={() => applyOrder(moveBy(ids, stage.id, -1))}
+                  />
+                  <IconButton
+                    icon="arrowDown"
+                    label={`${stage.name} stage'ini aşağı taşı`}
+                    disabled={i === stages.length - 1}
+                    onClick={() => applyOrder(moveBy(ids, stage.id, 1))}
+                  />
                 </span>
-                <span className="stage-row-name">
+                <span className="stage-row-cell stage-row-name">
                   <InlineEdit
                     value={stage.name}
                     label={`${stage.name} stage'ini yeniden adlandır`}
                     onSave={(name) => run(() => renameStage(stage.id, name))}
                   />
                 </span>
-                <AbbreviationField stage={stage} onSave={(value) => applyAbbreviation(stage, value)} />
-                {stage.is_qualifier && <span className="badge badge-info">Eleme</span>}
-                <span
-                  className={`badge ${stage.published ? "badge-success" : "badge-warning"}`}
-                  title={stage.published ? "Mappool herkese açık" : "Mappool henüz yayınlanmadı"}
-                >
-                  {stage.published ? "Yayında" : "Taslak"}
+                <span className="stage-row-cell stage-row-abbr-cell">
+                  <AbbreviationField stage={stage} onSave={(value) => applyAbbreviation(stage, value)} />
                 </span>
-                <select
-                  className="select select-sm stage-row-bo"
-                  value={stage.best_of ?? ""}
-                  aria-label={`${stage.name}: kaç map üzerinden oynanıyor`}
-                  title="Maçlar kaç map üzerinden oynanıyor"
-                  onChange={(e) => applyBestOf(stage, e.target.value ? Number(e.target.value) : null)}
-                >
-                  <option value="">Bo —</option>
-                  {BEST_OF_CHOICES.map((n) => (
-                    <option key={n} value={n}>
-                      {bestOfLabel(n)} · {firstTo(n)} alan kazanır
-                    </option>
-                  ))}
-                  {stage.best_of !== null && !(BEST_OF_CHOICES as readonly number[]).includes(stage.best_of) && (
-                    <option value={stage.best_of}>{bestOfLabel(stage.best_of)}</option>
-                  )}
-                </select>
-                {!stage.is_qualifier && (
-                  <DraftOrderField stage={stage} onSave={(order) => applyDraftOrder(stage, order)} />
-                )}
-                {pickem.has(stage.id) && (
-                  <PickemControl stage={stage} pickem={pickem.get(stage.id)!} onChange={(mode) => applyPickemMode(stage, mode)} />
-                )}
-                <span className="stage-row-meta">{count} maç</span>
-                <Link
-                  to="/admin/mappool"
-                  className="btn btn-secondary btn-sm"
-                  onClick={() => rememberStage(user.id, stage.id)}
-                >
-                  Mappool
-                </Link>
-                <IconButton
-                  icon="arrowUp"
-                  label={`${stage.name} stage'ini yukarı taşı`}
-                  disabled={i === 0}
-                  onClick={() => applyOrder(moveBy(ids, stage.id, -1))}
-                />
-                <IconButton
-                  icon="arrowDown"
-                  label={`${stage.name} stage'ini aşağı taşı`}
-                  disabled={i === stages.length - 1}
-                  onClick={() => applyOrder(moveBy(ids, stage.id, 1))}
-                />
-                <IconButton
-                  icon="trash"
-                  label={`${stage.name} stage'ini sil`}
-                  tone="danger"
-                  disabled={busy}
-                  onClick={() => remove(stage)}
-                />
+                <span className="stage-row-cell stage-row-badges">
+                  <span
+                    className={`badge ${stage.published ? "badge-success" : "badge-warning"}`}
+                    title={stage.published ? "Mappool herkese açık" : "Mappool henüz yayınlanmadı"}
+                  >
+                    {stage.published ? "Yayında" : "Taslak"}
+                  </span>
+                  {stage.is_qualifier && <span className="badge badge-info">Eleme</span>}
+                </span>
+                {/* How the stage's matches are played: its own line when the row is too narrow for one. */}
+                <span className="stage-row-fields">
+                  <span className="stage-row-cell stage-row-bo-cell">
+                    <select
+                      className="select select-sm stage-row-bo"
+                      value={stage.best_of ?? ""}
+                      aria-label={`${stage.name}: kaç map üzerinden oynanıyor`}
+                      title={stage.best_of ? `${firstTo(stage.best_of)} map alan kazanır` : "Maçlar kaç map üzerinden oynanıyor"}
+                      onChange={(e) => applyBestOf(stage, e.target.value ? Number(e.target.value) : null)}
+                    >
+                      <option value="">Bo —</option>
+                      {BEST_OF_CHOICES.map((n) => (
+                        <option key={n} value={n} title={`${firstTo(n)} map alan kazanır`}>
+                          {bestOfLabel(n)}
+                        </option>
+                      ))}
+                      {stage.best_of !== null && !(BEST_OF_CHOICES as readonly number[]).includes(stage.best_of) && (
+                        <option value={stage.best_of}>{bestOfLabel(stage.best_of)}</option>
+                      )}
+                    </select>
+                  </span>
+                  {/* Left empty when the stage has none, so the column's separator still stands. */}
+                  <span className="stage-row-cell stage-row-order-cell">
+                    {!stage.is_qualifier && (
+                      <DraftOrderField stage={stage} onSave={(order) => applyDraftOrder(stage, order)} />
+                    )}
+                  </span>
+                  <span className="stage-row-cell stage-row-pickem-cell">
+                    {pickem.has(stage.id) && (
+                      <PickemControl
+                        stage={stage}
+                        pickem={pickem.get(stage.id)!}
+                        onChange={(mode) => applyPickemMode(stage, mode)}
+                      />
+                    )}
+                  </span>
+                </span>
+                <span className="stage-row-cell stage-row-meta">{count} maç</span>
+                <span className="stage-row-cell stage-row-actions">
+                  <Link
+                    to="/admin/mappool"
+                    className="btn btn-secondary btn-sm"
+                    onClick={() => rememberStage(user.id, stage.id)}
+                  >
+                    Mappool
+                  </Link>
+                  <IconButton
+                    icon="trash"
+                    label={`${stage.name} stage'ini sil`}
+                    tone="danger"
+                    disabled={busy}
+                    onClick={() => remove(stage)}
+                  />
+                </span>
               </li>
             );
           })}
@@ -323,7 +355,7 @@ function DraftOrderField({ stage, onSave }: { stage: Stage; onSave: (order: stri
         className={`input input-sm stage-row-order-input${error ? " is-invalid" : ""}`}
         value={text}
         placeholder={DEFAULT_DRAFT_ORDER}
-        size={shown.length + 1}
+        style={{ "--chars": shown.length } as CSSProperties}
         spellCheck={false}
         autoCapitalize="off"
         autoComplete="off"
