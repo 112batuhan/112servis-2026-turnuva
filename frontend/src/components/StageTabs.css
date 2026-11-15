@@ -1,10 +1,13 @@
-/* The stages as the site's stage track (see /stats' .stats-track): 3px rules over the names,
-   wrapping into a grid rather than scrolling, with the page's own controls after it. */
+/* The stages as the site's stage track: 3px rules over the names, with the page's own controls
+   after it. Wide enough, a grid that wraps; on a phone one line that scrolls sideways (see the end). */
 .stage-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-3) var(--space-4);
+  /* Where a page lays the bar out as a flex item (the bracket list's toolbar), let it shrink to the
+     page so the track scrolls inside it rather than pushing its last stages off the screen. */
+  min-width: 0;
   margin-bottom: var(--space-5);
 }
 
@@ -51,7 +54,8 @@
     border-color var(--duration-fast) var(--ease-out);
 }
 
-.stage-tab:hover {
+/* Only a track you pick from answers the pointer; the landing's only shows. */
+button.stage-tab:hover {
   background: var(--color-hover);
   color: var(--color-text-muted);
 }
@@ -63,13 +67,35 @@
   color: var(--color-text);
 }
 
-/* The stage the tournament is in keeps its frost rule when shown, and glows like the crystal;
-   a shadow over the rule keeps the glow on it. */
-.stage-tab.is-current {
+/* Played out: the rule in muted ink, kept when shown so the state still reads. */
+.stage-tab.is-done {
+  border-top-color: var(--color-text-muted);
+  color: var(--color-text-muted);
+}
+
+/* Locked (pick'em): the rule in ink. */
+.stage-tab.is-set {
+  border-top-color: var(--color-text);
+  color: var(--color-text-muted);
+}
+
+.stage-tab.is-done[aria-pressed="true"],
+.stage-tab.is-set[aria-pressed="true"] {
+  color: var(--color-text);
+}
+
+/* The lit stage (the one the tournament is in, one being played, pick'em's open one) keeps its frost
+   rule when shown, and glows like the crystal; a shadow over the rule keeps the glow on it. */
+.stage-tab.is-lit {
   border-top-color: var(--color-primary);
 }
 
-.stage-tab.is-current::before {
+/* On a display track (the landing's) nothing is shown, so the lit stage reads in ink itself. */
+span.stage-tab.is-lit {
+  color: var(--color-text);
+}
+
+.stage-tab.is-lit::before {
   content: "";
   position: absolute;
   top: -3px;
@@ -131,6 +157,39 @@
 
 .stage-tab-now {
   color: var(--color-primary);
+}
+
+/* A phone: the stages run in one line, like the landing's track, and scroll sideways; the shown one
+   is kept in the middle (StageTabs.tsx). The controls go under it. */
+@media (max-width: 720px) {
+  .stage-tabs {
+    flex-basis: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+
+  .stage-tabs ol {
+    display: flex;
+    min-width: max-content;
+  }
+
+  .stage-tabs li {
+    flex: 1 0 auto;
+    min-width: 8rem;
+  }
+
+  .stage-tab-head,
+  .stage-tab-note {
+    flex-wrap: nowrap;
+    white-space: nowrap;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-tab {
+    transition: none;
+  }
 }
 
 .stage-status {

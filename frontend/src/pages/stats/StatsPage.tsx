@@ -6,6 +6,7 @@ import type { PublicStage, StageActivity } from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { IconButton } from "../../components/IconButton";
+import { StageTabs, type StageMark } from "../../components/StageTabs";
 import { bestOfLabel } from "../../lib/bestOf";
 import { formatClock } from "../../lib/format";
 import { MapBoard } from "./MapBoard";
@@ -103,9 +104,9 @@ export function StatsPage() {
       {stages?.length === 0 && <p className="status">Henüz yayınlanmış bir stage yok.</p>}
 
       {stages && stages.length > 0 && (
-        <StageTrack
+        <StageTabs
           stages={stages}
-          activity={stats.activity}
+          mark={(s) => stageMark(s, stats.activity)}
           selectedId={selectedId}
           onSelect={(id) => update({ stage: id, map: null })}
           onPrefetch={statsCache.prefetch}
@@ -194,53 +195,15 @@ function TabPanel({ tab, index, ownTeam, mapId, onMap, onOpenMap }: PanelProps) 
   }
 }
 
-interface TrackProps {
-  stages: PublicStage[];
-  activity: StageActivity[] | null;
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  /** A stage about to be picked (hovered, focused): start reading it. */
-  onPrefetch: (id: string) => void;
-}
-
 /**
- * The published stages as the track's rules: a stage with matches being played lit in frost,
- * one with scores in muted ink, one without any on a hairline. It wraps rather than scrolls.
+ * A published stage on the track: lit in frost while its matches are being played, ruled in muted
+ * ink once it has scores, on a hairline before.
  */
-function StageTrack({ stages, activity, selectedId, onSelect, onPrefetch }: TrackProps) {
-  return (
-    <nav className="stats-track" aria-label="Stage'ler">
-      <ol>
-        {stages.map((s) => {
-          const a = activity?.find((x) => x.stage_id === s.id);
-          const state = a && a.live > 0 ? "is-live" : a && a.played > 0 ? "is-played" : "is-empty";
-          const note =
-            a && a.live > 0
-              ? `${a.live} maç oynanıyor`
-              : a && a.played > 0
-                ? s.is_qualifier
-                  ? `${a.played} lobi oynandı`
-                  : `${a.played} maç oynandı`
-                : "Henüz skor yok";
-          return (
-            <li key={s.id}>
-              <button
-                type="button"
-                className={`stats-track-item ${state}`}
-                aria-pressed={s.id === selectedId}
-                onClick={() => onSelect(s.id)}
-                onPointerEnter={() => onPrefetch(s.id)}
-                onFocus={() => onPrefetch(s.id)}
-              >
-                <span className="stats-track-name">{s.name}</span>
-                <span className="stats-track-note">{note}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
-  );
+function stageMark(s: PublicStage, activity: StageActivity[] | null): StageMark {
+  const a = activity?.find((x) => x.stage_id === s.id);
+  if (a && a.live > 0) return { rule: "lit", note: `${a.live} maç oynanıyor` };
+  if (a && a.played > 0) return { rule: "done", note: `${a.played} ${s.is_qualifier ? "lobi" : "maç"} oynandı` };
+  return { note: "Henüz skor yok" };
 }
 
 /** The stage's name and what's counted so far, with how the Z scores are worked out. */

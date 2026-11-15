@@ -10,6 +10,7 @@ import { useAuth } from "../auth/AuthContext";
 import { canPlay } from "../auth/roles";
 import { Countdown } from "../components/Countdown";
 import { FixtureRow } from "../components/FixtureRow";
+import { StageTabs, type StageMark } from "../components/StageTabs";
 import { compareByTime, fixturePath, incomingSources, withPotentials, withScore } from "../lib/bracket";
 import { formatMatchTime } from "../lib/format";
 import { useLiveRefresh } from "../lib/useLiveRefresh";
@@ -27,6 +28,12 @@ interface Data {
   qualifiers: PublicQualifiers | null;
   /** Every stage, published or not, each marked done, current or upcoming by the backend: the track. */
   stages: PublicStage[] | null;
+}
+
+/** The landing's track: played stages ruled in muted ink, the one the tournament is in lit, "Şu an" under it. */
+function trackMark(s: PublicStage): StageMark {
+  if (s.state === "current") return { rule: "lit", note: "Şu an" };
+  return { rule: s.state === "done" ? "done" : undefined };
 }
 
 /**
@@ -180,16 +187,12 @@ export function LandingPage() {
       </section>
 
       {track.length > 0 && (
-        <nav className="stage-track" aria-label="Turnuva aşamaları">
-          <ol>
-            {track.map((s) => (
-              <li key={s.id} className={`stage-track-item is-${s.state}`} aria-current={s.state === "current" ? "step" : undefined}>
-                <span className="stage-track-name">{s.name}</span>
-                {s.state === "current" && <span className="stage-track-now">Şu an</span>}
-              </li>
-            ))}
-          </ol>
-        </nav>
+        <StageTabs
+          stages={track}
+          currentId={track.find((s) => s.state === "current")?.id ?? null}
+          mark={trackMark}
+          label="Turnuva aşamaları"
+        />
       )}
 
       {user && canPlay(user) && data?.bracket && (

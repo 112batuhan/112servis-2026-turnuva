@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { loginWithOsu } from "../../api/auth";
-import type { BracketMatch, CanPredict, MyPrediction, PickemStage, PickemStanding } from "../../api/types";
+import type { BracketMatch, CanPredict, MyPrediction, PickemStage, PickemStanding, PickemStatus } from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
 import { Countdown } from "../../components/Countdown";
 import { useLinkedMatch } from "../../components/bracket/BracketViewTabs";
 import { ErrorAlert } from "../../components/ErrorAlert";
-import { IconButton } from "../../components/IconButton";
+import { StageTabs, type StageMark } from "../../components/StageTabs";
 import { PickemPotentials } from "../../components/pickem/PickemPotentials";
 import { PickemRow } from "../../components/pickem/PickemRow";
 import { bestOfLabel } from "../../lib/bestOf";
@@ -117,7 +117,13 @@ export function PickemPage() {
         <p className="status">Pick'em, bracket maçları stage'lere dağıtılınca açılır.</p>
       ) : (
         <>
-          <StageTrack stages={stages} selectedId={stage?.id ?? null} onSelect={setPicked} viewer={viewer} />
+          <StageTabs
+            stages={stages}
+            selectedId={stage?.id ?? null}
+            onSelect={setPicked}
+            mark={(s) => stageMark(s, viewer)}
+            label="Pick'em stage'leri"
+          />
 
           <div className="pickem-tabs" role="group" aria-label="Bölüm">
             <button type="button" className="pickem-tab" aria-pressed={tab === "ballot"} onClick={() => setTab("ballot")}>
@@ -226,112 +232,17 @@ function useMoreBelow(mounted: boolean) {
   return [ref, more] as const;
 }
 
-interface TrackProps {
-  stages: PickemStage[];
-  selectedId: string | null;
-  onSelect: (id: string) => void;
-  viewer: PickemStanding | undefined;
-}
+/** Each window's rule on the track. */
+const RULES: Record<PickemStatus, StageMark["rule"]> = { upcoming: undefined, open: "lit", locked: "set", finished: "done" };
 
 /**
- * The stages in play order on the landing page's track: played ones ruled muted, the locked one in
- * ink, the open one lit like the crystal. Each says where the viewer stands in it.
+ * A pick'em stage on the track: played out ruled in muted ink, locked in ink, the open one lit like
+ * the crystal; under its name, the viewer's points once it's locked, else its state.
  */
-function StageTrack(props: TrackProps) {
-  return (
-    <>
-      <WideTrack {...props} />
-      <StageStepper {...props} />
-    </>
-  );
-}
-
-/** What a stage's line under its name says: the viewer's points once it's locked, else its state. */
-function stageNote(s: PickemStage, viewer: PickemStanding | undefined): string {
+function stageMark(s: PickemStage, viewer: PickemStanding | undefined): StageMark {
   const tally = viewer?.stages.find((t) => t.stage_id === s.id);
-  return isLocked(s.status) && tally ? `${tally.points} puan` : STATUS_LABELS[s.status];
-}
-
-/**
- * The track on a phone, where seven stages don't fit across: the shown stage's name between back
- * and forward buttons, over the same rules shrunk to a strip, each a button of its own. Nothing to
- * scroll sideways.
- */
-function StageStepper({ stages, selectedId, onSelect, viewer }: TrackProps) {
-  const index = Math.max(0, stages.findIndex((s) => s.id === selectedId));
-  const current = stages[index];
-  if (!current) return null;
-  return (
-    <nav className="pickem-stepper" aria-label="Pick'em stage'leri">
-      <div className="pickem-stepper-head">
-        <IconButton
-          icon="chevronLeft"
-          label={index > 0 ? `Önceki stage: ${stages[index - 1].name}` : "Önceki stage yok"}
-          variant="outlined"
-          disabled={index === 0}
-          onClick={() => onSelect(stages[index - 1].id)}
-        />
-        <p className={`pickem-stepper-now is-${current.status}`} aria-live="polite">
-          <span className="pickem-stepper-name">{current.name}</span>
-          <span className="pickem-stepper-note">{stageNote(current, viewer)}</span>
-        </p>
-        <IconButton
-          icon="chevronRight"
-          label={index < stages.length - 1 ? `Sonraki stage: ${stages[index + 1].name}` : "Sonraki stage yok"}
-          variant="outlined"
-          disabled={index === stages.length - 1}
-          onClick={() => onSelect(stages[index + 1].id)}
-        />
-      </div>
-      <ol className="pickem-stepper-rules">
-        {stages.map((s) => (
-          <li key={s.id}>
-            <button
-              type="button"
-              className={`pickem-stepper-rule is-${s.status}`}
-              aria-pressed={s.id === selectedId}
-              aria-label={`${s.name}: ${stageNote(s, viewer)}`}
-              title={s.name}
-              onClick={() => onSelect(s.id)}
-            />
-          </li>
-        ))}
-      </ol>
-    </nav>
-  );
-}
-
-function WideTrack({ stages, selectedId, onSelect, viewer }: TrackProps) {
-  // Where the track is wider than the page, keep the stage shown in view.
-  const ref = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const track = ref.current;
-    const item = track?.querySelector<HTMLElement>('[aria-pressed="true"]');
-    if (!track || !item || track.scrollWidth <= track.clientWidth) return;
-    track.scrollLeft = item.offsetLeft - (track.clientWidth - item.offsetWidth) / 2;
-  }, [selectedId]);
-  return (
-    <nav ref={ref} className="pickem-track" aria-label="Pick'em stage'leri">
-      <ol>
-        {stages.map((s) => {
-          const note = stageNote(s, viewer);
-          return (
-            <li key={s.id}>
-              <button
-                type="button"
-                className={`pickem-track-item is-${s.status}`}
-                aria-pressed={s.id === selectedId}
-                onClick={() => onSelect(s.id)}
-              >
-                <span className="pickem-track-name">{s.name}</span>
-                <span className="pickem-track-note">{note}</span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-    </nav>
-  );
+  const note = isLocked(s.status) && tally ? `${tally.points} puan` : STATUS_LABELS[s.status];
+  return { rule: RULES[s.status], note };
 }
 
 /** The viewer's part in the stage: their points once it's locked, how far along they are while it's open. */
