@@ -152,10 +152,7 @@ export function SeedingAdminPage() {
                     </>
                   )}
                 </p>
-                <p className="seeding-note">
-                  Seed sırası bracket'in kaydı olarak kilitlendi. Yeni bracket için önce bütün
-                  maçları kaldır.
-                </p>
+                <p className="seeding-note">Seed sırası kilitlendi. Yeni bracket için önce bütün maçları kaldır.</p>
                 <div className="seeding-actions">
                   <Link to="/admin/bracket" className="btn btn-secondary">
                     <Icon name="bracket" size={16} />
