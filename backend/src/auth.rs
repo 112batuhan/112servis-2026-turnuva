@@ -46,6 +46,8 @@ pub struct AuthUser {
     pub id: Uuid,
     pub roles: Roles,
     pub discord_verified: bool,
+    // Banned by the hosts from taking part (`user_bans`); they can still sign in and look.
+    pub banned: bool,
 }
 
 impl FromRequestParts<AppState> for AuthUser {
@@ -99,6 +101,7 @@ impl SessionKey {
             id: user.id,
             roles: Roles::of(&user.roles),
             discord_verified: user.discord_verified,
+            banned: user.banned,
         }))
     }
 }
@@ -121,6 +124,18 @@ impl AuthUser {
             Ok(())
         } else {
             Err(AuthError::DiscordRequired.into())
+        }
+    }
+
+    // Rejects a caller the hosts banned. Every action a player takes part with checks
+    // it: forming or changing a team, joining a qualifier lobby, rescheduling, predicting.
+    // Backing out (cancelling or declining an invite, leaving a lobby, withdrawing a
+    // proposal or a prediction) stays open to them.
+    pub fn require_not_banned(&self) -> Result<(), AppError> {
+        if self.banned {
+            Err(AuthError::Banned.into())
+        } else {
+            Ok(())
         }
     }
 

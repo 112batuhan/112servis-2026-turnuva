@@ -3,6 +3,7 @@ use sqlx::PgPool;
 use time::OffsetDateTime;
 use uuid::Uuid;
 
+use super::ban::Ban;
 use crate::{discord_api::user::DiscordProfile, osu_api::user::OsuProfile, role::Role};
 
 // A row in the osu_users table.
@@ -39,12 +40,14 @@ pub struct DiscordAccount {
     pub updated_at: OffsetDateTime,
 }
 
-// What find_user sends back to the frontend: the osu! profile plus an optional linked Discord account.
+// What find_user sends back to the frontend: the osu! profile plus an optional linked
+// Discord account, and their ban if the hosts banned them.
 #[derive(Debug, Serialize)]
 pub struct UserProfile {
     #[serde(flatten)]
     pub osu: OsuUser,
     pub discord: Option<DiscordAccount>,
+    pub ban: Option<Ban>,
 }
 
 // Creates a user on first osu! login, or refreshes their profile on later logins.
@@ -120,8 +123,9 @@ pub async fn find_user(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Option<User
     .bind(user_id)
     .fetch_optional(pool)
     .await?;
+    let ban = super::ban::find(pool, user_id).await?;
 
-    Ok(Some(UserProfile { osu, discord }))
+    Ok(Some(UserProfile { osu, discord, ban }))
 }
 
 // One person on the public staff page: everyone holding at least one role, with their linked

@@ -197,6 +197,12 @@ export function NotificationBell() {
   );
 }
 
+const FOOT_LABELS: Record<string, string> = {
+  "/team": "Takımım sayfasında gör",
+  "/admin/teams": "Takımlar sayfasında gör",
+  "/admin/users": "Kullanıcılar sayfasında gör",
+};
+
 interface ItemProps {
   n: AppNotification;
   isHost: boolean;
@@ -211,12 +217,23 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
   const pending = n.kind === "confirm_time" && n.actionable;
   const classes = ["notif-item", !n.read && "is-unread", pending && "is-pending"].filter(Boolean).join(" ");
   // The player notifications lead to the team page; a host is sent to the teams admin instead.
-  const teamPath = (n.kind === "rank_over_limit" || n.kind === "discord_left") && isHost ? "/admin/teams" : "/team";
+  const teamPath =
+    ((n.kind === "rank_over_limit" || n.kind === "discord_left") && isHost) || n.kind === "player_banned"
+      ? "/admin/teams"
+      : "/team";
+  const isBan = n.kind === "banned" || n.kind === "teammate_banned" || n.kind === "player_banned";
+  // Where the foot link goes: the team's page, or for a host told about a player with no team,
+  // the users admin, where the ban is.
+  const footPath = n.kind === "player_banned" && !n.team_name ? "/admin/users" : teamPath;
   const forPlayers =
     n.kind === "reschedule_proposed" ||
     n.kind === "reschedule_accepted" ||
     n.kind === "rank_over_limit" ||
-    n.kind === "discord_left";
+    n.kind === "discord_left" ||
+    isBan;
+  // banned, player_banned: why, on a line of its own: before what the ban stops for the player,
+  // after who it was for the hosts.
+  let reason: string | null = null;
 
   let title: string;
   let body: string;
@@ -256,12 +273,28 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
       title = "Oyuncu Discord'dan ayrıldı";
       body = `${actor} turnuvanın Discord sunucusundan ayrıldı. Maç kanallarını görebilmesi için sunucuya geri dönmesi gerekiyor.`;
       break;
+    case "banned":
+      title = "Turnuvadan banlandın";
+      reason = n.ban_reason || null;
+      body = "Takım kuramaz, takımını değiştiremez, eleme lobisine katılamaz ve maç saati öneremezsin.";
+      break;
+    case "player_banned":
+      title = "Oyuncu banlandı";
+      reason = n.ban_reason || null;
+      body = n.team_name
+        ? `${actor} turnuvadan banlandı. Takımı, bir host dağıtana kadar duruyor.`
+        : `${actor} turnuvadan banlandı.`;
+      break;
+    case "teammate_banned":
+      title = "Takım arkadaşın banlandı";
+      body = `${actor} turnuvadan banlandı. Takımınız şimdilik duruyor; ne olacağına hostlar karar verecek.`;
+      break;
   }
 
   return (
     <li className={classes}>
       <div className="notif-head">
-        <span className="notif-item-title">{title}</span>
+        <span className={isBan ? "notif-item-title is-danger" : "notif-item-title"}>{title}</span>
         <span className="notif-when" title={formatDateTime(n.created_at)}>
           {formatShortMatchTime(n.created_at)}
         </span>
@@ -291,11 +324,13 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
           <strong>{formatShortMatchTime(n.new_starts_at)}</strong>
         </p>
       )}
+      {reason && n.kind === "banned" && <p className="notif-reason">Sebep: {reason}</p>}
       <p className="notif-body">{body}</p>
+      {reason && n.kind === "player_banned" && <p className="notif-reason">Sebep: {reason}</p>}
 
       {forPlayers && (
-        <Link to={teamPath} className="notif-link">
-          {teamPath === "/team" ? "Takımım sayfasında gör" : "Takımlar sayfasında gör"} →
+        <Link to={footPath} className="notif-link">
+          {FOOT_LABELS[footPath]} →
         </Link>
       )}
       {n.kind === "confirm_time" &&

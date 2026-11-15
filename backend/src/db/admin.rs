@@ -23,6 +23,11 @@ pub struct AdminUser {
     pub discord_id: Option<String>,
     pub discord_username: Option<String>,
     pub discord_avatar: Option<String>,
+    // Set when the hosts banned them: why (empty when no reason was given), when, by whom.
+    pub ban_reason: Option<String>,
+    #[serde(with = "time::serde::rfc3339::option")]
+    pub banned_at: Option<OffsetDateTime>,
+    pub banned_by_username: Option<String>,
 }
 
 // Every registered user, newest first. A single LEFT JOIN folds in the Discord
@@ -34,9 +39,14 @@ pub async fn list_users(pool: &PgPool) -> sqlx::Result<Vec<AdminUser>> {
                o.global_rank, o.country_rank, o.roles, o.created_at,
                d.discord_id AS discord_id,
                d.username   AS discord_username,
-               d.avatar     AS discord_avatar
+               d.avatar     AS discord_avatar,
+               b.reason     AS ban_reason,
+               b.created_at AS banned_at,
+               bb.username  AS banned_by_username
         FROM osu_users o
         LEFT JOIN discord_accounts d ON d.osu_user_id = o.id
+        LEFT JOIN user_bans b ON b.user_id = o.id
+        LEFT JOIN osu_users bb ON bb.id = b.banned_by
         ORDER BY o.created_at DESC
         "#,
     )

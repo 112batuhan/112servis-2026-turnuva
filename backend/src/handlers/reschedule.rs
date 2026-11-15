@@ -167,6 +167,7 @@ async fn propose(
     user: AuthUser,
     Json(body): Json<ProposeBody>,
 ) -> Result<impl IntoResponse, AppError> {
+    user.require_not_banned()?;
     let team_id = user.team_id(&state.db).await?;
     if body.starts_at <= OffsetDateTime::now_utc() {
         return Err(ScheduleError::TimeInPast.into());
@@ -242,6 +243,7 @@ async fn accept(
     user: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
+    user.require_not_banned()?;
     let team_id = user.team_id(&state.db).await?;
     let match_id = db::reschedule::find_proposal(&state.db, id)
         .await?

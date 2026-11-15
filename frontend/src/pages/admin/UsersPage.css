@@ -118,6 +118,13 @@
   background: var(--color-team-red-soft);
 }
 
+/* Only the ban icon: as narrow as it and its head, so the roles keep their room. */
+.user-table .ban-col {
+  width: 1%;
+  padding-inline: var(--space-1);
+  text-align: center;
+}
+
 .users-empty {
   padding: var(--space-4) var(--space-3);
 }

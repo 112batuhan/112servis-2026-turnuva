@@ -375,6 +375,13 @@ function StageSummary({
 /** What the viewer needs before they can predict. */
 function AccountNotice({ canPredict }: { canPredict: CanPredict }) {
   if (canPredict === "yes") return null;
+  if (canPredict === "banned") {
+    return (
+      <div className="pickem-notice">
+        <p>Turnuvadan banlı olduğun için tahmin yapamazsın.</p>
+      </div>
+    );
+  }
   return (
     <div className="pickem-notice">
       <p>

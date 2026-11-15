@@ -7,6 +7,7 @@ const CAN_PREDICT_HINT: Record<CanPredict, string | undefined> = {
   yes: undefined,
   sign_in: "Tahmin için giriş yap",
   discord: "Tahmin için Discord hesabını bağla",
+  banned: "Turnuvadan banlı olduğun için tahmin yapamazsın",
 };
 
 interface Props {

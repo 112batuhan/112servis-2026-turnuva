@@ -227,7 +227,7 @@ impl GeneralError {
     }
 }
 
-/// Signing in, linking Discord, roles.
+/// Signing in, linking Discord, roles, bans.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Error, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AuthError {
@@ -247,6 +247,12 @@ pub enum AuthError {
     DiscordLinkFailed,
     #[error("you can't remove your own host role")]
     OwnHostRole,
+    #[error("you are banned from the tournament")]
+    Banned,
+    #[error("you can't ban yourself")]
+    OwnBan,
+    #[error("ban reasons can be at most 300 characters")]
+    BanReasonLength,
     #[error("Sign in with a real osu! account to seed a live test for it.")]
     DevLiveNeedsRealAccount,
 }
@@ -254,11 +260,13 @@ pub enum AuthError {
 impl AuthError {
     fn status(self) -> StatusCode {
         match self {
-            Self::InvalidLogin | Self::OwnHostRole | Self::DevLiveNeedsRealAccount => {
-                StatusCode::BAD_REQUEST
-            }
+            Self::InvalidLogin
+            | Self::OwnHostRole
+            | Self::OwnBan
+            | Self::BanReasonLength
+            | Self::DevLiveNeedsRealAccount => StatusCode::BAD_REQUEST,
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
-            Self::Forbidden | Self::DiscordRequired => StatusCode::FORBIDDEN,
+            Self::Forbidden | Self::DiscordRequired | Self::Banned => StatusCode::FORBIDDEN,
             Self::NotInDiscordServer => StatusCode::CONFLICT,
             Self::OsuLoginFailed | Self::DiscordLinkFailed => StatusCode::BAD_GATEWAY,
         }
@@ -279,6 +287,8 @@ pub enum TeamError {
     SomeoneInTeam,
     #[error("staff can't join teams")]
     StaffCantPlay,
+    #[error("that player is banned from the tournament")]
+    PlayerBanned,
     #[error("both players need a global rank")]
     NeedsGlobalRank,
     #[error("this team would be over the rank limit")]
@@ -308,6 +318,7 @@ impl TeamError {
         match self {
             Self::NotInTeam
             | Self::StaffCantPlay
+            | Self::PlayerBanned
             | Self::NeedsGlobalRank
             | Self::OverRankLimit
             | Self::NameLength

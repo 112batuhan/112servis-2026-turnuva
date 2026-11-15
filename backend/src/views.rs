@@ -46,6 +46,8 @@ pub struct AdminTeamPlayer {
     discord_username: Option<String>,
     // False once they've left the tournament's Discord server.
     discord_in_guild: Option<bool>,
+    // Banned by the hosts; the team stays until a host disbands it.
+    banned: bool,
 }
 
 impl AdminTeamPlayer {
@@ -55,6 +57,7 @@ impl AdminTeamPlayer {
             discord_id: row.discord_id,
             discord_username: row.discord_username,
             discord_in_guild: row.discord_in_guild,
+            banned: row.banned,
         }
     }
 }

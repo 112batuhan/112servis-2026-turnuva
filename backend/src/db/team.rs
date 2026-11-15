@@ -22,6 +22,7 @@ pub struct PlayerState {
     pub player: Player,
     pub roles: Vec<Role>,
     pub in_team: bool,
+    pub banned: bool,
 }
 
 #[derive(Debug, sqlx::FromRow)]
@@ -53,6 +54,7 @@ pub struct TeamMemberRow {
     pub discord_id: Option<String>,
     pub discord_username: Option<String>,
     pub discord_in_guild: Option<bool>,
+    pub banned: bool,
 }
 
 pub async fn find_player(
@@ -62,7 +64,8 @@ pub async fn find_player(
     sqlx::query_as::<_, PlayerState>(
         r#"
         SELECT u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.roles,
-               EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team
+               EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team,
+               EXISTS(SELECT 1 FROM user_bans b WHERE b.user_id = u.id) AS banned
         FROM osu_users u
         WHERE u.id = $1
         "#,
@@ -72,7 +75,8 @@ pub async fn find_player(
     .await
 }
 
-// Case-insensitive search over players (the roles that can play), exact matches first.
+// Case-insensitive search over players (the roles that can play, not banned), exact
+// matches first.
 pub async fn search_players(
     pool: &PgPool,
     caller: Uuid,
@@ -86,12 +90,15 @@ pub async fn search_players(
         r#"
         SELECT u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.roles,
                EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team,
+               EXISTS(SELECT 1 FROM user_bans b WHERE b.user_id = u.id) AS banned,
                EXISTS(SELECT 1 FROM team_invites i
                       WHERE i.inviter_id = $1 AND i.invitee_id = u.id) AS invite_sent,
                EXISTS(SELECT 1 FROM team_invites i
                       WHERE i.inviter_id = u.id AND i.invitee_id = $1) AS invite_received
         FROM osu_users u
-        WHERE u.id <> $1 AND u.roles <@ '{streamer,graphics_designer,commentator}'::staff_role[] AND u.username ILIKE '%' || $2 || '%'
+        WHERE u.id <> $1 AND u.roles <@ '{streamer,graphics_designer,commentator}'::staff_role[]
+          AND NOT EXISTS(SELECT 1 FROM user_bans b WHERE b.user_id = u.id)
+          AND u.username ILIKE '%' || $2 || '%'
         ORDER BY lower(u.username) = lower($3) DESC, u.global_rank ASC NULLS LAST
         LIMIT 25
         "#,
@@ -108,7 +115,8 @@ pub async fn list_sent_invites(pool: &PgPool, user_id: Uuid) -> sqlx::Result<Vec
         r#"
         SELECT i.id AS invite_id, i.created_at, i.team_name,
                u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.roles,
-               EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team
+               EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team,
+               EXISTS(SELECT 1 FROM user_bans b WHERE b.user_id = u.id) AS banned
         FROM team_invites i
         JOIN osu_users u ON u.id = i.invitee_id
         WHERE i.inviter_id = $1
@@ -125,7 +133,8 @@ pub async fn list_received_invites(pool: &PgPool, user_id: Uuid) -> sqlx::Result
         r#"
         SELECT i.id AS invite_id, i.created_at, i.team_name,
                u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank, u.roles,
-               EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team
+               EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team,
+               EXISTS(SELECT 1 FROM user_bans b WHERE b.user_id = u.id) AS banned
         FROM team_invites i
         JOIN osu_users u ON u.id = i.inviter_id
         WHERE i.invitee_id = $1
@@ -277,7 +286,8 @@ pub async fn list_team_members(
         SELECT t.id AS team_id, t.name AS team_name, t.created_at AS team_created_at,
                b.updated_at AS banner_updated_at,
                u.id, u.osu_id, u.username, u.avatar_url, u.country_code, u.global_rank,
-               d.discord_id, d.username AS discord_username, d.in_guild AS discord_in_guild
+               d.discord_id, d.username AS discord_username, d.in_guild AS discord_in_guild,
+               EXISTS(SELECT 1 FROM user_bans x WHERE x.user_id = u.id) AS banned
         FROM teams t
         LEFT JOIN team_banners b ON b.team_id = t.id
         JOIN team_members m ON m.team_id = t.id

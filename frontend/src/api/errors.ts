@@ -21,6 +21,9 @@ export const ERROR_TEXT = {
     osu_login_failed: "osu! ile giriş tamamlanamadı.",
     discord_link_failed: "Discord bağlanamadı.",
     own_host_role: "Kendi host rolünü kaldıramazsın.",
+    banned: "Turnuvadan banlandın.",
+    own_ban: "Kendini banlayamazsın.",
+    ban_reason_length: "Ban sebebi en fazla 300 karakter olabilir.",
     dev_live_needs_real_account: "Canlı test için gerçek bir osu! hesabıyla giriş yap.",
   },
   team: {
@@ -29,6 +32,7 @@ export const ERROR_TEXT = {
     player_in_team: "Bu oyuncu zaten bir takımda.",
     someone_in_team: "İkinizden biri zaten bir takımda.",
     staff_cant_play: "Turnuva ekibi takımlara katılamaz.",
+    player_banned: "Bu oyuncu turnuvadan banlı.",
     needs_global_rank: "İki oyuncunun da global rankı olmalı.",
     over_rank_limit: "Bu takım rank sınırını aşar.",
     rank_update_running: "Rank güncellemesi zaten sürüyor.",

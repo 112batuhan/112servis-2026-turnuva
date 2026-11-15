@@ -93,6 +93,18 @@
   font-weight: 700;
 }
 
+/* A ban, to the player or their teammate. */
+.notif-item-title.is-danger {
+  color: var(--color-danger);
+}
+
+/* The host's reason for a ban, in full ink before what it stops. */
+.notif-reason {
+  margin: 0;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
 .notif-when {
   color: var(--color-text-muted);
   font-size: var(--text-xs);

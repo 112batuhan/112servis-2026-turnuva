@@ -56,11 +56,12 @@ The first host has to be set by hand in SQL: `UPDATE osu_users SET roles = '{hos
 - **Bot passwords** are only stored encrypted (`BOT_SECRET_KEY`); never log or return them. Referees' own IRC credentials stay in memory only.
 - **API types**: `frontend/src/api/types.ts` mirrors the Rust response structs by hand; update it whenever a serialized struct changes.
 - **Frontend conventions**: each component keeps its CSS next to it; colours, spacing and font sizes come from `styles/tokens.css`. Icon-only buttons use `<IconButton label="…">`, new icons go in `ICONS` (`components/Icon.tsx`). Anything done by dragging also needs a button/select alternative. A page's changes go through `lib/useAction.ts`.
+- **Bans**: every action a player takes part with (teams, lobbies, reschedules, pick'em, anything new like them) calls `user.require_not_banned()`; backing out of something stays open to banned users.
 - **Roles** are a set, not a ladder (`role.rs`, mirrored in `frontend/src/auth/roles.ts`): `allows` (holds it, or is host) gates pages and actions; acting in a role (being offered a referee or streamer slot) needs the role itself (`has`).
 
 ## Feature docs (`docs/architecture/`)
 
-- `auth-and-roles.md`: sessions, OAuth flows and their state cookie, roles, rules page, staff page.
+- `auth-and-roles.md`: sessions, OAuth flows and their state cookie, roles, bans, rules page, staff page.
 - `mappool.md`: stages, categories, slots, pool maps and their stats, best of, draft order, pack links.
 - `teams.md`: 2v2 teams, invites, rank limit, banners, freezing.
 - `matches-and-bracket.md`: matches, qualifier lobbies, the bracket, forfeits, potential matches, live scores and the live socket, presence, reschedules, notifications.

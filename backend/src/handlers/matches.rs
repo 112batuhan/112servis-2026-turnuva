@@ -224,6 +224,7 @@ async fn join_lobby(
     user: AuthUser,
     Json(body): Json<JoinBody>,
 ) -> Result<impl IntoResponse, AppError> {
+    user.require_not_banned()?;
     let team_id = user.team_id(&state.db).await?;
     move_team(&state, team_id, body.match_id, false).await
 }

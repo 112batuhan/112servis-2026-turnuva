@@ -137,6 +137,11 @@ pub enum Job {
     MemberReturned {
         user_id: Uuid,
     },
+    // The hosts banned a user: the hosts' channel hears it, and the user and their
+    // teammate get a DM.
+    UserBanned {
+        user_id: Uuid,
+    },
     RankOverLimit {
         team_id: Uuid,
         user_id: Uuid,

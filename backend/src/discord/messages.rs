@@ -502,6 +502,65 @@ async fn user(state: &AppState, id: Uuid) -> sqlx::Result<Option<db::discord::Us
     Ok(db::discord::users_brief(&state.db, &[id]).await?.pop())
 }
 
+// A ban, read when the job runs: nothing if it was lifted since. The hosts' channel gets who,
+// why and by whom; the player a DM saying what it stops, with the reason; their teammate a DM
+// that it happened, without the reason (that stays between the hosts and the player).
+async fn user_banned(cx: &mut Ctx<'_>, user_id: Uuid) -> BotResult {
+    let state = cx.state;
+    let (Some(u), Some(ban)) = (
+        user(state, user_id).await?,
+        db::ban::details(&state.db, user_id).await?,
+    ) else {
+        return Ok(());
+    };
+    let reason = (!ban.reason.is_empty()).then_some(ban.reason.as_str());
+
+    let mut embed = Embed::new("⛔ Oyuncu banlandı", COLOR_BAD)
+        .url(site_url(state, "/admin/users"))
+        .description(osu_profile(u.osu_id, &u.username));
+    if let Some(team) = &u.team_name {
+        embed = embed.field("Takım", team, true);
+    }
+    if let Some(by) = &ban.banned_by_username {
+        embed = embed.field("Banlayan", by, true);
+    }
+    embed = embed.field("Sebep", reason.unwrap_or("Belirtilmedi"), false);
+    cx.post_hosts(embed);
+
+    let mut dm = Embed::new("⛔ Turnuvadan banlandın", COLOR_BAD)
+        .url(site_url(state, "/team"))
+        .description(
+            "Hostlar seni turnuvadan banladı. Takım kuramaz, takımını değiştiremez, eleme lobisine \
+             katılamaz ve maç saati öneremezsin.",
+        );
+    if let Some(reason) = reason {
+        dm = dm.field("Sebep", reason, false);
+    }
+    cx.post_user(u.discord_id.as_deref(), OutMessage::embed(dm, Vec::new()));
+
+    if let Some(team_id) = u.team_id {
+        for mate in db::discord::team_players(&state.db, team_id).await? {
+            if mate.user_id == u.id {
+                continue;
+            }
+            cx.post_user(
+                mate.discord_id.as_deref(),
+                OutMessage::embed(
+                    Embed::new("⚠️ Takım arkadaşın banlandı", COLOR_WARN)
+                        .url(site_url(state, "/team"))
+                        .description(format!(
+                            "**{}** turnuvadan banlandı. Takımınız şimdilik duruyor; ne olacağına \
+                             hostlar karar verecek.",
+                            u.username
+                        )),
+                    Vec::new(),
+                ),
+            );
+        }
+    }
+    Ok(())
+}
+
 pub async fn render(state: &AppState, job: &Job) -> BotResult<Vec<(Target, OutMessage)>> {
     let mut cx = Ctx {
         state,
@@ -571,6 +630,7 @@ pub async fn render(state: &AppState, job: &Job) -> BotResult<Vec<(Target, OutMe
                 );
             }
         }
+        Job::UserBanned { user_id } => user_banned(&mut cx, *user_id).await?,
         Job::RankOverLimit {
             team_id,
             user_id,

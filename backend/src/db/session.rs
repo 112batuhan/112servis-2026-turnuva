@@ -4,13 +4,14 @@ use uuid::Uuid;
 
 use crate::role::Role;
 
-// The user behind a live session, as the AuthUser extractor needs it. Roles and
+// The user behind a live session, as the AuthUser extractor needs it. Roles, bans and
 // Discord status come straight from their tables, so changes apply on the next request.
 #[derive(Debug, sqlx::FromRow)]
 pub struct SessionUser {
     pub id: Uuid,
     pub roles: Vec<Role>,
     pub discord_verified: bool,
+    pub banned: bool,
 }
 
 // Stores a new session for `user_id`, keyed by the SHA-256 of its cookie token.
@@ -35,7 +36,8 @@ pub async fn find_user(pool: &PgPool, token_hash: &[u8]) -> sqlx::Result<Option<
         r#"
         SELECT u.id, u.roles,
                EXISTS(SELECT 1 FROM discord_accounts d WHERE d.osu_user_id = u.id)
-                   AS discord_verified
+                   AS discord_verified,
+               EXISTS(SELECT 1 FROM user_bans b WHERE b.user_id = u.id) AS banned
         FROM sessions s
         JOIN osu_users u ON u.id = s.user_id
         WHERE s.token_hash = $1 AND s.expires_at > now()

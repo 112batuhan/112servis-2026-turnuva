@@ -79,11 +79,13 @@ pub enum CanPredict {
     Yes,
     SignIn,
     Discord,
+    Banned,
 }
 
 fn can_predict(user: Option<&AuthUser>) -> CanPredict {
     match user {
         None => CanPredict::SignIn,
+        Some(u) if u.banned => CanPredict::Banned,
         Some(u) if !u.discord_verified => CanPredict::Discord,
         Some(_) => CanPredict::Yes,
     }
@@ -444,6 +446,7 @@ async fn predict(
     Path(match_id): Path<Uuid>,
     Json(body): Json<PredictBody>,
 ) -> Result<impl IntoResponse, AppError> {
+    user.require_not_banned()?;
     user.require_discord_verified()?;
     let snap = Snapshot::load(&state).await?;
     let (m, best_of) = open_match(&snap, match_id)?;

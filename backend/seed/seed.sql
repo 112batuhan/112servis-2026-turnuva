@@ -196,6 +196,25 @@ BEGIN
     END LOOP;
 END $$;
 
+-- Cezerye is banned: their team stays (its 'Banlı' badge on /admin/teams) and they
+-- see why on their team page.
+INSERT INTO user_bans (user_id, reason, banned_by)
+SELECT u.id, 'Multi-account kullanımı', h.id
+FROM osu_users u, osu_users h
+WHERE u.osu_id < 0 AND u.username = 'Cezerye' AND h.osu_id = -1;
+
+-- What the ban told them: Cezerye why, their teammate Pestil that it happened.
+INSERT INTO notifications (user_id, kind, ban_reason, created_at)
+SELECT id, 'banned', 'Multi-account kullanımı', now() - interval '2 hours'
+FROM osu_users WHERE osu_id < 0 AND username = 'Cezerye';
+
+INSERT INTO notifications (user_id, kind, team_id, actor_id, created_at)
+SELECT o.user_id, 'teammate_banned', tm.team_id, u.id, now() - interval '2 hours'
+FROM osu_users u
+JOIN team_members tm ON tm.user_id = u.id
+JOIN team_members o ON o.team_id = tm.team_id AND o.user_id <> u.id
+WHERE u.osu_id < 0 AND u.username = 'Cezerye';
+
 -- Kumpir -> Baklava is just over the limit (19004), as if a rank changed after
 -- inviting, and Borek's team name has been taken since.
 INSERT INTO team_invites (inviter_id, invitee_id, team_name, created_at)

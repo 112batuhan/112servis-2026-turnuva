@@ -34,6 +34,39 @@
   margin: 0 0 var(--space-3);
 }
 
+/* A ban: what happened in the alert's own ink, the host's reason in full ink, what it stops muted. */
+/* Doubled to win over .alert's centring, which loads after this file. */
+.alert.team-ban-notice {
+  align-items: flex-start;
+  padding: var(--space-3) var(--space-4);
+}
+
+.team-ban-notice > svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.team-ban-notice-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.team-ban-notice-title {
+  font-weight: 700;
+}
+
+.team-ban-notice-reason {
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.team-ban-notice-effects {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
 .team-discord-notice p {
   font-size: var(--text-md);
 }

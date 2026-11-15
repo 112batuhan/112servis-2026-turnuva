@@ -39,13 +39,32 @@ interface Props<P extends Player> {
   actions?: ReactNode;
   /** Marks the team someone was linked to. */
   highlight?: boolean;
+  /**
+   * A warning the page adds beside the rank one, e.g. the admin list's banned players. It flags the
+   * team like a rank warning does, but leaves the value alone: it isn't what's wrong.
+   */
+  flag?: string;
 }
 
 /** One team as a line of the row list (`TeamRows`): the same facts as its `TeamCard`, read across. */
-export function TeamRow<P extends Player>({ team, position, renderPlayerExtra, onRename, actions, highlight }: Props<P>) {
+export function TeamRow<P extends Player>({
+  team,
+  position,
+  renderPlayerExtra,
+  onRename,
+  actions,
+  highlight,
+  flag,
+}: Props<P>) {
   const [matchesOpen, setMatchesOpen] = useState(false);
   const matchesId = useId();
-  const classes = ["team-line", team.rank_warning && "is-warning", highlight && "is-target", matchesOpen && "is-open"]
+  const classes = [
+    "team-line",
+    team.rank_warning && "is-warning",
+    flag && "is-flagged",
+    highlight && "is-target",
+    matchesOpen && "is-open",
+  ]
     .filter(Boolean)
     .join(" ");
 
@@ -69,6 +88,7 @@ export function TeamRow<P extends Player>({ team, position, renderPlayerExtra, o
             )}
           </h3>
           {team.rank_warning && <span className="team-line-warning">{RANK_WARNING_LABELS[team.rank_warning]}</span>}
+          {flag && <span className="team-line-warning">{flag}</span>}
         </div>
         <ul className="team-line-players">
           {team.players.map((p) => (

@@ -4,10 +4,15 @@ import { disbandTeam, fetchTeams, refreshRanks, removeTeamBanner, renameTeam, se
 import type { AdminTeamPlayer, Team } from "../../api/types";
 import { DiscordMention } from "../../components/DiscordMention";
 import { ErrorAlert } from "../../components/ErrorAlert";
+import { Icon } from "../../components/Icon";
 import { RanksUpdated } from "../../components/RanksUpdated";
 import { TeamCard } from "../../components/TeamCard";
 import { TeamRow, TeamRows } from "../../components/TeamRow";
 import { TeamViewTabs, useTeamView } from "../../components/TeamViewTabs";
+import { BANNED_PLAYER_WARNING } from "../../lib/eligibility";
+
+/** Whether the hosts banned one of the team's players. The team stays until a host disbands it. */
+const hasBannedPlayer = (team: Team<AdminTeamPlayer>) => team.players.some((p) => p.banned);
 
 export function TeamsAdminPage() {
   const [teams, setTeams] = useState<Team<AdminTeamPlayer>[] | null>(null);
@@ -18,7 +23,7 @@ export function TeamsAdminPage() {
   const [frozen, setFrozen] = useState(false);
   const [freezing, setFreezing] = useState(false);
   const [view, setView] = useTeamView("admin");
-  const flagged = teams?.filter((t) => t.rank_warning).length ?? 0;
+  const flagged = teams?.filter((t) => t.rank_warning || hasBannedPlayer(t)).length ?? 0;
 
   const load = useCallback(async () => {
     const list = await fetchTeams();
@@ -102,11 +107,21 @@ export function TeamsAdminPage() {
   // The same team, its controls and its players' Discords, for a card or a row.
   const teamProps = (team: Team<AdminTeamPlayer>, i: number) => ({
     team,
+    flag: hasBannedPlayer(team) ? BANNED_PLAYER_WARNING : undefined,
     position: i + 1,
     onRename: (name: string) => rename(team, name),
     renderPlayerExtra: (p: AdminTeamPlayer) => (
       <span className="muted">
         <DiscordMention player={p} fallback="Discord bağlı değil" />
+        {p.banned && (
+          <>
+            {" "}
+            <span className="badge badge-danger" title="Bu oyuncu banlandı">
+              <Icon name="ban" size={12} />
+              Banlı
+            </span>
+          </>
+        )}
         {p.discord_in_guild === false && (
           <>
             {" "}
@@ -152,7 +167,7 @@ export function TeamsAdminPage() {
           </span>
         )}
         {flagged > 0 && (
-          <span className="badge badge-danger" title="Güncel rank'ları artık limite uymayan takımlar">
+          <span className="badge badge-danger" title="Güncel rank'ları artık limite uymayan ya da banlanmış oyuncusu olan takımlar">
             {flagged} işaretli
           </span>
         )}

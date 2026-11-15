@@ -21,7 +21,8 @@
   border-radius: var(--radius-md);
 }
 
-.team-grid.is-ruled .team-card.is-warning {
+.team-grid.is-ruled .team-card.is-warning,
+.team-grid.is-ruled .team-card.is-flagged {
   border-top-color: var(--color-danger);
   background: none;
 }
@@ -76,7 +77,8 @@
   box-shadow: 0 0 0 1px var(--color-primary);
 }
 
-.team-card.is-warning {
+.team-card.is-warning,
+.team-card.is-flagged {
   border-color: var(--color-danger);
   background: color-mix(in srgb, var(--color-danger) 6%, var(--color-surface));
 }

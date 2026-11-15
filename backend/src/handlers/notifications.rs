@@ -76,6 +76,9 @@ pub struct Notification {
     new_rank: Option<i64>,
     team_value: Option<f64>,
     limit: Option<f64>,
+    // banned, player_banned: the reason the host gave (empty when none). The banned player
+    // and the hosts get it; their teammate's teammate_banned doesn't say why.
+    ban_reason: Option<String>,
     // reschedule_proposed: the opponent's proposals for the match still open.
     pending_proposals: i64,
     // A confirm_time that can still be answered.
@@ -109,6 +112,7 @@ impl Notification {
             new_rank: row.new_rank,
             team_value: row.team_value,
             limit: (row.kind == NotificationKind::RankOverLimit).then_some(team_rank::LIMIT),
+            ban_reason: row.ban_reason,
             pending_proposals: row.pending_proposals,
             actionable: row.actionable,
         }

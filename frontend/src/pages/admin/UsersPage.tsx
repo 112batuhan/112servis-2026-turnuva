@@ -1,27 +1,29 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../api/client";
 import type { AdminUser, Role } from "../../api/types";
-import { fetchUsers, updateUserRoles } from "../../api/users";
+import { banUser, fetchUsers, unbanUser, updateUserRoles } from "../../api/users";
 import { useSignedInUser } from "../../auth/AuthContext";
 import { ROLE_LABELS, ROLES } from "../../auth/roles";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { formatDate, formatRank } from "../../lib/format";
+import { useAction } from "../../lib/useAction";
+import { UserBan } from "./UserBan";
 import "./UsersPage.css";
 
 export function UsersPage() {
   const me = useSignedInUser();
   const [users, setUsers] = useState<AdminUser[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const reload = useCallback(() => fetchUsers().then(setUsers), []);
+  // Bans and unbans, then the list again.
+  const { busy, error, setError, run } = useAction(reload);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  // "" shows everyone, "staff" anyone with a role, a role only its holders.
-  const [roleFilter, setRoleFilter] = useState<"" | "staff" | Role>("");
+  // "" shows everyone, "staff" anyone with a role, "banned" the banned, a role only its holders.
+  const [roleFilter, setRoleFilter] = useState<"" | "staff" | "banned" | Role>("");
 
   useEffect(() => {
-    fetchUsers()
-      .then(setUsers)
-      .catch((e) => setError(errorMessage(e)));
-  }, []);
+    reload().catch((e) => setError(errorMessage(e)));
+  }, [reload, setError]);
 
   /** Ticks or unticks one role; the rest stay as they are. */
   async function toggleRole(user: AdminUser, role: Role) {
@@ -45,7 +47,12 @@ export function UsersPage() {
   const needle = query.trim().toLocaleLowerCase("tr-TR");
   const shown = users?.filter(
     (u) =>
-      (roleFilter === "" || (roleFilter === "staff" ? u.roles.length > 0 : u.roles.includes(roleFilter))) &&
+      (roleFilter === "" ||
+        (roleFilter === "staff"
+          ? u.roles.length > 0
+          : roleFilter === "banned"
+            ? u.banned_at !== null
+            : u.roles.includes(roleFilter))) &&
       (!needle ||
         u.username.toLocaleLowerCase("tr-TR").includes(needle) ||
         String(u.osu_id).includes(needle) ||
@@ -75,6 +82,7 @@ export function UsersPage() {
             >
               <option value="">Herkes</option>
               <option value="staff">Yetkililer</option>
+              <option value="banned">Banlılar</option>
               {ROLES.map((r) => (
                 <option key={r} value={r}>
                   {ROLE_LABELS[r]}
@@ -101,6 +109,7 @@ export function UsersPage() {
                 <th scope="col">Global rank</th>
                 <th scope="col">Roller</th>
                 <th scope="col">Discord</th>
+                <th scope="col" className="ban-col">Ban</th>
                 <th scope="col">Katılma tarihi</th>
               </tr>
             </thead>
@@ -139,6 +148,15 @@ export function UsersPage() {
                     </div>
                   </td>
                   <td>{u.discord_username ? `@${u.discord_username}` : <span className="muted">—</span>}</td>
+                  <td className="ban-col">
+                    <UserBan
+                      user={u}
+                      self={u.id === me.id}
+                      busy={busy}
+                      onBan={(reason) => run(() => banUser(u.id, reason))}
+                      onUnban={() => run(() => unbanUser(u.id))}
+                    />
+                  </td>
                   <td>{formatDate(u.created_at)}</td>
                 </tr>
               ))}

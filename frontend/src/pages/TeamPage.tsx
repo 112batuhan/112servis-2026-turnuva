@@ -21,6 +21,7 @@ import { Countdown } from "../components/Countdown";
 import { DiscordMark } from "../components/DiscordMark";
 import { DiscordMention } from "../components/DiscordMention";
 import { ErrorAlert } from "../components/ErrorAlert";
+import { Icon } from "../components/Icon";
 import { MatchReschedules } from "../components/MatchReschedules";
 import { PlayerChip } from "../components/PlayerChip";
 import { LobbyStatus } from "../components/LobbyCard";
@@ -66,7 +67,8 @@ export function TeamPage() {
   // Bumped when a match is rescheduled, so the match list loads its new time.
   const [matchesVersion, setMatchesVersion] = useState(0);
   const frozen = status?.frozen ?? false;
-  const canForm = !isStaff && user.discord !== null && !frozen;
+  const banned = user.ban !== null;
+  const canForm = !isStaff && !banned && user.discord !== null && !frozen;
 
   const reload = useCallback(async () => {
     const next = await fetchTeamStatus();
@@ -108,13 +110,25 @@ export function TeamPage() {
 
       {status && !staffOnly && (
         <>
+          {user.ban && (
+            <div className="alert alert-error team-ban-notice" role="status">
+              <Icon name="ban" size={20} />
+              <div className="team-ban-notice-body">
+                <strong className="team-ban-notice-title">Hostlar seni turnuvadan banladı.</strong>
+                {user.ban.reason && <span className="team-ban-notice-reason">Sebep: {user.ban.reason}</span>}
+                <span className="team-ban-notice-effects">
+                  Takım kuramaz, takımını değiştiremez, eleme lobisine katılamaz ve maç saati öneremezsin.
+                </span>
+              </div>
+            </div>
+          )}
           <RankSummary status={status} />
           {frozen && (
             <section className="panel">
               <p className="status">Hostlar takımları dondurdu, artık takım kurulamaz veya değiştirilemez.</p>
             </section>
           )}
-          {!user.discord && !status.team && !frozen && (
+          {!user.discord && !status.team && !frozen && !banned && (
             <section className="panel team-discord-notice">
               <p>Davet göndermek ve kabul etmek için Discord hesabını bağla.</p>
               <Link to="/discord" className="btn btn-discord btn-sm">
@@ -136,8 +150,8 @@ export function TeamPage() {
                   </p>
                 )}
                 <LeftDiscordNotice team={status.team} left={status.left_discord} myId={user.id} />
-                <MyTeam team={status.team} frozen={frozen} busy={busy} run={run} onError={setError} />
-                <QualifierInfo teamId={status.team.id} onError={setError} />
+                <MyTeam team={status.team} readOnly={frozen || banned} busy={busy} run={run} onError={setError} />
+                <QualifierInfo teamId={status.team.id} canJoin={!banned} onError={setError} />
               </section>
               <section className="panel">
                 <h2>Maçlar</h2>
@@ -195,7 +209,7 @@ export function TeamPage() {
                 )}
               />
 
-              {!frozen && (
+              {!frozen && !banned && (
                 <section className="panel">
                   <h2>Takım arkadaşı bul</h2>
                   <label className="team-name-field">
@@ -259,15 +273,16 @@ export function TeamPage() {
 
 interface MyTeamProps {
   team: Team;
-  frozen: boolean;
+  /** Frozen teams, or a banned player: only shown, nothing to change. */
+  readOnly: boolean;
   busy: boolean;
   run: (action: () => Promise<void>) => Promise<unknown>;
   onError: (message: string) => void;
 }
 
-function MyTeam({ team, frozen, busy, run, onError }: MyTeamProps) {
+function MyTeam({ team, readOnly, busy, run, onError }: MyTeamProps) {
   const fileInput = useRef<HTMLInputElement>(null);
-  if (frozen) return <TeamCard team={team} showMatches={false} showValue={false} />;
+  if (readOnly) return <TeamCard team={team} showMatches={false} showValue={false} />;
 
   function upload(file: File | undefined) {
     if (!file) return;
@@ -335,8 +350,15 @@ function MyTeam({ team, frozen, busy, run, onError }: MyTeamProps) {
   );
 }
 
+interface QualifierInfoProps {
+  teamId: string;
+  /** A banned player can't join a lobby, so they aren't pointed at one. */
+  canJoin: boolean;
+  onError: (message: string) => void;
+}
+
 // The team's qualifier lobby, until its match is concluded.
-function QualifierInfo({ teamId, onError }: { teamId: string; onError: (message: string) => void }) {
+function QualifierInfo({ teamId, canJoin, onError }: QualifierInfoProps) {
   const [qualifiers, setQualifiers] = useState<PublicQualifiers | null>(null);
 
   const load = useCallback(() => {
@@ -350,6 +372,7 @@ function QualifierInfo({ teamId, onError }: { teamId: string; onError: (message:
   if (!qualifiers) return null;
   const lobby = qualifiers.lobbies.find((l) => l.teams.some((t) => t.id === teamId));
   if (!lobby) {
+    if (!canJoin) return null;
     return (
       <p className="muted team-name-hint">
         Eleme lobinizi <Link to="/qualifiers">Elemeler</Link> sayfasından seçebilirsiniz.

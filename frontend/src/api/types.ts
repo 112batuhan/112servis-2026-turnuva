@@ -35,6 +35,14 @@ export interface User {
   created_at: string;
   updated_at: string;
   discord: DiscordAccount | null;
+  /** Set when the hosts banned them from taking part; they can still sign in and look. */
+  ban: UserBan | null;
+}
+
+export interface UserBan {
+  /** Empty when the host gave none. */
+  reason: string;
+  created_at: string;
 }
 
 export interface AdminUser {
@@ -50,6 +58,10 @@ export interface AdminUser {
   discord_id: string | null;
   discord_username: string | null;
   discord_avatar: string | null;
+  /** Set when banned: why (empty when no reason was given), when and by whom. */
+  ban_reason: string | null;
+  banned_at: string | null;
+  banned_by_username: string | null;
 }
 
 export interface Stage {
@@ -186,7 +198,7 @@ export interface StaffMember {
   discord_username: string | null;
 }
 
-export type Eligibility = "eligible" | "not_player" | "in_team" | "unranked" | "over_limit";
+export type Eligibility = "eligible" | "not_player" | "banned" | "in_team" | "unranked" | "over_limit";
 
 export interface PlayerResult extends Player {
   eligibility: Eligibility;
@@ -237,6 +249,8 @@ export interface AdminTeamPlayer extends Player {
   discord_username: string | null;
   /** false once they've left the tournament's Discord server; null until the bot has checked. */
   discord_in_guild: boolean | null;
+  /** Banned by the hosts; the team stays until a host disbands it. */
+  banned: boolean;
 }
 
 export interface TeamStatus {
@@ -441,7 +455,10 @@ export type NotificationKind =
   | "reschedule_proposed"
   | "rank_over_limit"
   | "discord_left"
-  | "reschedule_accepted";
+  | "reschedule_accepted"
+  | "banned"
+  | "teammate_banned"
+  | "player_banned";
 export type MatchStaffRole = "referee" | "streamer";
 
 /**
@@ -453,7 +470,10 @@ export type MatchStaffRole = "referee" | "streamer";
  * every proposal made before it's read); reschedule_accepted says a player accepted a proposed time
  * and the match moved (to every player of both teams but them); rank_over_limit says a rank update took the team over the
  * limit (also sent to the hosts); discord_left says a team member left the Discord server (to their
- * teammate and the hosts).
+ * teammate and the hosts); banned says the hosts banned the recipient (with the reason; about no
+ * match or team); teammate_banned says they banned the recipient's teammate (the actor; no reason).
+ * For the hosts but the one who did it, player_banned says a player (the actor) was banned, with the
+ * reason and their team if they're in one.
  */
 export interface AppNotification {
   id: string;
@@ -494,6 +514,8 @@ export interface AppNotification {
   new_rank: number | null;
   team_value: number | null;
   limit: number | null;
+  /** banned, player_banned: the reason the host gave (empty when none); null for every other kind. */
+  ban_reason: string | null;
   /** reschedule_proposed: the opponent's proposals for the match that are still open. */
   pending_proposals: number;
   /** A confirm_time that can still be answered. */
@@ -942,7 +964,7 @@ export type PickemMode = "auto" | "open" | "closed";
 export type PickemStatus = "upcoming" | "open" | "locked" | "finished";
 
 /** Whether the viewer can predict, and if not, what's missing. */
-export type CanPredict = "yes" | "sign_in" | "discord";
+export type CanPredict = "yes" | "sign_in" | "discord" | "banned";
 
 export interface PickemStage {
   id: string;

@@ -26,6 +26,11 @@ interface Props<P extends Player> {
   showMatches?: boolean;
   /** Shows the team value; off where the page already shows it, like /team's meter. */
   showValue?: boolean;
+  /**
+   * A warning the page adds beside the rank one, e.g. the admin list's banned players. It flags the
+   * team like a rank warning does, but leaves the value alone: it isn't what's wrong.
+   */
+  flag?: string;
 }
 
 export function TeamCard<P extends Player>({
@@ -37,6 +42,7 @@ export function TeamCard<P extends Player>({
   highlight,
   showMatches = true,
   showValue = true,
+  flag,
 }: Props<P>) {
   const [matchesOpen, setMatchesOpen] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -44,6 +50,7 @@ export function TeamCard<P extends Player>({
   const classes = [
     "team-card",
     team.rank_warning && "is-warning",
+    flag && "is-flagged",
     highlight && "is-target",
     matchesOpen && "is-showing-matches",
   ]
@@ -104,6 +111,7 @@ export function TeamCard<P extends Player>({
             <span className="team-card-value-label">Takım değeri</span>
             <span className="team-card-value-number num">{formatTeamValue(team.team_value)}</span>
             {team.rank_warning && <span className="team-card-warning">{RANK_WARNING_LABELS[team.rank_warning]}</span>}
+            {flag && <span className="team-card-warning">{flag}</span>}
           </div>
         )}
         <ul className="team-card-players">

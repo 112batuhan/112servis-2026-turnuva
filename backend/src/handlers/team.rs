@@ -59,6 +59,7 @@ pub fn routes() -> Router<AppState> {
 pub enum Eligibility {
     Eligible,
     NotPlayer,
+    Banned,
     InTeam,
     Unranked,
     OverLimit,
@@ -68,6 +69,9 @@ impl Eligibility {
     fn of(me: &Player, other: &PlayerState) -> Self {
         if !Roles::of(&other.roles).can_play() {
             return Self::NotPlayer;
+        }
+        if other.banned {
+            return Self::Banned;
         }
         if other.in_team {
             return Self::InTeam;
@@ -83,6 +87,7 @@ impl Eligibility {
         match self {
             Self::Eligible => Ok(()),
             Self::NotPlayer => Err(TeamError::StaffCantPlay.into()),
+            Self::Banned => Err(TeamError::PlayerBanned.into()),
             Self::InTeam => Err(TeamError::PlayerInTeam.into()),
             Self::Unranked => Err(TeamError::NeedsGlobalRank.into()),
             Self::OverLimit => Err(TeamError::OverRankLimit.into()),
@@ -91,11 +96,12 @@ impl Eligibility {
 }
 
 // Only basic users and streamers play; the rest of the staff run the tournament.
-// Forming a team also needs a linked Discord account.
+// Forming a team also needs a linked Discord account, and not being banned.
 fn require_player(user: &AuthUser) -> Result<(), AppError> {
     if !user.roles.can_play() {
         return Err(TeamError::StaffCantPlay.into());
     }
+    user.require_not_banned()?;
     user.require_discord_verified()
 }
 
@@ -435,6 +441,7 @@ async fn rename_my_team(
     user: AuthUser,
     Json(body): Json<RenameBody>,
 ) -> Result<impl IntoResponse, AppError> {
+    user.require_not_banned()?;
     require_unfrozen(&state.db).await?;
     let team_id = user.team_id(&state.db).await?;
     rename(&state, team_id, &body.name).await
@@ -445,6 +452,7 @@ async fn disband_my_team(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
+    user.require_not_banned()?;
     require_unfrozen(&state.db).await?;
     let team_id = user.team_id(&state.db).await?;
     disband(&state, team_id, false).await?;
@@ -477,6 +485,7 @@ async fn upload_my_banner(
     user: AuthUser,
     body: Bytes,
 ) -> Result<impl IntoResponse, AppError> {
+    user.require_not_banned()?;
     require_unfrozen(&state.db).await?;
     let team_id = user.team_id(&state.db).await?;
     let content_type = banner_content_type(&body).ok_or(TeamError::BadBanner)?;
@@ -503,6 +512,7 @@ async fn remove_my_banner(
     State(state): State<AppState>,
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
+    user.require_not_banned()?;
     require_unfrozen(&state.db).await?;
     let team_id = user.team_id(&state.db).await?;
     let mut tx = state.db.begin().await?;
@@ -651,4 +661,47 @@ async fn set_teams_frozen(
     user.require_role(Role::Host)?;
     db::settings::set_teams_frozen(&state.db, body.frozen).await?;
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn state(roles: &[Role], banned: bool, in_team: bool, rank: Option<i64>) -> PlayerState {
+        PlayerState {
+            player: Player {
+                id: Uuid::nil(),
+                osu_id: 1,
+                username: "p".into(),
+                avatar_url: String::new(),
+                country_code: None,
+                global_rank: rank,
+            },
+            roles: roles.to_vec(),
+            in_team,
+            banned,
+        }
+    }
+
+    #[test]
+    fn banned_players_cant_be_teamed_with() {
+        let me = state(&[], false, false, Some(50_000)).player;
+        assert_eq!(
+            Eligibility::of(&me, &state(&[], false, false, Some(50_000))),
+            Eligibility::Eligible
+        );
+        assert_eq!(
+            Eligibility::of(&me, &state(&[], true, false, Some(50_000))),
+            Eligibility::Banned
+        );
+        // Being staff says more than being banned; being banned more than being in a team.
+        assert_eq!(
+            Eligibility::of(&me, &state(&[Role::Referee], true, false, Some(50_000))),
+            Eligibility::NotPlayer
+        );
+        assert_eq!(
+            Eligibility::of(&me, &state(&[], true, true, Some(50_000))),
+            Eligibility::Banned
+        );
+    }
 }

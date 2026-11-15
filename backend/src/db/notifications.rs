@@ -20,6 +20,9 @@ pub enum NotificationKind {
     RankOverLimit,
     DiscordLeft,
     RescheduleAccepted,
+    Banned,
+    TeammateBanned,
+    PlayerBanned,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
@@ -65,6 +68,8 @@ pub struct NotificationRow {
     pub old_rank: Option<i64>,
     pub new_rank: Option<i64>,
     pub team_value: Option<f64>,
+    // banned, player_banned: the reason the host gave (empty when none).
+    pub ban_reason: Option<String>,
     // reschedule_proposed: how many of the opponent's proposals are still open.
     pub pending_proposals: i64,
     pub actionable: bool,
@@ -83,6 +88,7 @@ pub async fn list(pool: &PgPool, user_id: Uuid, limit: i64) -> sqlx::Result<Vec<
                COALESCE('host' = ANY(a.roles), false) AS actor_is_host, n.staff_role, n.old_starts_at, n.new_starts_at, n.response, n.responded_at,
                n.read_at, n.created_at,
                n.team_id, tn.name AS team_name, n.old_rank, n.new_rank, n.team_value,
+               n.ban_reason,
                (SELECT count(*) FROM match_reschedules r
                 WHERE r.match_id = n.match_id AND r.team_id <> n.team_id
                   AND n.team_id IN (b.team1_id, b.team2_id)
@@ -466,5 +472,40 @@ pub async fn notify_over_limit(
     .bind(new_rank)
     .bind(team_value)
     .fetch_all(pool)
+    .await
+}
+
+// Tells a user `banned_by` banned them, with the reason; their teammate (if they're in a
+// team) that they were, without it; and the other hosts, with it. The banned player's
+// notice names no host, like their team page. Nobody gets two: a host is never the
+// banned player or their teammate here.
+pub async fn notify_banned(
+    conn: &mut PgConnection,
+    user_id: Uuid,
+    banned_by: Uuid,
+    reason: &str,
+) -> sqlx::Result<Vec<Uuid>> {
+    sqlx::query_scalar(
+        r#"
+        WITH team AS (SELECT team_id FROM team_members WHERE user_id = $1),
+             mates AS (SELECT o.user_id FROM team_members o
+                       WHERE o.team_id = (SELECT team_id FROM team) AND o.user_id <> $1)
+        INSERT INTO notifications (user_id, kind, team_id, actor_id, ban_reason)
+        SELECT $1, 'banned'::notification_kind, NULL::uuid, NULL::uuid, $3
+        UNION ALL
+        SELECT m.user_id, 'teammate_banned'::notification_kind, (SELECT team_id FROM team), $1, NULL
+        FROM mates m
+        UNION ALL
+        SELECT h.id, 'player_banned'::notification_kind, (SELECT team_id FROM team), $1, $3
+        FROM osu_users h
+        WHERE 'host' = ANY(h.roles) AND h.id NOT IN ($1, $2)
+          AND h.id NOT IN (SELECT user_id FROM mates)
+        RETURNING user_id
+        "#,
+    )
+    .bind(user_id)
+    .bind(banned_by)
+    .bind(reason)
+    .fetch_all(conn)
     .await
 }
