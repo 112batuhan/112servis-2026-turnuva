@@ -45,7 +45,10 @@ export function LobbyCard<P extends Player>({
         <div className="lobby-card-title">
           <h3>Lobi {lobby.name}</h3>
           <LobbyStatus lobby={lobby} full={full} />
-          <span className={full ? "lobby-card-count is-full" : "lobby-card-count"} title="Kayıtlı takımlar">
+          <span
+            className={full ? "lobby-card-count is-full" : "lobby-card-count"}
+            title="Kayıtlı takımlar"
+          >
             {lobby.teams.length}/{capacity}
           </span>
         </div>
@@ -54,7 +57,12 @@ export function LobbyCard<P extends Player>({
             {formatMatchTime(lobby.starts_at)}
           </time>
           {lobby.open && (
-            <Countdown to={lobby.starts_at} suffix="kaldı" className="lobby-card-countdown" onElapsed={onStart} />
+            <Countdown
+              to={lobby.starts_at}
+              suffix="kaldı"
+              className="lobby-card-countdown"
+              onElapsed={onStart}
+            />
           )}
         </div>
       </header>
@@ -87,7 +95,9 @@ export function LobbyCard<P extends Player>({
         {lobby.teams.map((team) => (
           <li key={team.id} className="lobby-team">
             <div className="lobby-team-banner">
-              {team.banner_url && <img src={`${API_URL}${team.banner_url}`} alt="" loading="lazy" />}
+              {team.banner_url && (
+                <img src={`${API_URL}${team.banner_url}`} alt="" loading="lazy" />
+              )}
             </div>
             <div className="lobby-team-text">
               <div className="lobby-team-main">
@@ -97,7 +107,14 @@ export function LobbyCard<P extends Player>({
                 <div className="lobby-team-players">
                   {team.players.map((p) => (
                     <div key={p.id} className="lobby-player">
-                      {p.avatar_url && <img className="lobby-player-avatar" src={p.avatar_url} alt="" loading="lazy" />}
+                      {p.avatar_url && (
+                        <img
+                          className="lobby-player-avatar"
+                          src={p.avatar_url}
+                          alt=""
+                          loading="lazy"
+                        />
+                      )}
                       <div className="lobby-player-text">
                         <a
                           className="lobby-player-name"
@@ -107,20 +124,26 @@ export function LobbyCard<P extends Player>({
                         >
                           {p.username}
                         </a>
-                        {renderPlayerExtra && <span className="lobby-player-extra">{renderPlayerExtra(p)}</span>}
+                        {renderPlayerExtra && (
+                          <span className="lobby-player-extra">{renderPlayerExtra(p)}</span>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
-            {renderTeamActions && <div className="lobby-team-actions">{renderTeamActions(team)}</div>}
+            {renderTeamActions && (
+              <div className="lobby-team-actions">{renderTeamActions(team)}</div>
+            )}
           </li>
         ))}
         {/* The free places as one line, not a row each. */}
         {!full && (
           <li className="lobby-free">
-            {lobby.teams.length === 0 ? `${capacity} yerin hepsi boş` : `${capacity - lobby.teams.length} yer daha boş`}
+            {lobby.teams.length === 0
+              ? `${capacity} yerin hepsi boş`
+              : `${capacity - lobby.teams.length} yer daha boş`}
           </li>
         )}
       </ol>

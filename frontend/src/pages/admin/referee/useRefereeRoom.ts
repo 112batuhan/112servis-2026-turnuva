@@ -31,7 +31,13 @@ import type {
 import { useSignedInUser } from "../../../auth/AuthContext";
 import { hasRole, holdsRole } from "../../../auth/roles";
 import { conversationKey, useIrc, type ChatLine } from "../../../irc/IrcContext";
-import { isRoomRef, sameName, type RoomSlot, type ScoreMode, type SlotTeam } from "../../../lib/bancho";
+import {
+  isRoomRef,
+  sameName,
+  type RoomSlot,
+  type ScoreMode,
+  type SlotTeam,
+} from "../../../lib/bancho";
 import { raceOf, type Race } from "../../../lib/bestOf";
 import { LIVE_REFRESH_MS } from "../../../lib/useLiveRefresh";
 import {
@@ -46,7 +52,13 @@ import {
   type RosterPlayer,
   type Tally,
 } from "../../../lib/liveRoom";
-import { draftTurn, matchDraft, matchTeams, poolEntries, type MatchTeam } from "../../../lib/matchPool";
+import {
+  draftTurn,
+  matchDraft,
+  matchTeams,
+  poolEntries,
+  type MatchTeam,
+} from "../../../lib/matchPool";
 import { toChatLine } from "../../../lib/roomChat";
 import { useRoomStaff } from "../../../lib/roomStaff";
 import { useAction } from "../../../lib/useAction";
@@ -78,7 +90,12 @@ export interface RoomChatView {
   access: RoomAccess;
 }
 
-const DEFAULT_OPTIONS: RoomOptions = { scoreMode: 3, noFail: true, autoPlace: true, autoKick: true };
+const DEFAULT_OPTIONS: RoomOptions = {
+  scoreMode: 3,
+  noFail: true,
+  autoPlace: true,
+  autoKick: true,
+};
 
 /**
  * Owns the referee page's data. The room itself (its slots, map, finished maps, score) is the
@@ -195,12 +212,17 @@ export function useRefereeRoom(matchId: string) {
   const lobby = useMemo(() => lobbyOf(live), [live]);
   const currentEntry = useMemo(() => currentEntryOf(live, entries), [live, entries]);
   const finished = useMemo<FinishedMap[]>(() => finishedOf(live), [live]);
-  const roster = useMemo<RosterPlayer<AdminTeamPlayer>[]>(() => (room ? rosterOf(room) : []), [room]);
+  const roster = useMemo<RosterPlayer<AdminTeamPlayer>[]>(
+    () => (room ? rosterOf(room) : []),
+    [room],
+  );
   const staff = useRoomStaff();
 
   const findRoster = useCallback(
     (slot: Pick<RoomSlot, "username" | "userId">) =>
-      roster.find((r) => r.player.osu_id === slot.userId || sameName(r.player.username, slot.username)),
+      roster.find(
+        (r) => r.player.osu_id === slot.userId || sameName(r.player.username, slot.username),
+      ),
     [roster],
   );
 
@@ -218,13 +240,17 @@ export function useRefereeRoom(matchId: string) {
   // the referee's call: a decided race only offers it.
   const bestOf = room?.kind === "bracket" ? (room.stage?.best_of ?? null) : null;
   const race = useMemo<Race | null>(
-    () => (bestOf !== null && tally !== null && !room?.forfeit_slot ? raceOf(bestOf, tally.team1, tally.team2) : null),
+    () =>
+      bestOf !== null && tally !== null && !room?.forfeit_slot
+        ? raceOf(bestOf, tally.team1, tally.team2)
+        : null,
     [bestOf, tally, room?.forfeit_slot],
   );
   const teams = useMemo<MatchTeam[]>(() => (room ? matchTeams(room) : []), [room]);
   // The bans and picks against the stage's order, and the next one (the order's, or the referee's
   // say until the next mark). Nobody bans or picks at the tiebreaker or once a team has won.
-  const drafting = room?.concluded_at === null && race?.kind !== "tiebreaker" && race?.kind !== "won";
+  const drafting =
+    room?.concluded_at === null && race?.kind !== "tiebreaker" && race?.kind !== "won";
   const draft = useMemo(
     () => (room ? matchDraft(room, room.settings.next_pick_team_id, drafting) : null),
     [room, drafting],
@@ -474,7 +500,9 @@ export function useRefereeRoom(matchId: string) {
 export type RefereeRoomState = ReturnType<typeof useRefereeRoom>;
 
 /** Why the room's bot can't take a command right now, or null when it can. */
-export function botBlocker(referee: Pick<RefereeRoomState, "room" | "canRun" | "access" | "botName">): string | null {
+export function botBlocker(
+  referee: Pick<RefereeRoomState, "room" | "canRun" | "access" | "botName">,
+): string | null {
   const { room, canRun, access, botName } = referee;
   const bot = botName ?? "Bot";
   if (!room) return "Yükleniyor";

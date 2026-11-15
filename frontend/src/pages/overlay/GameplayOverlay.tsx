@@ -42,7 +42,10 @@ export function GameplayOverlay({ view }: { view: BroadcastMatch | null }) {
     return match?.teams.find((t) => t.id === id) ?? null;
   };
   const bestOf = match?.stage?.best_of ?? null;
-  const marks = useMemo(() => (match ? mapMarks(match, tally) : new Map<string, MapMark>()), [match, tally]);
+  const marks = useMemo(
+    () => (match ? mapMarks(match, tally) : new Map<string, MapMark>()),
+    [match, tally],
+  );
   const entries = useMemo(() => (match ? poolEntries(match) : []), [match]);
   const current = view?.page.currentEntry;
 
@@ -52,8 +55,17 @@ export function GameplayOverlay({ view }: { view: BroadcastMatch | null }) {
         <div key={side} className={`gp-team ${SIDE_CLASS[side]}`}>
           <TeamBanner team={team(side)} side={side} />
           <h2 className="ov-team-name gp-team-name">{team(side)?.name ?? ""}</h2>
-          <StarPips wins={(side === 1 ? tally?.team1 : tally?.team2) ?? 0} bestOf={bestOf} side={side} />
-          <DraftColumn side={side} entries={entries} marks={marks} currentId={current?.map.id ?? null} />
+          <StarPips
+            wins={(side === 1 ? tally?.team1 : tally?.team2) ?? 0}
+            bestOf={bestOf}
+            side={side}
+          />
+          <DraftColumn
+            side={side}
+            entries={entries}
+            marks={marks}
+            currentId={current?.map.id ?? null}
+          />
         </div>
       ))}
       <StageTitle match={match} />
@@ -82,20 +94,34 @@ function DraftColumn({
       const mark = marks.get(entry.map.id);
       return mark && mark.side === side ? [{ entry, mark }] : [];
     })
-    .sort((a, b) => (a.mark.kind === b.mark.kind ? a.mark.at.localeCompare(b.mark.at) : a.mark.kind === "ban" ? -1 : 1));
+    .sort((a, b) =>
+      a.mark.kind === b.mark.kind
+        ? a.mark.at.localeCompare(b.mark.at)
+        : a.mark.kind === "ban"
+          ? -1
+          : 1,
+    );
   // Seven fit at the designed spacing; a longer match closes them up.
   const pitch = rows.length > 7 ? Math.floor(690 / rows.length) : 106;
   return (
-    <ol className={`gp-draft ${SIDE_CLASS[side]}`} style={{ "--gp-pitch": `${pitch}px` } as CSSProperties}>
+    <ol
+      className={`gp-draft ${SIDE_CLASS[side]}`}
+      style={{ "--gp-pitch": `${pitch}px` } as CSSProperties}
+    >
       {rows.map(({ entry, mark }) => (
         <li key={entry.map.id}>
-          <MapPill entry={entry} mark={mark} tag={entry.label} current={entry.map.id === currentId} title={false} />
+          <MapPill
+            entry={entry}
+            mark={mark}
+            tag={entry.label}
+            current={entry.map.id === currentId}
+            title={false}
+          />
         </li>
       ))}
     </ol>
   );
 }
-
 
 /**
  * The map's live score under the client: each team's total at its end, a bar from each end
@@ -113,7 +139,9 @@ function ScoreBar({ totals }: { totals: LiveTotals | null }) {
       <span className="gp-score-bar is-side-1">
         <span style={{ width: `${(a / top) * 100}%` }} />
       </span>
-      <span className={`gp-score-lead ${leader ? SIDE_CLASS[leader] : ""}`}>{lead > 0 ? `+${formatScore(lead)}` : ""}</span>
+      <span className={`gp-score-lead ${leader ? SIDE_CLASS[leader] : ""}`}>
+        {lead > 0 ? `+${formatScore(lead)}` : ""}
+      </span>
       <span className="gp-score-bar is-side-2">
         <span style={{ width: `${(b / top) * 100}%` }} />
       </span>

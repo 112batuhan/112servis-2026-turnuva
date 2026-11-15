@@ -39,7 +39,16 @@ function match(minutes: number | null, over: Partial<BracketMatch> = {}): Bracke
 describe("outcomes", () => {
   it("runs from team 1's biggest win through the closest results to team 2's biggest", () => {
     expect(outcomes(9).map((o) => `${o.team1}-${o.team2}`)).toEqual([
-      "5-0", "5-1", "5-2", "5-3", "5-4", "4-5", "3-5", "2-5", "1-5", "0-5",
+      "5-0",
+      "5-1",
+      "5-2",
+      "5-3",
+      "5-4",
+      "4-5",
+      "3-5",
+      "2-5",
+      "1-5",
+      "0-5",
     ]);
     expect(outcomes(1).map((o) => `${o.team1}-${o.team2}`)).toEqual(["1-0", "0-1"]);
   });
@@ -64,7 +73,12 @@ describe("a prediction", () => {
 
   it("scores as the server does", () => {
     expect(POINTS).toEqual({ exact: 3, winner: 2, score: 1 });
-    expect([3, 2, 1, 0].map(pointsLabel)).toEqual(["Tam isabet", "Kazanan doğru", "Skor doğru", "Tutmadı"]);
+    expect([3, 2, 1, 0].map(pointsLabel)).toEqual([
+      "Tam isabet",
+      "Kazanan doğru",
+      "Skor doğru",
+      "Tutmadı",
+    ]);
   });
 });
 
@@ -105,7 +119,8 @@ describe("a match's window", () => {
   });
 
   it("shows its split once the stage locks, or once it's locked in a stage a host opened", () => {
-    const stage = (status: string, mode = "auto") => ({ status, mode }) as Parameters<typeof isMatchLocked>[0];
+    const stage = (status: string, mode = "auto") =>
+      ({ status, mode }) as Parameters<typeof isMatchLocked>[0];
     expect(isMatchLocked(stage("locked"), match(60), NOW)).toBe(true);
     expect(isMatchLocked(stage("finished"), match(60), NOW)).toBe(true);
     expect(isMatchLocked(stage("open"), match(60), NOW)).toBe(false);
@@ -115,11 +130,16 @@ describe("a match's window", () => {
 });
 
 describe("defaultStage", () => {
-  const stage = (id: string, status: string) => ({ id, status }) as Parameters<typeof defaultStage>[0][number];
+  const stage = (id: string, status: string) =>
+    ({ id, status }) as Parameters<typeof defaultStage>[0][number];
 
   it("opens on the open stage, else the last that locked, else the first", () => {
-    expect(defaultStage([stage("a", "finished"), stage("b", "open"), stage("c", "upcoming")])?.id).toBe("b");
-    expect(defaultStage([stage("a", "finished"), stage("b", "locked"), stage("c", "upcoming")])?.id).toBe("b");
+    expect(
+      defaultStage([stage("a", "finished"), stage("b", "open"), stage("c", "upcoming")])?.id,
+    ).toBe("b");
+    expect(
+      defaultStage([stage("a", "finished"), stage("b", "locked"), stage("c", "upcoming")])?.id,
+    ).toBe("b");
     expect(defaultStage([stage("a", "upcoming"), stage("b", "upcoming")])?.id).toBe("a");
     expect(defaultStage([])).toBeUndefined();
   });

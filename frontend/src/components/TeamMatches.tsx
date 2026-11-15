@@ -33,7 +33,11 @@ export function TeamMatches({ teamId }: { teamId: string }) {
       .catch((e) => setError(errorMessage(e)));
   }, []);
   useLiveBracket(
-    (e) => setData((d) => d && { ...d, matches: withScore(d.matches, e.match_id, e.team1_score, e.team2_score) }),
+    (e) =>
+      setData(
+        (d) =>
+          d && { ...d, matches: withScore(d.matches, e.match_id, e.team1_score, e.team2_score) },
+      ),
     () =>
       fetchPublicBracket()
         .then(setData)
@@ -46,7 +50,9 @@ export function TeamMatches({ teamId }: { teamId: string }) {
   if (error) return <p className="status">{error}</p>;
   if (!data) return <p className="status">Yükleniyor…</p>;
 
-  const own = withPotentials(data.matches).filter((m) => m.team1_id === teamId || m.team2_id === teamId);
+  const own = withPotentials(data.matches).filter(
+    (m) => m.team1_id === teamId || m.team2_id === teamId,
+  );
   const next = own.filter((m) => !m.concluded_at).sort(compareByTime)[0];
   const played = own
     .filter((m) => m.concluded_at)
@@ -67,7 +73,11 @@ export function TeamMatches({ teamId }: { teamId: string }) {
     <div className="team-matches">
       <section>
         <h3 className="team-matches-heading">Sıradaki maç</h3>
-        {next ? <div className="fixture-list">{row(next)}</div> : <p className="team-matches-empty">Planlanmış maç yok.</p>}
+        {next ? (
+          <div className="fixture-list">{row(next)}</div>
+        ) : (
+          <p className="team-matches-empty">Planlanmış maç yok.</p>
+        )}
       </section>
       <section>
         <h3 className="team-matches-heading">

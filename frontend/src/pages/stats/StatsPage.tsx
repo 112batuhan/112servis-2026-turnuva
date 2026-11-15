@@ -12,7 +12,15 @@ import { formatClock } from "../../lib/format";
 import { MapBoard } from "./MapBoard";
 import { PoolStats } from "./PoolStats";
 import { Standings } from "./Standings";
-import { buildIndex, isTab, ownTeamId, TABS, ToolsSlot, type StatsIndex, type StatsTab } from "./statsModel";
+import {
+  buildIndex,
+  isTab,
+  ownTeamId,
+  TABS,
+  ToolsSlot,
+  type StatsIndex,
+  type StatsTab,
+} from "./statsModel";
 import { statsCache, useStageStats } from "./useStageStats";
 import "./StatsPage.css";
 
@@ -80,7 +88,8 @@ export function StatsPage() {
         {stats.loadedAt && (
           <div className="page-header-aside stats-fresh">
             <span>
-              Kaydedilen skorlardan, <span className="num">{formatClock(stats.loadedAt.toISOString())}</span> itibarıyla
+              Kaydedilen skorlardan,{" "}
+              <span className="num">{formatClock(stats.loadedAt.toISOString())}</span> itibarıyla
             </span>
             <IconButton
               icon="refresh"
@@ -185,7 +194,9 @@ function TabPanel({ tab, index, ownTeam, mapId, onMap, onOpenMap }: PanelProps) 
     case "pool":
       return <PoolStats index={index} ownTeam={ownTeam} onOpenMap={onOpenMap} />;
     case "map-players":
-      return <MapBoard kind="players" index={index} ownTeam={ownTeam} mapId={mapId} onMap={onMap} />;
+      return (
+        <MapBoard kind="players" index={index} ownTeam={ownTeam} mapId={mapId} onMap={onMap} />
+      );
     case "map-teams":
       return <MapBoard kind="teams" index={index} ownTeam={ownTeam} mapId={mapId} onMap={onMap} />;
     case "players":
@@ -202,7 +213,8 @@ function TabPanel({ tab, index, ownTeam, mapId, onMap, onOpenMap }: PanelProps) 
 function stageMark(s: PublicStage, activity: StageActivity[] | null): StageMark {
   const a = activity?.find((x) => x.stage_id === s.id);
   if (a && a.live > 0) return { rule: "lit", note: `${a.live} maç oynanıyor` };
-  if (a && a.played > 0) return { rule: "done", note: `${a.played} ${s.is_qualifier ? "lobi" : "maç"} oynandı` };
+  if (a && a.played > 0)
+    return { rule: "done", note: `${a.played} ${s.is_qualifier ? "lobi" : "maç"} oynandı` };
   return { note: "Henüz skor yok" };
 }
 
@@ -220,7 +232,8 @@ function StageSummary({ stage, index }: { stage: PublicStage; index: StatsIndex 
         <p className="stats-stage-facts">
           {stage.is_qualifier ? (
             <span>
-              <span className="num">{stats.matches_played}</span>/<span className="num">{matches.length}</span> lobi
+              <span className="num">{stats.matches_played}</span>/
+              <span className="num">{matches.length}</span> lobi
             </span>
           ) : (
             <span>
@@ -254,20 +267,22 @@ function ZExplainer({ qualifier }: { qualifier: boolean }) {
         <p>Standart sapma, o map'teki skorların ortalamadan ne kadar saptığının ölçüsüdür:</p>
         <p className="stats-formula">σ = √( Σ(skor − ortalama)² / (skor sayısı − 1) )</p>
         <p>
-          Z sayısı, skorun ortalamadan ne kadar yukarıda veya aşağıda olduğunu hesaplar. Bu sayede herkesin iyi
-          oynadığı map'lerde düşük skor yapmak ya da herkesin kötü oynadığı map'te iyi skor yapmak, herkese yakın skor
-          yapmaktan daha ağırlıklıdır.
+          Z sayısı, skorun ortalamadan ne kadar yukarıda veya aşağıda olduğunu hesaplar. Bu sayede
+          herkesin iyi oynadığı map'lerde düşük skor yapmak ya da herkesin kötü oynadığı map'te iyi
+          skor yapmak, herkese yakın skor yapmaktan daha ağırlıklıdır.
         </p>
         {qualifier && (
           <>
             <p>
-              <strong>Seeding:</strong> takımlar bütün maplerdeki Z'lerinin toplamına göre sıralanır; bracket'taki
-              seed'leri bu sıradır. Bir map tekrar oynandıysa takımın son denemesi sayılır.
+              <strong>Seeding:</strong> takımlar bütün maplerdeki Z'lerinin toplamına göre
+              sıralanır; bracket'taki seed'leri bu sıradır. Bir map tekrar oynandıysa takımın son
+              denemesi sayılır.
             </p>
             <p>
-              Lobisi bitmiş bir takımın skoru olmayan map'i 0 puan sayılır: o map'te 0'ın alacağı Z verilir, ama 0
-              map'in ortalamasına ve sapmasına katılmaz, böylece diğer takımların Z'si değişmez. Lobisi daha
-              oynanmamış ya da sürmekte olan takımların eksik mapleri henüz sayılmaz.
+              Lobisi bitmiş bir takımın skoru olmayan map'i 0 puan sayılır: o map'te 0'ın alacağı Z
+              verilir, ama 0 map'in ortalamasına ve sapmasına katılmaz, böylece diğer takımların
+              Z'si değişmez. Lobisi daha oynanmamış ya da sürmekte olan takımların eksik mapleri
+              henüz sayılmaz.
             </p>
           </>
         )}

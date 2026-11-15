@@ -75,7 +75,9 @@ export function useMatchFeed<M extends FeedMatch>(matchId: string, feed: Feed<M>
   const reloadChat = useCallback(async () => {
     try {
       const rooms = await fetchChat(matchId);
-      setChat((prev) => new Map(rooms.map((r) => [r.mp_id, mergeFetched(r.messages, prev.get(r.mp_id))])));
+      setChat(
+        (prev) => new Map(rooms.map((r) => [r.mp_id, mergeFetched(r.messages, prev.get(r.mp_id))])),
+      );
       setChatLoaded(true);
     } catch (e) {
       onChatError.current?.(errorMessage(e));
@@ -115,12 +117,18 @@ export function useMatchFeed<M extends FeedMatch>(matchId: string, feed: Feed<M>
     const off = subscribe((event) => {
       if (event.type === "chat") {
         if (!roomIds.current.has(event.mp_id)) return;
-        setChat((prev) => new Map(prev).set(event.mp_id, appendLine(prev.get(event.mp_id) ?? [], event.message)));
+        setChat((prev) =>
+          new Map(prev).set(event.mp_id, appendLine(prev.get(event.mp_id) ?? [], event.message)),
+        );
       } else if (event.type === "room") {
         if (event.match_id !== matchId) return;
         requests.current.readings += 1;
         setLive(event.room);
-      } else if (event.type === "score" || event.type === "match" || (staff && event.type === "referee")) {
+      } else if (
+        event.type === "score" ||
+        event.type === "match" ||
+        (staff && event.type === "referee")
+      ) {
         if (event.match_id === matchId) later();
       } else if (event.type === "bracket") {
         // Rooms, staff, conclusions; also what a reconnect sends, so the chat missed meanwhile is
@@ -146,5 +154,16 @@ export function useMatchFeed<M extends FeedMatch>(matchId: string, feed: Feed<M>
     return () => window.clearInterval(timer);
   }, [polls, pollMs, reload, reloadChat]);
 
-  return { match, setMatch, live, loadError, chat, chatLoaded, reload, reloadChat, connected, following };
+  return {
+    match,
+    setMatch,
+    live,
+    loadError,
+    chat,
+    chatLoaded,
+    reload,
+    reloadChat,
+    connected,
+    following,
+  };
 }

@@ -33,15 +33,36 @@ describe("bracketWeeks", () => {
 
   it("starts a Round of 16 at the Round of 16", () => {
     const weeks = bracketWeeks("round_of_16");
-    expect(weeks.map((w) => w.usual)).toEqual(["Round of 16", "Quarterfinals", "Semifinals", "Finals", "Grand Final"]);
+    expect(weeks.map((w) => w.usual)).toEqual([
+      "Round of 16",
+      "Quarterfinals",
+      "Semifinals",
+      "Finals",
+      "Grand Final",
+    ]);
     expect(weeks.reduce((n, w) => n + w.matches, 0)).toBe(31);
   });
 });
 
 describe("defaultStages", () => {
   it("takes the stages by name, then by place from the end", () => {
-    const stages = ["Round of 32", "Round of 16", "Çeyrek", "Yarı", "Finals", "Grand Final"].map(stage);
-    expect(defaultStages("round_of_16", stages)).toEqual(["Round of 16", "Çeyrek", "Yarı", "Finals", "Grand Final"]);
-    expect(defaultStages("round_of_32", stages.slice(2))).toEqual([null, null, "Çeyrek", "Yarı", "Finals", "Grand Final"]);
+    const stages = ["Round of 32", "Round of 16", "Çeyrek", "Yarı", "Finals", "Grand Final"].map(
+      stage,
+    );
+    expect(defaultStages("round_of_16", stages)).toEqual([
+      "Round of 16",
+      "Çeyrek",
+      "Yarı",
+      "Finals",
+      "Grand Final",
+    ]);
+    expect(defaultStages("round_of_32", stages.slice(2))).toEqual([
+      null,
+      null,
+      "Çeyrek",
+      "Yarı",
+      "Finals",
+      "Grand Final",
+    ]);
   });
 });

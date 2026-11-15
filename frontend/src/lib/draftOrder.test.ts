@@ -92,13 +92,27 @@ describe("draftOf", () => {
   });
 
   it("lists only what was made once the draft is closed", () => {
-    const closed = draftOf(o, [], [{ map_id: "m", team_id: B, created_at: new Date(0).toISOString() }], [A, B], null, false);
+    const closed = draftOf(
+      o,
+      [],
+      [{ map_id: "m", team_id: B, created_at: new Date(0).toISOString() }],
+      [A, B],
+      null,
+      false,
+    );
     expect(closed.next).toBeNull();
     expect(closed.steps.map((s) => s.state)).toEqual(["done"]);
   });
 
   it("marks a ban made where the order has a pick", () => {
-    const off = draftOf(o, [{ map_id: "m", team_id: B, created_at: new Date(0).toISOString() }], [], [A, B], null, true);
+    const off = draftOf(
+      o,
+      [{ map_id: "m", team_id: B, created_at: new Date(0).toISOString() }],
+      [],
+      [A, B],
+      null,
+      true,
+    );
     expect(off.steps[0]).toMatchObject({ kind: "ban", offOrder: true, state: "done" });
   });
 });

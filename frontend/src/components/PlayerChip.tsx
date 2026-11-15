@@ -5,7 +5,9 @@ import "./PlayerChip.css";
 export function PlayerChip({ player }: { player: Player }) {
   return (
     <div className="player-chip">
-      {player.avatar_url && <img className="player-chip-avatar" src={player.avatar_url} alt="" loading="lazy" />}
+      {player.avatar_url && (
+        <img className="player-chip-avatar" src={player.avatar_url} alt="" loading="lazy" />
+      )}
       <div className="player-chip-text">
         <a
           className="player-chip-name"

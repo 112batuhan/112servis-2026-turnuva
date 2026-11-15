@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { errorMessage } from "../api/client";
-import { acceptReschedule, deleteReschedule, fetchMyReschedules, proposeReschedule } from "../api/teams";
+import {
+  acceptReschedule,
+  deleteReschedule,
+  fetchMyReschedules,
+  proposeReschedule,
+} from "../api/teams";
 import type { MyReschedules, RescheduleMatch, RescheduleProposal } from "../api/types";
 import { matchCode } from "../lib/bracket";
 import { formatMatchTime, fromDateTimeLocal, toDateTimeLocal } from "../lib/format";
@@ -55,11 +60,12 @@ export function MatchReschedules({ onRescheduled, onError }: Props) {
   return (
     <section className="panel">
       <h2>
-        Maç saatini değiştir {received > 0 && <span className="badge badge-warning">{received}</span>}
+        Maç saatini değiştir{" "}
+        {received > 0 && <span className="badge badge-warning">{received}</span>}
       </h2>
       <p className="muted reschedule-hint">
-        Rakibine istediğin kadar saat önerebilirsin. Önerilerden birini karşı takımdan bir oyuncunun kabul etmesi
-        yeterli. Kabul ettiklerinde maç saati değişir.
+        Rakibine istediğin kadar saat önerebilirsin. Önerilerden birini karşı takımdan bir oyuncunun
+        kabul etmesi yeterli. Kabul ettiklerinde maç saati değişir.
       </p>
       {!data ? (
         <p className="status">Yükleniyor…</p>
@@ -113,8 +119,8 @@ function MatchCard({ match, limit, busy, run }: CardProps) {
       </div>
       {match.potential && (
         <p className="muted reschedule-note">
-          Bu eşleşme bu haftaki maçların sonucuna bağlı. Saatini şimdiden ayarlayın: iki takım da {matchCode(match)}{" "}
-          maçına gelirse maç burada anlaştığınız saatte oynanır.
+          Bu eşleşme bu haftaki maçların sonucuna bağlı. Saatini şimdiden ayarlayın: iki takım da{" "}
+          {matchCode(match)} maçına gelirse maç burada anlaştığınız saatte oynanır.
         </p>
       )}
       <p className="reschedule-current">
@@ -122,7 +128,9 @@ function MatchCard({ match, limit, busy, run }: CardProps) {
         {match.starts_at ? formatMatchTime(match.starts_at) : "Belirlenmedi"}
       </p>
       {!match.open && (
-        <p className="muted reschedule-note">Maç başladı, saatini artık yalnızca yetkililer değiştirebilir.</p>
+        <p className="muted reschedule-note">
+          Maç başladı, saatini artık yalnızca yetkililer değiştirebilir.
+        </p>
       )}
 
       <ProposalList

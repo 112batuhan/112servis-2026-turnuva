@@ -21,7 +21,15 @@ interface Props {
 }
 
 /** Maps not placed in any slot. Shared by every stage. */
-export function GenericPool({ maps, expanded, onToggle, busy, onAddMap, onDropMap, editorFor }: Props) {
+export function GenericPool({
+  maps,
+  expanded,
+  onToggle,
+  busy,
+  onAddMap,
+  onDropMap,
+  editorFor,
+}: Props) {
   const { isOver, dropProps } = useMapDropZone(onDropMap);
 
   return (
@@ -36,7 +44,9 @@ export function GenericPool({ maps, expanded, onToggle, busy, onAddMap, onDropMa
       {editorFor && <AddMapForm busy={busy} onAddMap={onAddMap} />}
       {maps.length === 0 && (
         <p className="pool-empty">
-          {editorFor ? "Yerleştirilmemiş map yok. Yukarıdan beatmap id'siyle map ekleyebilirsin." : "Yerleştirilmemiş map yok."}
+          {editorFor
+            ? "Yerleştirilmemiş map yok. Yukarıdan beatmap id'siyle map ekleyebilirsin."
+            : "Yerleştirilmemiş map yok."}
         </p>
       )}
       {maps.map((map) => (
@@ -73,7 +83,12 @@ function AddMapForm({ busy, onAddMap }: Pick<Props, "busy" | "onAddMap">) {
       <label className="sr-only" htmlFor="add-map-mods">
         Mods
       </label>
-      <select id="add-map-mods" className="select" value={mods} onChange={(e) => setMods(e.target.value)}>
+      <select
+        id="add-map-mods"
+        className="select"
+        value={mods}
+        onChange={(e) => setMods(e.target.value)}
+      >
         {MOD_OPTIONS.map((m) => (
           <option key={m} value={m}>
             {m || "NoMod"}

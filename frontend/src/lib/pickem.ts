@@ -1,6 +1,12 @@
 // Pick'em: predicting each bracket match of a stage before it starts (handlers/pickem.rs and
 // backend/src/pickem.rs hold the rules; the server scores, this only shows them).
-import type { BracketMatch, MyPrediction, PickemScoreCount, PickemStage, PickemStatus } from "../api/types";
+import type {
+  BracketMatch,
+  MyPrediction,
+  PickemScoreCount,
+  PickemStage,
+  PickemStatus,
+} from "../api/types";
 import { firstTo } from "./bestOf";
 
 /** The pick'em page opened on a match: its stage shown and its score distribution open. */
@@ -48,8 +54,10 @@ export interface Outcome {
 export function outcomes(bestOf: number): Outcome[] {
   const need = firstTo(bestOf);
   const out: Outcome[] = [];
-  for (let loser = 0; loser < need; loser++) out.push({ slot: 1, winner: need, loser, team1: need, team2: loser });
-  for (let loser = need - 1; loser >= 0; loser--) out.push({ slot: 2, winner: need, loser, team1: loser, team2: need });
+  for (let loser = 0; loser < need; loser++)
+    out.push({ slot: 1, winner: need, loser, team1: need, team2: loser });
+  for (let loser = need - 1; loser >= 0; loser--)
+    out.push({ slot: 2, winner: need, loser, team1: loser, team2: need });
   return out;
 }
 
@@ -63,7 +71,10 @@ export function predictionSlot(m: BracketMatch, p: Pick<MyPrediction, "team_id">
 }
 
 /** A prediction's score as the sides read it: [team 1, team 2]. */
-export function predictionScore(slot: 1 | 2, p: Pick<MyPrediction, "winner_score" | "loser_score">): [number, number] {
+export function predictionScore(
+  slot: 1 | 2,
+  p: Pick<MyPrediction, "winner_score" | "loser_score">,
+): [number, number] {
   return slot === 1 ? [p.winner_score, p.loser_score] : [p.loser_score, p.winner_score];
 }
 
@@ -82,14 +93,22 @@ export function countsByOutcome(scores: PickemScoreCount[]): Map<string, number>
 
 /** Whether a match has begun: its time has come, it has a room or it's over (pickem::started). */
 export function matchStarted(m: BracketMatch, now = Date.now()): boolean {
-  return !!m.concluded_at || m.rooms.length > 0 || (m.starts_at !== null && new Date(m.starts_at).getTime() <= now);
+  return (
+    !!m.concluded_at ||
+    m.rooms.length > 0 ||
+    (m.starts_at !== null && new Date(m.starts_at).getTime() <= now)
+  );
 }
 
 /**
  * Whether a match takes no more predictions (pickem::match_locked): once it has begun, except
  * that in a stage a host opened the clock is overridden, and only its room or its result locks it.
  */
-export function matchClosed(stage: Pick<PickemStage, "mode">, m: BracketMatch, now = Date.now()): boolean {
+export function matchClosed(
+  stage: Pick<PickemStage, "mode">,
+  m: BracketMatch,
+  now = Date.now(),
+): boolean {
   return stage.mode === "open" ? !!m.concluded_at || m.rooms.length > 0 : matchStarted(m, now);
 }
 
@@ -97,7 +116,11 @@ export function matchClosed(stage: Pick<PickemStage, "mode">, m: BracketMatch, n
  * Whether a match's predictions are past changing, so its split is public: its stage is locked, or
  * it's locked on its own in a stage a host opened.
  */
-export function isMatchLocked(stage: Pick<PickemStage, "status" | "mode">, m: BracketMatch, now = Date.now()): boolean {
+export function isMatchLocked(
+  stage: Pick<PickemStage, "status" | "mode">,
+  m: BracketMatch,
+  now = Date.now(),
+): boolean {
   return isLocked(stage.status) || (stage.status === "open" && matchClosed(stage, m, now));
 }
 
@@ -108,7 +131,11 @@ export function canPredictMatch(
   now = Date.now(),
 ): boolean {
   return (
-    stage.status === "open" && stage.best_of !== null && m.team1_id !== null && m.team2_id !== null && !matchClosed(stage, m, now)
+    stage.status === "open" &&
+    stage.best_of !== null &&
+    m.team1_id !== null &&
+    m.team2_id !== null &&
+    !matchClosed(stage, m, now)
   );
 }
 

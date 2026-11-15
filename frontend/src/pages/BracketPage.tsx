@@ -7,7 +7,11 @@ import { BracketCalendar } from "../components/bracket/BracketCalendar";
 import { BracketGrid } from "../components/bracket/BracketGrid";
 import { BracketList } from "../components/bracket/BracketList";
 import { BracketSearch, useBracketSearch } from "../components/bracket/BracketSearch";
-import { SelectedMatchBar, SubscribeButton, useSubscriptions } from "../components/bracket/MatchSubscription";
+import {
+  SelectedMatchBar,
+  SubscribeButton,
+  useSubscriptions,
+} from "../components/bracket/MatchSubscription";
 import {
   BracketViewTabs,
   CountdownToggle,
@@ -52,7 +56,11 @@ export function BracketPage() {
   // A failed refresh keeps what's shown; the next one tries again.
   useLiveRefresh(matches, () => reload().catch(() => {}));
   useLiveBracket(
-    (e) => setData((d) => d && { ...d, matches: withScore(d.matches, e.match_id, e.team1_score, e.team2_score) }),
+    (e) =>
+      setData(
+        (d) =>
+          d && { ...d, matches: withScore(d.matches, e.match_id, e.team1_score, e.team2_score) },
+      ),
     () => reload().catch(() => {}),
   );
   const search = useBracketSearch(matches, teams);
@@ -105,10 +113,14 @@ export function BracketPage() {
               onSelect={setSelectedId}
               onShowInCalendar={showInCalendar}
               countdown={countdown}
-              renderActions={subs.ids ? (m) => <SubscribeButton match={m} subs={subs} /> : undefined}
+              renderActions={
+                subs.ids ? (m) => <SubscribeButton match={m} subs={subs} /> : undefined
+              }
             />
           )}
-          {view === "calendar" && <BracketCalendar {...shared} focusId={focus?.id} onSelect={setSelectedId} />}
+          {view === "calendar" && (
+            <BracketCalendar {...shared} focusId={focus?.id} onSelect={setSelectedId} />
+          )}
         </>
       )}
     </div>

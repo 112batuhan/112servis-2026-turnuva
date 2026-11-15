@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { errorMessage } from "../api/client";
-import { devClear, devLoginAs, devSeed, devSeedLive, devSeedQualifiers, devSeedTeams, fetchDevAccounts } from "../api/dev";
+import {
+  devClear,
+  devLoginAs,
+  devSeed,
+  devSeedLive,
+  devSeedQualifiers,
+  devSeedTeams,
+  fetchDevAccounts,
+} from "../api/dev";
 import type { DevAccount } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { ROLE_LABELS } from "../auth/roles";
@@ -49,7 +57,9 @@ export function DevSwitcher() {
   // The live test puts the signed-in account in a team, so it needs a real one.
   const real = accounts.some((a) => a.id === user?.id && !a.dummy);
   const needle = filter.trim().toLowerCase();
-  const shown = needle ? accounts.filter((a) => a.username.toLowerCase().includes(needle)) : accounts;
+  const shown = needle
+    ? accounts.filter((a) => a.username.toLowerCase().includes(needle))
+    : accounts;
 
   return (
     <div className="dev-switcher">
@@ -96,7 +106,12 @@ export function DevSwitcher() {
             ))}
           </ul>
           <div className="dev-panel-actions">
-            <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => run(devSeed)}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={busy}
+              onClick={() => run(devSeed)}
+            >
               Reseed dummies
             </button>
             <button
@@ -132,12 +147,19 @@ export function DevSwitcher() {
               type="button"
               className="btn btn-danger btn-sm"
               disabled={busy}
-              onClick={() => window.confirm("Delete every dummy account, team and invite?") && run(devClear)}
+              onClick={() =>
+                window.confirm("Delete every dummy account, team and invite?") && run(devClear)
+              }
             >
               Clear dummies
             </button>
             {user && (
-              <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => run(signOut)}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy}
+                onClick={() => run(signOut)}
+              >
                 Log out
               </button>
             )}

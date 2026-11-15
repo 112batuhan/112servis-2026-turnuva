@@ -36,7 +36,16 @@ const FILTER_KEY = "match-chat-filtered";
 // One empty list, so a room without lines doesn't make a new one every render.
 const NO_LINES: never[] = [];
 
-export function MatchChat({ rooms, colors, referee, loaded, live, connected, visible, onUnread }: Props) {
+export function MatchChat({
+  rooms,
+  colors,
+  referee,
+  loaded,
+  live,
+  connected,
+  visible,
+  onUnread,
+}: Props) {
   const latest = rooms.length > 0 ? rooms[rooms.length - 1].mpId : null;
   const [active, setActive] = useState<number | null>(latest);
   useEffect(() => setActive(latest), [latest]);
@@ -46,7 +55,10 @@ export function MatchChat({ rooms, colors, referee, loaded, live, connected, vis
   useEffect(() => writeJson(FILTER_KEY, filtered), [filtered]);
 
   const all = room?.lines ?? NO_LINES;
-  const lines = useMemo(() => (filtered ? all.filter((l) => !isRoomNoise(l.from, l.text)) : all), [all, filtered]);
+  const lines = useMemo(
+    () => (filtered ? all.filter((l) => !isRoomNoise(l.from, l.text)) : all),
+    [all, filtered],
+  );
   const hidden = all.length - lines.length;
 
   // Lines that arrived while the panel was out of sight; what was there when the page loaded is read.
@@ -74,7 +86,12 @@ export function MatchChat({ rooms, colors, referee, loaded, live, connected, vis
           className="match-chat-filter"
           title="BanchoBot'un oda kurulum mesajlarını (girişler, slotlar, ayarlar, sayaçlar) ve hakemin !mp komutlarını gizler"
         >
-          <input type="checkbox" role="switch" checked={filtered} onChange={(e) => setFiltered(e.target.checked)} />
+          <input
+            type="checkbox"
+            role="switch"
+            checked={filtered}
+            onChange={(e) => setFiltered(e.target.checked)}
+          />
           <span>Sadeleştir</span>
           {filtered && hidden > 0 && <span className="match-chat-hidden num">{hidden} gizli</span>}
         </label>
@@ -112,7 +129,9 @@ export function MatchChat({ rooms, colors, referee, loaded, live, connected, vis
         {!room && <p className="chat-empty muted">Oda açılınca sohbeti burada canlı akar.</p>}
         {room && lines.length === 0 && (
           <p className="chat-empty muted">
-            {all.length > 0 ? "Henüz maçla ilgili bir mesaj yok. Hepsini görmek için Sadeleştir'i kapat." : "Bu odada henüz mesaj yok."}
+            {all.length > 0
+              ? "Henüz maçla ilgili bir mesaj yok. Hepsini görmek için Sadeleştir'i kapat."
+              : "Bu odada henüz mesaj yok."}
           </p>
         )}
         {lines.map((line) => (
@@ -121,15 +140,13 @@ export function MatchChat({ rooms, colors, referee, loaded, live, connected, vis
       </div>
 
       {/* While it streams there's nothing to say here: the header says the match is live. */}
-      {live ? (
-        !connected && (
-          <footer className="match-chat-foot" role="status">
-            Bağlantı koptu, yeniden bağlanıyor…
-          </footer>
-        )
-      ) : (
-        room && <footer className="match-chat-foot is-saved">Maç bitti: kayıtlı sohbet</footer>
-      )}
+      {live
+        ? !connected && (
+            <footer className="match-chat-foot" role="status">
+              Bağlantı koptu, yeniden bağlanıyor…
+            </footer>
+          )
+        : room && <footer className="match-chat-foot is-saved">Maç bitti: kayıtlı sohbet</footer>}
     </section>
   );
 }

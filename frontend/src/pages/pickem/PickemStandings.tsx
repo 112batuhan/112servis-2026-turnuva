@@ -66,12 +66,18 @@ export function PickemStandings({ standings, stage, viewerId }: Props) {
         <h2 id="pickem-standings-title">Puan durumu</h2>
         {viewer && (
           <p className="pickem-standings-you">
-            <span className="num">{viewer.rank}.</span> sıradasın · <span className="num">{viewer.points}</span> puan
+            <span className="num">{viewer.rank}.</span> sıradasın ·{" "}
+            <span className="num">{viewer.points}</span> puan
           </p>
         )}
         {stage && isLocked(stage.status) && (
           <div className="bracket-view-tabs" role="group" aria-label="Kapsam">
-            <button type="button" className="bracket-view-tab" aria-pressed={!stageScoped} onClick={() => setScope("all")}>
+            <button
+              type="button"
+              className="bracket-view-tab"
+              aria-pressed={!stageScoped}
+              onClick={() => setScope("all")}
+            >
               Genel
             </button>
             <button
@@ -88,13 +94,20 @@ export function PickemStandings({ standings, stage, viewerId }: Props) {
 
       {rows.length === 0 ? (
         <p className="pickem-standings-empty">
-          {stageScoped ? "Bu stage'de kimse tahmin yapmadı." : "Henüz kimse tahmin yapmadı. İlk tahmin senden olsun."}
+          {stageScoped
+            ? "Bu stage'de kimse tahmin yapmadı."
+            : "Henüz kimse tahmin yapmadı. İlk tahmin senden olsun."}
         </p>
       ) : (
         <>
           <ol className="pickem-standings-list">
             {shown.map((r, i) => (
-              <StandingRow key={r.player.id} row={r} own={r.player.id === viewerId} tied={i > 0 && shown[i - 1].rank === r.rank} />
+              <StandingRow
+                key={r.player.id}
+                row={r}
+                own={r.player.id === viewerId}
+                tied={i > 0 && shown[i - 1].rank === r.rank}
+              />
             ))}
           </ol>
           {pinned && (
@@ -103,7 +116,11 @@ export function PickemStandings({ standings, stage, viewerId }: Props) {
             </ol>
           )}
           {rows.length > SHOWN && (
-            <button type="button" className="btn btn-secondary btn-sm pickem-standings-more" onClick={() => setExpanded((e) => !e)}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm pickem-standings-more"
+              onClick={() => setExpanded((e) => !e)}
+            >
               {expanded ? "Daha az göster" : `Tümünü göster (${rows.length})`}
             </button>
           )}
@@ -116,7 +133,10 @@ export function PickemStandings({ standings, stage, viewerId }: Props) {
 function StandingRow({ row, own, tied }: { row: Row; own: boolean; tied: boolean }) {
   return (
     <li className={own ? "pickem-standing is-own" : "pickem-standing"}>
-      <span className={tied ? "pickem-standing-rank is-tied" : "pickem-standing-rank"} aria-label={`${row.rank}. sıra`}>
+      <span
+        className={tied ? "pickem-standing-rank is-tied" : "pickem-standing-rank"}
+        aria-label={`${row.rank}. sıra`}
+      >
         {row.rank}
       </span>
       <img className="pickem-standing-avatar" src={row.player.avatar_url} alt="" loading="lazy" />

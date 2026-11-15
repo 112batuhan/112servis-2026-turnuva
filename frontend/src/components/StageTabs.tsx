@@ -76,14 +76,21 @@ export function StageTabs<S extends TabStage>({
         <ol>
           {stages.map((stage) => {
             const m = mark ? mark(stage) : defaultMark(stage, currentId, live);
-            const classes = ["stage-tab", m.rule && `is-${m.rule}`, showStatus && stage.published === false && "is-draft"];
+            const classes = [
+              "stage-tab",
+              m.rule && `is-${m.rule}`,
+              showStatus && stage.published === false && "is-draft",
+            ];
             const className = classes.filter(Boolean).join(" ");
             const body = (
               <>
                 <span className="stage-tab-head">
                   <span className="stage-tab-name">{stage.name}</span>
                   {stage.best_of != null && !stage.is_qualifier && (
-                    <span className="stage-tab-bo" title={`${firstTo(stage.best_of)} map alan kazanır`}>
+                    <span
+                      className="stage-tab-bo"
+                      title={`${firstTo(stage.best_of)} map alan kazanır`}
+                    >
                       {bestOfLabel(stage.best_of)}
                     </span>
                   )}
@@ -105,7 +112,10 @@ export function StageTabs<S extends TabStage>({
                     {body}
                   </button>
                 ) : (
-                  <span className={className} aria-current={stage.id === currentId ? "step" : undefined}>
+                  <span
+                    className={className}
+                    aria-current={stage.id === currentId ? "step" : undefined}
+                  >
                     {body}
                   </span>
                 )}
@@ -120,10 +130,19 @@ export function StageTabs<S extends TabStage>({
 }
 
 /** The public pages' reading: the current stage lit with "Şu an", any stage's matches being played said in frost. */
-function defaultMark(stage: TabStage, currentId: string | null | undefined, live: ReadonlyMap<string, number> | undefined): StageMark {
+function defaultMark(
+  stage: TabStage,
+  currentId: string | null | undefined,
+  live: ReadonlyMap<string, number> | undefined,
+): StageMark {
   const current = stage.id === currentId;
   const playing = live?.get(stage.id) ?? 0;
-  const note = playing > 0 ? `${playing} ${stage.is_qualifier ? "lobi" : "maç"} oynanıyor` : current ? "Şu an" : null;
+  const note =
+    playing > 0
+      ? `${playing} ${stage.is_qualifier ? "lobi" : "maç"} oynanıyor`
+      : current
+        ? "Şu an"
+        : null;
   return { rule: current ? "lit" : undefined, note, noteLit: note !== null };
 }
 

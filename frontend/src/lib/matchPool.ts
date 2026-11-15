@@ -54,7 +54,9 @@ export interface DraftTurn {
 export function poolEntries(room: Pick<MatchData, "categories" | "slots" | "maps">): PoolEntry[] {
   const entries: PoolEntry[] = [];
   for (const category of room.categories) {
-    const slots = room.slots.filter((s) => s.category_id === category.id).sort((a, b) => a.position - b.position);
+    const slots = room.slots
+      .filter((s) => s.category_id === category.id)
+      .sort((a, b) => a.position - b.position);
     slots.forEach((slot, i) => {
       const map = room.maps.find((m) => m.slot_id === slot.id);
       if (!map) return;
@@ -71,7 +73,9 @@ export function poolEntries(room: Pick<MatchData, "categories" | "slots" | "maps
 }
 
 /** A bracket match's two teams, blue (team 1) then red, once both are known; otherwise none. */
-export function matchTeams(room: Pick<MatchData, "kind" | "teams" | "team1_id" | "team2_id">): MatchTeam[] {
+export function matchTeams(
+  room: Pick<MatchData, "kind" | "teams" | "team1_id" | "team2_id">,
+): MatchTeam[] {
   if (room.kind !== "bracket") return [];
   const team = (id: string | null, color: SlotTeam): MatchTeam | null => {
     const t = id ? room.teams.find((t) => t.id === id) : undefined;
@@ -104,7 +108,13 @@ export function draftTurn(draft: Draft | null, teams: MatchTeam[]): DraftTurn | 
  * (or "Sıradaki ban"). The server builds the one it sends the same way (bancho::tally::score_message);
  * this is its preview.
  */
-export function scoreMessage(teams: MatchTeam[], score: [number, number], next: DraftTurn | null): string {
+export function scoreMessage(
+  teams: MatchTeam[],
+  score: [number, number],
+  next: DraftTurn | null,
+): string {
   const line = `Skor: ${teams[0].name} ${score[0]} - ${score[1]} ${teams[1].name}`;
-  return next?.team ? `${line} | Sıradaki ${stepLabel(next.kind).toLowerCase()}: ${next.team.name}` : line;
+  return next?.team
+    ? `${line} | Sıradaki ${stepLabel(next.kind).toLowerCase()}: ${next.team.name}`
+    : line;
 }

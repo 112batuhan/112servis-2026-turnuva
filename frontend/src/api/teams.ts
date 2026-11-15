@@ -1,5 +1,12 @@
 import { del, get, patch, post, put, putFile } from "./client";
-import type { AdminTeamPlayer, MyReschedules, PlayerResult, RankRefresh, TeamList, TeamStatus } from "./types";
+import type {
+  AdminTeamPlayer,
+  MyReschedules,
+  PlayerResult,
+  RankRefresh,
+  TeamList,
+  TeamStatus,
+} from "./types";
 
 export const searchPlayers = (q: string) =>
   get<PlayerResult[]>(`/api/players/search?q=${encodeURIComponent(q)}`);
@@ -20,7 +27,8 @@ export const fetchMyReschedules = () => get<MyReschedules>("/api/me/reschedules"
 export const proposeReschedule = (matchId: string, startsAt: string) =>
   post<void>("/api/reschedules", { match_id: matchId, starts_at: startsAt });
 /** Moves the match to the proposed time and drops every other proposal for it. */
-export const acceptReschedule = (proposalId: string) => post<void>(`/api/reschedules/${proposalId}/accept`);
+export const acceptReschedule = (proposalId: string) =>
+  post<void>(`/api/reschedules/${proposalId}/accept`);
 /** Cancels the team's own proposal or declines the opponent's. */
 export const deleteReschedule = (proposalId: string) => del(`/api/reschedules/${proposalId}`);
 
@@ -28,9 +36,11 @@ export const fetchPublicTeams = () => get<TeamList>("/api/public/teams");
 
 // Host-only.
 export const fetchTeams = () => get<TeamList<AdminTeamPlayer>>("/api/teams");
-export const renameTeam = (teamId: string, name: string) => patch<void>(`/api/teams/${teamId}`, { name });
+export const renameTeam = (teamId: string, name: string) =>
+  patch<void>(`/api/teams/${teamId}`, { name });
 export const disbandTeam = (teamId: string) => del(`/api/teams/${teamId}`);
 export const removeTeamBanner = (teamId: string) => del(`/api/teams/${teamId}/banner`);
 /** Refreshes every team member's rank from osu! now instead of waiting for the daily run. */
 export const refreshRanks = () => post<RankRefresh>("/api/ranks/refresh");
-export const setTeamsFrozen = (frozen: boolean) => put<void>("/api/settings/teams-frozen", { frozen });
+export const setTeamsFrozen = (frozen: boolean) =>
+  put<void>("/api/settings/teams-frozen", { frozen });

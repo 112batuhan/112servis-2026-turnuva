@@ -19,6 +19,7 @@ cargo fmt / cargo clippy --all-targets -- -D warnings
 # Frontend (from frontend/)
 npm ci
 npm run dev               # http://localhost:5173, calls the API at http://localhost:8080
+npm run format            # Prettier (config in frontend/.prettierrc.json); CI runs format:check
 npm run lint              # ESLint: rules of hooks, exhaustive-deps
 npm run typecheck         # tsc (strict, noUnusedLocals/noUnusedParameters)
 npm test                  # vitest: rules mirrored from the backend, error codes vs the backend's enums
@@ -28,7 +29,7 @@ npm run build             # tsc && vite build
 docker compose up --build # http://localhost:8080
 ```
 
-CI (`.github/workflows/ci.yml`) runs fmt, clippy with `-D warnings`, `cargo test`, `npm ci`, lint, typecheck and `npm test`; keep all of them passing.
+CI (`.github/workflows/ci.yml`) runs fmt, clippy with `-D warnings`, `cargo test`, `npm ci`, Prettier's check, lint, typecheck and `npm test`; keep all of them passing.
 
 The first host has to be set by hand in SQL: `UPDATE osu_users SET roles = '{host}' WHERE osu_id = <id>;`
 

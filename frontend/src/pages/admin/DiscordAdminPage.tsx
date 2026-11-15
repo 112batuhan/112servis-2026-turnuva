@@ -26,8 +26,16 @@ const SECTIONS: { title: string; kind: Kind; fields: Field[] }[] = [
     title: "Roller",
     kind: "role",
     fields: [
-      { key: "verified_role_id", label: "Doğrulanmış", hint: "Discord hesabını siteye bağlayan herkese verilir." },
-      { key: "player_role_id", label: "Oyuncu", hint: "Bir takımda olan oyunculara verilir, takım dağılınca alınır." },
+      {
+        key: "verified_role_id",
+        label: "Doğrulanmış",
+        hint: "Discord hesabını siteye bağlayan herkese verilir.",
+      },
+      {
+        key: "player_role_id",
+        label: "Oyuncu",
+        hint: "Bir takımda olan oyunculara verilir, takım dağılınca alınır.",
+      },
     ],
   },
   {
@@ -71,13 +79,21 @@ const SECTIONS: { title: string; kind: Kind; fields: Field[] }[] = [
         label: "Eleme lobileri",
         hint: "Bir lobiye ilk takım yazılınca lobinin kanalı burada açılır.",
       },
-      { key: "qualifier_archive_category_id", label: "Eleme arşivi", hint: "Biten lobilerin salt okunur kanalları." },
+      {
+        key: "qualifier_archive_category_id",
+        label: "Eleme arşivi",
+        hint: "Biten lobilerin salt okunur kanalları.",
+      },
       {
         key: "bracket_category_id",
         label: "Bracket maçları",
         hint: "İki takımı ve saati belli olan maçın kanalı burada açılır.",
       },
-      { key: "bracket_archive_category_id", label: "Bracket arşivi", hint: "Biten maçların salt okunur kanalları." },
+      {
+        key: "bracket_archive_category_id",
+        label: "Bracket arşivi",
+        hint: "Biten maçların salt okunur kanalları.",
+      },
     ],
   },
 ];
@@ -245,15 +261,17 @@ export function DiscordAdminPage() {
 
       {view && !view.enabled && (
         <p className="status">
-          Bot kurulmadı. Kurmak için sunucuda <code>DISCORD_BOT_TOKEN</code> ve <code>DISCORD_GUILD_ID</code> ayarlanmalı
-          (ayrıntılar <code>.env.example</code> dosyasında).
+          Bot kurulmadı. Kurmak için sunucuda <code>DISCORD_BOT_TOKEN</code> ve{" "}
+          <code>DISCORD_GUILD_ID</code> ayarlanmalı (ayrıntılar <code>.env.example</code>{" "}
+          dosyasında).
         </p>
       )}
       {view?.enabled && !view.active && (
         <p className="status discord-note">
-          Bot kapalı: Discord'a bağlı değil, hiçbir şey göndermiyor ve kapalıyken olanları sıraya almıyor. Açınca
-          sunucudakileri, rolleri ve maç kanallarını baştan senkronize eder. Kapalıyken olanların mesajları
-          gönderilmez; saati henüz geçmemiş maç hatırlatmaları ve duyuruları gider.
+          Bot kapalı: Discord'a bağlı değil, hiçbir şey göndermiyor ve kapalıyken olanları sıraya
+          almıyor. Açınca sunucudakileri, rolleri ve maç kanallarını baştan senkronize eder.
+          Kapalıyken olanların mesajları gönderilmez; saati henüz geçmemiş maç hatırlatmaları ve
+          duyuruları gider.
         </p>
       )}
       {view?.enabled && !view.guild && (
@@ -274,7 +292,12 @@ export function DiscordAdminPage() {
             <span className="muted">{view.channel_count} maçın kanalı var</span>
           </div>
           <div className="discord-actions">
-            <button type="button" className="btn btn-secondary btn-sm" disabled={channelsBusy} onClick={toggleChannels}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={channelsBusy}
+              onClick={toggleChannels}
+            >
               {view.channels_paused ? "Kanal açmayı sürdür" : "Kanal açmayı duraklat"}
             </button>
             <button
@@ -323,7 +346,12 @@ export function DiscordAdminPage() {
               {saving ? "Kaydediliyor…" : "Kaydet"}
             </button>
             {dirty && (
-              <button type="button" className="btn btn-secondary" disabled={saving} onClick={() => setDraft(view.settings)}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={saving}
+                onClick={() => setDraft(view.settings)}
+              >
                 Vazgeç
               </button>
             )}
@@ -366,7 +394,12 @@ function Picker({ id, kind, view, value, onChange }: PickerProps) {
         : guild.text_channels.some((c) => c.id === value);
 
   return (
-    <select id={id} className="select" value={value ?? ""} onChange={(e) => onChange(e.target.value || null)}>
+    <select
+      id={id}
+      className="select"
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value || null)}
+    >
       <option value="">Seçilmedi</option>
       {value && !known && <option value={value}>Bulunamadı ({value})</option>}
       {kind === "role" &&
@@ -381,14 +414,24 @@ function Picker({ id, kind, view, value, onChange }: PickerProps) {
             {c.name}
           </option>
         ))}
-      {kind === "channel" && <ChannelOptions channels={guild.text_channels} categories={guild.categories} />}
+      {kind === "channel" && (
+        <ChannelOptions channels={guild.text_channels} categories={guild.categories} />
+      )}
     </select>
   );
 }
 
 /** Text channels grouped under their categories, uncategorised ones first. */
-function ChannelOptions({ channels, categories }: { channels: GuildChannel[]; categories: GuildChannel[] }) {
-  const loose = channels.filter((c) => !c.parent_id || !categories.some((cat) => cat.id === c.parent_id));
+function ChannelOptions({
+  channels,
+  categories,
+}: {
+  channels: GuildChannel[];
+  categories: GuildChannel[];
+}) {
+  const loose = channels.filter(
+    (c) => !c.parent_id || !categories.some((cat) => cat.id === c.parent_id),
+  );
   const option = (c: GuildChannel) => (
     <option key={c.id} value={c.id}>
       #{c.name}

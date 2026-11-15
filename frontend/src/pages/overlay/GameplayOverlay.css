@@ -87,7 +87,11 @@
   width: 2px;
   height: 814px;
   border-radius: 1px;
-  background: linear-gradient(transparent, color-mix(in srgb, var(--color-text) 70%, transparent) 14%, var(--color-text));
+  background: linear-gradient(
+    transparent,
+    color-mix(in srgb, var(--color-text) 70%, transparent) 14%,
+    var(--color-text)
+  );
 }
 
 /* ---------- the map's live score ---------- */
@@ -143,7 +147,11 @@
 }
 
 .gp-score-bar.is-side-1 > span {
-  background: linear-gradient(90deg, var(--ov-side), color-mix(in srgb, var(--ov-side) 30%, transparent));
+  background: linear-gradient(
+    90deg,
+    var(--ov-side),
+    color-mix(in srgb, var(--ov-side) 30%, transparent)
+  );
 }
 
 .gp-score-bar.is-side-2 {
@@ -152,7 +160,11 @@
 }
 
 .gp-score-bar.is-side-2 > span {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--ov-side) 30%, transparent), var(--ov-side));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--ov-side) 30%, transparent),
+    var(--ov-side)
+  );
 }
 
 .gp-score-lead {

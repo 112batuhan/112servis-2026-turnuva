@@ -56,7 +56,12 @@ export interface Obs {
  * One identified connection to OBS, reconnecting on its own. `url` null stays disconnected.
  * `onIdentified` runs every time the connection is (re)established.
  */
-export function useObs(url: string | null, password: string, subscriptions: number, onIdentified?: () => void): Obs {
+export function useObs(
+  url: string | null,
+  password: string,
+  subscriptions: number,
+  onIdentified?: () => void,
+): Obs {
   const [status, setStatus] = useState<ObsStatus>("connecting");
   const socket = useRef<WebSocket | null>(null);
   const pending = useRef(new Map<string, Pending>());
@@ -99,7 +104,10 @@ export function useObs(url: string | null, password: string, subscriptions: numb
         if (msg.op === 0) {
           // Hello: answer with Identify, signed when OBS asks for a password.
           const auth = d.authentication as { challenge: string; salt: string } | undefined;
-          const identify: Record<string, unknown> = { rpcVersion: 1, eventSubscriptions: subscriptions };
+          const identify: Record<string, unknown> = {
+            rpcVersion: 1,
+            eventSubscriptions: subscriptions,
+          };
           if (auth) identify.authentication = await authString(password, auth.salt, auth.challenge);
           ws.send(JSON.stringify({ op: 1, d: identify }));
         } else if (msg.op === 2) {
@@ -144,9 +152,10 @@ export function useObs(url: string | null, password: string, subscriptions: numb
     };
   }, [url, password, subscriptions]);
 
-  const request = useCallback(<T,>(requestType: string, requestData?: Record<string, unknown>) => {
+  const request = useCallback(<T>(requestType: string, requestData?: Record<string, unknown>) => {
     const ws = socket.current;
-    if (!ws || ws.readyState !== WebSocket.OPEN) return Promise.reject(new Error("OBS'e bağlı değil"));
+    if (!ws || ws.readyState !== WebSocket.OPEN)
+      return Promise.reject(new Error("OBS'e bağlı değil"));
     const requestId = crypto.randomUUID();
     return new Promise<T>((resolve, reject) => {
       pending.current.set(requestId, { resolve: resolve as (d: unknown) => void, reject });

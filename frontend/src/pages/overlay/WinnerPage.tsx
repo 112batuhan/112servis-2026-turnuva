@@ -23,7 +23,13 @@ import "./WinnerPage.css";
 // for the streamer's own overlay. It's drawn from the match as the overlay shows it, so a result
 // the tournament clients haven't reached yet isn't revealed here either.
 
-export function WinnerPage({ view, bracket }: { view: BroadcastMatch | null; bracket: PublicBracket | null }) {
+export function WinnerPage({
+  view,
+  bracket,
+}: {
+  view: BroadcastMatch | null;
+  bracket: PublicBracket | null;
+}) {
   const match = view?.page.match ?? null;
   const tally = view?.page.tally ?? null;
   const team = (side: Side): Team | null => {
@@ -35,13 +41,17 @@ export function WinnerPage({ view, bracket }: { view: BroadcastMatch | null; bra
   const winner = useMemo<Side | null>(() => {
     if (!match || !tally) return null;
     if (match.forfeit_slot) return match.forfeit_slot === 1 ? 2 : 1;
-    if (match.concluded_at) return tally.team1 > tally.team2 ? 1 : tally.team2 > tally.team1 ? 2 : null;
+    if (match.concluded_at)
+      return tally.team1 > tally.team2 ? 1 : tally.team2 > tally.team1 ? 2 : null;
     const bestOf = match.stage?.best_of;
     const race = bestOf ? raceOf(bestOf, tally.team1, tally.team2) : null;
     return race?.kind === "won" ? race.slot : null;
   }, [match, tally]);
 
-  const marks = useMemo(() => (match ? mapMarks(match, tally) : new Map<string, MapMark>()), [match, tally]);
+  const marks = useMemo(
+    () => (match ? mapMarks(match, tally) : new Map<string, MapMark>()),
+    [match, tally],
+  );
   const node = bracket?.matches.find((m) => m.id === match?.id) ?? null;
 
   if (!match || !tally || winner === null) {
@@ -66,19 +76,31 @@ export function WinnerPage({ view, bracket }: { view: BroadcastMatch | null; bra
   const won = team(winner);
   const lost = team(loser);
   const figure = (side: Side) =>
-    match.forfeit_slot ? (side === winner ? "W" : "FF") : String(side === 1 ? tally.team1 : tally.team2);
+    match.forfeit_slot
+      ? side === winner
+        ? "W"
+        : "FF"
+      : String(side === 1 ? tally.team1 : tally.team2);
 
   return (
     <OverlayStage className={`wn ${SIDE_CLASS[winner]}`}>
       <Masthead title="Kazanan" />
       <div className="wn-banner">
-        {won?.banner_url ? <BannerImage team={won} /> : <span className="wn-banner-initial">{initial(won)}</span>}
+        {won?.banner_url ? (
+          <BannerImage team={won} />
+        ) : (
+          <span className="wn-banner-initial">{initial(won)}</span>
+        )}
       </div>
       <h2 className="wn-name">{won?.name}</h2>
       <ul className="wn-players" aria-label="Oyuncular">
         {won?.players.map((p) => (
           <li key={p.id}>
-            {p.avatar_url ? <img src={p.avatar_url} alt="" /> : <span className="wn-avatar-blank" />}
+            {p.avatar_url ? (
+              <img src={p.avatar_url} alt="" />
+            ) : (
+              <span className="wn-avatar-blank" />
+            )}
             {p.username}
           </li>
         ))}
@@ -99,7 +121,13 @@ export function WinnerPage({ view, bracket }: { view: BroadcastMatch | null; bra
               const mark = marks.get(r.entry.map.id);
               return (
                 <li key={r.key} style={{ "--wn-i": i } as CSSProperties}>
-                  <MapPill entry={r.entry} mark={mark} tag={r.entry.label} current={false} title={false} />
+                  <MapPill
+                    entry={r.entry}
+                    mark={mark}
+                    tag={r.entry.label}
+                    current={false}
+                    title={false}
+                  />
                 </li>
               );
             })}
@@ -107,8 +135,20 @@ export function WinnerPage({ view, bracket }: { view: BroadcastMatch | null; bra
       )}
       {node && (
         <div className="wn-next">
-          <NextStep winner side={winner} team={won} next={target(bracket, node, "winner")} teams={bracket?.teams ?? []} />
-          <NextStep winner={false} side={loser} team={lost} next={target(bracket, node, "loser")} teams={bracket?.teams ?? []} />
+          <NextStep
+            winner
+            side={winner}
+            team={won}
+            next={target(bracket, node, "winner")}
+            teams={bracket?.teams ?? []}
+          />
+          <NextStep
+            winner={false}
+            side={loser}
+            team={lost}
+            next={target(bracket, node, "loser")}
+            teams={bracket?.teams ?? []}
+          />
         </div>
       )}
       <TrophyGlow className="wn-trophy" />

@@ -9,7 +9,10 @@ const LEAD_MS = 10 * 60_000;
 
 /** Whether any match is being played or about to be: unconcluded, and due within LEAD_MS. */
 export function hasMatchOn(matches: BracketMatch[], now = Date.now()): boolean {
-  return matches.some((m) => !m.concluded_at && m.starts_at !== null && new Date(m.starts_at).getTime() <= now + LEAD_MS);
+  return matches.some(
+    (m) =>
+      !m.concluded_at && m.starts_at !== null && new Date(m.starts_at).getTime() <= now + LEAD_MS,
+  );
 }
 
 /**

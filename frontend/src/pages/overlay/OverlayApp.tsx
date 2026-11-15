@@ -87,7 +87,13 @@ function MatchOverlay(props: SharedProps & { matchId: string }) {
  * The bracket is held back with the match while the tournament clients play a map: its scores and
  * results are the site's, which run ahead of what viewers have seen.
  */
-function Shown({ page, tosu, bracket, view, ...rest }: SharedProps & { view: BroadcastMatch | null; matchId: string | null }) {
+function Shown({
+  page,
+  tosu,
+  bracket,
+  view,
+  ...rest
+}: SharedProps & { view: BroadcastMatch | null; matchId: string | null }) {
   const holding = view ? view.holding : tosu.ipcState === IPC.playing;
   const heldBracket = useHeld(bracket, holding);
   return <Screens page={page} data={{ view, bracket: heldBracket, ...rest }} />;
@@ -111,9 +117,15 @@ function Screens({ page, data }: { page: ScreenPage; data: PageData }) {
     setLayers((prev) =>
       prev.some((l) => l.page === page && !l.leaving)
         ? prev
-        : [...prev.filter((l) => l.page !== page).map((l) => ({ ...l, leaving: true })), { page, leaving: false }],
+        : [
+            ...prev.filter((l) => l.page !== page).map((l) => ({ ...l, leaving: true })),
+            { page, leaving: false },
+          ],
     );
-    const timer = window.setTimeout(() => setLayers((prev) => prev.filter((l) => !l.leaving)), CROSSFADE_MS);
+    const timer = window.setTimeout(
+      () => setLayers((prev) => prev.filter((l) => !l.leaving)),
+      CROSSFADE_MS,
+    );
     return () => window.clearTimeout(timer);
   }, [page]);
   return (

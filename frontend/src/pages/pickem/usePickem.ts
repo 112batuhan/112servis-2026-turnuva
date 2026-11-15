@@ -2,7 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchPublicBracket } from "../../api/bracket";
 import { errorMessage } from "../../api/client";
 import { fetchPickem, predictMatch, withdrawPrediction } from "../../api/pickem";
-import type { BracketMatch, MyPrediction, PickemOverview, PublicBracket, Team } from "../../api/types";
+import type {
+  BracketMatch,
+  MyPrediction,
+  PickemOverview,
+  PublicBracket,
+  Team,
+} from "../../api/types";
 import { firstTo } from "../../lib/bestOf";
 import { withScore } from "../../lib/bracket";
 import { useLiveRefresh } from "../../lib/useLiveRefresh";
@@ -32,11 +38,18 @@ export function usePickem() {
   // A failed refresh keeps what's shown; the next one tries again.
   useLiveRefresh(matches, () => reload().catch(() => {}));
   useLiveBracket(
-    (e) => setBracket((b) => b && { ...b, matches: withScore(b.matches, e.match_id, e.team1_score, e.team2_score) }),
+    (e) =>
+      setBracket(
+        (b) =>
+          b && { ...b, matches: withScore(b.matches, e.match_id, e.team1_score, e.team2_score) },
+      ),
     () => reload().catch(() => {}),
   );
 
-  const teams = useMemo(() => new Map<string, Team>(bracket?.teams.map((t) => [t.id, t])), [bracket]);
+  const teams = useMemo(
+    () => new Map<string, Team>(bracket?.teams.map((t) => [t.id, t])),
+    [bracket],
+  );
   const mine = useMemo(() => new Map(overview?.mine.map((p) => [p.match_id, p])), [overview]);
   const splits = useMemo(() => new Map(overview?.splits.map((s) => [s.match_id, s])), [overview]);
 

@@ -19,7 +19,14 @@ import {
   type Bounds,
   type Camera,
 } from "./bracketBoard";
-import { APP, broadcast, completeState, isControlMessage, type OverlayState, type ScreenPage } from "./control";
+import {
+  APP,
+  broadcast,
+  completeState,
+  isControlMessage,
+  type OverlayState,
+  type ScreenPage,
+} from "./control";
 import { DEFAULT_OBS_URL, SUB_GENERAL, useObs, type ObsStatus } from "./obs";
 import { DEFAULT_TOSU_ADDR, IPC, useTosu, type TosuReport } from "./tosu";
 import "./ControlDock.css";
@@ -79,13 +86,18 @@ const PAGE_NAME: Record<ScreenPage, string> = {
 const PAGE_ORDER: ScreenPage[] = ["schedule", "bracket", "teams", "mappool", "gameplay", "winner"];
 
 /** "Mappool'a", "Kazanan sayfasına": where a pending switch goes. */
-const PENDING_TO: Partial<Record<ScreenPage, string>> = { mappool: "Mappool'a", winner: "Kazanan sayfasına" };
+const PENDING_TO: Partial<Record<ScreenPage, string>> = {
+  mappool: "Mappool'a",
+  winner: "Kazanan sayfasına",
+};
 
 export function ControlDock() {
   const [obsUrl, setObsUrl] = useState(() => readString(OBS_URL_KEY) || DEFAULT_OBS_URL);
   const [obsPassword, setObsPassword] = useState(() => readString(OBS_PASSWORD_KEY) ?? "");
   const [tosuAddr, setTosuAddr] = useState(() => readString(TOSU_KEY) || DEFAULT_TOSU_ADDR);
-  const [state, setState] = useState<OverlayState>(() => completeState(readJson<Partial<OverlayState>>(STATE_KEY, {})));
+  const [state, setState] = useState<OverlayState>(() =>
+    completeState(readJson<Partial<OverlayState>>(STATE_KEY, {})),
+  );
   useEffect(() => writeJson(STATE_KEY, state), [state]);
   const [auto, setAuto] = useState<AutoSwitch>(() => ({
     toGameplay: true,
@@ -127,7 +139,9 @@ export function ControlDock() {
       stateRef.current = next;
       setState(next);
       setObsError(null);
-      broadcast(request, { app: APP, kind: "state", state: next }).catch((e) => setObsError(errorMessage(e)));
+      broadcast(request, { app: APP, kind: "state", state: next }).catch((e) =>
+        setObsError(errorMessage(e)),
+      );
     },
     [request],
   );
@@ -152,17 +166,25 @@ export function ControlDock() {
       if (autoRef.current.toGameplay) update({ page: "gameplay" });
     } else if (prev === IPC.playing && tosu.ipcState === IPC.ranking) {
       // Every client finished the map; the results stay up a while first.
-      const page = winnerNext.current && autoRef.current.toWinner ? "winner" : autoRef.current.toMappool ? "mappool" : null;
+      const page =
+        winnerNext.current && autoRef.current.toWinner
+          ? "winner"
+          : autoRef.current.toMappool
+            ? "mappool"
+            : null;
       winnerNext.current = false;
       if (page) setPending({ page, at: Date.now() + RESULTS_FOR_MS });
     }
   }, [tosu.ipcState, update]);
   useEffect(() => {
     if (pending === null) return;
-    const timer = window.setTimeout(() => {
-      setPending(null);
-      update({ page: pending.page });
-    }, Math.max(0, pending.at - Date.now()));
+    const timer = window.setTimeout(
+      () => {
+        setPending(null);
+        update({ page: pending.page });
+      },
+      Math.max(0, pending.at - Date.now()),
+    );
     return () => window.clearTimeout(timer);
   }, [pending, update]);
 
@@ -212,7 +234,10 @@ export function ControlDock() {
     }
     if (!autoRef.current.toWinner) return;
     if (lastIpc.current === IPC.playing) winnerNext.current = true;
-    else setPending((p) => (p ? { ...p, page: "winner" } : null) ?? { page: "winner", at: Date.now() });
+    else
+      setPending(
+        (p) => (p ? { ...p, page: "winner" } : null) ?? { page: "winner", at: Date.now() },
+      );
   }, [selectedNode?.id, selectedNode?.concluded_at]);
 
   const teamName = (id: string | null) => bracket?.teams.find((t) => t.id === id)?.name ?? "?";
@@ -226,8 +251,10 @@ export function ControlDock() {
   boundsRef.current = bounds;
   const cameraNow = (): Camera => stateRef.current.camera ?? fitCamera(boundsRef.current);
   const camera = {
-    pan: (dx: number, dy: number) => update({ camera: panCamera(cameraNow(), dx, dy, boundsRef.current) }),
-    zoom: (factor: number) => update({ camera: zoomCamera(cameraNow(), factor, boundsRef.current) }),
+    pan: (dx: number, dy: number) =>
+      update({ camera: panCamera(cameraNow(), dx, dy, boundsRef.current) }),
+    zoom: (factor: number) =>
+      update({ camera: zoomCamera(cameraNow(), factor, boundsRef.current) }),
     fit: () => update({ camera: null }),
     focus: () => selectedNode && update({ camera: focusCamera(selectedNode) }),
   };
@@ -315,7 +342,9 @@ export function ControlDock() {
             <span>Maç bitince kazanan sayfasına geç</span>
           </label>
           {(auto.toGameplay || auto.toMappool || auto.toWinner) && tosu.status !== "connected" && (
-            <p className="dock-hint is-warning">Otomatik geçiş tosu'dan okur: {TOSU_LABEL[tosu.status]}</p>
+            <p className="dock-hint is-warning">
+              Otomatik geçiş tosu'dan okur: {TOSU_LABEL[tosu.status]}
+            </p>
           )}
         </div>
       </section>
@@ -338,7 +367,11 @@ export function ControlDock() {
         {selected ? (
           <div className="dock-selected">
             <MatchLine match={selected} teamName={teamName} />
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => update({ matchId: null })}>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => update({ matchId: null })}
+            >
               Kaldır
             </button>
           </div>
@@ -382,7 +415,17 @@ export function ControlDock() {
 }
 
 /** A page coming up after the results, counting down, with a way to go now or stay. */
-function PendingSwitch({ to, at, onNow, onCancel }: { to: string; at: number; onNow: () => void; onCancel: () => void }) {
+function PendingSwitch({
+  to,
+  at,
+  onNow,
+  onCancel,
+}: {
+  to: string;
+  at: number;
+  onNow: () => void;
+  onCancel: () => void;
+}) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 250);
@@ -450,22 +493,67 @@ function CameraPad({
   return (
     <div className="dock-cam" onKeyDown={onKey}>
       <div className="dock-dpad">
-        <HoldButton className="is-up" icon="arrowUp" label="Yukarı" first={() => onPan(0, -PAN_STEP)} again={() => onPan(0, -PAN_REPEAT)} />
-        <HoldButton className="is-left" icon="arrowLeft" label="Sola" first={() => onPan(-PAN_STEP, 0)} again={() => onPan(-PAN_REPEAT, 0)} />
-        <button type="button" className="dock-pad-btn is-center" onClick={onFit} title="Bracket'in tamamı" aria-label="Bracket'in tamamını göster">
+        <HoldButton
+          className="is-up"
+          icon="arrowUp"
+          label="Yukarı"
+          first={() => onPan(0, -PAN_STEP)}
+          again={() => onPan(0, -PAN_REPEAT)}
+        />
+        <HoldButton
+          className="is-left"
+          icon="arrowLeft"
+          label="Sola"
+          first={() => onPan(-PAN_STEP, 0)}
+          again={() => onPan(-PAN_REPEAT, 0)}
+        />
+        <button
+          type="button"
+          className="dock-pad-btn is-center"
+          onClick={onFit}
+          title="Bracket'in tamamı"
+          aria-label="Bracket'in tamamını göster"
+        >
           <Icon name="recenter" size={20} />
         </button>
-        <HoldButton className="is-right" icon="arrowRight" label="Sağa" first={() => onPan(PAN_STEP, 0)} again={() => onPan(PAN_REPEAT, 0)} />
-        <HoldButton className="is-down" icon="arrowDown" label="Aşağı" first={() => onPan(0, PAN_STEP)} again={() => onPan(0, PAN_REPEAT)} />
+        <HoldButton
+          className="is-right"
+          icon="arrowRight"
+          label="Sağa"
+          first={() => onPan(PAN_STEP, 0)}
+          again={() => onPan(PAN_REPEAT, 0)}
+        />
+        <HoldButton
+          className="is-down"
+          icon="arrowDown"
+          label="Aşağı"
+          first={() => onPan(0, PAN_STEP)}
+          again={() => onPan(0, PAN_REPEAT)}
+        />
       </div>
       <div className="dock-zoom">
-        <HoldButton icon="plus" label="Yakınlaştır" first={() => onZoom(ZOOM_STEP)} again={() => onZoom(ZOOM_REPEAT)} />
+        <HoldButton
+          icon="plus"
+          label="Yakınlaştır"
+          first={() => onZoom(ZOOM_STEP)}
+          again={() => onZoom(ZOOM_REPEAT)}
+        />
         <span className="dock-zoom-level" aria-live="polite">
           %{zoom}
         </span>
-        <HoldButton icon="minus" label="Uzaklaştır" first={() => onZoom(1 / ZOOM_STEP)} again={() => onZoom(1 / ZOOM_REPEAT)} />
+        <HoldButton
+          icon="minus"
+          label="Uzaklaştır"
+          first={() => onZoom(1 / ZOOM_STEP)}
+          again={() => onZoom(1 / ZOOM_REPEAT)}
+        />
       </div>
-      <button type="button" className="btn btn-secondary btn-sm dock-focus" onClick={() => onFocus?.()} disabled={!onFocus}>
+      <button
+        type="button"
+        className="btn btn-secondary btn-sm dock-focus"
+        onClick={() => onFocus?.()}
+        disabled={!onFocus}
+      >
         <Icon name="target" size={16} /> Maça odaklan
       </button>
     </div>
@@ -548,7 +636,13 @@ function matchGroups(matches: BracketMatch[]): Group[] {
 }
 
 /** A match in one line: its code, the teams and the time, the live mark or the score. */
-function MatchLine({ match, teamName }: { match: BracketMatch; teamName: (id: string | null) => string }) {
+function MatchLine({
+  match,
+  teamName,
+}: {
+  match: BracketMatch;
+  teamName: (id: string | null) => string;
+}) {
   const score = scoreHalves(match);
   return (
     <span className="dock-line">
@@ -559,7 +653,13 @@ function MatchLine({ match, teamName }: { match: BracketMatch; teamName: (id: st
         <span className="is-side-2">{teamName(match.team2_id)}</span>
       </span>
       <span className="dock-when">
-        {isLive(match) ? <LiveMark compact /> : match.starts_at ? formatShortMatchTime(match.starts_at) : "Zaman yok"}
+        {isLive(match) ? (
+          <LiveMark compact />
+        ) : match.starts_at ? (
+          formatShortMatchTime(match.starts_at)
+        ) : (
+          "Zaman yok"
+        )}
       </span>
     </span>
   );
@@ -627,10 +727,17 @@ function Setup({
           onSave(url.trim() || DEFAULT_OBS_URL, password, tosu.trim() || DEFAULT_TOSU_ADDR);
         }}
       >
-        <p className="dock-hint">OBS'te Araçlar → WebSocket Sunucu Ayarları'ndan sunucuyu aç, oradaki şifreyi yaz</p>
+        <p className="dock-hint">
+          OBS'te Araçlar → WebSocket Sunucu Ayarları'ndan sunucuyu aç, oradaki şifreyi yaz
+        </p>
         <label>
           <span>OBS adresi</span>
-          <input className="input input-sm" value={url} onChange={(e) => setUrl(e.target.value)} spellCheck={false} />
+          <input
+            className="input input-sm"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            spellCheck={false}
+          />
         </label>
         <label>
           <span>Şifre</span>
@@ -644,7 +751,12 @@ function Setup({
         </label>
         <label>
           <span>tosu adresi</span>
-          <input className="input input-sm" value={tosu} onChange={(e) => setTosu(e.target.value)} spellCheck={false} />
+          <input
+            className="input input-sm"
+            value={tosu}
+            onChange={(e) => setTosu(e.target.value)}
+            spellCheck={false}
+          />
         </label>
         <button type="submit" className="btn btn-primary btn-sm">
           Kaydet ve bağlan
@@ -659,7 +771,8 @@ function Setup({
           </button>
         </div>
         <p className="dock-hint">
-          tosu'nun ayarlarında (127.0.0.1:24050 → Settings → Allowed IPs) listeye <code>{window.location.hostname}</code> ekli olmalı.
+          tosu'nun ayarlarında (127.0.0.1:24050 → Settings → Allowed IPs) listeye{" "}
+          <code>{window.location.hostname}</code> ekli olmalı.
         </p>
       </div>
     </details>

@@ -63,7 +63,8 @@ function MatchView({ matchId }: { matchId: string }) {
   }
 
   const bracket = match.kind === "bracket";
-  const teamName = (id: string | null) => match.teams.find((t) => t.id === id)?.name ?? "Belirlenmedi";
+  const teamName = (id: string | null) =>
+    match.teams.find((t) => t.id === id)?.name ?? "Belirlenmedi";
   // With both teams known, the score sheet names them.
   const named = page.tally !== null && page.teams.length === 2;
 
@@ -71,11 +72,16 @@ function MatchView({ matchId }: { matchId: string }) {
     <div className="page referee-page match-page" ref={pageRef}>
       <header className="referee-header match-header">
         <div className="match-header-lead">
-          <Link to={bracket ? bracketMatchPath(match.id, false) : "/qualifiers"} className="referee-back">
+          <Link
+            to={bracket ? bracketMatchPath(match.id, false) : "/qualifiers"}
+            className="referee-back"
+          >
             {bracket ? "← Bracket" : "← Elemeler"}
           </Link>
           <h1 className="referee-title">
-            <span className={match.side ? `match-code is-${match.side}` : undefined}>{roomLabel(match)}</span>{" "}
+            <span className={match.side ? `match-code is-${match.side}` : undefined}>
+              {roomLabel(match)}
+            </span>{" "}
             {bracket ? (
               <span className={named ? "sr-only" : "referee-title-teams"}>
                 {teamName(match.team1_id)} vs {teamName(match.team2_id)}
@@ -110,7 +116,11 @@ function MatchView({ matchId }: { matchId: string }) {
           {bracket && (
             <span>
               Yayıncı{" "}
-              {match.streamer ? <span className="match-meta-value">{match.streamer.username}</span> : "henüz yok"}
+              {match.streamer ? (
+                <span className="match-meta-value">{match.streamer.username}</span>
+              ) : (
+                "henüz yok"
+              )}
             </span>
           )}
         </p>
@@ -157,7 +167,9 @@ function MatchView({ matchId }: { matchId: string }) {
                 currentEntry={match.concluded_at ? undefined : page.currentEntry}
                 played={page.played}
                 draft={page.draft}
-                phase={page.live && page.teams.length === 2 ? draftPhase(page.turn, page.race) : null}
+                phase={
+                  page.live && page.teams.length === 2 ? draftPhase(page.turn, page.race) : null
+                }
               />
             )}
             {id === "room" && <MatchColumn page={page} />}
@@ -197,10 +209,17 @@ function MatchColumn({ page }: { page: MatchPageState }) {
         <div className="lobby-bar">
           {current ? (
             <h2 className="lobby-title">
-              <a href={current.url} target="_blank" rel="noopener noreferrer" title="osu!'da maç sayfası">
+              <a
+                href={current.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="osu!'da maç sayfası"
+              >
                 #mp_{current.mp_id}
               </a>
-              {match.rooms.length > 1 && <span className="lobby-title-count">{match.rooms.length}. oda</span>}
+              {match.rooms.length > 1 && (
+                <span className="lobby-title-count">{match.rooms.length}. oda</span>
+              )}
             </h2>
           ) : (
             <h2 className="lobby-title is-empty">Oda henüz açılmadı</h2>
@@ -208,7 +227,12 @@ function MatchColumn({ page }: { page: MatchPageState }) {
           {lobby.playing && <span className="badge badge-success">Oynanıyor</span>}
           {lobby.closed && <span className="badge badge-danger">Kapandı</span>}
           {current && (
-            <a className="btn btn-secondary btn-sm match-osu-link" href={current.url} target="_blank" rel="noopener noreferrer">
+            <a
+              className="btn btn-secondary btn-sm match-osu-link"
+              href={current.url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               osu!'da aç
             </a>
           )}
@@ -297,14 +321,17 @@ function Waiting({ page }: { page: MatchPageState }) {
         {match.starts_at ? (
           <>
             <time dateTime={match.starts_at}>{formatMatchTime(match.starts_at)}</time>
-            {future && <Countdown to={match.starts_at} suffix="kaldı" className="match-waiting-countdown" />}
+            {future && (
+              <Countdown to={match.starts_at} suffix="kaldı" className="match-waiting-countdown" />
+            )}
           </>
         ) : (
           "Maçın saati henüz belli değil"
         )}
       </p>
       <p className="match-waiting-text">
-        Hakem odayı açınca oyuncular, oynanan map ve skor burada canlı görünür; sayfayı yenilemen gerekmez.
+        Hakem odayı açınca oyuncular, oynanan map ve skor burada canlı görünür; sayfayı yenilemen
+        gerekmez.
       </p>
     </div>
   );
@@ -317,9 +344,7 @@ function SheetStatus({ page }: { page: MatchPageState }) {
   if (match.forfeit_slot) return <>Hükmen: {teams[match.forfeit_slot - 1]?.name} çekildi</>;
   if (match.concluded_at) return <>Maç bitti</>;
   if (live) {
-    return (
-<span title="Odanın botu map bittikçe skoru kaydeder">Map bittikçe güncellenir</span>
-    );
+    return <span title="Odanın botu map bittikçe skoru kaydeder">Map bittikçe güncellenir</span>;
   }
   return <>Henüz başlamadı</>;
 }
@@ -329,7 +354,8 @@ function PoolStatus({ page }: { page: MatchPageState }) {
   const { match, teams, turn, live, race } = page;
   if (!match) return null;
   const maps = poolEntries(match).length;
-  if (!live || teams.length !== 2 || maps === 0 || race?.kind === "won") return <span className="num">{maps} map</span>;
+  if (!live || teams.length !== 2 || maps === 0 || race?.kind === "won")
+    return <span className="num">{maps} map</span>;
   if (race?.kind === "tiebreaker") return <span>Tiebreaker</span>;
   if (!turn) return <span className="num">{maps} map</span>;
   return <TurnStatus turn={turn} />;
@@ -344,10 +370,14 @@ function RoomStatus({ page }: { page: MatchPageState }) {
   if (tally && teams.length === 2 && (match.rooms.length > 0 || match.concluded_at)) {
     text = (
       <span className="referee-tab-score num">
-        <span className="is-team-blue">{match.forfeit_slot === 1 ? "FF" : match.forfeit_slot === 2 ? "W" : tally.team1}</span>
+        <span className="is-team-blue">
+          {match.forfeit_slot === 1 ? "FF" : match.forfeit_slot === 2 ? "W" : tally.team1}
+        </span>
         <span aria-hidden="true">–</span>
         <span className="sr-only"> - </span>
-        <span className="is-team-red">{match.forfeit_slot === 2 ? "FF" : match.forfeit_slot === 1 ? "W" : tally.team2}</span>
+        <span className="is-team-red">
+          {match.forfeit_slot === 2 ? "FF" : match.forfeit_slot === 1 ? "W" : tally.team2}
+        </span>
       </span>
     );
   } else if (match.rooms.length === 0) {
@@ -372,7 +402,17 @@ function RoomStatus({ page }: { page: MatchPageState }) {
  * The phone's chat tab: new lines waiting, or how many there are (the header already says the match
  * is live), or that it's reconnecting.
  */
-function ChatStatus({ unread, live, connected, lines }: { unread: number; live: boolean; connected: boolean; lines: number }) {
+function ChatStatus({
+  unread,
+  live,
+  connected,
+  lines,
+}: {
+  unread: number;
+  live: boolean;
+  connected: boolean;
+  lines: number;
+}) {
   if (unread > 0) return <span className="referee-tab-unread num">{unread} yeni</span>;
   if (!live) return <span>Kayıtlı</span>;
   if (!connected) return <span>Bağlanıyor…</span>;

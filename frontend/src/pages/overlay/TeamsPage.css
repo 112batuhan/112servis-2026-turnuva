@@ -99,11 +99,19 @@
   height: 68px;
   padding: 0 26px 0 6px;
   border-radius: var(--radius-full);
-  background: linear-gradient(90deg, color-mix(in srgb, var(--ov-side) 16%, var(--color-chip)), var(--color-chip));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--ov-side) 16%, var(--color-chip)),
+    var(--color-chip)
+  );
 }
 
 .tm-side.is-side-2 .tm-players li {
-  background: linear-gradient(90deg, var(--color-chip), color-mix(in srgb, var(--ov-side) 16%, var(--color-chip)));
+  background: linear-gradient(
+    90deg,
+    var(--color-chip),
+    color-mix(in srgb, var(--ov-side) 16%, var(--color-chip))
+  );
 }
 
 .tm-players img,

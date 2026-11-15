@@ -69,7 +69,13 @@ const canSubscribe = (m: BracketMatch) => m.concluded_at === null;
 export function SubscribeButton({ match, subs }: { match: BracketMatch; subs: SubscriptionState }) {
   if (!subs.ids || !canSubscribe(match)) return null;
   if (!subs.linked) {
-    return <IconButton icon="bell" label="Maç başlarken haber almak için Discord hesabını bağla" disabled />;
+    return (
+      <IconButton
+        icon="bell"
+        label="Maç başlarken haber almak için Discord hesabını bağla"
+        disabled
+      />
+    );
   }
   const on = subs.ids.has(match.id);
   return (
@@ -77,7 +83,11 @@ export function SubscribeButton({ match, subs }: { match: BracketMatch; subs: Su
       icon="bell"
       active={on}
       aria-pressed={on}
-      label={on ? "Discord'da haber verilecek, vazgeçmek için tıkla" : "Maç başlarken Discord'da etiketle"}
+      label={
+        on
+          ? "Discord'da haber verilecek, vazgeçmek için tıkla"
+          : "Maç başlarken Discord'da etiketle"
+      }
       onClick={() => subs.toggle(match.id)}
     />
   );
@@ -99,7 +109,9 @@ export function SelectedMatchBar({
     return (
       <div className="match-sub-bar">
         <span className="muted">
-          {match ? "Bu maç bitti." : "Bir maç seç: başlamadan önce Discord'da etiketlenmek için abone olabilirsin."}
+          {match
+            ? "Bu maç bitti."
+            : "Bir maç seç: başlamadan önce Discord'da etiketlenmek için abone olabilirsin."}
         </span>
         {match && hasMatchPage(match) && <MatchPageLink matchId={match.id} variant="text" />}
       </div>
@@ -110,9 +122,12 @@ export function SelectedMatchBar({
   return (
     <div className="match-sub-bar">
       <span className="match-sub-title">
-        <strong>{matchCode(match)}</strong> {name(match.team1_id)} <span className="muted">vs</span> {name(match.team2_id)}
+        <strong>{matchCode(match)}</strong> {name(match.team1_id)} <span className="muted">vs</span>{" "}
+        {name(match.team2_id)}
       </span>
-      {hasMatchPage(match) && <MatchPageLink matchId={match.id} live={isLive(match)} variant="text" />}
+      {hasMatchPage(match) && (
+        <MatchPageLink matchId={match.id} live={isLive(match)} variant="text" />
+      )}
       {subs.linked ? (
         <button
           type="button"
@@ -131,7 +146,8 @@ export function SelectedMatchBar({
         </button>
       ) : (
         <span className="muted">
-          Maç başlarken Discord'da haber almak için <Link to="/discord">Discord hesabını bağla</Link>.
+          Maç başlarken Discord'da haber almak için{" "}
+          <Link to="/discord">Discord hesabını bağla</Link>.
         </span>
       )}
     </div>

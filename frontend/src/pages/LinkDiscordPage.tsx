@@ -23,10 +23,15 @@ export function LinkDiscordPage() {
         {user.discord?.in_guild === false ? (
           <>
             <p className="card-subtitle">
-              <strong>@{user.discord.username}</strong> hesabın bağlı ama turnuvanın Discord sunucusunda değilsin. Maç
-              kanalların orada; yeniden bağlarsan seni sunucuya geri ekleriz.
+              <strong>@{user.discord.username}</strong> hesabın bağlı ama turnuvanın Discord
+              sunucusunda değilsin. Maç kanalların orada; yeniden bağlarsan seni sunucuya geri
+              ekleriz.
             </p>
-            <button type="button" className="btn btn-discord btn-lg btn-block" onClick={linkDiscord}>
+            <button
+              type="button"
+              className="btn btn-discord btn-lg btn-block"
+              onClick={linkDiscord}
+            >
               <DiscordMark />
               Yeniden bağla ve sunucuya katıl
             </button>
@@ -37,8 +42,14 @@ export function LinkDiscordPage() {
           </p>
         ) : (
           <>
-            <p className="card-subtitle">Discord'a özel özellikleri açmak için Discord hesabını bağla.</p>
-            <button type="button" className="btn btn-discord btn-lg btn-block" onClick={linkDiscord}>
+            <p className="card-subtitle">
+              Discord'a özel özellikleri açmak için Discord hesabını bağla.
+            </p>
+            <button
+              type="button"
+              className="btn btn-discord btn-lg btn-block"
+              onClick={linkDiscord}
+            >
               <DiscordMark />
               Discord ile devam et
             </button>

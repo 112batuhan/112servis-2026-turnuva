@@ -29,9 +29,10 @@ export function PickemPotentials({ match, children }: Props) {
         <span className="pickem-potentials-when">{UNDECIDED_TIME}</span>
       </div>
       <p className="pickem-potentials-note">
-        Bu maçta oynayacak takımlar daha tam belli değil. Maçta oynayabilecek bütün takım kombinasyonları için
-        ayrıca tahmin girebilirsin. Maçta oynayacak takımlar belli olunca otomatik olarak o kombinasyona yaptığın
-        tahmin Pick'em skoruna sayılacaktır. Diğer tahminlerin dikkate alınmayacaktır.
+        Bu maçta oynayacak takımlar daha tam belli değil. Maçta oynayabilecek bütün takım
+        kombinasyonları için ayrıca tahmin girebilirsin. Maçta oynayacak takımlar belli olunca
+        otomatik olarak o kombinasyona yaptığın tahmin Pick'em skoruna sayılacaktır. Diğer
+        tahminlerin dikkate alınmayacaktır.
       </p>
       <ul className="pickem-potentials-list" aria-label={`${code} olası eşleşmeleri`}>
         {children}

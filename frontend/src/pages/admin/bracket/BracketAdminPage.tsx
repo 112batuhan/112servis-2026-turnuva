@@ -19,7 +19,13 @@ import {
 } from "../../../components/bracket/BracketViewTabs";
 import { RefereeRoomLink } from "../../../components/bracket/RefereeRoomLink";
 import { ErrorAlert } from "../../../components/ErrorAlert";
-import { currentStageId, firstFreeSpot, incomingSources, isLive, SIDE_LABELS } from "../../../lib/bracket";
+import {
+  currentStageId,
+  firstFreeSpot,
+  incomingSources,
+  isLive,
+  SIDE_LABELS,
+} from "../../../lib/bracket";
 import { useLive } from "../../../live/LiveContext";
 import { MatchPanel } from "./MatchPanel";
 import { RefereeControl, StreamerControl } from "./StaffControls";
@@ -56,13 +62,22 @@ export function BracketAdminPage() {
 
   useEffect(() => {
     if (!isHost) return;
-    fetchReferees().then(setReferees).catch((e) => setError(errorMessage(e)));
-    fetchStreamers().then(setStreamers).catch((e) => setError(errorMessage(e)));
-    fetchStages().then(setStages).catch((e) => setError(errorMessage(e)));
+    fetchReferees()
+      .then(setReferees)
+      .catch((e) => setError(errorMessage(e)));
+    fetchStreamers()
+      .then(setStreamers)
+      .catch((e) => setError(errorMessage(e)));
+    fetchStages()
+      .then(setStages)
+      .catch((e) => setError(errorMessage(e)));
   }, [isHost, setError]);
 
   const matches = useMemo(() => data?.matches ?? [], [data]);
-  const teams = useMemo(() => new Map<string, EditorTeam>(data?.teams.map((t) => [t.id, t])), [data]);
+  const teams = useMemo(
+    () => new Map<string, EditorTeam>(data?.teams.map((t) => [t.id, t])),
+    [data],
+  );
   const search = useBracketSearch(matches, teams);
   const sources = useMemo(() => incomingSources<EditorMatch>(matches), [matches]);
   const selected = matches.find((m) => m.id === selectedId) ?? null;
@@ -77,7 +92,9 @@ export function BracketAdminPage() {
     const id = currentStageId(matches);
     return matches.find((m) => m.stage?.id === id)?.stage ?? null;
   }, [matches]);
-  const toStaff = matches.filter((m) => currentStage && m.stage?.id === currentStage.id && !m.concluded_at);
+  const toStaff = matches.filter(
+    (m) => currentStage && m.stage?.id === currentStage.id && !m.concluded_at,
+  );
   const unrefereed = toStaff.filter((m) => !m.referee).length;
   const unstreamed = toStaff.filter((m) => !m.streamer).length;
   const shared = {
@@ -95,12 +112,18 @@ export function BracketAdminPage() {
         <h1>Maçlar</h1>
         {data && <span className="badge">{matches.length} maç</span>}
         {unrefereed > 0 && (
-          <span className="badge badge-warning" title={`${currentStage?.name} maçlarından henüz hakemi olmayanlar`}>
+          <span
+            className="badge badge-warning"
+            title={`${currentStage?.name} maçlarından henüz hakemi olmayanlar`}
+          >
             {unrefereed} hakemsiz
           </span>
         )}
         {unstreamed > 0 && (
-          <span className="badge" title={`${currentStage?.name} maçlarından henüz yayıncısı olmayanlar`}>
+          <span
+            className="badge"
+            title={`${currentStage?.name} maçlarından henüz yayıncısı olmayanlar`}
+          >
             {unstreamed} yayıncısız
           </span>
         )}
@@ -143,10 +166,9 @@ export function BracketAdminPage() {
       {!data && !error && <p className="status">Yükleniyor…</p>}
       {data && isHost && view === "grid" && (
         <p className="bracket-admin-hint">
-          Maçları sürükleyerek istediğin yere taşı, ızgaraya oturur. Boş alanı sürükleyerek görünümü kaydır, boş bir
-          yere çift tıklayarak oraya{" "}
-          {SIDE_LABELS[newSide]} maçı ekle. Bir maçı seçince kazananın ve kaybedenin nereye gideceğini panelden
-          ayarlayabilirsin.
+          Maçları sürükleyerek istediğin yere taşı, ızgaraya oturur. Boş alanı sürükleyerek görünümü
+          kaydır, boş bir yere çift tıklayarak oraya {SIDE_LABELS[newSide]} maçı ekle. Bir maçı
+          seçince kazananın ve kaybedenin nereye gideceğini panelden ayarlayabilirsin.
         </p>
       )}
       {data && matches.length === 0 && !isHost && <p className="status">Henüz bracket maçı yok.</p>}
@@ -173,12 +195,21 @@ export function BracketAdminPage() {
                 {...shared}
                 focusOn={focus}
                 onSelect={setSelectedId}
-                renderReferee={(m) => <RefereeControl match={m} editor={editor} options={referees} discord />}
+                renderReferee={(m) => (
+                  <RefereeControl match={m} editor={editor} options={referees} discord />
+                )}
                 renderStreamer={(m) => (
-                  <StreamerControl match={m} editor={editor} options={streamers} myTeamId={data.myTeamId} />
+                  <StreamerControl
+                    match={m}
+                    editor={editor}
+                    options={streamers}
+                    myTeamId={data.myTeamId}
+                  />
                 )}
                 renderPageLink={
-                  isReferee ? (m) => <RefereeRoomLink matchId={m.id} live={isLive(m)} variant="text" /> : undefined
+                  isReferee
+                    ? (m) => <RefereeRoomLink matchId={m.id} live={isLive(m)} variant="text" />
+                    : undefined
                 }
                 onShowInCalendar={showInCalendar}
                 countdown={countdown}

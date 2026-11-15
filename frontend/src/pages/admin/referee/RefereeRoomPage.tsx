@@ -60,7 +60,9 @@ function RefereeRoom({ matchId }: { matchId: string }) {
 
   const teamNames =
     room.kind === "bracket"
-      ? [room.team1_id, room.team2_id].map((id) => room.teams.find((t) => t.id === id)?.name ?? "Belirlenmedi").join(" vs ")
+      ? [room.team1_id, room.team2_id]
+          .map((id) => room.teams.find((t) => t.id === id)?.name ?? "Belirlenmedi")
+          .join(" vs ")
       : `· ${room.teams.length} takım`;
   // With both teams known, the match column's score names them.
   const strip = referee.tally !== null && referee.teams.length === 2;
@@ -68,7 +70,10 @@ function RefereeRoom({ matchId }: { matchId: string }) {
   return (
     <div className="referee-page osu-team-colors" ref={pageRef}>
       <header className="referee-header">
-        <Link to={room.kind === "bracket" ? "/admin/bracket" : "/admin/qualifiers"} className="referee-back">
+        <Link
+          to={room.kind === "bracket" ? "/admin/bracket" : "/admin/qualifiers"}
+          className="referee-back"
+        >
           {room.kind === "bracket" ? "← Bracket" : "← Elemeler"}
         </Link>
         <h1 className="referee-title">
@@ -82,7 +87,10 @@ function RefereeRoom({ matchId }: { matchId: string }) {
         </span>
         {room.concluded_at && <span className="badge badge-success">Bitti</span>}
         {!referee.canRun && (
-          <span className="badge badge-warning" title="Odayı sadece maçın hakemi ya da bir host kurabilir">
+          <span
+            className="badge badge-warning"
+            title="Odayı sadece maçın hakemi ya da bir host kurabilir"
+          >
             Bu maçın hakemi değilsin
           </span>
         )}
@@ -118,7 +126,11 @@ function RefereeRoom({ matchId }: { matchId: string }) {
                 top={<IrcLogin viaBot={referee.viaBot ? (referee.botName ?? "") : null} />}
                 viaBot={
                   referee.viaBot
-                    ? { bot: referee.botName, blocker: botBlocker(referee), send: referee.actions.sayViaBot }
+                    ? {
+                        bot: referee.botName,
+                        blocker: botBlocker(referee),
+                        send: referee.actions.sayViaBot,
+                      }
                     : undefined
                 }
                 visible={!compact || tab === "chat"}
@@ -137,7 +149,13 @@ function PoolStatus({ referee }: { referee: RefereeRoomState }) {
   const { room, teams, turn, race } = referee;
   if (!room) return null;
   const maps = poolEntries(room).length;
-  if (room.kind !== "bracket" || teams.length !== 2 || maps === 0 || room.concluded_at || race?.kind === "won") {
+  if (
+    room.kind !== "bracket" ||
+    teams.length !== 2 ||
+    maps === 0 ||
+    room.concluded_at ||
+    race?.kind === "won"
+  ) {
     return <span className="num">{maps} map</span>;
   }
   if (race?.kind === "tiebreaker") return <span>Tiebreaker</span>;

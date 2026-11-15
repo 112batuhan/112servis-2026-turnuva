@@ -18,7 +18,15 @@ export const SIDE_CLASS: Record<Side, string> = { 1: "is-side-1", 2: "is-side-2"
  * smaller (a preview in a browser). `holes` are left transparent for the tournament client
  * underneath: rectangles in frame pixels, with the corners each one rounds.
  */
-export function OverlayStage({ className, holes = [], children }: { className: string; holes?: Hole[]; children: ReactNode }) {
+export function OverlayStage({
+  className,
+  holes = [],
+  children,
+}: {
+  className: string;
+  holes?: Hole[];
+  children: ReactNode;
+}) {
   const [scale, setScale] = useState(1);
   useLayoutEffect(() => {
     const fit = () => setScale(Math.min(window.innerWidth / 1920, window.innerHeight / 1080));
@@ -26,7 +34,10 @@ export function OverlayStage({ className, holes = [], children }: { className: s
     window.addEventListener("resize", fit);
     return () => window.removeEventListener("resize", fit);
   }, []);
-  const ground = holes.length > 0 ? { clipPath: `path(evenodd, "M0 0H1920V1080H0Z ${holes.map(holePath).join(" ")}")` } : undefined;
+  const ground =
+    holes.length > 0
+      ? { clipPath: `path(evenodd, "M0 0H1920V1080H0Z ${holes.map(holePath).join(" ")}")` }
+      : undefined;
   return (
     <div className="ov-viewport">
       <div className={`ov-stage ${className}`} style={{ "--ov-scale": scale } as CSSProperties}>
@@ -71,13 +82,21 @@ export type CrystalKind = "won" | "open" | "pick" | "ban";
  */
 export function Crystal({ kind, className = "" }: { kind: CrystalKind; className?: string }) {
   return (
-    <svg className={`ov-crystal is-${kind} ${className}`} viewBox="-13 -13 26 26" aria-hidden="true" focusable="false">
+    <svg
+      className={`ov-crystal is-${kind} ${className}`}
+      viewBox="-13 -13 26 26"
+      aria-hidden="true"
+      focusable="false"
+    >
       <path
         className="ov-crystal-star"
         d="M0 -11C1 -3.2 3.2 -1 11 0C3.2 1 1 3.2 0 11C-1 3.2 -3.2 1 -11 0C-3.2 -1 -1 -3.2 0 -11Z"
       />
       {kind !== "open" && kind !== "ban" && (
-        <path className="ov-crystal-heart" d="M0 -6C.5 -1.6 1.6 -.5 6 0C1.6 .5 .5 1.6 0 6C-.5 1.6 -1.6 .5 -6 0C-1.6 -.5 -.5 -1.6 0 -6Z" />
+        <path
+          className="ov-crystal-heart"
+          d="M0 -6C.5 -1.6 1.6 -.5 6 0C1.6 .5 .5 1.6 0 6C-.5 1.6 -1.6 .5 -6 0C-1.6 -.5 -.5 -1.6 0 -6Z"
+        />
       )}
       {kind === "ban" && <path className="ov-crystal-strike" d="M-12.5 4.2L12.5 -4.2" />}
     </svg>
@@ -91,7 +110,9 @@ export function TeamBanner({ team, side }: { team: Team | null; side: Side }) {
       {team?.banner_url ? (
         <img src={`${API_URL}${team.banner_url}`} alt="" />
       ) : (
-        <span className="ov-banner-initial">{team?.name.trim().charAt(0).toLocaleUpperCase("tr-TR") ?? ""}</span>
+        <span className="ov-banner-initial">
+          {team?.name.trim().charAt(0).toLocaleUpperCase("tr-TR") ?? ""}
+        </span>
       )}
     </div>
   );
@@ -101,7 +122,15 @@ export function TeamBanner({ team, side }: { team: Team | null; side: Side }) {
  * A team's map wins as crystals: filled for each map won, hollow for the ones still needed, filled
  * from the frame's edge inwards (team 2's row is mirrored). Without a best of, just the wins.
  */
-export function StarPips({ wins, bestOf, side }: { wins: number; bestOf: number | null; side: Side }) {
+export function StarPips({
+  wins,
+  bestOf,
+  side,
+}: {
+  wins: number;
+  bestOf: number | null;
+  side: Side;
+}) {
   const total = bestOf ? Math.max(firstTo(bestOf), wins) : wins;
   const pips = Array.from({ length: total }, (_, i) => i < wins);
   return (
@@ -113,7 +142,11 @@ export function StarPips({ wins, bestOf, side }: { wins: number; bestOf: number 
     >
       {pips.map((won, i) =>
         // A pip remounts when it's won, so it lights up as the result is revealed.
-        won ? <Crystal key={`won-${i}`} kind="won" className="ov-pip is-lit" /> : <Crystal key={`open-${i}`} kind="open" className="ov-pip" />,
+        won ? (
+          <Crystal key={`won-${i}`} kind="won" className="ov-pip is-lit" />
+        ) : (
+          <Crystal key={`open-${i}`} kind="open" className="ov-pip" />
+        ),
       )}
     </div>
   );
@@ -181,7 +214,8 @@ export function mapMarks(match: PublicMatch, tally: Tally | null): Map<string, M
 
 /** A side's crystal for a marked map. */
 export function MarkCrystal({ mark }: { mark: MapMark }) {
-  if (mark.kind === "ban") return <Crystal kind="ban" className={`ov-mark ${SIDE_CLASS[mark.side]}`} />;
+  if (mark.kind === "ban")
+    return <Crystal kind="ban" className={`ov-mark ${SIDE_CLASS[mark.side]}`} />;
   const heart = mark.winner ?? mark.side;
   return <Crystal kind="pick" className={`ov-mark ${SIDE_CLASS[mark.side]} heart-${heart}`} />;
 }
@@ -196,21 +230,36 @@ export function mapLine(entry: PoolEntry): string {
  * Text that scrolls sideways when it's wider than its box, and otherwise sits still: centred, or at
  * the start with `start`.
  */
-export function Marquee({ text, className, start = false }: { text: string; className: string; start?: boolean }) {
+export function Marquee({
+  text,
+  className,
+  start = false,
+}: {
+  text: string;
+  className: string;
+  start?: boolean;
+}) {
   const box = useRef<HTMLSpanElement>(null);
   const copy = useRef<HTMLSpanElement>(null);
   const [overflow, setOverflow] = useState(false);
   useLayoutEffect(() => {
     const measure = () => {
-      if (box.current && copy.current) setOverflow(copy.current.scrollWidth > box.current.clientWidth + 1);
+      if (box.current && copy.current)
+        setOverflow(copy.current.scrollWidth > box.current.clientWidth + 1);
     };
     measure();
     // The serif and condensed faces load after the first layout.
     document.fonts?.ready.then(measure).catch(() => {});
   }, [text]);
   return (
-    <span ref={box} className={`ov-marquee ${start ? "is-start" : ""} ${overflow ? "is-scrolling" : ""} ${className}`}>
-      <span className="ov-marquee-line" style={{ "--ov-marquee-s": Math.max(8, text.length * 0.32) } as CSSProperties}>
+    <span
+      ref={box}
+      className={`ov-marquee ${start ? "is-start" : ""} ${overflow ? "is-scrolling" : ""} ${className}`}
+    >
+      <span
+        className="ov-marquee-line"
+        style={{ "--ov-marquee-s": Math.max(8, text.length * 0.32) } as CSSProperties}
+      >
         <span ref={copy} className="ov-marquee-copy">
           {text}
         </span>
@@ -242,7 +291,11 @@ export function MapPill({
   current: boolean;
   title: boolean;
 }) {
-  const state = mark ? (mark.kind === "ban" ? "is-banned" : `is-picked ${SIDE_CLASS[mark.side]}`) : "is-open";
+  const state = mark
+    ? mark.kind === "ban"
+      ? "is-banned"
+      : `is-picked ${SIDE_CLASS[mark.side]}`
+    : "is-open";
   return (
     <div className={`ov-pill ${state} ${current ? "is-current" : ""}`} style={categoryStyle(entry)}>
       <div className="ov-pill-cover">
@@ -270,7 +323,13 @@ export function Masthead({ title, line }: { title: string; line?: string | null 
 }
 
 /** A team's banner as a small pill, for rows and cards; its initial without one. */
-export function BannerChip({ team, className = "" }: { team: Team | null | undefined; className?: string }) {
+export function BannerChip({
+  team,
+  className = "",
+}: {
+  team: Team | null | undefined;
+  className?: string;
+}) {
   return (
     <span className={`ov-banner-chip ${className}`}>
       {team?.banner_url ? (

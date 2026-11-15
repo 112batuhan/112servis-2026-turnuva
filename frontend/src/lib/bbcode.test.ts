@@ -63,7 +63,13 @@ describe("parseBBCode", () => {
 
 describe("headingsOf", () => {
   it("gives each heading an ASCII anchor, numbering repeats", () => {
-    expect(headingsOf(parseBBCode("[heading]Genel Kurallar[/heading][heading]Şikâyet & İtiraz[/heading][heading]Genel Kurallar[/heading]"))).toEqual([
+    expect(
+      headingsOf(
+        parseBBCode(
+          "[heading]Genel Kurallar[/heading][heading]Şikâyet & İtiraz[/heading][heading]Genel Kurallar[/heading]",
+        ),
+      ),
+    ).toEqual([
       { id: "genel-kurallar", title: "Genel Kurallar" },
       { id: "sikayet-itiraz", title: "Şikâyet & İtiraz" },
       { id: "genel-kurallar-2", title: "Genel Kurallar" },

@@ -11,6 +11,5 @@
 /* It floats over the page, so the alert's tint goes over an opaque ground. */
 .auth-notice.alert-error {
   background:
-    linear-gradient(var(--color-danger-soft), var(--color-danger-soft)),
-    var(--color-surface);
+    linear-gradient(var(--color-danger-soft), var(--color-danger-soft)), var(--color-surface);
 }

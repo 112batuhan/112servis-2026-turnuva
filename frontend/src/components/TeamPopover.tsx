@@ -81,7 +81,10 @@ export function TeamPopover({ team, className, children }: Props) {
     const anchor = triggerRef.current.getBoundingClientRect();
     const card = cardRef.current.getBoundingClientRect();
     let top = anchor.bottom + GAP;
-    if (top + card.height > window.innerHeight - MARGIN && anchor.top - GAP - card.height >= MARGIN) {
+    if (
+      top + card.height > window.innerHeight - MARGIN &&
+      anchor.top - GAP - card.height >= MARGIN
+    ) {
       top = anchor.top - GAP - card.height;
     }
     const left = Math.max(MARGIN, Math.min(anchor.left, window.innerWidth - MARGIN - card.width));
@@ -97,7 +100,10 @@ export function TeamPopover({ team, className, children }: Props) {
   useEffect(() => {
     if (!open) return;
     const outside = (e: Event) =>
-      !(e.target instanceof Node && (cardRef.current?.contains(e.target) || triggerRef.current?.contains(e.target)));
+      !(
+        e.target instanceof Node &&
+        (cardRef.current?.contains(e.target) || triggerRef.current?.contains(e.target))
+      );
     const onOutside = (e: Event) => {
       if (outside(e)) hide();
     };
@@ -123,7 +129,12 @@ export function TeamPopover({ team, className, children }: Props) {
   // profile tab a link just opened, so the card stays for the other player.
   const onBlur = (e: FocusEvent) => {
     const next = e.relatedTarget;
-    if (next instanceof Node && !cardRef.current?.contains(next) && !triggerRef.current?.contains(next)) hide();
+    if (
+      next instanceof Node &&
+      !cardRef.current?.contains(next) &&
+      !triggerRef.current?.contains(next)
+    )
+      hide();
   };
 
   return (

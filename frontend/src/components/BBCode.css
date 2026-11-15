@@ -175,7 +175,9 @@ ul.bbcode-list > li::before {
   border-radius: 2px;
   background: var(--color-text-subtle);
   color: transparent;
-  transition: color var(--duration-fast) ease, background-color var(--duration-fast) ease;
+  transition:
+    color var(--duration-fast) ease,
+    background-color var(--duration-fast) ease;
 }
 
 .bbcode-spoiler:hover,

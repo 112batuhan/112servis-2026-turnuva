@@ -16,9 +16,17 @@ interface StaffSelectProps {
 }
 
 /** Hosts give a match's referee or stream to a staff member. */
-export function StaffSelect({ label, emptyLabel, current, options, disabled, onSelect }: StaffSelectProps) {
+export function StaffSelect({
+  label,
+  emptyLabel,
+  current,
+  options,
+  disabled,
+  onSelect,
+}: StaffSelectProps) {
   // Someone who has since lost their staff role keeps showing until replaced.
-  const all = current && !options.some((r) => r.id === current.id) ? [current, ...options] : options;
+  const all =
+    current && !options.some((r) => r.id === current.id) ? [current, ...options] : options;
   return (
     <select
       className="select select-sm"
@@ -101,7 +109,11 @@ export function RoomsEditor({ rooms, editable, disabled, onAdd, onRemove }: Room
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
           />
-          <button type="submit" className="btn btn-secondary btn-sm" disabled={disabled || !draft.trim()}>
+          <button
+            type="submit"
+            className="btn btn-secondary btn-sm"
+            disabled={disabled || !draft.trim()}
+          >
             {rooms.length > 0 ? "Oda ekle" : "Kaydet"}
           </button>
         </form>

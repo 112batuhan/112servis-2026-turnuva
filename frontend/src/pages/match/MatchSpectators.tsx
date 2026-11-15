@@ -36,7 +36,8 @@ export function MatchSpectators({ spectators }: { spectators: Spectators }) {
       const anchor = triggerRef.current.getBoundingClientRect();
       const list = listRef.current.getBoundingClientRect();
       let top = anchor.bottom + GAP;
-      if (top + list.height > window.innerHeight - MARGIN) top = Math.max(MARGIN, anchor.top - GAP - list.height);
+      if (top + list.height > window.innerHeight - MARGIN)
+        top = Math.max(MARGIN, anchor.top - GAP - list.height);
       const left = Math.max(MARGIN, Math.min(anchor.left, window.innerWidth - MARGIN - list.width));
       setPosition({ top, left });
     };
@@ -54,7 +55,8 @@ export function MatchSpectators({ spectators }: { spectators: Spectators }) {
     if (!open) return;
     const onPointer = (e: PointerEvent) => {
       const target = e.target as Node;
-      if (!triggerRef.current?.contains(target) && !listRef.current?.contains(target)) setOpen(false);
+      if (!triggerRef.current?.contains(target) && !listRef.current?.contains(target))
+        setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;

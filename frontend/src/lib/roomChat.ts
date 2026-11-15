@@ -33,5 +33,7 @@ export function mergeFetched(fetched: StoredLine[], had: StoredLine[] | undefine
 
 /** A streamed line added to a room's lines, unless it's already there. */
 export function appendLine(lines: StoredLine[], message: RoomChatMessage): StoredLine[] {
-  return lines.slice(-50).some((m) => m.id === message.id) ? lines : [...lines, { ...message, streamed: true }];
+  return lines.slice(-50).some((m) => m.id === message.id)
+    ? lines
+    : [...lines, { ...message, streamed: true }];
 }

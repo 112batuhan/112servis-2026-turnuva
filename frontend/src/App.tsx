@@ -24,12 +24,24 @@ import { usePlayer } from "./player/PlayerContext";
 // they're first opened.
 const page = <K extends string>(load: () => Promise<Record<K, ComponentType>>, name: K) =>
   lazy(() => load().then((m) => ({ default: m[name] })));
-const BracketAdminPage = page(() => import("./pages/admin/bracket/BracketAdminPage"), "BracketAdminPage");
+const BracketAdminPage = page(
+  () => import("./pages/admin/bracket/BracketAdminPage"),
+  "BracketAdminPage",
+);
 const BanchoAdminPage = page(() => import("./pages/admin/BanchoAdminPage"), "BanchoAdminPage");
 const DiscordAdminPage = page(() => import("./pages/admin/DiscordAdminPage"), "DiscordAdminPage");
-const MapPoolEditorPage = page(() => import("./pages/admin/mappool/MapPoolEditorPage"), "MapPoolEditorPage");
-const QualifiersAdminPage = page(() => import("./pages/admin/QualifiersAdminPage"), "QualifiersAdminPage");
-const RefereeRoomPage = page(() => import("./pages/admin/referee/RefereeRoomPage"), "RefereeRoomPage");
+const MapPoolEditorPage = page(
+  () => import("./pages/admin/mappool/MapPoolEditorPage"),
+  "MapPoolEditorPage",
+);
+const QualifiersAdminPage = page(
+  () => import("./pages/admin/QualifiersAdminPage"),
+  "QualifiersAdminPage",
+);
+const RefereeRoomPage = page(
+  () => import("./pages/admin/referee/RefereeRoomPage"),
+  "RefereeRoomPage",
+);
 const SeedingAdminPage = page(() => import("./pages/admin/SeedingAdminPage"), "SeedingAdminPage");
 const RulesAdminPage = page(() => import("./pages/admin/RulesAdminPage"), "RulesAdminPage");
 const StagesAdminPage = page(() => import("./pages/admin/StagesAdminPage"), "StagesAdminPage");
@@ -105,31 +117,79 @@ export function App() {
               <Route path="/staff" element={<StaffPage />} />
               <Route path="/kupa" element={<ArgPage />} />
 
-              <Route path="/profile" element={<RequireAuth><ProfilePage /></RequireAuth>} />
-              <Route path="/discord" element={<RequireAuth><LinkDiscordPage /></RequireAuth>} />
-              <Route path="/team" element={<RequireAuth><TeamPage /></RequireAuth>} />
+              <Route
+                path="/profile"
+                element={
+                  <RequireAuth>
+                    <ProfilePage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/discord"
+                element={
+                  <RequireAuth>
+                    <LinkDiscordPage />
+                  </RequireAuth>
+                }
+              />
+              <Route
+                path="/team"
+                element={
+                  <RequireAuth>
+                    <TeamPage />
+                  </RequireAuth>
+                }
+              />
 
-              <Route path="/admin" element={<RequireAuth access="staff"><AdminLayout /></RequireAuth>}>
+              <Route
+                path="/admin"
+                element={
+                  <RequireAuth access="staff">
+                    <AdminLayout />
+                  </RequireAuth>
+                }
+              >
                 <Route index element={<AdminIndexRedirect />} />
                 <Route
                   path="stages"
-                  element={<RequireAuth access="host" redirect="/admin"><StagesAdminPage /></RequireAuth>}
+                  element={
+                    <RequireAuth access="host" redirect="/admin">
+                      <StagesAdminPage />
+                    </RequireAuth>
+                  }
                 />
                 <Route
                   path="mappool"
-                  element={<RequireAuth access="pool" redirect="/admin"><MapPoolEditorPage /></RequireAuth>}
+                  element={
+                    <RequireAuth access="pool" redirect="/admin">
+                      <MapPoolEditorPage />
+                    </RequireAuth>
+                  }
                 />
                 <Route
                   path="qualifiers"
-                  element={<RequireAuth access="referee" redirect="/admin"><QualifiersAdminPage /></RequireAuth>}
+                  element={
+                    <RequireAuth access="referee" redirect="/admin">
+                      <QualifiersAdminPage />
+                    </RequireAuth>
+                  }
                 />
                 <Route
                   path="seeding"
-                  element={<RequireAuth access="host" redirect="/admin"><SeedingAdminPage /></RequireAuth>}
+                  element={
+                    <RequireAuth access="host" redirect="/admin">
+                      <SeedingAdminPage />
+                    </RequireAuth>
+                  }
                 />
                 <Route
                   path="bracket"
-                  element={<RequireAuth access="matches" redirect="/admin"><BracketAdminPage /></RequireAuth>}
+                  element={
+                    <RequireAuth access="matches" redirect="/admin">
+                      <BracketAdminPage />
+                    </RequireAuth>
+                  }
                 />
                 <Route
                   path="referee/:matchId"
@@ -143,23 +203,43 @@ export function App() {
                 />
                 <Route
                   path="users"
-                  element={<RequireAuth access="host" redirect="/admin"><UsersPage /></RequireAuth>}
+                  element={
+                    <RequireAuth access="host" redirect="/admin">
+                      <UsersPage />
+                    </RequireAuth>
+                  }
                 />
                 <Route
                   path="teams"
-                  element={<RequireAuth access="host" redirect="/admin"><TeamsAdminPage /></RequireAuth>}
+                  element={
+                    <RequireAuth access="host" redirect="/admin">
+                      <TeamsAdminPage />
+                    </RequireAuth>
+                  }
                 />
                 <Route
                   path="rules"
-                  element={<RequireAuth access="host" redirect="/admin"><RulesAdminPage /></RequireAuth>}
+                  element={
+                    <RequireAuth access="host" redirect="/admin">
+                      <RulesAdminPage />
+                    </RequireAuth>
+                  }
                 />
                 <Route
                   path="discord"
-                  element={<RequireAuth access="host" redirect="/admin"><DiscordAdminPage /></RequireAuth>}
+                  element={
+                    <RequireAuth access="host" redirect="/admin">
+                      <DiscordAdminPage />
+                    </RequireAuth>
+                  }
                 />
                 <Route
                   path="bancho"
-                  element={<RequireAuth access="host" redirect="/admin"><BanchoAdminPage /></RequireAuth>}
+                  element={
+                    <RequireAuth access="host" redirect="/admin">
+                      <BanchoAdminPage />
+                    </RequireAuth>
+                  }
                 />
               </Route>
 

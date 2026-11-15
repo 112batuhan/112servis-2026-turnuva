@@ -138,7 +138,11 @@ export function NotificationBell() {
   function decline(n: AppNotification) {
     const role = n.staff_role ? ROLE_AS[n.staff_role] : "";
     const others = n.staff_role === "referee" ? "hakemlere" : "yayıncılara";
-    if (window.confirm(`Maçtan ${role} olarak çıkarılacaksın ve diğer ${others} ve hostlara haber verilecek. Emin misin?`)) {
+    if (
+      window.confirm(
+        `Maçtan ${role} olarak çıkarılacaksın ve diğer ${others} ve hostlara haber verilecek. Emin misin?`,
+      )
+    ) {
       answer(() => declineNotification(n.id));
     }
   }
@@ -215,10 +219,13 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
   const role = n.staff_role ? ROLE_AS[n.staff_role] : "";
   const actor = n.actor_username ?? "Biri";
   const pending = n.kind === "confirm_time" && n.actionable;
-  const classes = ["notif-item", !n.read && "is-unread", pending && "is-pending"].filter(Boolean).join(" ");
+  const classes = ["notif-item", !n.read && "is-unread", pending && "is-pending"]
+    .filter(Boolean)
+    .join(" ");
   // The player notifications lead to the team page; a host is sent to the teams admin instead.
   const teamPath =
-    ((n.kind === "rank_over_limit" || n.kind === "discord_left") && isHost) || n.kind === "player_banned"
+    ((n.kind === "rank_over_limit" || n.kind === "discord_left") && isHost) ||
+    n.kind === "player_banned"
       ? "/admin/teams"
       : "/team";
   const isBan = n.kind === "banned" || n.kind === "teammate_banned" || n.kind === "player_banned";
@@ -276,7 +283,8 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
     case "banned":
       title = "Turnuvadan banlandın";
       reason = n.ban_reason || null;
-      body = "Takım kuramaz, takımını değiştiremez, eleme lobisine katılamaz ve maç saati öneremezsin.";
+      body =
+        "Takım kuramaz, takımını değiştiremez, eleme lobisine katılamaz ve maç saati öneremezsin.";
       break;
     case "player_banned":
       title = "Oyuncu banlandı";
@@ -304,7 +312,9 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
           to={forPlayers ? teamPath : bracketMatchPath(n.bracket_match_id ?? n.match_id, true)}
           className="notif-match"
         >
-          <span className={`notif-code is-${n.side}`}>{matchCode({ side: n.side, number: n.number })}</span>
+          <span className={`notif-code is-${n.side}`}>
+            {matchCode({ side: n.side, number: n.number })}
+          </span>
           {n.potential && <span className="badge badge-potential">Olası</span>}
           <span className="notif-teams">
             {n.team1_name ?? "?"} <span className="muted">vs</span> {n.team2_name ?? "?"}
@@ -319,7 +329,9 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
       )}
       {n.new_starts_at && (
         <p className="notif-times">
-          <span className="muted">{n.old_starts_at ? formatShortMatchTime(n.old_starts_at) : "Saat yoktu"}</span>
+          <span className="muted">
+            {n.old_starts_at ? formatShortMatchTime(n.old_starts_at) : "Saat yoktu"}
+          </span>
           {" → "}
           <strong>{formatShortMatchTime(n.new_starts_at)}</strong>
         </p>
@@ -335,15 +347,27 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
       )}
       {n.kind === "confirm_time" &&
         (n.response ? (
-          <span className={n.response === "confirmed" ? "badge badge-success" : "badge badge-danger"}>
+          <span
+            className={n.response === "confirmed" ? "badge badge-success" : "badge badge-danger"}
+          >
             {n.response === "confirmed" ? "Onayladın" : "Reddettin, maçtan çıkarıldın"}
           </span>
         ) : n.actionable ? (
           <div className="notif-actions">
-            <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={onConfirm}>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={busy}
+              onClick={onConfirm}
+            >
               Onayla
             </button>
-            <button type="button" className="btn btn-danger btn-sm" disabled={busy} onClick={onDecline}>
+            <button
+              type="button"
+              className="btn btn-danger btn-sm"
+              disabled={busy}
+              onClick={onDecline}
+            >
               Reddet
             </button>
           </div>

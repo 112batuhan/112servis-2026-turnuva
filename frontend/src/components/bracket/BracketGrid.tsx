@@ -12,7 +12,15 @@ import {
 } from "react";
 import type { BracketMatch, RefereeViewer, Team } from "../../api/types";
 import { stageLabel } from "../../lib/bestOf";
-import { BOARD, compareByTime, snapPosition, incomingSources, matchCode, overlapsAny, type Point } from "../../lib/bracket";
+import {
+  BOARD,
+  compareByTime,
+  snapPosition,
+  incomingSources,
+  matchCode,
+  overlapsAny,
+  type Point,
+} from "../../lib/bracket";
 import { IconButton } from "../IconButton";
 import { BracketMatchCard } from "./BracketMatchCard";
 import "./BracketGrid.css";
@@ -185,7 +193,11 @@ export function BracketGrid({
     const scale = clampScale(
       Math.min(1, (w - 2 * FIT_MARGIN) / (maxX - minX), (h - 2 * FIT_MARGIN) / (maxY - minY)),
     );
-    setView({ scale, x: w / 2 - ((minX + maxX) / 2) * scale, y: h / 2 - ((minY + maxY) / 2) * scale });
+    setView({
+      scale,
+      x: w / 2 - ((minX + maxX) / 2) * scale,
+      y: h / 2 - ((minY + maxY) / 2) * scale,
+    });
   }, [matches]);
 
   // Opens recentered once there's something to show, unless it opens on a linked match.
@@ -220,8 +232,9 @@ export function BracketGrid({
     );
     const open = matches.filter((m) => !m.concluded_at);
     const focus =
-      open.filter((m) => myTeamId && (m.team1_id === myTeamId || m.team2_id === myTeamId)).sort(compareByTime)[0] ??
-      open.sort(compareByTime)[0];
+      open
+        .filter((m) => myTeamId && (m.team1_id === myTeamId || m.team2_id === myTeamId))
+        .sort(compareByTime)[0] ?? open.sort(compareByTime)[0];
     if (fit >= READABLE_SCALE || !focus) {
       recenter();
       return;
@@ -250,8 +263,10 @@ export function BracketGrid({
       const top = v.y + py(m.pos_y) * v.scale;
       const right = left + CARD_W * v.scale;
       const bottom = top + CARD_H * v.scale;
-      const dx = left < 0 ? -left + PAD : right > frame.clientWidth ? frame.clientWidth - right - PAD : 0;
-      const dy = top < 0 ? -top + PAD : bottom > frame.clientHeight ? frame.clientHeight - bottom - PAD : 0;
+      const dx =
+        left < 0 ? -left + PAD : right > frame.clientWidth ? frame.clientWidth - right - PAD : 0;
+      const dy =
+        top < 0 ? -top + PAD : bottom > frame.clientHeight ? frame.clientHeight - bottom - PAD : 0;
       return dx || dy ? { ...v, x: v.x + dx, y: v.y + dy } : v;
     });
   }
@@ -285,12 +300,16 @@ export function BracketGrid({
   /** The snapped position of a card held at (grabX, grabY) under the pointer. */
   function cardPosition(clientX: number, clientY: number, grabX: number, grabY: number): Point {
     const p = boardPoint(clientX, clientY);
-    return { x: snapPosition((p.x - grabX - PAD) / UNIT), y: snapPosition((p.y - grabY - PAD) / UNIT) };
+    return {
+      x: snapPosition((p.x - grabX - PAD) / UNIT),
+      y: snapPosition((p.y - grabY - PAD) / UNIT),
+    };
   }
 
   // ---------- panning and pinching ----------
 
-  const isBackground = (target: EventTarget) => target === viewportRef.current || target === boardRef.current;
+  const isBackground = (target: EventTarget) =>
+    target === viewportRef.current || target === boardRef.current;
 
   function startPinch() {
     const [a, b] = [...pointers.current.values()];
@@ -303,7 +322,12 @@ export function BracketGrid({
         // The pointer is already gone.
       }
     }
-    gesture.current = { kind: "pinch", distance: distance(a, b), mid: midpoint(a, b), view: viewRef.current };
+    gesture.current = {
+      kind: "pinch",
+      distance: distance(a, b),
+      mid: midpoint(a, b),
+      view: viewRef.current,
+    };
     setDrag(null);
     setPanning(true);
   }
@@ -319,7 +343,13 @@ export function BracketGrid({
       // Keeps the press from selecting text as it moves.
       e.preventDefault();
       e.currentTarget.setPointerCapture(e.pointerId);
-      gesture.current = { kind: "pan", startX: e.clientX, startY: e.clientY, view: viewRef.current, moved: false };
+      gesture.current = {
+        kind: "pan",
+        startX: e.clientX,
+        startY: e.clientY,
+        view: viewRef.current,
+        moved: false,
+      };
     },
     onPointerMove: (e: PointerEvent<HTMLDivElement>) => {
       if (!pointers.current.has(e.pointerId)) return;
@@ -456,7 +486,8 @@ export function BracketGrid({
         {matches.map((m) => {
           const pos = posOf(m);
           const dragging = drag?.id === m.id && drag.moved;
-          const mine = viewerId !== undefined && (m.referee?.id === viewerId || m.streamer?.id === viewerId);
+          const mine =
+            viewerId !== undefined && (m.referee?.id === viewerId || m.streamer?.id === viewerId);
           const code = m.stage ? `${matchCode(m)} (${stageLabel(m.stage)})` : matchCode(m);
           const classes = [
             "bracket-slot",
@@ -478,7 +509,9 @@ export function BracketGrid({
               tabIndex={onSelect ? 0 : undefined}
               aria-pressed={onSelect ? m.id === selectedId : undefined}
               aria-label={
-                onSelect ? `${code} maçını seç${editable ? " (ok tuşlarıyla taşı)" : ""}` : undefined
+                onSelect
+                  ? `${code} maçını seç${editable ? " (ok tuşlarıyla taşı)" : ""}`
+                  : undefined
               }
               onPointerDown={(e) => {
                 // A second finger is a pinch, not a card drag.
@@ -504,13 +537,19 @@ export function BracketGrid({
                   return;
                 }
                 if (!drag.moved) {
-                  if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < DRAG_THRESHOLD) return;
+                  if (Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < DRAG_THRESHOLD)
+                    return;
                   // Captured only now, so a plain click still reaches what's under it (a team name).
                   e.currentTarget.setPointerCapture(e.pointerId);
                 }
                 const next = cardPosition(e.clientX, e.clientY, drag.grabX, drag.grabY);
                 if (drag.moved && next.x === drag.pos.x && next.y === drag.pos.y) return;
-                setDrag({ ...drag, pos: next, moved: true, blocked: overlapsAny(matches, next, m.id) });
+                setDrag({
+                  ...drag,
+                  pos: next,
+                  moved: true,
+                  blocked: overlapsAny(matches, next, m.id),
+                });
               }}
               onPointerUp={() => {
                 if (drag?.id !== m.id) return;

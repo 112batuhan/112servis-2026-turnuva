@@ -47,7 +47,11 @@ export function formatClock(at: string | number): string {
 
 /** "21:00:07", for chat lines. */
 export function formatClockSeconds(at: string | number): string {
-  return new Date(at).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return new Date(at).toLocaleTimeString("tr-TR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 /** "15 Ekim Perşembe", or "15 Ekim 2026 Perşembe" with the year. */

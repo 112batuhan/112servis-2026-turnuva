@@ -1,10 +1,31 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { errorMessage } from "../../api/client";
-import type { BracketMatch, CanPredict, MyPrediction, PickemSplit, PickemStage, Team } from "../../api/types";
-import { fixturePath, isLive, matchCode, scoreHalves, sourceLabel, winningSlot, type Source } from "../../lib/bracket";
+import type {
+  BracketMatch,
+  CanPredict,
+  MyPrediction,
+  PickemSplit,
+  PickemStage,
+  Team,
+} from "../../api/types";
+import {
+  fixturePath,
+  isLive,
+  matchCode,
+  scoreHalves,
+  sourceLabel,
+  winningSlot,
+  type Source,
+} from "../../lib/bracket";
 import { formatShortMatchTime } from "../../lib/format";
-import { canPredictMatch, isMatchLocked, pointsLabel, predictionScore, predictionSlot } from "../../lib/pickem";
+import {
+  canPredictMatch,
+  isMatchLocked,
+  pointsLabel,
+  predictionScore,
+  predictionSlot,
+} from "../../lib/pickem";
 import { Icon } from "../Icon";
 import { LiveMark } from "../LiveMark";
 import { StatusChip } from "../StatusChip";
@@ -105,7 +126,9 @@ export function PickemRow({
         ) : (
           <>
             <TeamBanner />
-            <span className="pickem-team-name is-empty">{source ? sourceLabel(source) : "Belirlenmedi"}</span>
+            <span className="pickem-team-name is-empty">
+              {source ? sourceLabel(source) : "Belirlenmedi"}
+            </span>
           </>
         )}
       </span>
@@ -128,7 +151,9 @@ export function PickemRow({
 
   // Between the teams only the match itself: its live or final score, else "vs".
   const halves = match.concluded_at || live ? scoreHalves(match) : null;
-  const ahead = winner ?? (halves && halves[0] !== halves[1] ? (Number(halves[0]) > Number(halves[1]) ? 1 : 2) : null);
+  const ahead =
+    winner ??
+    (halves && halves[0] !== halves[1] ? (Number(halves[0]) > Number(halves[1]) ? 1 : 2) : null);
   const ballot = open && stage.best_of !== null && team1 !== undefined && team2 !== undefined;
 
   return (
@@ -150,7 +175,9 @@ export function PickemRow({
         {live ? (
           <LiveMark compact />
         ) : (
-          <span className="pickem-row-time">{match.starts_at ? formatShortMatchTime(match.starts_at) : "Saat yok"}</span>
+          <span className="pickem-row-time">
+            {match.starts_at ? formatShortMatchTime(match.starts_at) : "Saat yok"}
+          </span>
         )}
       </span>
       {!ballot && (
@@ -231,7 +258,14 @@ export function PickemRow({
                 bestOf={stage.best_of}
                 scores={split.scores}
                 names={[team1?.name ?? "Takım 1", team2?.name ?? "Takım 2"]}
-                result={match.concluded_at && !match.forfeit_slot && match.team1_score !== null && match.team2_score !== null ? [match.team1_score, match.team2_score] : null}
+                result={
+                  match.concluded_at &&
+                  !match.forfeit_slot &&
+                  match.team1_score !== null &&
+                  match.team2_score !== null
+                    ? [match.team1_score, match.team2_score]
+                    : null
+                }
                 mine={picked && !prediction?.void ? picked : null}
               />
             </div>
@@ -254,8 +288,22 @@ interface ResultProps {
 }
 
 /** The right end of the row: what the viewer's prediction is, or what it scored. */
-function Result({ open, locked, match, prediction, picked, saving, error, onWithdraw }: ResultProps) {
-  if (error) return <span className="pickem-result-error" role="alert">{error}</span>;
+function Result({
+  open,
+  locked,
+  match,
+  prediction,
+  picked,
+  saving,
+  error,
+  onWithdraw,
+}: ResultProps) {
+  if (error)
+    return (
+      <span className="pickem-result-error" role="alert">
+        {error}
+      </span>
+    );
   if (open) {
     if (saving) return <span className="pickem-result-note">Kaydediliyor…</span>;
     if (!prediction) return <span className="pickem-result-note">Skoru seç</span>;
@@ -270,14 +318,21 @@ function Result({ open, locked, match, prediction, picked, saving, error, onWith
     );
   }
   if (!locked) {
-    return <span className="pickem-result-note">{match.team1_id && match.team2_id ? "Açılınca" : "Takımlar belli değil"}</span>;
+    return (
+      <span className="pickem-result-note">
+        {match.team1_id && match.team2_id ? "Açılınca" : "Takımlar belli değil"}
+      </span>
+    );
   }
   if (!prediction) return <span className="pickem-result-note">Tahmin yok</span>;
-  if (prediction.void) return <span className="pickem-result-note">Tahminin geçersiz: takım değişti</span>;
+  if (prediction.void)
+    return <span className="pickem-result-note">Tahminin geçersiz: takım değişti</span>;
   if (prediction.points !== null) {
     return (
       <span className={`pickem-points${prediction.points === 0 ? " is-zero" : ""}`}>
-        <span className="pickem-points-figure">{prediction.points > 0 ? `+${prediction.points}` : "0"}</span>
+        <span className="pickem-points-figure">
+          {prediction.points > 0 ? `+${prediction.points}` : "0"}
+        </span>
         <span className="pickem-points-label">{pointsLabel(prediction.points)}</span>
         {picked && <Mine score={picked} />}
       </span>
@@ -285,7 +340,11 @@ function Result({ open, locked, match, prediction, picked, saving, error, onWith
   }
   return (
     <span className="pickem-points is-pending">
-      {picked ? <Mine score={picked} /> : <span className="pickem-points-label">Sonuç bekleniyor</span>}
+      {picked ? (
+        <Mine score={picked} />
+      ) : (
+        <span className="pickem-points-label">Sonuç bekleniyor</span>
+      )}
     </span>
   );
 }

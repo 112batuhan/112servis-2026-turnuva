@@ -30,7 +30,11 @@ export function ProfilePage() {
         <div>
           <dt>osu!</dt>
           <dd>
-            <a href={`https://osu.ppy.sh/users/${user.osu_id}`} target="_blank" rel="noopener noreferrer">
+            <a
+              href={`https://osu.ppy.sh/users/${user.osu_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               Profilini aç
             </a>
           </dd>

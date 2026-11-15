@@ -22,7 +22,9 @@ export function TeamRows({
   qualifier?: boolean;
   children: ReactNode;
 }) {
-  const classes = ["team-lines", numbered && "is-numbered", qualifier && "has-qualifier"].filter(Boolean).join(" ");
+  const classes = ["team-lines", numbered && "is-numbered", qualifier && "has-qualifier"]
+    .filter(Boolean)
+    .join(" ");
   return (
     <div className="team-lines-frame">
       <div className={classes}>
@@ -87,22 +89,34 @@ export function TeamRow<P extends Player>({
     <li id={teamAnchorId(team.id)} className={classes}>
       <div className="team-line-main">
         {position !== undefined && <span className="team-line-position num">{position}</span>}
-        <div className={team.banner_url ? "team-line-banner" : "team-line-banner is-empty"} aria-hidden="true">
+        <div
+          className={team.banner_url ? "team-line-banner" : "team-line-banner is-empty"}
+          aria-hidden="true"
+        >
           {team.banner_url ? (
             <img src={`${API_URL}${team.banner_url}`} alt="" loading="lazy" />
           ) : (
-            <span className="team-line-monogram">{Array.from(team.name)[0]?.toLocaleUpperCase("tr-TR")}</span>
+            <span className="team-line-monogram">
+              {Array.from(team.name)[0]?.toLocaleUpperCase("tr-TR")}
+            </span>
           )}
         </div>
         <div className="team-line-title">
           <h3 className="team-line-name">
             {onRename ? (
-              <InlineEdit value={team.name} onSave={onRename} label="Takımı yeniden adlandır" maxLength={TEAM_NAME_MAX} />
+              <InlineEdit
+                value={team.name}
+                onSave={onRename}
+                label="Takımı yeniden adlandır"
+                maxLength={TEAM_NAME_MAX}
+              />
             ) : (
               team.name
             )}
           </h3>
-          {team.rank_warning && <span className="team-line-warning">{RANK_WARNING_LABELS[team.rank_warning]}</span>}
+          {team.rank_warning && (
+            <span className="team-line-warning">{RANK_WARNING_LABELS[team.rank_warning]}</span>
+          )}
           {flag && <span className="team-line-warning">{flag}</span>}
         </div>
         <ul className="team-line-players">
@@ -115,10 +129,17 @@ export function TeamRow<P extends Player>({
         </ul>
         {qualifier !== undefined && (
           <span className="team-line-qualifier">
-            {qualifier ? <QualifierFact place={qualifier} compact /> : <span className="team-line-none">—</span>}
+            {qualifier ? (
+              <QualifierFact place={qualifier} compact />
+            ) : (
+              <span className="team-line-none">—</span>
+            )}
           </span>
         )}
-        <span className="team-line-value num" aria-label={`Takım değeri ${formatTeamValue(team.team_value)}`}>
+        <span
+          className="team-line-value num"
+          aria-label={`Takım değeri ${formatTeamValue(team.team_value)}`}
+        >
           {formatTeamValue(team.team_value)}
         </span>
         <div className="team-line-tools">
@@ -139,7 +160,12 @@ export function TeamRow<P extends Player>({
         </div>
       </div>
       {matchesOpen && (
-        <div id={matchesId} className="team-line-matches" role="region" aria-label={`${team.name} maçları`}>
+        <div
+          id={matchesId}
+          className="team-line-matches"
+          role="region"
+          aria-label={`${team.name} maçları`}
+        >
           {/* Where the row is too narrow to carry them, the actions wait here instead. */}
           {actions && <div className="team-line-panel-actions">{actions}</div>}
           <TeamMatches teamId={team.id} />

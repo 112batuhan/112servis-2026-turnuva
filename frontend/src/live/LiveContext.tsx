@@ -1,4 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { liveSocketUrl } from "../api/live";
 import type { LiveRoom, RefereeViewer, RoomChatMessage } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
@@ -78,11 +87,15 @@ export function LiveProvider({ children }: { children: ReactNode }) {
 
   const sendViewing = useCallback(() => {
     const ws = socket.current;
-    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "viewing", match_id: viewing.current }));
+    if (ws?.readyState === WebSocket.OPEN)
+      ws.send(JSON.stringify({ type: "viewing", match_id: viewing.current }));
   }, []);
   const sendWatch = useCallback(() => {
     const ws = socket.current;
-    if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "watch", match_id: watching.current, spectate: spectating.current }));
+    if (ws?.readyState === WebSocket.OPEN)
+      ws.send(
+        JSON.stringify({ type: "watch", match_id: watching.current, spectate: spectating.current }),
+      );
   }, []);
 
   // A page kept in the browser's back/forward cache would keep its socket, and with it
@@ -140,7 +153,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
           });
         } else if (msg.type === "spectators") {
           // A list for a match this tab has since left is dropped.
-          if (msg.match_id === watching.current) setSpectators({ match_id: msg.match_id, viewers: msg.viewers, guests: msg.guests });
+          if (msg.match_id === watching.current)
+            setSpectators({ match_id: msg.match_id, viewers: msg.viewers, guests: msg.guests });
         } else {
           for (const handler of handlers.current) handler(msg);
         }
@@ -213,7 +227,10 @@ export const RELOAD_DELAY_MS = 250;
  * Keeps a page's bracket in step: `onScore` applies a saved score at once, `onChanged` reloads
  * the bracket after anything else changed (gathered over a short moment).
  */
-export function useLiveBracket(onScore: (event: Extract<LiveEvent, { type: "score" }>) => void, onChanged: () => void) {
+export function useLiveBracket(
+  onScore: (event: Extract<LiveEvent, { type: "score" }>) => void,
+  onChanged: () => void,
+) {
   const { subscribe } = useLive();
   const callbacks = useRef({ onScore, onChanged });
   callbacks.current = { onScore, onChanged };

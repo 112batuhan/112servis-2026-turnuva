@@ -72,7 +72,12 @@ export function BracketPage({
 }
 
 /** From the middle of the source's right edge into the target's slot on its left edge, as the editor draws it. */
-function linkPath(from: BracketMatch, to: BracketMatch, slot: 1 | 2, outcome: "winner" | "loser"): string {
+function linkPath(
+  from: BracketMatch,
+  to: BracketMatch,
+  slot: 1 | 2,
+  outcome: "winner" | "loser",
+): string {
   const sx = from.pos_x * UNIT + CARD_W;
   const sy = from.pos_y * UNIT + CARD_H / 2;
   const tx = to.pos_x * UNIT;
@@ -86,7 +91,15 @@ function linkPath(from: BracketMatch, to: BracketMatch, slot: 1 | 2, outcome: "w
 }
 
 /** A match's card: its code and time (or "Canlı"), then each team with its banner and score. */
-function Card({ match, teams, onStream }: { match: BracketMatch; teams: Team[]; onStream: boolean }) {
+function Card({
+  match,
+  teams,
+  onStream,
+}: {
+  match: BracketMatch;
+  teams: Team[];
+  onStream: boolean;
+}) {
   const live = isLive(match);
   const winner = winningSlot(match);
   const halves = scoreHalves(match);
@@ -97,7 +110,9 @@ function Card({ match, teams, onStream }: { match: BracketMatch; teams: Team[]; 
       <div className={`br-row ${SIDE_CLASS[slot]} ${state}`}>
         <BannerChip team={team} className="br-banner" />
         <span className={`br-name ${team ? "" : "is-empty"}`}>{team?.name ?? "—"}</span>
-        <span className="br-score">{halves && (live || match.concluded_at) ? halves[slot - 1] : ""}</span>
+        <span className="br-score">
+          {halves && (live || match.concluded_at) ? halves[slot - 1] : ""}
+        </span>
       </div>
     );
   };
@@ -115,7 +130,7 @@ function Card({ match, teams, onStream }: { match: BracketMatch; teams: Team[]; 
               Canlı
             </>
           ) : match.concluded_at ? (
-            match.stage?.name ?? "Bitti"
+            (match.stage?.name ?? "Bitti")
           ) : match.starts_at ? (
             formatShortMatchTime(match.starts_at)
           ) : (
@@ -143,7 +158,14 @@ const REST = 0.1;
 function useSmoothCamera(board: RefObject<HTMLDivElement>, target: Camera, ready: boolean) {
   const goal = useRef(target);
   goal.current = target;
-  const state = useRef<{ x: number; y: number; z: number; vx: number; vy: number; vz: number } | null>(null);
+  const state = useRef<{
+    x: number;
+    y: number;
+    z: number;
+    vx: number;
+    vy: number;
+    vz: number;
+  } | null>(null);
   const frame = useRef(0);
 
   useEffect(() => {

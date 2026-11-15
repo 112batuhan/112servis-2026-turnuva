@@ -27,7 +27,13 @@ export function useTeamView(key: string) {
 }
 
 /** Switches a team list between cards and rows; styled like the bracket's view tabs. */
-export function TeamViewTabs({ view, onChange }: { view: TeamView; onChange: (view: TeamView) => void }) {
+export function TeamViewTabs({
+  view,
+  onChange,
+}: {
+  view: TeamView;
+  onChange: (view: TeamView) => void;
+}) {
   return (
     <div className="bracket-view-tabs" role="group" aria-label="Görünüm">
       {VIEWS.map((v) => (

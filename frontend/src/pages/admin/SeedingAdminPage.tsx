@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { errorMessage } from "../../api/client";
-import { makeBracket, fetchSeeding, removeBracket, resetSeeding, saveSeeding } from "../../api/seeding";
+import {
+  makeBracket,
+  fetchSeeding,
+  removeBracket,
+  resetSeeding,
+  saveSeeding,
+} from "../../api/seeding";
 import type { BracketFormat, Seeding, SeedTeam } from "../../api/types";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { Icon } from "../../components/Icon";
@@ -39,7 +45,10 @@ export function SeedingAdminPage() {
     load().catch((e) => setError(errorMessage(e)));
   }, [load, setError]);
   // Another host making or taking down the bracket.
-  useLiveBracket(() => {}, () => void load().catch(() => {}));
+  useLiveBracket(
+    () => {},
+    () => void load().catch(() => {}),
+  );
 
   const teams = useMemo(() => data?.teams ?? [], [data]);
   const ids = useMemo(() => teams.map((t) => t.id), [teams]);
@@ -55,7 +64,9 @@ export function SeedingAdminPage() {
     void run(() => saveSeeding(next));
   }
 
-  const dragProps = useDragReorder((dragged, target) => applyOrder(moveToTarget(ids, dragged, target)));
+  const dragProps = useDragReorder((dragged, target) =>
+    applyOrder(moveToTarget(ids, dragged, target)),
+  );
 
   // A seed typed into a row's figure moves the team there.
   function moveToSeed(team: SeedTeam, value: string) {
@@ -68,10 +79,14 @@ export function SeedingAdminPage() {
   const ranked = teams.filter((t) => t.qualifier).length;
   const out = Math.max(teams.length - cut, 0);
   const blockers: string[] = [];
-  if (data && !data.qualifier_stage_id) blockers.push("Elemelerin stage'i seçilmemiş (Stage'ler sekmesi).");
+  if (data && !data.qualifier_stage_id)
+    blockers.push("Elemelerin stage'i seçilmemiş (Stage'ler sekmesi).");
   if (data && data.lobbies_not_over > 0)
     blockers.push(`${data.lobbies_not_over} eleme lobisi henüz bitmedi; sıralama kesinleşmedi.`);
-  if (data && teams.length < cut) blockers.push(`${FORMAT_LABELS[format]} için ${cut} takım gerekiyor, ${teams.length} takım var.`);
+  if (data && teams.length < cut)
+    blockers.push(
+      `${FORMAT_LABELS[format]} için ${cut} takım gerekiyor, ${teams.length} takım var.`,
+    );
 
   function build() {
     const message =
@@ -84,7 +99,12 @@ export function SeedingAdminPage() {
 
   function takeDown() {
     if (!data) return;
-    if (!window.confirm(`Bracket'teki ${data.matches} maçın hepsi silinsin mi? Seed sırası olduğu gibi kalır.`)) return;
+    if (
+      !window.confirm(
+        `Bracket'teki ${data.matches} maçın hepsi silinsin mi? Seed sırası olduğu gibi kalır.`,
+      )
+    )
+      return;
     void run(removeBracket);
   }
 
@@ -133,7 +153,8 @@ export function SeedingAdminPage() {
                   )}
                 </p>
                 <p className="seeding-note">
-                  Seed sırası bracket'in kaydı olarak kilitlendi. Yeni bracket için önce bütün maçları kaldır.
+                  Seed sırası bracket'in kaydı olarak kilitlendi. Yeni bracket için önce bütün
+                  maçları kaldır.
                 </p>
                 <div className="seeding-actions">
                   <Link to="/admin/bracket" className="btn btn-secondary">
@@ -151,7 +172,9 @@ export function SeedingAdminPage() {
                   </button>
                 </div>
                 {data.played > 0 && (
-                  <p className="seeding-blocker">Oynanmış ya da odası açılmış maç var; bracket artık kaldırılamaz.</p>
+                  <p className="seeding-blocker">
+                    Oynanmış ya da odası açılmış maç var; bracket artık kaldırılamaz.
+                  </p>
                 )}
               </>
             ) : (
@@ -169,7 +192,8 @@ export function SeedingAdminPage() {
                       />
                       <span className="seeding-format-name">{FORMAT_LABELS[f]}</span>
                       <span className="seeding-format-facts">
-                        <span className="num">{FORMAT_TEAMS[f]}</span> takım · <span className="num">{bracketTotal(f)}</span> maç
+                        <span className="num">{FORMAT_TEAMS[f]}</span> takım ·{" "}
+                        <span className="num">{bracketTotal(f)}</span> maç
                       </span>
                     </label>
                   ))}
@@ -207,7 +231,11 @@ export function SeedingAdminPage() {
                       >
                         <option value="">— Stage yok —</option>
                         {data.stages.map((s) => (
-                          <option key={s.id} value={s.id} disabled={stageIds.includes(s.id) && stageIds[i] !== s.id}>
+                          <option
+                            key={s.id}
+                            value={s.id}
+                            disabled={stageIds.includes(s.id) && stageIds[i] !== s.id}
+                          >
                             {s.name}
                           </option>
                         ))}
@@ -229,7 +257,9 @@ export function SeedingAdminPage() {
                 >
                   {FORMAT_LABELS[format]} bracket'ini kur
                 </button>
-                <p className="seeding-note">Maçlar zamansız oluşur; saatleri Maçlar sekmesinden verilir.</p>
+                <p className="seeding-note">
+                  Maçlar zamansız oluşur; saatleri Maçlar sekmesinden verilir.
+                </p>
               </>
             )}
           </aside>
@@ -238,7 +268,10 @@ export function SeedingAdminPage() {
             {teams.length === 0 ? (
               <p className="status">Henüz takım yok.</p>
             ) : (
-              <ol className={locked ? "seeding-list is-locked" : "seeding-list"} aria-label="Seed sırası">
+              <ol
+                className={locked ? "seeding-list is-locked" : "seeding-list"}
+                aria-label="Seed sırası"
+              >
                 <li className="seeding-head" aria-hidden="true">
                   <span />
                   <span>Seed</span>
@@ -278,7 +311,8 @@ export function SeedingAdminPage() {
   );
 }
 
-const bracketTotal = (format: BracketFormat) => bracketWeeks(format).reduce((n, w) => n + w.matches, 0);
+const bracketTotal = (format: BracketFormat) =>
+  bracketWeeks(format).reduce((n, w) => n + w.matches, 0);
 
 interface RowProps {
   team: SeedTeam;
@@ -298,7 +332,10 @@ function SeedRowWithCut({ cutBefore, ...props }: RowProps) {
   return (
     <>
       {cutBefore && (
-        <li className="seeding-cut" aria-label={`Kesim: ilk ${cutBefore.cut} takım bracket'e girer, ${cutBefore.out} takım elenir`}>
+        <li
+          className="seeding-cut"
+          aria-label={`Kesim: ilk ${cutBefore.cut} takım bracket'e girer, ${cutBefore.out} takım elenir`}
+        >
           <span className="seeding-cut-label">
             Kesim <span className="num">{cutBefore.cut}</span>
           </span>
@@ -312,7 +349,18 @@ function SeedRowWithCut({ cutBefore, ...props }: RowProps) {
   );
 }
 
-function SeedRow({ team, seed, out, locked, busy, last, poolSize, dragProps, onMove, onSeed }: Omit<RowProps, "cutBefore">) {
+function SeedRow({
+  team,
+  seed,
+  out,
+  locked,
+  busy,
+  last,
+  poolSize,
+  dragProps,
+  onMove,
+  onSeed,
+}: Omit<RowProps, "cutBefore">) {
   const q = team.qualifier;
   // How far the hosts moved it from its seed in the qualifier's order (positive: up).
   const moved = team.qualifier_seed - seed;
@@ -334,7 +382,9 @@ function SeedRow({ team, seed, out, locked, busy, last, poolSize, dragProps, onM
   if (team.banned) flags.push("Banlanmış oyuncu: eleme sırasında sona alındı");
   if (team.rank_warning) flags.push(RANK_WARNING_LABELS[team.rank_warning]);
 
-  const classes = ["seeding-row", out && "is-out", team.banned && "is-flagged"].filter(Boolean).join(" ");
+  const classes = ["seeding-row", out && "is-out", team.banned && "is-flagged"]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <li className={classes} {...dragProps}>
@@ -362,7 +412,9 @@ function SeedRow({ team, seed, out, locked, busy, last, poolSize, dragProps, onM
       </span>
       <span className="seeding-team">
         <span className="seeding-team-name">{team.name}</span>
-        <span className="seeding-team-players">{team.players.map((p) => p.username).join(" · ")}</span>
+        <span className="seeding-team-players">
+          {team.players.map((p) => p.username).join(" · ")}
+        </span>
         {flags.length > 0 && <span className="seeding-flag">{flags.join(" · ")}</span>}
       </span>
       <span className="seeding-rank is-right">
@@ -380,13 +432,17 @@ function SeedRow({ team, seed, out, locked, busy, last, poolSize, dragProps, onM
               )}
               <span className="num seeding-rank-figure">#{q.rank}</span>
             </span>
-            <span className="seeding-rank-lobby">{q.pending ? "lobisi sürüyor" : team.lobby ? `Lobi ${team.lobby}` : ""}</span>
+            <span className="seeding-rank-lobby">
+              {q.pending ? "lobisi sürüyor" : team.lobby ? `Lobi ${team.lobby}` : ""}
+            </span>
           </>
         ) : (
           <span className="seeding-none">Elemelere katılmadı</span>
         )}
       </span>
-      <span className="is-right seeding-opt">{q ? <ZValue z={q.z_sum} size="lg" /> : <span className="seeding-none">—</span>}</span>
+      <span className="is-right seeding-opt">
+        {q ? <ZValue z={q.z_sum} size="lg" /> : <span className="seeding-none">—</span>}
+      </span>
       <span className="is-right seeding-opt2 seeding-maps">
         {q ? (
           <>

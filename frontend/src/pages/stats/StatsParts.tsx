@@ -23,14 +23,25 @@ const Z_SPAN = 3;
  * A Z score as its figure beside a small meter centred on the map's mean: filled right of the
  * centre for a score above it, left for one below, in proportion up to three deviations.
  */
-export function ZValue({ z, missing = false, size = "md" }: { z: number; missing?: boolean; size?: "md" | "lg" }) {
+export function ZValue({
+  z,
+  missing = false,
+  size = "md",
+}: {
+  z: number;
+  missing?: boolean;
+  size?: "md" | "lg";
+}) {
   const half = (Math.min(Math.abs(z), Z_SPAN) / Z_SPAN) * 50;
   const tone = missing ? "is-missing" : z >= 0 ? "is-up" : "is-down";
   return (
     <span className={`zval ${tone} is-${size}`}>
       <span className="zval-num">{formatZ(z)}</span>
       <span className="zval-bar" aria-hidden="true">
-        <span className="zval-fill" style={{ left: z >= 0 ? "50%" : `${50 - half}%`, width: `${half}%` }} />
+        <span
+          className="zval-fill"
+          style={{ left: z >= 0 ? "50%" : `${50 - half}%`, width: `${half}%` }}
+        />
       </span>
     </span>
   );
@@ -78,9 +89,20 @@ export function PlayerName({
 }
 
 /** A team's name that opens its card; `quiet` sets it as the small line under a player. */
-export function TeamName({ team, own, quiet = false }: { team: Team; own: boolean; quiet?: boolean }) {
+export function TeamName({
+  team,
+  own,
+  quiet = false,
+}: {
+  team: Team;
+  own: boolean;
+  quiet?: boolean;
+}) {
   return (
-    <TeamPopover team={team} className={`stat-team-name${quiet ? " is-quiet" : ""}${own ? " is-own" : ""}`}>
+    <TeamPopover
+      team={team}
+      className={`stat-team-name${quiet ? " is-quiet" : ""}${own ? " is-own" : ""}`}
+    >
       {team.name}
     </TeamPopover>
   );

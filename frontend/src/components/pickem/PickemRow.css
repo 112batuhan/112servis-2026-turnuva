@@ -150,9 +150,7 @@
   background-size:
     100% 3px,
     100% 100%;
-  background-position:
-    bottom,
-    center;
+  background-position: bottom, center;
   background-repeat: no-repeat;
   font-family: var(--font-display);
   font-stretch: var(--font-display-stretch);
@@ -325,7 +323,6 @@
     display: none;
   }
 
-
   .pickem-team-name {
     font-size: var(--text-md);
   }
@@ -337,7 +334,6 @@
   .pickem-score {
     --score-size: var(--text-lg);
   }
-
 }
 
 .pickem-row.has-extra .pickem-slider {

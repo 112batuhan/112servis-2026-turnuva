@@ -2,7 +2,14 @@ import { useMemo, useState } from "react";
 import type { StatMap } from "../../api/types";
 import type { PoolEntry } from "../../lib/matchPool";
 import { MapLabel, MatchCode, PanelTools, PlayerName, TeamName } from "./StatsParts";
-import { accuracyUnknown, formatAccuracy, formatMods, formatScore, formatShare, type StatsIndex } from "./statsModel";
+import {
+  accuracyUnknown,
+  formatAccuracy,
+  formatMods,
+  formatScore,
+  formatShare,
+  type StatsIndex,
+} from "./statsModel";
 import "./PoolStats.css";
 
 type Order = "pool" | "picks" | "bans";
@@ -27,13 +34,25 @@ export function PoolStats({ index, ownTeam, onOpenMap }: Props) {
   const groups = useMemo(() => {
     const rows = index.entries.map((entry) => ({ entry, stat: index.map.get(entry.map.id) }));
     if (order !== "pool") {
-      const key = (s: StatMap | undefined) => (order === "picks" ? (s?.picks ?? 0) : (s?.bans ?? 0));
-      return [{ name: null as string | null, color: null as string | null, rows: [...rows].sort((a, b) => key(b.stat) - key(a.stat)) }];
+      const key = (s: StatMap | undefined) =>
+        order === "picks" ? (s?.picks ?? 0) : (s?.bans ?? 0);
+      return [
+        {
+          name: null as string | null,
+          color: null as string | null,
+          rows: [...rows].sort((a, b) => key(b.stat) - key(a.stat)),
+        },
+      ];
     }
     const byCategory: { name: string | null; color: string | null; rows: typeof rows }[] = [];
     for (const category of index.data.pool.categories) {
-      const own = rows.filter((r) => index.data.pool.slots.some((s) => s.id === r.entry.map.slot_id && s.category_id === category.id));
-      if (own.length > 0) byCategory.push({ name: category.name, color: category.color, rows: own });
+      const own = rows.filter((r) =>
+        index.data.pool.slots.some(
+          (s) => s.id === r.entry.map.slot_id && s.category_id === category.id,
+        ),
+      );
+      if (own.length > 0)
+        byCategory.push({ name: category.name, color: category.color, rows: own });
     }
     return byCategory;
   }, [index, order]);
@@ -50,7 +69,13 @@ export function PoolStats({ index, ownTeam, onOpenMap }: Props) {
                 ["bans", "En çok ban"],
               ] as const
             ).map(([id, label]) => (
-              <button key={id} type="button" className="bracket-view-tab" aria-pressed={order === id} onClick={() => setOrder(id)}>
+              <button
+                key={id}
+                type="button"
+                className="bracket-view-tab"
+                aria-pressed={order === id}
+                onClick={() => setOrder(id)}
+              >
                 {label}
               </button>
             ))}
@@ -66,7 +91,9 @@ export function PoolStats({ index, ownTeam, onOpenMap }: Props) {
             <>
               <span>Pick</span>
               <span>Ban</span>
-              <span title="Map'i pick eden takımın onu kazandığı oyunlar">Pick'leyenlerin kazanma oranı</span>
+              <span title="Map'i pick eden takımın onu kazandığı oyunlar">
+                Pick'leyenlerin kazanma oranı
+              </span>
             </>
           ) : (
             <span>Oynayan</span>
@@ -130,7 +157,11 @@ function PoolRow({ entry, stat, index, ownTeam, matches, onOpen }: RowProps) {
           <span className="pool-stats-cover" />
         )}
         <span className="pool-stats-title">
-          <a href={`https://osu.ppy.sh/b/${map.beatmap_id}`} target="_blank" rel="noopener noreferrer">
+          <a
+            href={`https://osu.ppy.sh/b/${map.beatmap_id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             {map.title}
           </a>
           <span className="pool-stats-sub">
@@ -152,7 +183,9 @@ function PoolRow({ entry, stat, index, ownTeam, matches, onOpen }: RowProps) {
                 <span className="pool-stats-figure">
                   {stat.picker_wins}/{stat.picker_plays}
                 </span>
-                <span className="pool-stats-meta">{formatShare(stat.picker_wins, stat.picker_plays)}</span>
+                <span className="pool-stats-meta">
+                  {formatShare(stat.picker_wins, stat.picker_plays)}
+                </span>
               </>
             ) : (
               <span className="pool-stats-none">—</span>
@@ -170,7 +203,10 @@ function PoolRow({ entry, stat, index, ownTeam, matches, onOpen }: RowProps) {
         {played > 0 && stat ? (
           <>
             <span className="pool-stats-figure">{formatScore(stat.teams.mean)}</span>
-            <span className="pool-stats-meta" title="Standart sapma ve oyuncuların ortalama doğruluğu">
+            <span
+              className="pool-stats-meta"
+              title="Standart sapma ve oyuncuların ortalama doğruluğu"
+            >
               σ {formatScore(stat.teams.sd)} · {formatAccuracy(stat.avg_accuracy)}
             </span>
           </>
@@ -189,7 +225,10 @@ function PoolRow({ entry, stat, index, ownTeam, matches, onOpen }: RowProps) {
             />
             <span className="pool-stats-best-score">
               <span className="pool-stats-figure">{formatScore(bestPlayer.score)}</span>
-              <span className="pool-stats-meta" title={bestPlayer.accuracy === null ? accuracyUnknown : undefined}>
+              <span
+                className="pool-stats-meta"
+                title={bestPlayer.accuracy === null ? accuracyUnknown : undefined}
+              >
                 {formatAccuracy(bestPlayer.accuracy)} · {formatMods(bestPlayer.mods)} ·{" "}
                 <MatchCode matchId={bestPlayer.match_id} index={index} />
               </span>
@@ -206,8 +245,12 @@ function PoolRow({ entry, stat, index, ownTeam, matches, onOpen }: RowProps) {
             <TeamName team={index.team.get(bestTeam.team_id)!} own={bestTeam.team_id === ownTeam} />
             <span className="pool-stats-best-score">
               <span className="pool-stats-figure">{formatScore(bestTeam.score)}</span>
-              <span className="pool-stats-meta" title={bestTeam.accuracy === null ? accuracyUnknown : undefined}>
-                {formatAccuracy(bestTeam.accuracy)} · <MatchCode matchId={bestTeam.match_id} index={index} />
+              <span
+                className="pool-stats-meta"
+                title={bestTeam.accuracy === null ? accuracyUnknown : undefined}
+              >
+                {formatAccuracy(bestTeam.accuracy)} ·{" "}
+                <MatchCode matchId={bestTeam.match_id} index={index} />
               </span>
             </span>
           </>
@@ -241,7 +284,10 @@ function Rate({
 }) {
   const ratio = of > 0 ? Math.min(1, count / of) : 0;
   return (
-    <span className={`pool-stats-cell pool-stats-rate is-${area}${quiet ? " is-quiet" : ""}`} data-label={label}>
+    <span
+      className={`pool-stats-cell pool-stats-rate is-${area}${quiet ? " is-quiet" : ""}`}
+      data-label={label}
+    >
       <span className="pool-stats-rate-line">
         <span className="pool-stats-figure">{count}</span>
         <span className="pool-stats-meta">{formatShare(count, of)}</span>

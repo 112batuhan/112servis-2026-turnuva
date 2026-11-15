@@ -13,7 +13,8 @@ import type {
 // ---- stages ----
 export const fetchStages = () => get<Stage[]>("/api/stages");
 export const createStage = (name: string) => post<Stage>("/api/stages", { name });
-export const renameStage = (id: string, name: string) => patch<Stage>(`/api/stages/${id}`, { name });
+export const renameStage = (id: string, name: string) =>
+  patch<Stage>(`/api/stages/${id}`, { name });
 export const reorderStages = (ids: string[]) => post<void>("/api/stages/reorder", { ids });
 export const deleteStage = (id: string) => del(`/api/stages/${id}`);
 /** null leaves no stage as the qualifier pool. */
@@ -43,11 +44,13 @@ export const renameCategory = (id: string, name: string) =>
   patch<Category>(`/api/mappool/categories/${id}`, { name });
 export const setCategoryColor = (id: string, color: string) =>
   patch<Category>(`/api/mappool/categories/${id}`, { color });
-export const reorderCategories = (ids: string[]) => post<void>("/api/mappool/categories/reorder", { ids });
+export const reorderCategories = (ids: string[]) =>
+  post<void>("/api/mappool/categories/reorder", { ids });
 export const deleteCategory = (id: string) => del(`/api/mappool/categories/${id}`);
 
 // ---- slots ----
-export const addSlot = (categoryId: string) => post<Slot>(`/api/mappool/categories/${categoryId}/slots`);
+export const addSlot = (categoryId: string) =>
+  post<Slot>(`/api/mappool/categories/${categoryId}/slots`);
 export const updateSlotNotes = (slotId: string, editorNotes: string) =>
   patch<Slot>(`/api/mappool/slots/${slotId}`, { editor_notes: editorNotes });
 export const deleteSlot = (slotId: string) => del(`/api/mappool/slots/${slotId}`);
@@ -62,9 +65,11 @@ export const moveMap = (mapId: string, slotId: string | null) =>
 export const updateMapNote = (mapId: string, field: MapNoteField, value: string) =>
   patch<PoolMap>(`/api/mappool/maps/${mapId}/notes`, { [field]: value });
 /** Resolves the map's stats from osu! again (HR stats included for a nomod map). */
-export const recomputeMapStats = (mapId: string) => post<PoolMap>(`/api/mappool/maps/${mapId}/stats`);
+export const recomputeMapStats = (mapId: string) =>
+  post<PoolMap>(`/api/mappool/maps/${mapId}/stats`);
 export const deleteMap = (mapId: string) => del(`/api/mappool/maps/${mapId}`);
 
 // ---- public (published stages only, no auth) ----
 export const fetchPublicStages = () => get<PublicStage[]>("/api/public/stages");
-export const fetchPublicStage = (id: string) => get<PublicStageDetail>(`/api/public/mappool/stages/${id}`);
+export const fetchPublicStage = (id: string) =>
+  get<PublicStageDetail>(`/api/public/mappool/stages/${id}`);

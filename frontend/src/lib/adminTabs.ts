@@ -14,4 +14,5 @@ export const ADMIN_TABS: { path: string; label: string; access: Access }[] = [
   { path: "/admin/bancho", label: "Bancho", access: "host" },
 ];
 
-export const isAdminPath = (pathname: string) => pathname === "/admin" || pathname.startsWith("/admin/");
+export const isAdminPath = (pathname: string) =>
+  pathname === "/admin" || pathname.startsWith("/admin/");

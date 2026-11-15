@@ -17,4 +17,3 @@ export async function fetchCurrentUser(): Promise<User | null> {
 }
 
 export const logout = () => post<void>("/auth/logout");
-

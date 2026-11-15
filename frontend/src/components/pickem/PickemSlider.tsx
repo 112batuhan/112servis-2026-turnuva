@@ -175,13 +175,20 @@ export function PickemSlider({
               style={{ left: `${pct(i)}%` }}
             />
           ))}
-          <span className="pickem-slider-thumb">{current ? `${current.team1}–${current.team2}` : "?"}</span>
+          <span className="pickem-slider-thumb">
+            {current ? `${current.team1}–${current.team2}` : "?"}
+          </span>
         </div>
       </div>
       <div className="pickem-slider-labels">
         {stops.map((o, i) =>
           o === null ? (
-            <span key={i} className="pickem-slider-label is-middle" style={{ left: `${pct(i)}%` }} aria-hidden="true">
+            <span
+              key={i}
+              className="pickem-slider-label is-middle"
+              style={{ left: `${pct(i)}%` }}
+              aria-hidden="true"
+            >
               ·
             </span>
           ) : (

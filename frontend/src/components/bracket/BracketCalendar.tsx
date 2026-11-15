@@ -168,20 +168,26 @@ export function BracketCalendar({
     }
     return map;
   }, [matches]);
-  const unscheduled = showUnscheduled ? matches.filter((m) => !m.starts_at).sort(compareByCode) : [];
+  const unscheduled = showUnscheduled
+    ? matches.filter((m) => !m.starts_at).sort(compareByCode)
+    : [];
 
   const isMine = (m: BracketMatch) =>
     (viewerId !== undefined && (m.referee?.id === viewerId || m.streamer?.id === viewerId)) ||
     (myTeamId != null && (m.team1_id === myTeamId || m.team2_id === myTeamId));
 
-  const shiftMonth = (by: number) => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + by, 1));
-  const shiftDay = (by: number) => setDay((d) => d && new Date(d.getFullYear(), d.getMonth(), d.getDate() + by));
+  const shiftMonth = (by: number) =>
+    setMonth((m) => new Date(m.getFullYear(), m.getMonth() + by, 1));
+  const shiftDay = (by: number) =>
+    setDay((d) => d && new Date(d.getFullYear(), d.getMonth(), d.getDate() + by));
   const backToMonth = () => {
     if (day) setMonth(new Date(day.getFullYear(), day.getMonth(), 1));
     setDay(null);
   };
   const goToday = () =>
-    day ? setDay(startOfDay(new Date())) : setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+    day
+      ? setDay(startOfDay(new Date()))
+      : setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
 
   function chip(m: BracketMatch, style?: CSSProperties) {
     const winner = winningSlot(m);
@@ -247,7 +253,9 @@ export function BracketCalendar({
         aria-pressed={rowMatchId(m) === selectedId}
         className={classes}
         style={style}
-        title={potential ? `${matchCode(m)} bu eşleşme olursa: iki takım da gelirse oynanır` : undefined}
+        title={
+          potential ? `${matchCode(m)} bu eşleşme olursa: iki takım da gelirse oynanır` : undefined
+        }
         onClick={select}
         onKeyDown={(e) => {
           if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
@@ -262,7 +270,9 @@ export function BracketCalendar({
         key={m.id}
         className={classes}
         style={style}
-        title={potential ? `${matchCode(m)} bu eşleşme olursa: iki takım da gelirse oynanır` : undefined}
+        title={
+          potential ? `${matchCode(m)} bu eşleşme olursa: iki takım da gelirse oynanır` : undefined
+        }
       >
         {content}
       </div>
@@ -274,15 +284,35 @@ export function BracketCalendar({
       <div className="cal-toolbar">
         {day ? (
           <>
-            <IconButton icon="chevronLeft" label="Önceki gün" variant="outlined" onClick={() => shiftDay(-1)} />
+            <IconButton
+              icon="chevronLeft"
+              label="Önceki gün"
+              variant="outlined"
+              onClick={() => shiftDay(-1)}
+            />
             <h2 className="cal-title">{formatDay(day, true)}</h2>
-            <IconButton icon="chevronRight" label="Sonraki gün" variant="outlined" onClick={() => shiftDay(1)} />
+            <IconButton
+              icon="chevronRight"
+              label="Sonraki gün"
+              variant="outlined"
+              onClick={() => shiftDay(1)}
+            />
           </>
         ) : (
           <>
-            <IconButton icon="chevronLeft" label="Önceki ay" variant="outlined" onClick={() => shiftMonth(-1)} />
+            <IconButton
+              icon="chevronLeft"
+              label="Önceki ay"
+              variant="outlined"
+              onClick={() => shiftMonth(-1)}
+            />
             <h2 className="cal-title">{formatMonth(month)}</h2>
-            <IconButton icon="chevronRight" label="Sonraki ay" variant="outlined" onClick={() => shiftMonth(1)} />
+            <IconButton
+              icon="chevronRight"
+              label="Sonraki ay"
+              variant="outlined"
+              onClick={() => shiftMonth(1)}
+            />
           </>
         )}
         <div className="cal-toolbar-end">
@@ -302,7 +332,9 @@ export function BracketCalendar({
           day={day}
           now={now}
           placed={layoutDay(byDay.get(dayKey(day)) ?? [])}
-          focusStart={focusAt && dayKey(focusAt) === dayKey(day) ? minutesIntoDay(focusAt) : undefined}
+          focusStart={
+            focusAt && dayKey(focusAt) === dayKey(day) ? minutesIntoDay(focusAt) : undefined
+          }
           chip={chip}
         />
       ) : (
@@ -332,7 +364,10 @@ function MonthGrid({ month, today, byDay, isMine, onOpenDay }: MonthGridProps) {
   // Six weeks from the Monday on or before the 1st.
   const start = new Date(month);
   start.setDate(1 - ((month.getDay() + 6) % 7));
-  const days = Array.from({ length: 42 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+  const days = Array.from(
+    { length: 42 },
+    (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i),
+  );
   // Drop a trailing week that's entirely in the next month.
   const shown = days[35].getMonth() !== month.getMonth() ? days.slice(0, 35) : days;
 
@@ -360,7 +395,9 @@ function MonthGrid({ month, today, byDay, isMine, onOpenDay }: MonthGridProps) {
           const date = formatDay(d);
           const live = dayMatches.some((m) => isLive(m));
           const summary =
-            count > 0 ? [`${count} maç`, ...(live ? ["şu an oynanan maç var"] : []), ...stages].join(", ") : "maç yok";
+            count > 0
+              ? [`${count} maç`, ...(live ? ["şu an oynanan maç var"] : []), ...stages].join(", ")
+              : "maç yok";
           return (
             <button
               key={key}
@@ -378,7 +415,9 @@ function MonthGrid({ month, today, byDay, isMine, onOpenDay }: MonthGridProps) {
                 </span>
               )}
               {count > 0 && (
-                <span className={dayMatches.some(isMine) ? "cal-day-count is-mine" : "cal-day-count"}>
+                <span
+                  className={dayMatches.some(isMine) ? "cal-day-count is-mine" : "cal-day-count"}
+                >
                   {count}
                   <span className="cal-day-count-label"> maç</span>
                   {live && <LiveMark compact />}
@@ -423,7 +462,9 @@ function DayTimeline({ day, now, placed, focusStart, chip }: DayTimelineProps) {
 
   return (
     <div className="cal-frame">
-      <div className="cal-day-summary">{placed.length > 0 ? `${placed.length} maç` : "Bu gün maç yok"}</div>
+      <div className="cal-day-summary">
+        {placed.length > 0 ? `${placed.length} maç` : "Bu gün maç yok"}
+      </div>
       <div className="cal-timeline-scroll" ref={scrollRef}>
         <div className="cal-timeline" style={{ height: 24 * HOUR_H }}>
           {Array.from({ length: 24 }, (_, h) => (

@@ -10,7 +10,8 @@ import { PoolView, draftPhase } from "../../../components/match/PoolView";
  * pick sets the map too. Banned maps can't be picked.
  */
 export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
-  const { room, currentEntry, finished, botReady, canRun, busy, actions, race, draft, turn } = referee;
+  const { room, currentEntry, finished, botReady, canRun, busy, actions, race, draft, turn } =
+    referee;
   if (!room) return null;
   // The server tells apart a beatmap that's in the pool twice by the mods it was played with.
   const played = new Set<string | undefined>(finished.map((f) => f.mapId ?? undefined));
@@ -20,16 +21,35 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
   // Once the order has run out (or at the tiebreaker) only picks are left to record.
   const banning = turn?.kind === "ban";
   // The team whose turn it is leads; the other's button stays, quieter, for a roll the order didn't foresee.
-  const offTurn = (team: MatchTeam) => (turn?.team && turn.team.id !== team.id ? " is-off-turn" : "");
+  const offTurn = (team: MatchTeam) =>
+    turn?.team && turn.team.id !== team.id ? " is-off-turn" : "";
 
   // A ban or pick to take back, or the buttons for whichever phase the match is in.
-  function markActions(entry: PoolEntry, banned: MatchTeam | undefined, picked: MatchTeam | undefined) {
+  function markActions(
+    entry: PoolEntry,
+    banned: MatchTeam | undefined,
+    picked: MatchTeam | undefined,
+  ) {
     const { label, map, tiebreaker } = entry;
     if (banned) {
-      return <IconButton icon="undo" label={`${label} yasağını kaldır`} disabled={busy} onClick={() => actions.unban(map.id)} />;
+      return (
+        <IconButton
+          icon="undo"
+          label={`${label} yasağını kaldır`}
+          disabled={busy}
+          onClick={() => actions.unban(map.id)}
+        />
+      );
     }
     if (picked) {
-      return <IconButton icon="undo" label={`${label} seçimini kaldır`} disabled={busy} onClick={() => actions.unpick(map.id)} />;
+      return (
+        <IconButton
+          icon="undo"
+          label={`${label} seçimini kaldır`}
+          disabled={busy}
+          onClick={() => actions.unpick(map.id)}
+        />
+      );
     }
     if (banning) {
       return teams.map((team) => (

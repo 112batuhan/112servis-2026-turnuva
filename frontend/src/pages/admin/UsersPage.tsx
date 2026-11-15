@@ -109,16 +109,27 @@ export function UsersPage() {
                 <th scope="col">Global rank</th>
                 <th scope="col">Roller</th>
                 <th scope="col">Discord</th>
-                <th scope="col" className="ban-col">Ban</th>
+                <th scope="col" className="ban-col">
+                  Ban
+                </th>
                 <th scope="col">Katılma tarihi</th>
               </tr>
             </thead>
             <tbody>
               {shown?.map((u) => (
                 <tr key={u.id}>
-                  <td>{u.avatar_url && <img className="row-avatar" src={u.avatar_url} alt="" loading="lazy" />}</td>
                   <td>
-                    <a className="user-link" href={`https://osu.ppy.sh/users/${u.osu_id}`} target="_blank" rel="noopener noreferrer">
+                    {u.avatar_url && (
+                      <img className="row-avatar" src={u.avatar_url} alt="" loading="lazy" />
+                    )}
+                  </td>
+                  <td>
+                    <a
+                      className="user-link"
+                      href={`https://osu.ppy.sh/users/${u.osu_id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       {u.username}
                     </a>{" "}
                     <span className="muted mono">#{u.osu_id}</span>
@@ -127,7 +138,11 @@ export function UsersPage() {
                   <td className="numeric">{formatRank(u.global_rank)}</td>
                   <td>
                     {/* Any set of roles; none means a regular player. A host can't drop their own Host. */}
-                    <div className="role-toggles" role="group" aria-label={`${u.username} için roller`}>
+                    <div
+                      className="role-toggles"
+                      role="group"
+                      aria-label={`${u.username} için roller`}
+                    >
                       {ROLES.map((r) => {
                         const on = u.roles.includes(r);
                         const ownHost = r === "host" && u.id === me.id;
@@ -147,7 +162,13 @@ export function UsersPage() {
                       })}
                     </div>
                   </td>
-                  <td>{u.discord_username ? `@${u.discord_username}` : <span className="muted">—</span>}</td>
+                  <td>
+                    {u.discord_username ? (
+                      `@${u.discord_username}`
+                    ) : (
+                      <span className="muted">—</span>
+                    )}
+                  </td>
                   <td className="ban-col">
                     <UserBan
                       user={u}
@@ -162,7 +183,9 @@ export function UsersPage() {
               ))}
             </tbody>
           </table>
-          {shown?.length === 0 && <p className="status users-empty">Aramayla eşleşen kullanıcı yok.</p>}
+          {shown?.length === 0 && (
+            <p className="status users-empty">Aramayla eşleşen kullanıcı yok.</p>
+          )}
         </div>
       )}
     </section>

@@ -80,14 +80,20 @@ function ScoreStatus({ referee }: { referee: RefereeRoomState }) {
   if (room.forfeit_slot) return <>Hükmen: {teams[room.forfeit_slot - 1]?.name} çekildi</>;
   if (room.concluded_at !== null) return <>Maç bitti</>;
   if (!live?.tally) return null;
-  if (scoreSaved) return <span title="Odanın botu map bittikçe skoru sitede günceller">Sitede güncel</span>;
+  if (scoreSaved)
+    return <span title="Odanın botu map bittikçe skoru sitede günceller">Sitede güncel</span>;
   if (canRun) {
     return (
       <>
         {room.team1_score === null && room.team2_score === null
           ? "Sitede henüz skor yok"
           : `Sitede ${room.team1_score ?? "–"} – ${room.team2_score ?? "–"}`}
-        <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={actions.saveScore}>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={busy}
+          onClick={actions.saveScore}
+        >
           Skoru kaydet
         </button>
       </>
@@ -111,7 +117,9 @@ function ResultSource({ referee }: { referee: RefereeRoomState }) {
   const at = osuSyncedAt ? formatClock(osuSyncedAt) : null;
   return (
     <span className="sheet-source">
-      {at ? `Oda sohbetinden okunuyor, ${at}'e kadarki map'ler maç linkinden` : "Oda sohbetinden okunuyor"}
+      {at
+        ? `Oda sohbetinden okunuyor, ${at}'e kadarki map'ler maç linkinden`
+        : "Oda sohbetinden okunuyor"}
       <button
         type="button"
         className="btn btn-secondary btn-sm"
@@ -157,7 +165,11 @@ function ConcludeControl({ referee }: { referee: RefereeRoomState }) {
         disabled={busy || blocker !== null}
         title={blocker ?? undefined}
         onClick={() => {
-          if (window.confirm(`${label} bitti olarak işaretlensin mi?${detail}\n\nGeri almak için bir host maçı yeniden açmalı.`)) {
+          if (
+            window.confirm(
+              `${label} bitti olarak işaretlensin mi?${detail}\n\nGeri almak için bir host maçı yeniden açmalı.`,
+            )
+          ) {
             actions.conclude();
           }
         }}
@@ -208,13 +220,17 @@ function ManualResultForm({ referee, teams }: { referee: RefereeRoomState; teams
         <IconButton icon="close" label="Vazgeç" onClick={() => setOpen(false)} />
       </div>
       <p className="sheet-hint">
-        Oda sonucu vermediyse (kopma, Bancho'nun bildirmediği bir skor) ya da ceza puanı için. Skora bir map olarak
-        eklenir.
+        Oda sonucu vermediyse (kopma, Bancho'nun bildirmediği bir skor) ya da ceza puanı için. Skora
+        bir map olarak eklenir.
       </p>
       <div className="sheet-manual-fields">
         <label className="sheet-manual-field">
           <span>Map</span>
-          <select className="select select-sm" value={mapId} onChange={(e) => setMapId(e.target.value)}>
+          <select
+            className="select select-sm"
+            value={mapId}
+            onChange={(e) => setMapId(e.target.value)}
+          >
             <option value="">Map yok (sadece puan)</option>
             {entries.map((e) => (
               <option key={e.map.id} value={e.map.id}>
@@ -262,8 +278,9 @@ function ForfeitControl({ referee, teams }: { referee: RefereeRoomState; teams: 
     <details className="sheet-forfeit">
       <summary>Hükmen bitir…</summary>
       <p className="sheet-hint">
-        Bir takım maça gelmediyse ya da maç bir sebeple tamamlanamadıysa çekilen takımı seç. Diğer takım kazanır ve
-        bir sonraki maça geçer; skor yerine W / FF yazar. Geri almak için bir host maçı yeniden açmalı.
+        Bir takım maça gelmediyse ya da maç bir sebeple tamamlanamadıysa çekilen takımı seç. Diğer
+        takım kazanır ve bir sonraki maça geçer; skor yerine W / FF yazar. Geri almak için bir host
+        maçı yeniden açmalı.
       </p>
       <div className="sheet-manual-teams">
         {teams.map((team, i) => {
@@ -275,7 +292,11 @@ function ForfeitControl({ referee, teams }: { referee: RefereeRoomState; teams: 
               className="btn btn-danger btn-sm"
               disabled={busy}
               onClick={() => {
-                if (window.confirm(`${team.name} çekilmiş sayılsın mı? Maç hükmen biter ve ${other.name} kazanır.`)) {
+                if (
+                  window.confirm(
+                    `${team.name} çekilmiş sayılsın mı? Maç hükmen biter ve ${other.name} kazanır.`,
+                  )
+                ) {
                   actions.forfeit((i + 1) as 1 | 2);
                 }
               }}

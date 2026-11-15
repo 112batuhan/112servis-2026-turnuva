@@ -109,15 +109,18 @@ export function BracketList<M extends BracketMatch>({
   const currentId = useMemo(() => currentStageId(matches), [matches]);
   const live = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const m of matches.filter((m) => isLive(m))) counts.set(stageKey(m), (counts.get(stageKey(m)) ?? 0) + 1);
+    for (const m of matches.filter((m) => isLive(m)))
+      counts.set(stageKey(m), (counts.get(stageKey(m)) ?? 0) + 1);
     return counts;
   }, [matches]);
   // null follows the stage being played; a picked stage that has lost its last match does too.
   const [pickedStage, setPickedStage] = useState<string | null>(null);
   const stage =
-    [pickedStage, currentId].find((id) => stages.some((s) => s.id === id)) ?? stages[stages.length - 1]?.id;
+    [pickedStage, currentId].find((id) => stages.some((s) => s.id === id)) ??
+    stages[stages.length - 1]?.id;
   const shown = useMemo(
-    () => matches.filter((m) => stageKey(m) === stage && (!hits || hits.has(m.id))).sort(compareByTime),
+    () =>
+      matches.filter((m) => stageKey(m) === stage && (!hits || hits.has(m.id))).sort(compareByTime),
     [matches, stage, hits],
   );
   // From every match, so a slot fed from the other side still names its source.
@@ -158,7 +161,11 @@ export function BracketList<M extends BracketMatch>({
         </div>
       )}
       {shown.length === 0 ? (
-        <p className="status">{stages.length > 1 ? "Bu stage'de aramayla eşleşen maç yok." : "Aramayla eşleşen maç yok."}</p>
+        <p className="status">
+          {stages.length > 1
+            ? "Bu stage'de aramayla eşleşen maç yok."
+            : "Aramayla eşleşen maç yok."}
+        </p>
       ) : (
         <div className="bracket-list-scroll">
           <table className="bracket-list">
@@ -180,144 +187,174 @@ export function BracketList<M extends BracketMatch>({
               </tr>
             </thead>
             <tbody>
-              {shown.flatMap((m) => [
-                m,
-                ...potentialRows(m).filter((p) => !hits || hits.has(p.id)),
-              ]).map((m) => {
-                const potential = m.potential_of !== undefined;
-                const undecided = isUndecided(m);
-                const [s1, s2] = potential ? [null, null] : (sources.get(m.id) ?? [null, null]);
-                const winner = winningSlot(m);
-                const halves = scoreHalves(m);
-                const mine =
-                  viewerId !== undefined && (m.referee?.id === viewerId || m.streamer?.id === viewerId);
-                const playing = myTeamId != null && (m.team1_id === myTeamId || m.team2_id === myTeamId);
-                const classes = [
-                  m.id === selectedId && "is-selected",
-                  (mine || playing) && "is-mine",
-                  onSelect && "is-selectable",
-                  potential && "is-potential",
-                  undecided && "has-potentials",
-                ]
-                  .filter(Boolean)
-                  .join(" ");
-                // A potential match selects its bracket match, which the grid and the panel know; clicking
-                // the selected match again deselects it.
-                const id = rowMatchId(m);
-                const select = () => onSelect?.(id === selectedId ? null : id);
-                return (
-                  <tr
-                    key={m.id}
-                    className={classes}
-                    data-match-id={m.id}
-                    // A click anywhere in the row selects the match, except on its own controls; the
-                    // code stays a button so the keyboard can reach it.
-                    onClick={
-                      onSelect &&
-                      ((e) => {
-                        if ((e.target as Element).closest(ROW_CONTROLS)) return;
-                        if (window.getSelection()?.toString()) return;
-                        select();
-                      })
-                    }
-                  >
-                    <th scope="row">
-                      {potential ? (
-                        <span className="bracket-list-branch">
-                          <span className={`bracket-list-branch-code is-${m.side}`}>{matchCode(m)}</span>
-                          olası
-                        </span>
-                      ) : onSelect ? (
-                        <button
-                          type="button"
-                          className={`bracket-list-code is-${m.side}`}
-                          aria-pressed={m.id === selectedId}
-                          onClick={select}
-                        >
-                          {matchCode(m)}
-                        </button>
-                      ) : (
-                        <span className={`bracket-list-code is-${m.side}`}>{matchCode(m)}</span>
-                      )}
-                    </th>
-                    <td className="bracket-list-time" data-label="Zaman">
-                      {undecided ? (
-                        <span className="bracket-list-undecided">{UNDECIDED_TIME}</span>
-                      ) : !m.starts_at ? (
-                        <span className="muted">—</span>
-                      ) : onShowInCalendar ? (
-                        <MatchTimeLink
-                          matchId={m.id}
-                          startsAt={m.starts_at}
-                          countdown={countdown}
-                          onShowInCalendar={onShowInCalendar}
-                        />
-                      ) : (
-                        <MatchTime startsAt={m.starts_at} countdown={countdown} />
-                      )}
-                    </td>
-                    <td className="bracket-list-pairing-cell">
-                      <div className="bracket-list-pairing">
-                        <TeamName id={m.team1_id} source={s1} teams={teams} won={winner === 1} own={m.team1_id != null && m.team1_id === myTeamId} bannerEnd />
-                        <span className={isLive(m) ? "bracket-list-score is-live" : "bracket-list-score"}>
-                          <span className={winner === 1 ? "is-winner" : undefined}>{halves?.[0] ?? "–"}</span>
-                          <span className={winner === 2 ? "is-winner" : undefined}>{halves?.[1] ?? "–"}</span>
-                        </span>
-                        <TeamName id={m.team2_id} source={s2} teams={teams} won={winner === 2} own={m.team2_id != null && m.team2_id === myTeamId} />
-                      </div>
-                    </td>
-                    <td className="bracket-list-referee" data-label="Hakem">
-                      {renderReferee ? (
-                        renderReferee(m)
-                      ) : m.referee ? (
-                        <span className="bracket-list-person">
-                          {m.referee.username}
-                          <DiscordMention player={m.referee} fallback="" compact />
-                        </span>
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </td>
-                    <td className="bracket-list-streamer" data-label="Yayıncı">
-                      {renderStreamer ? (
-                        renderStreamer(m)
-                      ) : m.streamer ? (
-                        m.streamer.username
-                      ) : (
-                        <span className="muted">—</span>
-                      )}
-                    </td>
-                    {/* The state and the links are cells of their own, so the links line up in their
-                        column, and a phone can put the state on the block's top line by the code. */}
-                    <td className="bracket-list-state-cell">
-                      {potential ? (
-                        <StatusChip state="potential" title="İki takım da gelirse oynanır">
-                          Olası
-                        </StatusChip>
-                      ) : undecided ? (
-                        <StatusChip state="potential">{m.potentials.length} olası eşleşme</StatusChip>
-                      ) : (
-                        <MatchStatus match={m} now={now} />
-                      )}
-                    </td>
-                    <td className="bracket-list-status-cell">
-                      <span className="bracket-list-status">
-                        {renderPageLink
-                          ? !potential && renderPageLink(m)
-                          : hasMatchPage(m) && <MatchPageLink matchId={m.id} live={isLive(m)} variant="text" />}
-                        <RoomLinks rooms={m.rooms} />
-                        {!potential && <RefereeWatchers viewers={presence?.get(m.id)} />}
-                      </span>
-                    </td>
-                    {renderActions && (
-                      <td className="bracket-list-actions-cell">
-                        {/* A potential match has no room or referee page yet. */}
-                        {!potential && <div className="bracket-list-actions">{renderActions(m)}</div>}
+              {shown
+                .flatMap((m) => [m, ...potentialRows(m).filter((p) => !hits || hits.has(p.id))])
+                .map((m) => {
+                  const potential = m.potential_of !== undefined;
+                  const undecided = isUndecided(m);
+                  const [s1, s2] = potential ? [null, null] : (sources.get(m.id) ?? [null, null]);
+                  const winner = winningSlot(m);
+                  const halves = scoreHalves(m);
+                  const mine =
+                    viewerId !== undefined &&
+                    (m.referee?.id === viewerId || m.streamer?.id === viewerId);
+                  const playing =
+                    myTeamId != null && (m.team1_id === myTeamId || m.team2_id === myTeamId);
+                  const classes = [
+                    m.id === selectedId && "is-selected",
+                    (mine || playing) && "is-mine",
+                    onSelect && "is-selectable",
+                    potential && "is-potential",
+                    undecided && "has-potentials",
+                  ]
+                    .filter(Boolean)
+                    .join(" ");
+                  // A potential match selects its bracket match, which the grid and the panel know; clicking
+                  // the selected match again deselects it.
+                  const id = rowMatchId(m);
+                  const select = () => onSelect?.(id === selectedId ? null : id);
+                  return (
+                    <tr
+                      key={m.id}
+                      className={classes}
+                      data-match-id={m.id}
+                      // A click anywhere in the row selects the match, except on its own controls; the
+                      // code stays a button so the keyboard can reach it.
+                      onClick={
+                        onSelect &&
+                        ((e) => {
+                          if ((e.target as Element).closest(ROW_CONTROLS)) return;
+                          if (window.getSelection()?.toString()) return;
+                          select();
+                        })
+                      }
+                    >
+                      <th scope="row">
+                        {potential ? (
+                          <span className="bracket-list-branch">
+                            <span className={`bracket-list-branch-code is-${m.side}`}>
+                              {matchCode(m)}
+                            </span>
+                            olası
+                          </span>
+                        ) : onSelect ? (
+                          <button
+                            type="button"
+                            className={`bracket-list-code is-${m.side}`}
+                            aria-pressed={m.id === selectedId}
+                            onClick={select}
+                          >
+                            {matchCode(m)}
+                          </button>
+                        ) : (
+                          <span className={`bracket-list-code is-${m.side}`}>{matchCode(m)}</span>
+                        )}
+                      </th>
+                      <td className="bracket-list-time" data-label="Zaman">
+                        {undecided ? (
+                          <span className="bracket-list-undecided">{UNDECIDED_TIME}</span>
+                        ) : !m.starts_at ? (
+                          <span className="muted">—</span>
+                        ) : onShowInCalendar ? (
+                          <MatchTimeLink
+                            matchId={m.id}
+                            startsAt={m.starts_at}
+                            countdown={countdown}
+                            onShowInCalendar={onShowInCalendar}
+                          />
+                        ) : (
+                          <MatchTime startsAt={m.starts_at} countdown={countdown} />
+                        )}
                       </td>
-                    )}
-                  </tr>
-                );
-              })}
+                      <td className="bracket-list-pairing-cell">
+                        <div className="bracket-list-pairing">
+                          <TeamName
+                            id={m.team1_id}
+                            source={s1}
+                            teams={teams}
+                            won={winner === 1}
+                            own={m.team1_id != null && m.team1_id === myTeamId}
+                            bannerEnd
+                          />
+                          <span
+                            className={
+                              isLive(m) ? "bracket-list-score is-live" : "bracket-list-score"
+                            }
+                          >
+                            <span className={winner === 1 ? "is-winner" : undefined}>
+                              {halves?.[0] ?? "–"}
+                            </span>
+                            <span className={winner === 2 ? "is-winner" : undefined}>
+                              {halves?.[1] ?? "–"}
+                            </span>
+                          </span>
+                          <TeamName
+                            id={m.team2_id}
+                            source={s2}
+                            teams={teams}
+                            won={winner === 2}
+                            own={m.team2_id != null && m.team2_id === myTeamId}
+                          />
+                        </div>
+                      </td>
+                      <td className="bracket-list-referee" data-label="Hakem">
+                        {renderReferee ? (
+                          renderReferee(m)
+                        ) : m.referee ? (
+                          <span className="bracket-list-person">
+                            {m.referee.username}
+                            <DiscordMention player={m.referee} fallback="" compact />
+                          </span>
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                      <td className="bracket-list-streamer" data-label="Yayıncı">
+                        {renderStreamer ? (
+                          renderStreamer(m)
+                        ) : m.streamer ? (
+                          m.streamer.username
+                        ) : (
+                          <span className="muted">—</span>
+                        )}
+                      </td>
+                      {/* The state and the links are cells of their own, so the links line up in their
+                        column, and a phone can put the state on the block's top line by the code. */}
+                      <td className="bracket-list-state-cell">
+                        {potential ? (
+                          <StatusChip state="potential" title="İki takım da gelirse oynanır">
+                            Olası
+                          </StatusChip>
+                        ) : undecided ? (
+                          <StatusChip state="potential">
+                            {m.potentials.length} olası eşleşme
+                          </StatusChip>
+                        ) : (
+                          <MatchStatus match={m} now={now} />
+                        )}
+                      </td>
+                      <td className="bracket-list-status-cell">
+                        <span className="bracket-list-status">
+                          {renderPageLink
+                            ? !potential && renderPageLink(m)
+                            : hasMatchPage(m) && (
+                                <MatchPageLink matchId={m.id} live={isLive(m)} variant="text" />
+                              )}
+                          <RoomLinks rooms={m.rooms} />
+                          {!potential && <RefereeWatchers viewers={presence?.get(m.id)} />}
+                        </span>
+                      </td>
+                      {renderActions && (
+                        <td className="bracket-list-actions-cell">
+                          {/* A potential match has no room or referee page yet. */}
+                          {!potential && (
+                            <div className="bracket-list-actions">{renderActions(m)}</div>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
             </tbody>
           </table>
         </div>
@@ -339,7 +376,13 @@ interface TeamNameProps {
 
 function TeamName({ id, source, teams, won, own, bannerEnd }: TeamNameProps) {
   const team = id ? teams.get(id) : undefined;
-  const classes = ["bracket-list-team", !team && "is-empty", won && "is-winner", own && "is-own", bannerEnd && "is-banner-end"]
+  const classes = [
+    "bracket-list-team",
+    !team && "is-empty",
+    won && "is-winner",
+    own && "is-own",
+    bannerEnd && "is-banner-end",
+  ]
     .filter(Boolean)
     .join(" ");
   return (

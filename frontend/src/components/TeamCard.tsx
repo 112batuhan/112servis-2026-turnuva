@@ -104,14 +104,22 @@ export function TeamCard<P extends Player>({
           {position !== undefined && <span className="team-card-position">#{position}</span>}
           <h3 className="team-card-name">
             {onRename ? (
-              <InlineEdit value={team.name} onSave={onRename} label="Takımı yeniden adlandır" maxLength={TEAM_NAME_MAX} />
+              <InlineEdit
+                value={team.name}
+                onSave={onRename}
+                label="Takımı yeniden adlandır"
+                maxLength={TEAM_NAME_MAX}
+              />
             ) : (
               team.name
             )}
           </h3>
         </div>
       </div>
-      <div className={showValue ? "team-card-body" : "team-card-body is-players-only"} aria-hidden={matchesOpen || undefined}>
+      <div
+        className={showValue ? "team-card-body" : "team-card-body is-players-only"}
+        aria-hidden={matchesOpen || undefined}
+      >
         {showValue && (
           <div className="team-card-value">
             <div className="team-card-fact">
@@ -119,7 +127,9 @@ export function TeamCard<P extends Player>({
               <span className="team-card-value-number num">{formatTeamValue(team.team_value)}</span>
             </div>
             {qualifier !== undefined && <QualifierFact place={qualifier} />}
-            {team.rank_warning && <span className="team-card-warning">{RANK_WARNING_LABELS[team.rank_warning]}</span>}
+            {team.rank_warning && (
+              <span className="team-card-warning">{RANK_WARNING_LABELS[team.rank_warning]}</span>
+            )}
             {flag && <span className="team-card-warning">{flag}</span>}
           </div>
         )}
@@ -167,14 +177,20 @@ export function TeamCard<P extends Player>({
  * card it's a fact like the team value, its label over its figure; `compact` is a row's one line.
  * Null: no place ("—").
  */
-export function QualifierFact({ place, compact = false }: { place: QualifierPlace | null; compact?: boolean }) {
+export function QualifierFact({
+  place,
+  compact = false,
+}: {
+  place: QualifierPlace | null;
+  compact?: boolean;
+}) {
   const title = !place
     ? "Eleme sıralamasında yok"
     : place.eliminated
       ? "Eleme sıralaması: bracket'e giremedi, turnuvadan elendi"
       : place.pending
-      ? "Eleme sıralaması: lobisi sürüyor, sırası değişebilir"
-      : "Eleme sıralaması (bracket seed'i)";
+        ? "Eleme sıralaması: lobisi sürüyor, sırası değişebilir"
+        : "Eleme sıralaması (bracket seed'i)";
   const figure = (
     <span className="qualifier-fact-figure">
       <span

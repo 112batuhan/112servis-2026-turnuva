@@ -566,7 +566,6 @@
   font-weight: 600;
 }
 
-
 /* Reads as text, like DiscordMention; clicking it pings the player in the match's channel. */
 .room-player-ping {
   max-width: 100%;

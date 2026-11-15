@@ -32,7 +32,10 @@ export function PublicPoolPage() {
   const selectedId = stages?.some((s) => s.id === requested) ? requested : fallback;
 
   const currentId = stages?.find((s) => s.state === "current")?.id ?? null;
-  const live = useMemo(() => new Map(stages?.filter((s) => s.live > 0).map((s) => [s.id, s.live])), [stages]);
+  const live = useMemo(
+    () => new Map(stages?.filter((s) => s.live > 0).map((s) => [s.id, s.live])),
+    [stages],
+  );
 
   // A failed refresh keeps the stages shown; only the first reading reports.
   const loadStages = useCallback((initial: boolean) => {
@@ -105,8 +108,13 @@ export function PublicPoolPage() {
       )}
 
       {detail && (
-        <div className={pool.stale ? "pool-board is-public is-stale" : "pool-board is-public"} aria-busy={pool.stale}>
-          {detail.categories.length === 0 && <p className="status">Bu stage'de henüz kategori yok.</p>}
+        <div
+          className={pool.stale ? "pool-board is-public is-stale" : "pool-board is-public"}
+          aria-busy={pool.stale}
+        >
+          {detail.categories.length === 0 && (
+            <p className="status">Bu stage'de henüz kategori yok.</p>
+          )}
           {detail.categories.map((category) => (
             <PublicCategory
               key={category.id}
@@ -146,7 +154,11 @@ function PublicCategory({ category, detail, expanded, onToggle }: PublicCategory
         const map = detail.maps.find((m) => m.slot_id === slot.id);
         return (
           <Slot key={slot.id} number={i + 1} label={`${category.name}${i + 1}`}>
-            {map ? <MapCard map={map} showHr={showsHrStats(category.name)} /> : <EmptySlot>Daha sonra açıklanacak</EmptySlot>}
+            {map ? (
+              <MapCard map={map} showHr={showsHrStats(category.name)} />
+            ) : (
+              <EmptySlot>Daha sonra açıklanacak</EmptySlot>
+            )}
           </Slot>
         );
       })}

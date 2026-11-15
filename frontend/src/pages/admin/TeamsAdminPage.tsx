@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../api/client";
-import { disbandTeam, fetchTeams, refreshRanks, removeTeamBanner, renameTeam, setTeamsFrozen } from "../../api/teams";
+import {
+  disbandTeam,
+  fetchTeams,
+  refreshRanks,
+  removeTeamBanner,
+  renameTeam,
+  setTeamsFrozen,
+} from "../../api/teams";
 import type { AdminTeamPlayer, ListedTeam } from "../../api/types";
 import { DiscordMention } from "../../components/DiscordMention";
 import { ErrorAlert } from "../../components/ErrorAlert";
@@ -84,7 +91,9 @@ export function TeamsAdminPage() {
     setBusyId(team.id);
     try {
       await removeTeamBanner(team.id);
-      setTeams((list) => list?.map((t) => (t.id === team.id ? { ...t, banner_url: null } : t)) ?? null);
+      setTeams(
+        (list) => list?.map((t) => (t.id === team.id ? { ...t, banner_url: null } : t)) ?? null,
+      );
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -170,7 +179,10 @@ export function TeamsAdminPage() {
           </span>
         )}
         {flagged > 0 && (
-          <span className="badge badge-danger" title="Güncel rank'ları artık limite uymayan ya da banlanmış oyuncusu olan takımlar">
+          <span
+            className="badge badge-danger"
+            title="Güncel rank'ları artık limite uymayan ya da banlanmış oyuncusu olan takımlar"
+          >
             {flagged} işaretli
           </span>
         )}

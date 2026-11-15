@@ -59,7 +59,12 @@
   height: 80px;
   padding: 0 12px;
   border-radius: var(--radius-full);
-  background: linear-gradient(90deg, var(--color-chip), var(--color-chip-light) 50%, var(--color-chip));
+  background: linear-gradient(
+    90deg,
+    var(--color-chip),
+    var(--color-chip-light) 50%,
+    var(--color-chip)
+  );
   box-shadow: 0 6px 18px var(--color-scrim);
   animation: sc-in 700ms var(--ease-out) both;
 }

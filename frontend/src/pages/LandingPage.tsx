@@ -11,7 +11,13 @@ import { canPlay } from "../auth/roles";
 import { Countdown } from "../components/Countdown";
 import { FixtureRow } from "../components/FixtureRow";
 import { StageTabs, type StageMark } from "../components/StageTabs";
-import { compareByTime, fixturePath, incomingSources, withPotentials, withScore } from "../lib/bracket";
+import {
+  compareByTime,
+  fixturePath,
+  incomingSources,
+  withPotentials,
+  withScore,
+} from "../lib/bracket";
 import { formatMatchTime } from "../lib/format";
 import { useLiveRefresh } from "../lib/useLiveRefresh";
 import { useLiveBracket } from "../live/LiveContext";
@@ -49,8 +55,10 @@ export function LandingPage() {
     // Each part degrades on its own: a failing request only empties its section.
     Promise.allSettled([fetchPublicBracket(), fetchPublicQualifiers(), fetchPublicStages()]).then(
       ([bracket, qualifiers, stages]) => {
-        const value = <T,>(r: PromiseSettledResult<T>) => (r.status === "fulfilled" ? r.value : null);
-        if (bracket.status === "rejected" && qualifiers.status === "rejected") setError(errorMessage(bracket.reason));
+        const value = <T,>(r: PromiseSettledResult<T>) =>
+          r.status === "fulfilled" ? r.value : null;
+        if (bracket.status === "rejected" && qualifiers.status === "rejected")
+          setError(errorMessage(bracket.reason));
         setData({ bracket: value(bracket), qualifiers: value(qualifiers), stages: value(stages) });
       },
     );
@@ -81,7 +89,10 @@ export function LandingPage() {
         d?.bracket
           ? {
               ...d,
-              bracket: { ...d.bracket, matches: withScore(d.bracket.matches, e.match_id, e.team1_score, e.team2_score) },
+              bracket: {
+                ...d.bracket,
+                matches: withScore(d.bracket.matches, e.match_id, e.team1_score, e.team2_score),
+              },
             }
           : d,
       ),
@@ -102,7 +113,9 @@ export function LandingPage() {
     .slice(0, RESULTS_LIMIT);
   const lobbies = data?.qualifiers?.lobbies ?? [];
   // Lobbies matter until the bracket starts; one a referee forgot to close shouldn't linger after.
-  const openLobbies = matches.some((m) => m.concluded_at) ? [] : lobbies.filter((lobby) => !lobby.concluded_at);
+  const openLobbies = matches.some((m) => m.concluded_at)
+    ? []
+    : lobbies.filter((lobby) => !lobby.concluded_at);
 
   const myTeamId = data?.bracket?.my_team_id ?? null;
   const played = matches.filter((m) => m.concluded_at).length;
@@ -159,7 +172,8 @@ export function LandingPage() {
           </p>
           {!user && (
             <p id="landing-invite" className="landing-invite">
-              Turnuvaya kayıt olmak için, Pick'em ve daha fazlası için <strong>osu! ile giriş yap!</strong>
+              Turnuvaya kayıt olmak için, Pick'em ve daha fazlası için{" "}
+              <strong>osu! ile giriş yap!</strong>
             </p>
           )}
           <div className="landing-actions">
@@ -242,7 +256,9 @@ export function LandingPage() {
               <ul className="fixture-list">{upcoming.map(row)}</ul>
             ) : (
               <p className="landing-empty">
-                {matches.length === 0 ? "Bracket maçları henüz açıklanmadı." : "Planlanmış maç kalmadı."}
+                {matches.length === 0
+                  ? "Bracket maçları henüz açıklanmadı."
+                  : "Planlanmış maç kalmadı."}
               </p>
             )}
           </section>
@@ -309,4 +325,3 @@ function MyTeamSection({ data, myTeamId }: { data: PublicBracket; myTeamId: stri
     </section>
   );
 }
-

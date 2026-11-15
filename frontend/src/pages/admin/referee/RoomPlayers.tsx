@@ -35,7 +35,11 @@ export function RoomPlayers({ referee }: { referee: RefereeRoomState }) {
           : undefined
       }
       unreadModsHint="Modları henüz okunmadı; Odayı yenile ile okunur"
-      slotControl={canRun && !concluded ? { enabled: ready, disabledReason: why, place: actions.place } : undefined}
+      slotControl={
+        canRun && !concluded
+          ? { enabled: ready, disabledReason: why, place: actions.place }
+          : undefined
+      }
       renderContact={(player) =>
         room.discord_channel && canRun ? (
           <DiscordPing matchId={room.id} player={player} />
@@ -65,7 +69,9 @@ const PING_NOTE_MS = 2500;
  * clicked, to call them into the room.
  */
 function DiscordPing({ matchId, player }: { matchId: string; player: AdminTeamPlayer }) {
-  const [state, setState] = useState<{ kind: "idle" | "busy" | "done" } | { kind: "failed"; error: string }>({
+  const [state, setState] = useState<
+    { kind: "idle" | "busy" | "done" } | { kind: "failed"; error: string }
+  >({
     kind: "idle",
   });
 
@@ -103,7 +109,11 @@ function DiscordPing({ matchId, player }: { matchId: string; player: AdminTeamPl
       disabled={state.kind === "busy"}
       onClick={ping}
     >
-      {state.kind === "done" ? "Etiketlendi" : state.kind === "failed" ? "Etiketlenemedi" : `@${player.discord_username}`}
+      {state.kind === "done"
+        ? "Etiketlendi"
+        : state.kind === "failed"
+          ? "Etiketlenemedi"
+          : `@${player.discord_username}`}
       <span className="sr-only" role="status">
         {state.kind === "done" ? "Oyuncu etiketlendi" : state.kind === "failed" ? state.error : ""}
       </span>

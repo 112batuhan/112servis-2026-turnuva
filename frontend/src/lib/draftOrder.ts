@@ -56,7 +56,9 @@ export function formatDraftOrder(order: DraftOrder): string {
 /** A stage's order, or the default when it has none or it doesn't read. */
 export function stageDraftOrder(stored: string | null | undefined): DraftOrder {
   const parsed = parseDraftOrder(stored || DEFAULT_DRAFT_ORDER);
-  return "order" in parsed ? parsed.order : (parseDraftOrder(DEFAULT_DRAFT_ORDER) as { order: DraftOrder }).order;
+  return "order" in parsed
+    ? parsed.order
+    : (parseDraftOrder(DEFAULT_DRAFT_ORDER) as { order: DraftOrder }).order;
 }
 
 interface Mark {

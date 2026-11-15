@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { BracketMatch } from "../api/types";
-import { BOARD, currentStageId, isLive, overlapsAny, potentialRows, scoreHalves, winningSlot, withPotentials } from "./bracket";
+import {
+  BOARD,
+  currentStageId,
+  isLive,
+  overlapsAny,
+  potentialRows,
+  scoreHalves,
+  winningSlot,
+  withPotentials,
+} from "./bracket";
 
 // The bracket rules the views mirror from the server: who won (services/bracket.rs `outcome`), the stage being
 // played (stage_track.rs),
@@ -49,7 +58,9 @@ describe("winningSlot", () => {
   });
 
   it("is the other team after a forfeit, whatever the score", () => {
-    expect(winningSlot(match({ forfeit_slot: 1, team1_score: 5, team2_score: 0, concluded_at: at(0) }))).toBe(2);
+    expect(
+      winningSlot(match({ forfeit_slot: 1, team1_score: 5, team2_score: 0, concluded_at: at(0) })),
+    ).toBe(2);
     expect(winningSlot(match({ forfeit_slot: 2, concluded_at: at(0) }))).toBe(1);
   });
 });
@@ -68,12 +79,18 @@ describe("isLive", () => {
     expect(isLive(match({ starts_at: at(5), rooms: [room] }), NOW)).toBe(false);
     expect(isLive(match({ starts_at: at(-5) }), NOW)).toBe(false);
     expect(isLive(match({ rooms: [room] }), NOW)).toBe(false);
-    expect(isLive(match({ starts_at: at(-5), rooms: [room], concluded_at: at(0) }), NOW)).toBe(false);
+    expect(isLive(match({ starts_at: at(-5), rooms: [room], concluded_at: at(0) }), NOW)).toBe(
+      false,
+    );
   });
 });
 
 describe("potential matches", () => {
-  const referee = { id: "r", username: "Ref", avatar_url: "" } as unknown as BracketMatch["referee"];
+  const referee = {
+    id: "r",
+    username: "Ref",
+    avatar_url: "",
+  } as unknown as BracketMatch["referee"];
   const undecided = match({
     id: "L20",
     team1_id: "t1",
@@ -88,8 +105,19 @@ describe("potential matches", () => {
 
   it("stand in for their match with their own teams, time and staff, pointing back at it", () => {
     const [first, second] = potentialRows(undecided);
-    expect(first).toMatchObject({ id: "p1", team2_id: "t3", starts_at: at(60), referee, potential_of: "L20" });
-    expect(second).toMatchObject({ id: "p2", team2_id: "t4", starts_at: null, potential_of: "L20" });
+    expect(first).toMatchObject({
+      id: "p1",
+      team2_id: "t3",
+      starts_at: at(60),
+      referee,
+      potential_of: "L20",
+    });
+    expect(second).toMatchObject({
+      id: "p2",
+      team2_id: "t4",
+      starts_at: null,
+      potential_of: "L20",
+    });
     // No room, score or pairings of their own.
     expect(first.rooms).toEqual([]);
     expect(first.team1_score).toBeNull();
@@ -121,7 +149,14 @@ describe("overlapsAny", () => {
 });
 
 describe("currentStageId", () => {
-  const stage = (id: string, position: number) => ({ id, name: id, abbreviation: null, published: true, position, best_of: 7 });
+  const stage = (id: string, position: number) => ({
+    id,
+    name: id,
+    abbreviation: null,
+    published: true,
+    position,
+    best_of: 7,
+  });
   const r16 = stage("r16", 1);
   const qf = stage("qf", 2);
 
@@ -145,7 +180,14 @@ describe("currentStageId", () => {
   });
 
   it("skips matches without a stage, and is null once every staged match is over", () => {
-    expect(currentStageId([match({ starts_at: at(0) }), match({ id: "b", stage: qf, starts_at: at(10) })])).toBe("qf");
-    expect(currentStageId([match({ stage: qf, concluded_at: at(0) }), match({ id: "b" })])).toBeNull();
+    expect(
+      currentStageId([
+        match({ starts_at: at(0) }),
+        match({ id: "b", stage: qf, starts_at: at(10) }),
+      ]),
+    ).toBe("qf");
+    expect(
+      currentStageId([match({ stage: qf, concluded_at: at(0) }), match({ id: "b" })]),
+    ).toBeNull();
   });
 });

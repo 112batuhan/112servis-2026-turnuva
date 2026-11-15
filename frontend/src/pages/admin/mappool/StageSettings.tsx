@@ -121,7 +121,13 @@ function PackUrlForm({
   );
 }
 
-function NewCategoryForm({ busy, onCreate }: { busy: boolean; onCreate: (name: string) => Promise<boolean> }) {
+function NewCategoryForm({
+  busy,
+  onCreate,
+}: {
+  busy: boolean;
+  onCreate: (name: string) => Promise<boolean>;
+}) {
   const [name, setName] = useState("");
 
   async function submit(e: FormEvent) {
@@ -190,7 +196,11 @@ function CategoryList({ detail, actions }: { detail: StageDetail; actions: Stage
             label={`${category.name} kategorisini sil`}
             tone="danger"
             onClick={() => {
-              if (confirm(`"${category.name}" kategorisi silinsin mi? Slot'ları ve notları kaldırılır; map'ler ortak havuza döner.`)) {
+              if (
+                confirm(
+                  `"${category.name}" kategorisi silinsin mi? Slot'ları ve notları kaldırılır; map'ler ortak havuza döner.`,
+                )
+              ) {
                 actions.deleteCategory(category.id);
               }
             }}

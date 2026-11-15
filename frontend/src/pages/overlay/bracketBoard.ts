@@ -35,7 +35,12 @@ export function boardBounds(matches: Pick<BracketMatch, "pos_x" | "pos_y">[]): B
   if (matches.length === 0) return null;
   const xs = matches.map((m) => m.pos_x * UNIT);
   const ys = matches.map((m) => m.pos_y * UNIT);
-  return { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs) + CARD_W, bottom: Math.max(...ys) + CARD_H };
+  return {
+    left: Math.min(...xs),
+    top: Math.min(...ys),
+    right: Math.max(...xs) + CARD_W,
+    bottom: Math.max(...ys) + CARD_H,
+  };
 }
 
 const clampZoom = (zoom: number) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
@@ -72,7 +77,11 @@ export function focusCamera(match: Pick<BracketMatch, "pos_x" | "pos_y">): Camer
 /** Moves the camera by a share of the view (dx, dy in -1..1), whatever the zoom. */
 export function panCamera(camera: Camera, dx: number, dy: number, bounds: Bounds | null): Camera {
   return clampCamera(
-    { ...camera, x: camera.x + (dx * VIEW.w) / camera.zoom, y: camera.y + (dy * VIEW.h) / camera.zoom },
+    {
+      ...camera,
+      x: camera.x + (dx * VIEW.w) / camera.zoom,
+      y: camera.y + (dy * VIEW.h) / camera.zoom,
+    },
     bounds,
   );
 }

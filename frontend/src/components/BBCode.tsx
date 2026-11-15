@@ -21,7 +21,18 @@ interface Ctx {
 }
 
 /** Blocks swallow the line break right before and after them, like on the forum. */
-const BLOCKS = new Set(["list", "*", "heading", "notice", "quote", "code", "centre", "center", "box", "spoilerbox"]);
+const BLOCKS = new Set([
+  "list",
+  "*",
+  "heading",
+  "notice",
+  "quote",
+  "code",
+  "centre",
+  "center",
+  "box",
+  "spoilerbox",
+]);
 const isBlock = (node: BBNode | undefined) => node?.type === "tag" && BLOCKS.has(node.name);
 
 function renderList(nodes: BBNode[], ctx: Ctx): ReactNode[] {
@@ -117,7 +128,9 @@ function renderTag(node: Extract<BBNode, { type: "tag" }>, ctx: Ctx): ReactNode 
     }
     case "profile": {
       const name = raw().trim();
-      const href = node.arg ? `https://osu.ppy.sh/users/${encodeURIComponent(node.arg)}` : `https://osu.ppy.sh/users/${encodeURIComponent(name)}`;
+      const href = node.arg
+        ? `https://osu.ppy.sh/users/${encodeURIComponent(node.arg)}`
+        : `https://osu.ppy.sh/users/${encodeURIComponent(name)}`;
       return (
         <a href={href} target="_blank" rel="noopener noreferrer">
           {name}
@@ -141,7 +154,11 @@ function renderTag(node: Extract<BBNode, { type: "tag" }>, ctx: Ctx): ReactNode 
       const items = node.children.filter((n) => n.type === "tag" && n.name === "*");
       const rendered = renderList(items, ctx);
       // On the forum any argument makes the list numbered.
-      return node.arg === null ? <ul className="bbcode-list">{rendered}</ul> : <ol className="bbcode-list">{rendered}</ol>;
+      return node.arg === null ? (
+        <ul className="bbcode-list">{rendered}</ul>
+      ) : (
+        <ol className="bbcode-list">{rendered}</ol>
+      );
     }
     case "*":
       return <li>{renderList(trimEdges(node.children), ctx)}</li>;

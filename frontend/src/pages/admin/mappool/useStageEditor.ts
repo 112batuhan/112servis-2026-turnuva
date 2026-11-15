@@ -112,9 +112,13 @@ export function useStageEditor(userId: string) {
 
   /** Live preview while the colour picker moves; call saveCategoryColor when it closes. */
   const previewCategoryColor = (id: string, color: string) =>
-    patchDetail((d) => ({ ...d, categories: d.categories.map((c) => (c.id === id ? { ...c, color } : c)) }));
+    patchDetail((d) => ({
+      ...d,
+      categories: d.categories.map((c) => (c.id === id ? { ...c, color } : c)),
+    }));
 
-  const saveCategoryColor = (id: string, color: string) => saveInBackground(api.setCategoryColor(id, color));
+  const saveCategoryColor = (id: string, color: string) =>
+    saveInBackground(api.setCategoryColor(id, color));
 
   function applyCategoryOrder(ids: string[] | null) {
     if (!ids) return;
@@ -127,7 +131,8 @@ export function useStageEditor(userId: string) {
   const dragCategory = (draggedId: string, targetId: string) =>
     applyCategoryOrder(moveToTarget(categoryIds(), draggedId, targetId));
 
-  const shiftCategory = (id: string, delta: number) => applyCategoryOrder(moveBy(categoryIds(), id, delta));
+  const shiftCategory = (id: string, delta: number) =>
+    applyCategoryOrder(moveBy(categoryIds(), id, delta));
 
   // ---- slots ----
 
@@ -144,7 +149,10 @@ export function useStageEditor(userId: string) {
     });
 
   function saveSlotNotes(slotId: string, notes: string) {
-    patchDetail((d) => ({ ...d, slots: d.slots.map((s) => (s.id === slotId ? { ...s, editor_notes: notes } : s)) }));
+    patchDetail((d) => ({
+      ...d,
+      slots: d.slots.map((s) => (s.id === slotId ? { ...s, editor_notes: notes } : s)),
+    }));
     saveInBackground(api.updateSlotNotes(slotId, notes));
   }
 
@@ -175,7 +183,10 @@ export function useStageEditor(userId: string) {
     });
 
   function saveMapNote(mapId: string, field: MapNoteField, value: string) {
-    patchDetail((d) => ({ ...d, maps: d.maps.map((m) => (m.id === mapId ? { ...m, [field]: value } : m)) }));
+    patchDetail((d) => ({
+      ...d,
+      maps: d.maps.map((m) => (m.id === mapId ? { ...m, [field]: value } : m)),
+    }));
     saveInBackground(api.updateMapNote(mapId, field, value));
   }
 

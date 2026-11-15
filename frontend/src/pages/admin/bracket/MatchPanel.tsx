@@ -1,7 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import type { BracketMatchUpdate } from "../../../api/bracket";
-import type { BracketSide, MatchStage, NextMatch, Player, RefereeViewer, Stage } from "../../../api/types";
+import type {
+  BracketSide,
+  MatchStage,
+  NextMatch,
+  Player,
+  RefereeViewer,
+  Stage,
+} from "../../../api/types";
 import { useSignedInUser } from "../../../auth/AuthContext";
 import { hasRole } from "../../../auth/roles";
 import { MatchStatus } from "../../../components/bracket/BracketList";
@@ -83,13 +90,14 @@ export function MatchPanel({
   const [draft, setDraft] = useState<[number | null, number | null] | null>(null);
   const [score1, score2] = draft ?? [match.team1_score, match.team2_score];
 
-  const concludeBlocker = match.rooms.length === 0
-    ? "Önce maç linkini ekle"
-    : !match.team1_id || !match.team2_id
-      ? "İki takım da belli olmalı"
-      : score1 === null || score2 === null || score1 === score2
-        ? "Önce kazananı belli eden bir skor gir"
-        : null;
+  const concludeBlocker =
+    match.rooms.length === 0
+      ? "Önce maç linkini ekle"
+      : !match.team1_id || !match.team2_id
+        ? "İki takım da belli olmalı"
+        : score1 === null || score2 === null || score1 === score2
+          ? "Önce kazananı belli eden bir skor gir"
+          : null;
 
   function confirmConclude() {
     const [t1, t2] = [team(match.team1_id), team(match.team2_id)];
@@ -121,7 +129,8 @@ export function MatchPanel({
         tabIndex={-1}
         onKeyDown={(e) => {
           // Escape in a field belongs to the field (cancelling an edit), not to the panel.
-          if (e.key !== "Escape" || (e.target as Element).closest("input, textarea, select")) return;
+          if (e.key !== "Escape" || (e.target as Element).closest("input, textarea, select"))
+            return;
           onClose();
         }}
       >
@@ -133,8 +142,15 @@ export function MatchPanel({
             <MatchStatus match={match} now={new Date().toISOString()} />
           )}
           <RefereeWatchers viewers={watchers} />
-          {hasMatchPage(match) && <MatchPageLink matchId={match.id} live={isLive(match)} variant="row" />}
-          <IconButton icon="close" label="Paneli kapat" onClick={onClose} className="match-panel-close" />
+          {hasMatchPage(match) && (
+            <MatchPageLink matchId={match.id} live={isLive(match)} variant="row" />
+          )}
+          <IconButton
+            icon="close"
+            label="Paneli kapat"
+            onClick={onClose}
+            className="match-panel-close"
+          />
         </header>
 
         <div className="match-panel-teams">
@@ -144,7 +160,11 @@ export function MatchPanel({
             return (
               <div key={i} className="match-panel-team">
                 <span className="match-panel-team-name">
-                  {t ? t.name : <span className="muted">{source ? sourceLabel(source) : "Belirlenmedi"}</span>}
+                  {t ? (
+                    t.name
+                  ) : (
+                    <span className="muted">{source ? sourceLabel(source) : "Belirlenmedi"}</span>
+                  )}
                 </span>
                 {t && (
                   <span className="match-panel-players">
@@ -193,7 +213,12 @@ export function MatchPanel({
           <div>
             <dt>Yayıncı</dt>
             <dd>
-              <StreamerControl match={match} editor={editor} options={streamers} myTeamId={myTeamId} />
+              <StreamerControl
+                match={match}
+                editor={editor}
+                options={streamers}
+                myTeamId={myTeamId}
+              />
             </dd>
           </div>
           <div>
@@ -205,7 +230,10 @@ export function MatchPanel({
                   // save included), so it never shows a stale draft.
                   key={`${match.id}:${match.team1_score}:${match.team2_score}`}
                   match={match}
-                  names={[team(match.team1_id)?.name ?? "1. takım", team(match.team2_id)?.name ?? "2. takım"]}
+                  names={[
+                    team(match.team1_id)?.name ?? "1. takım",
+                    team(match.team2_id)?.name ?? "2. takım",
+                  ]}
                   disabled={busy}
                   onSave={(a, b) => editor.setScore(match.id, a, b)}
                   onDraft={setDraft}
@@ -214,7 +242,9 @@ export function MatchPanel({
                 <span className="match-panel-score">
                   {match.forfeit_slot === 1 ? "FF : W" : "W : FF"}{" "}
                   <span className="muted">
-                    (hükmen, {team(match.forfeit_slot === 1 ? match.team1_id : match.team2_id)?.name ?? "?"} çekildi)
+                    (hükmen,{" "}
+                    {team(match.forfeit_slot === 1 ? match.team1_id : match.team2_id)?.name ?? "?"}{" "}
+                    çekildi)
                   </span>
                 </span>
               ) : (
@@ -276,7 +306,10 @@ export function MatchPanel({
             )}
             {!concluded && match.team1_id && match.team2_id && (
               <ForfeitButtons
-                names={[team(match.team1_id)?.name ?? "1. takım", team(match.team2_id)?.name ?? "2. takım"]}
+                names={[
+                  team(match.team1_id)?.name ?? "1. takım",
+                  team(match.team2_id)?.name ?? "2. takım",
+                ]}
                 disabled={busy}
                 onForfeit={(slot) => editor.forfeit(match.id, slot)}
               />
@@ -318,7 +351,11 @@ export function MatchPanel({
                 className="btn btn-danger btn-sm"
                 disabled={busy}
                 onClick={() => {
-                  if (window.confirm(`${code} silinsin mi? Bu maçın ileri taşıdığı takımlar yerinde kalır.`)) {
+                  if (
+                    window.confirm(
+                      `${code} silinsin mi? Bu maçın ileri taşıdığı takımlar yerinde kalır.`,
+                    )
+                  ) {
                     editor.remove(match.id);
                     onClose();
                   }
@@ -355,18 +392,23 @@ function PotentialList({ match, team, editor, referees, streamers, myTeamId }: P
         Olası eşleşmeler <span className="num">{rows.length}</span>
       </h3>
       <p className="muted match-panel-hint">
-        Bu haftaki maçlar bitince biri bu maç olur ve saatiyle hakemini ona taşır; diğerleri kalkar. Maçın saati,
-        hakemi ve yayıncısı, değiştirilmemiş eşleşmelere de geçer.
+        Bu haftaki maçlar bitince biri bu maç olur ve saatiyle hakemini ona taşır; diğerleri kalkar.
+        Maçın saati, hakemi ve yayıncısı, değiştirilmemiş eşleşmelere de geçer.
       </p>
       <ul className="match-panel-potential-list">
         {rows.map((p) => (
           <li key={p.id} className="match-panel-potential">
             <div className="match-panel-potential-head">
               <span className="match-panel-potential-teams">
-                {team(p.team1_id)?.name ?? "?"} <span className="muted">vs</span> {team(p.team2_id)?.name ?? "?"}
+                {team(p.team1_id)?.name ?? "?"} <span className="muted">vs</span>{" "}
+                {team(p.team2_id)?.name ?? "?"}
               </span>
               <span className="match-panel-potential-time">
-                {p.starts_at ? formatShortMatchTime(p.starts_at) : <span className="muted">Saat yok</span>}
+                {p.starts_at ? (
+                  formatShortMatchTime(p.starts_at)
+                ) : (
+                  <span className="muted">Saat yok</span>
+                )}
               </span>
             </div>
             <dl className="match-panel-rows">
@@ -379,7 +421,12 @@ function PotentialList({ match, team, editor, referees, streamers, myTeamId }: P
               <div>
                 <dt>Yayıncı</dt>
                 <dd>
-                  <StreamerControl match={p} editor={editor} options={streamers} myTeamId={myTeamId} />
+                  <StreamerControl
+                    match={p}
+                    editor={editor}
+                    options={streamers}
+                    myTeamId={myTeamId}
+                  />
                 </dd>
               </div>
             </dl>
@@ -498,7 +545,15 @@ function parseLink(value: string): NextMatch | null {
 }
 
 /** The host's edits: code, stage, time, teams and where the winner and loser go. */
-function StructureForm({ match, matches, teams, sources, stages, disabled, onSave }: StructureFormProps) {
+function StructureForm({
+  match,
+  matches,
+  teams,
+  sources,
+  stages,
+  disabled,
+  onSave,
+}: StructureFormProps) {
   const [side, setSide] = useState(match.side);
   const [number, setNumber] = useState(String(match.number));
   const [startsAt, setStartsAt] = useState(match.starts_at ? toDateTimeLocal(match.starts_at) : "");
@@ -532,7 +587,12 @@ function StructureForm({ match, matches, teams, sources, stages, disabled, onSav
     });
   }
 
-  function targetSelect(label: string, value: string, setValue: (v: string) => void, outcome: "winner" | "loser") {
+  function targetSelect(
+    label: string,
+    value: string,
+    setValue: (v: string) => void,
+    outcome: "winner" | "loser",
+  ) {
     return (
       <label className="match-form-field">
         <span>{label}</span>
@@ -546,7 +606,8 @@ function StructureForm({ match, matches, teams, sources, stages, disabled, onSav
           {others.map((m) =>
             ([1, 2] as const).map((slot) => {
               const feeder = sources.get(m.id)?.[slot - 1];
-              const takenByOther = feeder && !(feeder.match.id === match.id && feeder.outcome === outcome);
+              const takenByOther =
+                feeder && !(feeder.match.id === match.id && feeder.outcome === outcome);
               return (
                 <option key={`${m.id}:${slot}`} value={`${m.id}:${slot}`} disabled={!!takenByOther}>
                   {matchCode(m)} · {slot}. takım{takenByOther ? ` (${sourceLabel(feeder)})` : ""}
@@ -639,7 +700,12 @@ function StructureForm({ match, matches, teams, sources, stages, disabled, onSav
             onChange={(e) => setStartsAt(e.target.value)}
           />
           {startsAt && (
-            <IconButton icon="close" label="Zamanı kaldır" disabled={disabled} onClick={() => setStartsAt("")} />
+            <IconButton
+              icon="close"
+              label="Zamanı kaldır"
+              disabled={disabled}
+              onClick={() => setStartsAt("")}
+            />
           )}
         </span>
       </label>
@@ -648,7 +714,9 @@ function StructureForm({ match, matches, teams, sources, stages, disabled, onSav
       {targetSelect("Kazanan gider", winnerTo, setWinnerTo, "winner")}
       {targetSelect("Kaybeden gider", loserTo, setLoserTo, "loser")}
       {concluded && (
-        <p className="match-form-hint">Takımları ve bağlantıları değiştirmek için önce maçı yeniden aç.</p>
+        <p className="match-form-hint">
+          Takımları ve bağlantıları değiştirmek için önce maçı yeniden aç.
+        </p>
       )}
       <button type="submit" className="btn btn-primary btn-sm" disabled={disabled}>
         Kaydet
@@ -704,8 +772,8 @@ function PositionForm({ match, disabled, onMove }: PositionFormProps) {
         </button>
       </div>
       <p className="match-form-hint">
-        Izgara birimiyle; bir kart {BOARD.cardW}×{BOARD.cardH} birim. Seçili kartı ok tuşlarıyla da kaydırabilirsin
-        (Shift ile 5 birim).
+        Izgara birimiyle; bir kart {BOARD.cardW}×{BOARD.cardH} birim. Seçili kartı ok tuşlarıyla da
+        kaydırabilirsin (Shift ile 5 birim).
       </p>
     </form>
   );
@@ -748,7 +816,11 @@ function ForfeitButtons({
           className="btn btn-danger btn-sm"
           disabled={disabled}
           onClick={() => {
-            if (window.confirm(`${name} çekilmiş sayılsın mı? Maç hükmen biter ve ${names[1 - i]} kazanır.`)) {
+            if (
+              window.confirm(
+                `${name} çekilmiş sayılsın mı? Maç hükmen biter ve ${names[1 - i]} kazanır.`,
+              )
+            ) {
               onForfeit((i + 1) as 1 | 2);
             }
           }}

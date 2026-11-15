@@ -19,7 +19,9 @@ export function matchPagePath(matchId: string): string {
  * Whether a bracket match is linked to its public page: once both its teams are known. A potential match
  * has none until it's decided.
  */
-export function hasMatchPage(m: Pick<BracketMatch, "team1_id" | "team2_id" | "potential_of">): boolean {
+export function hasMatchPage(
+  m: Pick<BracketMatch, "team1_id" | "team2_id" | "potential_of">,
+): boolean {
   return m.potential_of === undefined && m.team1_id !== null && m.team2_id !== null;
 }
 
@@ -27,7 +29,9 @@ export function hasMatchPage(m: Pick<BracketMatch, "team1_id" | "team2_id" | "po
  * Where a fixture row leads: the match's own page, or the bracket while it's still waiting for a team (its
  * bracket match, for a potential match).
  */
-export function fixturePath(m: Pick<BracketMatch, "id" | "team1_id" | "team2_id" | "potential_of">): string {
+export function fixturePath(
+  m: Pick<BracketMatch, "id" | "team1_id" | "team2_id" | "potential_of">,
+): string {
   if (m.potential_of !== undefined) return bracketMatchPath(m.potential_of, false);
   return hasMatchPage(m) ? matchPagePath(m.id) : bracketMatchPath(m.id, false);
 }
@@ -97,7 +101,9 @@ export function sourceLabel(source: Source): string {
 }
 
 /** For each match id, the sources feeding its slot 1 and slot 2. */
-export function incomingSources<M extends BracketMatch>(matches: M[]): Map<string, [Source<M> | null, Source<M> | null]> {
+export function incomingSources<M extends BracketMatch>(
+  matches: M[],
+): Map<string, [Source<M> | null, Source<M> | null]> {
   const map = new Map<string, [Source<M> | null, Source<M> | null]>();
   for (const m of matches) map.set(m.id, [null, null]);
   for (const match of matches) {
@@ -124,7 +130,12 @@ export function winningSlot(m: BracketMatch): 1 | 2 | null {
  * and it isn't concluded yet. Its score, while it's live, is the running one.
  */
 export function isLive(m: BracketMatch, now = Date.now()): boolean {
-  return !m.concluded_at && m.starts_at !== null && new Date(m.starts_at).getTime() <= now && m.rooms.length > 0;
+  return (
+    !m.concluded_at &&
+    m.starts_at !== null &&
+    new Date(m.starts_at).getTime() <= now &&
+    m.rooms.length > 0
+  );
 }
 
 /** A qualifier lobby being played: its time has come, it has a room and it isn't concluded. */
@@ -134,7 +145,8 @@ export function isLobbyLive(lobby: Lobby<Player>): boolean {
 
 /** The two halves of a match's score as shown: the figures, or W and FF for a forfeit, or null without one. */
 export function scoreHalves(m: BracketMatch): [string, string] | null {
-  if (m.concluded_at && m.forfeit_slot !== null) return m.forfeit_slot === 1 ? ["FF", "W"] : ["W", "FF"];
+  if (m.concluded_at && m.forfeit_slot !== null)
+    return m.forfeit_slot === 1 ? ["FF", "W"] : ["W", "FF"];
   if (m.team1_score === null || m.team2_score === null) return null;
   return [String(m.team1_score), String(m.team2_score)];
 }
@@ -146,7 +158,9 @@ export function withScore<M extends BracketMatch>(
   team1Score: number | null,
   team2Score: number | null,
 ): M[] {
-  return matches.map((m) => (m.id === matchId ? { ...m, team1_score: team1Score, team2_score: team2Score } : m));
+  return matches.map((m) =>
+    m.id === matchId ? { ...m, team1_score: team1Score, team2_score: team2Score } : m,
+  );
 }
 
 /** The number a new match on `side` gets: one after the highest. */
@@ -189,9 +203,7 @@ export function groupByStage<M extends BracketMatch>(matches: M[]): StageGroup<M
  * null once every match with a stage is over, or before any has one.
  */
 export function currentStageId(matches: BracketMatch[]): string | null {
-  const next = matches
-    .filter((m) => m.stage && !m.concluded_at)
-    .sort(compareByTime)[0];
+  const next = matches.filter((m) => m.stage && !m.concluded_at).sort(compareByTime)[0];
   return next?.stage?.id ?? null;
 }
 

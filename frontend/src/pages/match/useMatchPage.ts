@@ -14,7 +14,13 @@ import {
   type RosterPlayer,
   type Tally,
 } from "../../lib/liveRoom";
-import { draftTurn, matchDraft, matchTeams, poolEntries, type MatchTeam } from "../../lib/matchPool";
+import {
+  draftTurn,
+  matchDraft,
+  matchTeams,
+  poolEntries,
+  type MatchTeam,
+} from "../../lib/matchPool";
 import { toChatLine } from "../../lib/roomChat";
 import { useMatchFeed } from "../../lib/useMatchFeed";
 import { useLive } from "../../live/LiveContext";
@@ -82,7 +88,9 @@ export function useMatchPage(matchId: string, { spectate = true }: { spectate?: 
   const roster = useMemo<RosterPlayer<Player>[]>(() => (match ? rosterOf(match) : []), [match]);
   const findRoster = useCallback(
     (slot: Pick<RoomSlot, "username" | "userId">) =>
-      roster.find((r) => r.player.osu_id === slot.userId || sameName(r.player.username, slot.username)),
+      roster.find(
+        (r) => r.player.osu_id === slot.userId || sameName(r.player.username, slot.username),
+      ),
     [roster],
   );
   const teams = useMemo<MatchTeam[]>(() => (match ? matchTeams(match) : []), [match]);
@@ -93,7 +101,11 @@ export function useMatchPage(matchId: string, { spectate = true }: { spectate?: 
   const tally = useMemo<Tally | null>(() => {
     if (!match || match.kind !== "bracket") return null;
     const saved = savedTally(match, entries, roster);
-    return { ...saved, team1: match.team1_score ?? saved.team1, team2: match.team2_score ?? saved.team2 };
+    return {
+      ...saved,
+      team1: match.team1_score ?? saved.team1,
+      team2: match.team2_score ?? saved.team2,
+    };
   }, [match, entries, roster]);
 
   // Where the saved score stands against the stage's best of (the tiebreaker, a decided race).

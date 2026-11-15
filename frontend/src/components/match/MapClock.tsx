@@ -39,7 +39,9 @@ export function MapClock({
   const startedAt = lobby.playing ? mapStartedAt : null;
   const playing = startedAt !== null;
   const now = useNow(playing);
-  const roomInfo = [lobby.mods || "Mod yok", lobby.teamMode, lobby.winCondition].filter(Boolean).join(" · ");
+  const roomInfo = [lobby.mods || "Mod yok", lobby.teamMode, lobby.winCondition]
+    .filter(Boolean)
+    .join(" · ");
   if (lobby.beatmapId === null) {
     return (
       <div className="lobby-map is-empty">
@@ -54,9 +56,7 @@ export function MapClock({
   const remaining = length === null ? null : length - elapsed;
   const over = playing && remaining !== null && remaining < 0;
   const endsAt =
-    startedAt !== null && length !== null
-      ? formatClock(startedAt + length * 1000)
-      : null;
+    startedAt !== null && length !== null ? formatClock(startedAt + length * 1000) : null;
 
   let figure: string;
   let caption: string;
@@ -80,7 +80,10 @@ export function MapClock({
       <div className="lobby-map-text">
         <span className="lobby-map-title">
           {currentEntry && (
-            <span className="lobby-map-label" style={{ color: currentEntry.color, borderColor: currentEntry.color }}>
+            <span
+              className="lobby-map-label"
+              style={{ color: currentEntry.color, borderColor: currentEntry.color }}
+            >
               {currentEntry.label}
             </span>
           )}
@@ -95,7 +98,11 @@ export function MapClock({
         </span>
         <span className="lobby-map-meta">{roomInfo}</span>
       </div>
-      <div className="lobby-map-clock" role="timer" aria-label={playing ? "Map süresi" : "Map uzunluğu"}>
+      <div
+        className="lobby-map-clock"
+        role="timer"
+        aria-label={playing ? "Map süresi" : "Map uzunluğu"}
+      >
         <span className="lobby-map-figure">{figure}</span>
         <span className="lobby-map-caption">{caption}</span>
       </div>

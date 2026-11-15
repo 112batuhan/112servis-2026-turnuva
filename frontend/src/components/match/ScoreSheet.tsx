@@ -5,7 +5,15 @@ import { splitMods, type MapResult } from "../../lib/bancho";
 import { bestOfLabel, firstTo, raceOf, type Race } from "../../lib/bestOf";
 import { formatScore } from "../../lib/format";
 import type { ManualResult } from "../../api/types";
-import { poolRows, scorer, type FinishedMap, type ResultRow, type RosterPlayer, type Tally, type TeamTotal } from "../../lib/liveRoom";
+import {
+  poolRows,
+  scorer,
+  type FinishedMap,
+  type ResultRow,
+  type RosterPlayer,
+  type Tally,
+  type TeamTotal,
+} from "../../lib/liveRoom";
 import { poolEntries, type MatchData, type MatchTeam, type PoolEntry } from "../../lib/matchPool";
 import "./ScoreSheet.css";
 
@@ -45,7 +53,6 @@ function playerLines(result: MapResult, freemod: boolean, roster: RosterPlayer[]
     })
     .sort((a, b) => b.score - a.score);
 }
-
 
 const NONE: Set<string> = new Set();
 
@@ -95,7 +102,8 @@ export function ScoreSheet({
       ? [room.team1_score ?? 0, room.team2_score ?? 0]
       : [tally.team1, tally.team2]
     : null;
-  const race = bestOf !== null && score && !room.forfeit_slot ? raceOf(bestOf, score[0], score[1]) : null;
+  const race =
+    bestOf !== null && score && !room.forfeit_slot ? raceOf(bestOf, score[0], score[1]) : null;
 
   // A lobby has no score: just its finished pool maps.
   const rows: ResultRow[] = tally?.rows ?? poolRows(finished, entries);
@@ -106,7 +114,10 @@ export function ScoreSheet({
   const empty = rows.length === 0 && room.manual_results.length === 0;
 
   return (
-    <section className={`sheet ${bracket ? "is-versus" : "is-lobby"}`} aria-labelledby="sheet-title">
+    <section
+      className={`sheet ${bracket ? "is-versus" : "is-lobby"}`}
+      aria-labelledby="sheet-title"
+    >
       <div className="sheet-head">
         <div className="sheet-head-main">
           <h3 id="sheet-title" className="sheet-title">
@@ -124,15 +135,21 @@ export function ScoreSheet({
         <div className="sheet-head-end" />
       </div>
 
-      {race && score && !concluded && <RaceLine race={race} score={score} teams={teams} room={room} action={raceAction} />}
+      {race && score && !concluded && (
+        <RaceLine race={race} score={score} teams={teams} room={room} action={raceAction} />
+      )}
 
       {empty && (
         <div className="sheet-row is-empty">
           <span />
           <span className="sheet-empty">
-            Havuzdan bir map bitince burada skorlarıyla listelenir{bracket ? "; kazanan takımın hücresi yanar" : ""}.
+            Havuzdan bir map bitince burada skorlarıyla listelenir
+            {bracket ? "; kazanan takımın hücresi yanar" : ""}.
           </span>
-          {bracket && teams.map((team) => <span key={team.id} className={`sheet-cell is-team-${team.color}`} />)}
+          {bracket &&
+            teams.map((team) => (
+              <span key={team.id} className={`sheet-cell is-team-${team.color}`} />
+            ))}
         </div>
       )}
 
@@ -156,7 +173,11 @@ export function ScoreSheet({
                   <div className="sheet-row">
                     <span className="sheet-order">{n}</span>
                     <MapCell entry={entry} name={result.beatmapName}>
-                      {pickedBy && <span className={`sheet-pick is-team-${pickedBy.color}`}>{pickedBy.name} seçti</span>}
+                      {pickedBy && (
+                        <span className={`sheet-pick is-team-${pickedBy.color}`}>
+                          {pickedBy.name} seçti
+                        </span>
+                      )}
                       {off && <span className="sheet-sub-note">sayılmıyor</span>}
                     </MapCell>
                     {bracket ? (
@@ -166,7 +187,9 @@ export function ScoreSheet({
                         {totals[0] ? (
                           <>
                             <span className="sheet-leader-name">{teamName(totals[0].teamId)}</span>
-                            <span className="sheet-leader-score">{formatScore(totals[0].score)}</span>
+                            <span className="sheet-leader-score">
+                              {formatScore(totals[0].score)}
+                            </span>
                           </>
                         ) : (
                           <span className="sheet-sub-note">Skor yok</span>
@@ -174,7 +197,10 @@ export function ScoreSheet({
                       </span>
                     )}
                     {ignore ? (
-                      <label className="sheet-ignore" title="Isınma ya da tekrar gibi sayılmaması gereken bir map">
+                      <label
+                        className="sheet-ignore"
+                        title="Isınma ya da tekrar gibi sayılmaması gereken bir map"
+                      >
                         <input
                           type="checkbox"
                           checked={off}
@@ -210,7 +236,11 @@ export function ScoreSheet({
         <ul className="sheet-list is-manual" aria-label="Hakem kararları">
           {room.manual_results.map((manual) => {
             const entry = entries.find((e) => e.map.id === manual.map_id);
-            const note = <span className="sheet-sub-note">Hakem kararı{manual.note && `: ${manual.note}`}</span>;
+            const note = (
+              <span className="sheet-sub-note">
+                Hakem kararı{manual.note && `: ${manual.note}`}
+              </span>
+            );
             return (
               <li key={manual.id} className="sheet-map">
                 <div className="sheet-row">
@@ -250,7 +280,9 @@ export function ScoreSheet({
       <footer className="sheet-foot">
         {footer}
         {outsidePool > 0 && (
-          <span className="sheet-note">Havuzda olmayan {outsidePool} map (ısınma ya da yanlış map) sayılmıyor.</span>
+          <span className="sheet-note">
+            Havuzda olmayan {outsidePool} map (ısınma ya da yanlış map) sayılmıyor.
+          </span>
         )}
       </footer>
     </section>
@@ -281,7 +313,12 @@ function ScoreHeads({
     : room.concluded_at !== null
       ? [String(room.team1_score ?? "–"), String(room.team2_score ?? "–")]
       : [String(tally.team1), String(tally.team2)];
-  const lead = figures[0] === figures[1] ? null : Number(figures[0]) > Number(figures[1]) || figures[0] === "W" ? 0 : 1;
+  const lead =
+    figures[0] === figures[1]
+      ? null
+      : Number(figures[0]) > Number(figures[1]) || figures[0] === "W"
+        ? 0
+        : 1;
   // The wins each team needs, as pips under its figure; a forfeit has none to count.
   const need = bestOf !== null && !forfeit ? firstTo(bestOf) : null;
   return (
@@ -289,7 +326,10 @@ function ScoreHeads({
       {teams.map((team, i) => {
         const wins = Number(figures[i]) || 0;
         return (
-          <div key={team.id} className={`sheet-team is-team-${team.color}${lead === i ? " is-ahead" : ""}`}>
+          <div
+            key={team.id}
+            className={`sheet-team is-team-${team.color}${lead === i ? " is-ahead" : ""}`}
+          >
             <span className="sheet-team-name" title={team.name}>
               {team.name}
             </span>
@@ -344,7 +384,8 @@ function RaceLine({
         <>
           <strong className="sheet-race-title">Maç sayısı</strong>
           <span className="sheet-race-detail">
-            <span className={`sheet-race-team is-team-${team.color}`}>{team.name}</span> bir map daha alırsa kazanır
+            <span className={`sheet-race-team is-team-${team.color}`}>{team.name}</span> bir map
+            daha alırsa kazanır
           </span>
         </>
       );
@@ -368,7 +409,9 @@ function RaceLine({
       body = (
         <>
           <strong className="sheet-race-title">Skor {bestOfLabel(bestOf)}'u aşıyor</strong>
-          <span className="sheet-race-detail">{line} · sayılan map'lere bak, fazladan biri sayılmış olabilir</span>
+          <span className="sheet-race-detail">
+            {line} · sayılan map'lere bak, fazladan biri sayılmış olabilir
+          </span>
         </>
       );
       break;
@@ -382,7 +425,15 @@ function RaceLine({
   );
 }
 
-function MapCell({ entry, name, children }: { entry: PoolEntry; name: string | null; children?: ReactNode }) {
+function MapCell({
+  entry,
+  name,
+  children,
+}: {
+  entry: PoolEntry;
+  name: string | null;
+  children?: ReactNode;
+}) {
   const { map } = entry;
   const full = name ?? `${map.artist} - ${map.title} [${map.version}]`;
   return (
@@ -405,7 +456,15 @@ function MapCell({ entry, name, children }: { entry: PoolEntry; name: string | n
 }
 
 /** A map's two totals in the team columns; the higher one is lit when the map counts. */
-function TotalCells({ teams, totals, counted }: { teams: MatchTeam[]; totals: TeamTotal[]; counted: boolean }) {
+function TotalCells({
+  teams,
+  totals,
+  counted,
+}: {
+  teams: MatchTeam[];
+  totals: TeamTotal[];
+  counted: boolean;
+}) {
   const scores = teams.map((t) => totals.find((x) => x.teamId === t.id)?.score ?? null);
   const [a, b] = scores;
   const winner = !counted || a === null || b === null || a === b ? null : a > b ? 0 : 1;
@@ -444,7 +503,9 @@ function PlayerRows({ teams, players }: { teams: MatchTeam[]; players: PlayerLin
           <span className="sheet-player">
             <span className={`sheet-player-dot is-team-${team.color}`} aria-hidden="true" />
             <span className="sheet-player-name">{p.name}</span>
-            <span className={`sheet-mods${p.mods === "?" || p.mods === "NM" ? " is-plain" : ""}`}>{p.mods}</span>
+            <span className={`sheet-mods${p.mods === "?" || p.mods === "NM" ? " is-plain" : ""}`}>
+              {p.mods}
+            </span>
           </span>
           {teams.map((column) => (
             <span key={column.id} className={`sheet-cell is-team-${column.color} is-player-score`}>
@@ -464,7 +525,8 @@ function PlayerRows({ teams, players }: { teams: MatchTeam[]; players: PlayerLin
         <li className="sheet-row is-player is-others">
           <span />
           <span className="sheet-sub-note">
-            Maçın oyuncusu değil (sayılmadı): {others.map((p) => `${p.name} ${formatScore(p.score)}`).join(", ")}
+            Maçın oyuncusu değil (sayılmadı):{" "}
+            {others.map((p) => `${p.name} ${formatScore(p.score)}`).join(", ")}
           </span>
         </li>
       )}
@@ -497,8 +559,14 @@ function LobbyTotals({
             .map((p) => (
               <span key={p.key} className="sheet-lobby-player">
                 <span className="sheet-player-name">{p.name}</span>
-                <span className={`sheet-mods${p.mods === "?" || p.mods === "NM" ? " is-plain" : ""}`}>{p.mods}</span>
-                <span className={`sheet-lobby-player-score${p.passed ? "" : " is-failed"}`}>{formatScore(p.score)}</span>
+                <span
+                  className={`sheet-mods${p.mods === "?" || p.mods === "NM" ? " is-plain" : ""}`}
+                >
+                  {p.mods}
+                </span>
+                <span className={`sheet-lobby-player-score${p.passed ? "" : " is-failed"}`}>
+                  {formatScore(p.score)}
+                </span>
               </span>
             ))}
         </li>

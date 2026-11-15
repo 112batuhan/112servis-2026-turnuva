@@ -16,7 +16,8 @@ import "./MapPoolEditor.css";
 
 export function MapPoolEditorPage() {
   const user = useSignedInUser();
-  const { stages, selectedId, selectStage, detail, error, clearError, busy, actions } = useStageEditor(user.id);
+  const { stages, selectedId, selectStage, detail, error, clearError, busy, actions } =
+    useStageEditor(user.id);
   const [showSettings, setShowSettings] = useState(false);
   const { isExpanded, toggle } = useExpandedSet("mappool-expanded");
   const moveTargets = useMemo(() => buildMoveTargets(detail), [detail]);
@@ -29,7 +30,8 @@ export function MapPoolEditorPage() {
     onMove: (slotId) => actions.moveMap(map.id, slotId),
     onRecompute: () => actions.recomputeMapStats(map.id),
     onDelete: () => {
-      if (confirm(`"${map.artist} - ${map.title} [${map.version}]" kalıcı olarak silinsin mi?`)) actions.deleteMap(map.id);
+      if (confirm(`"${map.artist} - ${map.title} [${map.version}]" kalıcı olarak silinsin mi?`))
+        actions.deleteMap(map.id);
     },
   });
 
@@ -62,7 +64,8 @@ export function MapPoolEditorPage() {
         <p className="status">
           {hasRole(user, "host") ? (
             <>
-              Mappool oluşturmaya başlamak için <Link to="/admin/stages">Stage'ler</Link> sekmesinden bir stage ekle.
+              Mappool oluşturmaya başlamak için <Link to="/admin/stages">Stage'ler</Link>{" "}
+              sekmesinden bir stage ekle.
             </>
           ) : (
             "Henüz stage yok. Stage'leri hostlar ekler."
@@ -72,7 +75,9 @@ export function MapPoolEditorPage() {
 
       {detail && (
         <>
-          {showSettings && canEdit && <StageSettings detail={detail} busy={busy} actions={actions} />}
+          {showSettings && canEdit && (
+            <StageSettings detail={detail} busy={busy} actions={actions} />
+          )}
 
           <div className="pool-board">
             <GenericPool
@@ -86,7 +91,9 @@ export function MapPoolEditorPage() {
             />
             {detail.categories.length === 0 && (
               <p className="status">
-                {canEdit ? "Henüz kategori yok. Stage ayarlarından ekleyebilirsin." : "Henüz kategori yok."}
+                {canEdit
+                  ? "Henüz kategori yok. Stage ayarlarından ekleyebilirsin."
+                  : "Henüz kategori yok."}
               </p>
             )}
             {detail.categories.map((category) => (
@@ -117,6 +124,10 @@ function buildMoveTargets(detail: StageDetail | null): MoveTargetGroup[] {
     category: category.name,
     slots: detail.slots
       .filter((s) => s.category_id === category.id)
-      .map((slot, i) => ({ id: slot.id, label: `${category.name} #${i + 1}`, occupied: occupied.has(slot.id) })),
+      .map((slot, i) => ({
+        id: slot.id,
+        label: `${category.name} #${i + 1}`,
+        occupied: occupied.has(slot.id),
+      })),
   }));
 }

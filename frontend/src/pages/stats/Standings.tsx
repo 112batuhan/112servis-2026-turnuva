@@ -92,7 +92,9 @@ export function Standings({ kind, index, ownTeam }: Props) {
     const zSum: Column = {
       id: "z",
       label: q ? "Z toplamı" : "Ort. Z",
-      title: q ? "Bütün maplerdeki Z'lerin toplamı; eksik mapler 0 puan sayılır" : "Oynanan maplerdeki Z'lerin ortalaması",
+      title: q
+        ? "Bütün maplerdeki Z'lerin toplamı; eksik mapler 0 puan sayılır"
+        : "Oynanan maplerdeki Z'lerin ortalaması",
       className: "is-z",
       value: (s) => (q ? s.z_sum : s.z_avg),
       render: (s) => <ZValue z={q ? s.z_sum : s.z_avg} size="lg" />,
@@ -109,7 +111,10 @@ export function Standings({ kind, index, ownTeam }: Props) {
           <span className="standings-maps">
             <span className="num">{q ? `${s.plays}/${poolSize}` : s.plays}</span>
             {missing > 0 && (
-              <span className="standings-missing" title="Lobisi bittiği hâlde skoru olmayan mapler: 0 puan sayıldı">
+              <span
+                className="standings-missing"
+                title="Lobisi bittiği hâlde skoru olmayan mapler: 0 puan sayıldı"
+              >
                 {missing} eksik
               </span>
             )}
@@ -184,7 +189,11 @@ export function Standings({ kind, index, ownTeam }: Props) {
           const team = index.team.get(s.id);
           return matchesQuery(query, team?.name, ...(team?.players.map((p) => p.username) ?? []));
         }
-        return matchesQuery(query, index.player.get(s.id)?.username, index.team.get(s.team_id)?.name);
+        return matchesQuery(
+          query,
+          index.player.get(s.id)?.username,
+          index.team.get(s.team_id)?.name,
+        );
       }),
     [rows, query, kind, index],
   );
@@ -205,20 +214,33 @@ export function Standings({ kind, index, ownTeam }: Props) {
   const [mapSort, setMapSort] = useState<string | null>(null);
   const matrixRows = useMemo(() => {
     if (!mapSort) return filtered;
-    const value = (s: StatStanding) => cellValue(s.per_map.find((c) => c.map_id === mapSort), metric);
+    const value = (s: StatStanding) =>
+      cellValue(
+        s.per_map.find((c) => c.map_id === mapSort),
+        metric,
+      );
     return [...filtered].sort((a, b) => value(b) - value(a));
   }, [filtered, mapSort, metric]);
 
   const toggleSort = (id: string) =>
-    setSort((s) => (s.id === id ? { id, dir: s.dir === "best" ? "reverse" : "best" } : { id, dir: "best" }));
+    setSort((s) =>
+      s.id === id ? { id, dir: s.dir === "best" ? "reverse" : "best" } : { id, dir: "best" },
+    );
   const toggleMapSort = (id: string) => setMapSort((m) => (m === id ? null : id));
   const ariaSort = (id: string): "ascending" | "descending" | undefined =>
-    sort.id !== id ? undefined : (id === "rank") === (sort.dir === "best") ? "ascending" : "descending";
+    sort.id !== id
+      ? undefined
+      : (id === "rank") === (sort.dir === "best")
+        ? "ascending"
+        : "descending";
 
   const drafted = rows.some((s) => s.drafts.length > 0);
 
   return (
-    <section className="standings" aria-label={kind === "teams" ? "Takım sıralaması" : "Oyuncu sıralaması"}>
+    <section
+      className="standings"
+      aria-label={kind === "teams" ? "Takım sıralaması" : "Oyuncu sıralaması"}
+    >
       <PanelTools>
         <input
           type="search"
@@ -229,10 +251,20 @@ export function Standings({ kind, index, ownTeam }: Props) {
           onChange={(e) => setQuery(e.target.value)}
         />
         <div className="bracket-view-tabs stats-view-switch" role="group" aria-label="Görünüm">
-          <button type="button" className="bracket-view-tab" aria-pressed={view === "table"} onClick={() => setView("table")}>
+          <button
+            type="button"
+            className="bracket-view-tab"
+            aria-pressed={view === "table"}
+            onClick={() => setView("table")}
+          >
             Sıralama
           </button>
-          <button type="button" className="bracket-view-tab" aria-pressed={view === "matrix"} onClick={() => setView("matrix")}>
+          <button
+            type="button"
+            className="bracket-view-tab"
+            aria-pressed={view === "matrix"}
+            onClick={() => setView("matrix")}
+          >
             Map tablosu
           </button>
         </div>
@@ -245,7 +277,13 @@ export function Standings({ kind, index, ownTeam }: Props) {
           <table className="stats-table standings-table">
             <thead>
               <tr>
-                <SortHeader id="rank" label={q && kind === "teams" ? "Seed" : "Sıra"} className="is-rank" sort={ariaSort("rank")} onSort={toggleSort} />
+                <SortHeader
+                  id="rank"
+                  label={q && kind === "teams" ? "Seed" : "Sıra"}
+                  className="is-rank"
+                  sort={ariaSort("rank")}
+                  onSort={toggleSort}
+                />
                 <th className="is-who">{kind === "teams" ? "Takım" : "Oyuncu"}</th>
                 {columns.map((c) => (
                   <SortHeader
@@ -262,9 +300,17 @@ export function Standings({ kind, index, ownTeam }: Props) {
             </thead>
             <tbody>
               {shown.map((s) => (
-                <tr key={s.id} className={[isOwn(s) && "is-own", s.pending && "is-pending"].filter(Boolean).join(" ") || undefined}>
+                <tr
+                  key={s.id}
+                  className={
+                    [isOwn(s) && "is-own", s.pending && "is-pending"].filter(Boolean).join(" ") ||
+                    undefined
+                  }
+                >
                   <td className="is-rank">
-                    <span className={q && kind === "teams" ? "standings-seed" : undefined}>{s.rank ?? "—"}</span>
+                    <span className={q && kind === "teams" ? "standings-seed" : undefined}>
+                      {s.rank ?? "—"}
+                    </span>
                   </td>
                   <td className="is-who">
                     <span className="standings-who">
@@ -295,14 +341,25 @@ export function Standings({ kind, index, ownTeam }: Props) {
                   ["rank", "Sıra"],
                 ] as const
               ).map(([id, label]) => (
-                <button key={id} type="button" className="bracket-view-tab" aria-pressed={metric === id} onClick={() => setMetric(id)}>
+                <button
+                  key={id}
+                  type="button"
+                  className="bracket-view-tab"
+                  aria-pressed={metric === id}
+                  onClick={() => setMetric(id)}
+                >
                   {label}
                 </button>
               ))}
             </div>
             {drafted && (
               <div className="bracket-view-tabs">
-                <button type="button" className="bracket-view-tab draft-toggle" aria-pressed={showDrafts} onClick={toggleDrafts}>
+                <button
+                  type="button"
+                  className="bracket-view-tab draft-toggle"
+                  aria-pressed={showDrafts}
+                  onClick={toggleDrafts}
+                >
                   <span className="draft-toggle-dots" aria-hidden="true">
                     <span className="draft-dot is-team" />
                     <span className="draft-dot is-opponent" />
@@ -349,9 +406,17 @@ function SortHeader({
   return (
     <th className={className} aria-sort={sort} title={title}>
       {onSort ? (
-        <button type="button" className={sort ? "stats-sort is-sorted" : "stats-sort"} onClick={() => onSort(id)}>
+        <button
+          type="button"
+          className={sort ? "stats-sort is-sorted" : "stats-sort"}
+          onClick={() => onSort(id)}
+        >
           {label}
-          <Icon name={sort === "ascending" ? "arrowUp" : "arrowDown"} size={12} className="stats-sort-mark" />
+          <Icon
+            name={sort === "ascending" ? "arrowUp" : "arrowDown"}
+            size={12}
+            className="stats-sort-mark"
+          />
         </button>
       ) : (
         label
@@ -406,7 +471,10 @@ function DraftDots({ sides }: { sides: DraftSide[] }) {
 /** What the two colours mean: the row's team's picks and bans, and its opponents'. */
 function DraftLegend({ kind }: { kind: Kind }) {
   const sides = [
-    { side: "team", label: kind === "teams" ? "Takımın pick ve banları" : "Takımının pick ve banları" },
+    {
+      side: "team",
+      label: kind === "teams" ? "Takımın pick ve banları" : "Takımının pick ve banları",
+    },
     { side: "opponent", label: "Rakibinin pick ve banları" },
   ];
   return (
@@ -417,7 +485,9 @@ function DraftLegend({ kind }: { kind: Kind }) {
           {s.label}
         </span>
       ))}
-      <span className="draft-legend-note">Renkli skor: pick'lenip oynanmış map · nokta: banlanmış map</span>
+      <span className="draft-legend-note">
+        Renkli skor: pick'lenip oynanmış map · nokta: banlanmış map
+      </span>
     </div>
   );
 }
@@ -466,7 +536,18 @@ interface MatrixProps {
  * shaded brighter the further above the map's field they were. A missing qualifier map shows the
  * 0 it was scored as.
  */
-function Matrix({ rows, index, metric, showDrafts, who, isOwn, sortedBy, onSort, total, whoLabel }: MatrixProps) {
+function Matrix({
+  rows,
+  index,
+  metric,
+  showDrafts,
+  who,
+  isOwn,
+  sortedBy,
+  onSort,
+  total,
+  whoLabel,
+}: MatrixProps) {
   return (
     <div className="stats-matrix-wrap">
       <table className="stats-table stats-matrix">
@@ -478,18 +559,26 @@ function Matrix({ rows, index, metric, showDrafts, who, isOwn, sortedBy, onSort,
               <th
                 key={e.map.id}
                 className="stats-matrix-map"
-                aria-sort={sortedBy !== e.map.id ? undefined : metric === "rank" ? "ascending" : "descending"}
+                aria-sort={
+                  sortedBy !== e.map.id ? undefined : metric === "rank" ? "ascending" : "descending"
+                }
               >
                 <button
                   type="button"
                   className={sortedBy === e.map.id ? "stats-sort is-sorted" : "stats-sort"}
                   onClick={() => onSort(e.map.id)}
                   title={`${e.map.title} [${e.map.version}]: ${
-                    sortedBy === e.map.id ? "sıralamaya dön" : `bu map'teki ${METRIC_DATIVE[metric]} göre sırala`
+                    sortedBy === e.map.id
+                      ? "sıralamaya dön"
+                      : `bu map'teki ${METRIC_DATIVE[metric]} göre sırala`
                   }`}
                 >
                   <MapLabel entry={e} />
-                  <Icon name={metric === "rank" ? "arrowUp" : "arrowDown"} size={12} className="stats-sort-mark" />
+                  <Icon
+                    name={metric === "rank" ? "arrowUp" : "arrowDown"}
+                    size={12}
+                    className="stats-sort-mark"
+                  />
                 </button>
               </th>
             ))}
@@ -521,7 +610,15 @@ function Matrix({ rows, index, metric, showDrafts, who, isOwn, sortedBy, onSort,
   );
 }
 
-function MatrixCell({ cell, draft, metric }: { cell: StatCell | undefined; draft: StatDraftTally | undefined; metric: Metric }) {
+function MatrixCell({
+  cell,
+  draft,
+  metric,
+}: {
+  cell: StatCell | undefined;
+  draft: StatDraftTally | undefined;
+  metric: Metric;
+}) {
   const marks = draftMarks(draft);
   const said = marks && <span className="sr-only">{`, ${marks.text}`}</span>;
   if (!cell) {
@@ -538,7 +635,10 @@ function MatrixCell({ cell, draft, metric }: { cell: StatCell | undefined; draft
   }
   if (cell.missing) {
     return (
-      <td className="stats-matrix-cell is-missing" title={`Skoru yok: 0 puan sayıldı (Z ${formatZ(cell.z)})`}>
+      <td
+        className="stats-matrix-cell is-missing"
+        title={`Skoru yok: 0 puan sayıldı (Z ${formatZ(cell.z)})`}
+      >
         {metric === "z" ? formatZ(cell.z) : "0"}
       </td>
     );
@@ -555,7 +655,11 @@ function MatrixCell({ cell, draft, metric }: { cell: StatCell | undefined; draft
           : formatAccuracy(cell.accuracy);
   return (
     <td
-      className={["stats-matrix-cell", cell.z < 0 && "is-below", marks?.picker && `picked-by-${marks.picker}`]
+      className={[
+        "stats-matrix-cell",
+        cell.z < 0 && "is-below",
+        marks?.picker && `picked-by-${marks.picker}`,
+      ]
         .filter(Boolean)
         .join(" ")}
       style={{ "--heat": heat } as CSSProperties}

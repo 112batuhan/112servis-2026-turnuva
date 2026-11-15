@@ -15,7 +15,8 @@ interface Props {
 
 /** Opens a match's referee room. */
 export function RefereeRoomLink({ matchId, live = false, variant }: Props) {
-  const classes = variant === "text" ? "btn btn-secondary btn-sm referee-room-link is-text" : "referee-room-link";
+  const classes =
+    variant === "text" ? "btn btn-secondary btn-sm referee-room-link is-text" : "referee-room-link";
   return (
     <Link
       to={`/admin/referee/${matchId}`}

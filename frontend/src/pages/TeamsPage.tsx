@@ -27,7 +27,8 @@ export function TeamsPage() {
   }, []);
 
   useEffect(() => {
-    if (teams && target) document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (teams && target)
+      document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [teams, target]);
 
   return (
@@ -53,7 +54,12 @@ export function TeamsPage() {
       {teams && teams.length > 0 && view === "cards" && (
         <div className="team-grid is-ruled">
           {teams.map((team) => (
-            <TeamCard key={team.id} team={team} qualifier={seeded ? team.qualifier : undefined} highlight={teamAnchorId(team.id) === target} />
+            <TeamCard
+              key={team.id}
+              team={team}
+              qualifier={seeded ? team.qualifier : undefined}
+              highlight={teamAnchorId(team.id) === target}
+            />
           ))}
         </div>
       )}

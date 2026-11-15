@@ -35,10 +35,17 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
         <div className="lobby-bar">
           {channel ? (
             <h2 className="lobby-title">
-              <a href={current?.url} target="_blank" rel="noopener noreferrer" title="osu!'da maç sayfası">
+              <a
+                href={current?.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="osu!'da maç sayfası"
+              >
                 {channel}
               </a>
-              {room.rooms.length > 1 && <span className="lobby-title-count">{room.rooms.length}. oda</span>}
+              {room.rooms.length > 1 && (
+                <span className="lobby-title-count">{room.rooms.length}. oda</span>
+              )}
             </h2>
           ) : (
             <h2 className="lobby-title is-empty">Oda yok</h2>
@@ -53,10 +60,16 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
                 type="button"
                 className="btn btn-secondary btn-sm"
                 disabled={!canRun || busy}
-                title={manage ?? "Oda bozulduysa ya da kapandıysa en az meşgul botla yenisini açar; eskisi listede kalır"}
+                title={
+                  manage ??
+                  "Oda bozulduysa ya da kapandıysa en az meşgul botla yenisini açar; eskisi listede kalır"
+                }
                 onClick={() => {
                   const open = access === "in" && !lobby.closed;
-                  if (!open || window.confirm(`${channel} hâlâ açık. Yine de yeni bir oda açılsın mı?`)) {
+                  if (
+                    !open ||
+                    window.confirm(`${channel} hâlâ açık. Yine de yeni bir oda açılsın mı?`)
+                  ) {
                     actions.createRoom();
                   }
                 }}
@@ -97,7 +110,8 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
                 disabled={!botReady || lobby.closed}
                 title={botBlocker(referee) ?? "!mp close: odayı osu!'da kapatır"}
                 onClick={() => {
-                  if (window.confirm("Oda kapatılsın mı (!mp close)? Bu geri alınamaz.")) actions.close();
+                  if (window.confirm("Oda kapatılsın mı (!mp close)? Bu geri alınamaz."))
+                    actions.close();
                 }}
               >
                 Odayı kapat
@@ -108,8 +122,9 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
         {!channel && (
           <div className="lobby-create">
             <p className="lobby-create-text">
-              Oda, en az meşgul botla açılır: {bracket ? "Team Vs" : "Head to Head"} olarak kurulur, kilitlenir ve
-              oyuncular davet edilir. Bancho'ya bağlanman gerekmez; bağlanırsan bot seni odanın hakemi yapar.
+              Oda, en az meşgul botla açılır: {bracket ? "Team Vs" : "Head to Head"} olarak kurulur,
+              kilitlenir ve oyuncular davet edilir. Bancho'ya bağlanman gerekmez; bağlanırsan bot
+              seni odanın hakemi yapar.
             </p>
             <RoomOptions referee={referee} />
             <button
@@ -127,7 +142,13 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
                   Odayı başka yerden açtıysan linkini ekle; bir bot devralır, odayı açan kişi onu{" "}
                   <code>!mp addref</code> ile hakem yapınca odaya girer.
                 </span>
-                <RoomsEditor rooms={[]} editable disabled={busy} onAdd={actions.addRoom} onRemove={actions.removeRoom} />
+                <RoomsEditor
+                  rooms={[]}
+                  editable
+                  disabled={busy}
+                  onAdd={actions.addRoom}
+                  onRemove={actions.removeRoom}
+                />
               </div>
             )}
           </div>
@@ -160,7 +181,9 @@ function Commands({ referee }: { referee: RefereeRoomState }) {
   return (
     <div className="lobby-commands" role="group" aria-label="Komutlar">
       {/* A bot that can't get in says why above the column; one on its way in, here. */}
-      {!ready && access === "joining" && <p className="lobby-commands-hint">{blocker} Komutlar o girince açılır.</p>}
+      {!ready && access === "joining" && (
+        <p className="lobby-commands-hint">{blocker} Komutlar o girince açılır.</p>
+      )}
       <div className="lobby-command-row" role="group" aria-label="Maç komutları">
         <div className="lobby-command-group">
           <input
@@ -199,20 +222,40 @@ function Commands({ referee }: { referee: RefereeRoomState }) {
             value={timer}
             onChange={(e) => setTimer(Number(e.target.value))}
           />
-          <button type="button" className="btn btn-secondary" disabled={!ready} onClick={() => actions.timer(timer)}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={!ready}
+            onClick={() => actions.timer(timer)}
+          >
             Zamanlayıcı
           </button>
-          <button type="button" className="btn btn-secondary" disabled={!ready} onClick={actions.abortTimer}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={!ready}
+            onClick={actions.abortTimer}
+          >
             Durdur
           </button>
         </div>
       </div>
       {bracket && <AnnounceScore referee={referee} />}
       <div className="lobby-command-row is-room" role="group" aria-label="Oda komutları">
-        <button type="button" className="btn btn-secondary btn-sm" disabled={!ready} onClick={actions.settings}>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={!ready}
+          onClick={actions.settings}
+        >
           Odayı yenile
         </button>
-        <button type="button" className="btn btn-secondary btn-sm" disabled={!ready} onClick={actions.inviteAll}>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={!ready}
+          onClick={actions.inviteAll}
+        >
           Hepsini davet et
         </button>
         {bracket && (
@@ -253,7 +296,15 @@ function Commands({ referee }: { referee: RefereeRoomState }) {
  * Makes the match's streamer a referee of the room (!mp addref), so their tournament client shows
  * the room's chat on stream; pressed once the room's chat says they are, when it takes it back.
  */
-function StreamerRef({ referee, ready, blocker }: { referee: RefereeRoomState; ready: boolean; blocker: string | null }) {
+function StreamerRef({
+  referee,
+  ready,
+  blocker,
+}: {
+  referee: RefereeRoomState;
+  ready: boolean;
+  blocker: string | null;
+}) {
   const { streamer, streamerIsRef, actions } = referee;
   if (!streamer) return null;
   return (
@@ -302,7 +353,10 @@ function BotBadge({ bot, access }: { bot: string | null; access: RoomAccess | nu
   if (!access) return null;
   const tone = access === "in" ? "is-in" : access === "joining" ? "is-joining" : "is-out";
   return (
-    <span className={`lobby-bot ${tone}`} title={bot ? `Odayı ${bot} yönetiyor: ${ACCESS_LABELS[access]}` : undefined}>
+    <span
+      className={`lobby-bot ${tone}`}
+      title={bot ? `Odayı ${bot} yönetiyor: ${ACCESS_LABELS[access]}` : undefined}
+    >
       <span className="lobby-bot-dot" aria-hidden="true" />
       <Icon name="bot" size={14} />
       <span className="lobby-bot-name">{bot ?? "Bot yok"}</span>
@@ -324,7 +378,12 @@ function BotNotice({ referee }: { referee: RefereeRoomState }) {
   let title: string;
   let body: ReactNode;
   let action: ReactNode = (
-    <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={actions.createRoom}>
+    <button
+      type="button"
+      className="btn btn-primary btn-sm"
+      disabled={busy}
+      onClick={actions.createRoom}
+    >
       {busy ? "Oda kuruluyor…" : "Başka botla yeni oda aç"}
     </button>
   );
@@ -333,8 +392,8 @@ function BotNotice({ referee }: { referee: RefereeRoomState }) {
       title = `${bot} odaya giremiyor`;
       body = (
         <>
-          Oda başka yerden açıldı. Açan kişi odada <code>!mp addref {bot}</code> yazınca bot girer; o zamana kadar ne
-          komut gönderebilir ne de sohbeti kaydedebilir.
+          Oda başka yerden açıldı. Açan kişi odada <code>!mp addref {bot}</code> yazınca bot girer;
+          o zamana kadar ne komut gönderebilir ne de sohbeti kaydedebilir.
         </>
       );
       action = (
@@ -345,7 +404,12 @@ function BotNotice({ referee }: { referee: RefereeRoomState }) {
       break;
     case "offline":
       title = `${bot} Bancho'ya bağlı değil`;
-      body = <>Bağlanınca odaya döner. Beklemeden sürdürmek için maçı başka bir botun açacağı yeni odaya taşı.</>;
+      body = (
+        <>
+          Bağlanınca odaya döner. Beklemeden sürdürmek için maçı başka bir botun açacağı yeni odaya
+          taşı.
+        </>
+      );
       break;
     case "no_bot":
       title = "Bu odayı bir bot yönetmiyor";
@@ -378,7 +442,8 @@ function RoomReferees({ referee }: { referee: RefereeRoomState }) {
   const me = useSignedInUser();
   const [adding, setAdding] = useState("");
   const blocker = botBlocker(referee);
-  const nameOf = (ref: string) => staff?.find((s) => normalizeName(s.username) === ref)?.username ?? ref;
+  const nameOf = (ref: string) =>
+    staff?.find((s) => normalizeName(s.username) === ref)?.username ?? ref;
   const candidates = (staff ?? []).filter(
     (s) =>
       REF_ROLES.some((r) => s.roles.includes(r)) &&
@@ -386,7 +451,8 @@ function RoomReferees({ referee }: { referee: RefereeRoomState }) {
       !roster.some((p) => p.player.osu_id === s.osu_id),
   );
   // The role they'd be there as, first of REF_ROLES they hold.
-  const roleOf = (roles: Role[]) => ROLE_LABELS[REF_ROLES.find((r) => roles.includes(r)) ?? "referee"];
+  const roleOf = (roles: Role[]) =>
+    ROLE_LABELS[REF_ROLES.find((r) => roles.includes(r)) ?? "referee"];
 
   return (
     <section className="lobby-refs" aria-labelledby="lobby-refs-title">
@@ -404,7 +470,9 @@ function RoomReferees({ referee }: { referee: RefereeRoomState }) {
               <li key={ref} className="lobby-refs-row">
                 <span className="lobby-refs-name">
                   {name}
-                  {normalizeName(me.username) === ref && <span className="lobby-refs-self"> (sen)</span>}
+                  {normalizeName(me.username) === ref && (
+                    <span className="lobby-refs-self"> (sen)</span>
+                  )}
                 </span>
                 <IconButton
                   icon="close"
@@ -434,7 +502,9 @@ function RoomReferees({ referee }: { referee: RefereeRoomState }) {
           disabled={!botReady || candidates.length === 0}
           onChange={(e) => setAdding(e.target.value)}
         >
-          <option value="">{candidates.length === 0 ? "Eklenecek kimse yok" : "Hakem, yayıncı ya da yorumcu seç"}</option>
+          <option value="">
+            {candidates.length === 0 ? "Eklenecek kimse yok" : "Hakem, yayıncı ya da yorumcu seç"}
+          </option>
           {candidates.map((s) => (
             <option key={s.id} value={s.username}>
               {s.username} · {roleOf(s.roles)}
@@ -445,7 +515,9 @@ function RoomReferees({ referee }: { referee: RefereeRoomState }) {
           type="submit"
           className="btn btn-secondary btn-sm"
           disabled={!botReady || !adding}
-          title={blocker ?? "!mp addref: turnuva istemcisinde odanın sohbetini görür ve komut yazabilir"}
+          title={
+            blocker ?? "!mp addref: turnuva istemcisinde odanın sohbetini görür ve komut yazabilir"
+          }
         >
           Ekle
         </button>
@@ -466,7 +538,9 @@ function RoomOptions({ referee }: { referee: RefereeRoomState }) {
         <select
           className="select select-sm"
           value={options.scoreMode}
-          onChange={(e) => actions.setOptions({ ...options, scoreMode: Number(e.target.value) as ScoreMode })}
+          onChange={(e) =>
+            actions.setOptions({ ...options, scoreMode: Number(e.target.value) as ScoreMode })
+          }
         >
           {SCORE_MODES.map((m) => (
             <option key={m.value} value={m.value}>

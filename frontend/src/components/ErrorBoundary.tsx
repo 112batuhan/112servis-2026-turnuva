@@ -46,7 +46,11 @@ export class ErrorBoundary extends Component<Props, State> {
       <div className="error-boundary" role="alert">
         <p className="error-boundary-title">Bir şeyler ters gitti</p>
         <p className="error-boundary-text">Bu sayfa gösterilirken bir hata oluştu.</p>
-        <button type="button" className="btn btn-secondary" onClick={() => window.location.reload()}>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => window.location.reload()}
+        >
           Yeniden yükle
         </button>
       </div>

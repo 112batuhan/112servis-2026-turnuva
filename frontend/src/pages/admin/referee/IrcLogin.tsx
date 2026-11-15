@@ -19,7 +19,9 @@ export function IrcLogin({ viaBot = null }: { viaBot?: string | null }) {
   const user = useSignedInUser();
   const irc = useIrc();
   const [unfolded, setUnfolded] = useState(false);
-  const [username, setUsername] = useState(() => readString(USERNAME_KEY) ?? ircName(user.username));
+  const [username, setUsername] = useState(
+    () => readString(USERNAME_KEY) ?? ircName(user.username),
+  );
   const [password, setPassword] = useState(() => readString(PASSWORD_KEY) ?? "");
   const [remember, setRemember] = useState(() => readString(PASSWORD_KEY) !== null);
 
@@ -76,8 +78,8 @@ export function IrcLogin({ viaBot = null }: { viaBot?: string | null }) {
     <form className="irc-login" onSubmit={submit}>
       <h2 className="irc-login-title">Bancho'ya bağlan</h2>
       <p className="irc-login-why">
-        Odayı bot yönetir. Odaya kendi hesabınla yazmak ve özel mesajlar için kendi IRC şifrenle bağlan; bot seni
-        odanın hakemi yapar.
+        Odayı bot yönetir. Odaya kendi hesabınla yazmak ve özel mesajlar için kendi IRC şifrenle
+        bağlan; bot seni odanın hakemi yapar.
       </p>
       <input
         className="input input-sm"
@@ -100,7 +102,11 @@ export function IrcLogin({ viaBot = null }: { viaBot?: string | null }) {
         <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
         Bu cihazda hatırla
       </label>
-      <button type="submit" className="btn btn-primary btn-sm" disabled={connecting || !username.trim() || !password}>
+      <button
+        type="submit"
+        className="btn btn-primary btn-sm"
+        disabled={connecting || !username.trim() || !password}
+      >
         {connecting ? "Bağlanıyor…" : "Bağlan"}
       </button>
       <a

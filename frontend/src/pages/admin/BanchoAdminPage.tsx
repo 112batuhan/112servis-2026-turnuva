@@ -25,13 +25,13 @@ const STATE_LABELS: Record<BotState, string> = {
 // The connection's reasons (backend/src/bancho/bot.rs), as hosts read them.
 const REASONS: Record<string, string> = {
   "could not reach Bancho": "Bancho'ya ulaşılamadı",
-  "Bancho refused the login": "Bancho IRC şifresini kabul etmedi; şifreyi değiştirince yeniden dener",
+  "Bancho refused the login":
+    "Bancho IRC şifresini kabul etmedi; şifreyi değiştirince yeniden dener",
   "Bancho closed the connection": "Bancho bağlantıyı kapattı",
   "Bancho didn't answer the login": "Bancho girişe cevap vermedi",
   "Bancho went quiet": "Bancho bir süredir sessizdi",
   "Bancho sent an invalid line": "Bancho geçersiz bir satır gönderdi",
 };
-
 
 /**
  * Host-only. The osu! accounts the site makes and runs match rooms with: each one's connection,
@@ -79,7 +79,10 @@ export function BanchoAdminPage() {
       <div className="page-header">
         <h1>Bancho botları</h1>
         {view && (
-          <span className="badge" title={`${active.length} açık bottan ${online.length} tanesi bağlı`}>
+          <span
+            className="badge"
+            title={`${active.length} açık bottan ${online.length} tanesi bağlı`}
+          >
             {online.length}/{active.length}
           </span>
         )}
@@ -101,17 +104,18 @@ export function BanchoAdminPage() {
       {view && (
         <>
           <p className="bancho-lead">
-            Maç odalarını site bu osu! hesaplarıyla açar, yönetir ve kaydeder. Bancho bir hesabın aynı anda en fazla{" "}
-            <span className="num">{limit}</span> odada olmasına izin verir (hakemi olduğu odalar dahil), bu yüzden
-            botlar birbirinin odasına girmez; bir bot düşerse maç başka botun açacağı yeni odaya taşınır. Bütün botlar
-            doluyken yeni oda açılmaz. Her bot <span className="num">{view.limits.window_secs}</span> saniyede en fazla{" "}
-            <span className="num">{view.limits.lines}</span> satır gönderir.
+            Maç odalarını site bu osu! hesaplarıyla açar, yönetir ve kaydeder. Bancho bir hesabın
+            aynı anda en fazla <span className="num">{limit}</span> odada olmasına izin verir
+            (hakemi olduğu odalar dahil), bu yüzden botlar birbirinin odasına girmez; bir bot
+            düşerse maç başka botun açacağı yeni odaya taşınır. Bütün botlar doluyken yeni oda
+            açılmaz. Her bot <span className="num">{view.limits.window_secs}</span> saniyede en
+            fazla <span className="num">{view.limits.lines}</span> satır gönderir.
           </p>
 
           {bots.length === 0 ? (
             <p className="bancho-empty">
-              Henüz bot yok. Hakemlerin oda açabilmesi için en az bir bot ekle: turnuvada oynamayan bir osu! hesabı ve
-              onun IRC şifresi yeter.
+              Henüz bot yok. Hakemlerin oda açabilmesi için en az bir bot ekle: turnuvada oynamayan
+              bir osu! hesabı ve onun IRC şifresi yeter.
             </p>
           ) : (
             <ul className="bancho-bots">
@@ -172,7 +176,12 @@ function BotRow({
   }
 
   function remove() {
-    if (!window.confirm(`${bot.username} silinsin mi? Odaları maçlarında kalır ama artık bir bot yönetmez.`)) return;
+    if (
+      !window.confirm(
+        `${bot.username} silinsin mi? Odaları maçlarında kalır ama artık bir bot yönetmez.`,
+      )
+    )
+      return;
     act(() => deleteBot(bot.id));
   }
 
@@ -201,14 +210,20 @@ function BotRow({
           </a>
           <span className="bancho-bot-state">
             {STATE_LABELS[state]}
-            {state === "online" && status?.online_since && ` · ${formatClock(status.online_since)}'den beri`}
+            {state === "online" &&
+              status?.online_since &&
+              ` · ${formatClock(status.online_since)}'den beri`}
           </span>
           {reason && <span className="bancho-bot-reason">{reason}</span>}
         </span>
       </div>
 
       <div className="bancho-bot-rooms">
-        <span className="bancho-meter" role="img" aria-label={`${limit} odadan ${rooms.length} tanesi dolu`}>
+        <span
+          className="bancho-meter"
+          role="img"
+          aria-label={`${limit} odadan ${rooms.length} tanesi dolu`}
+        >
           {Array.from({ length: limit }, (_, i) => (
             <span key={i} className={i < rooms.length ? "is-used" : undefined} />
           ))}
@@ -234,12 +249,17 @@ function BotRow({
         )}
       </div>
 
-      <div className="bancho-bot-lines" title="Son 5 saniyede gönderilen ve sırada bekleyen satırlar">
+      <div
+        className="bancho-bot-lines"
+        title="Son 5 saniyede gönderilen ve sırada bekleyen satırlar"
+      >
         {state === "online" || state === "full" ? (
           <>
             <span className="num">{status?.recent ?? 0}</span>
             <span className="bancho-bot-lines-label">satır</span>
-            {(status?.queued ?? 0) > 0 && <span className="bancho-bot-queue num">+{status?.queued} sırada</span>}
+            {(status?.queued ?? 0) > 0 && (
+              <span className="bancho-bot-queue num">+{status?.queued} sırada</span>
+            )}
           </>
         ) : (
           <span className="bancho-bot-lines-label">—</span>
@@ -262,7 +282,12 @@ function BotRow({
           aria-expanded={changing}
           onClick={() => setChanging((c) => !c)}
         />
-        <IconButton icon="trash" label={`${bot.username} botunu sil`} disabled={busy} onClick={remove} />
+        <IconButton
+          icon="trash"
+          label={`${bot.username} botunu sil`}
+          disabled={busy}
+          onClick={remove}
+        />
       </div>
 
       {changing && (
@@ -279,7 +304,11 @@ function BotRow({
           <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !password}>
             Kaydet ve bağlan
           </button>
-          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setChanging(false)}>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => setChanging(false)}
+          >
             Vazgeç
           </button>
         </form>
@@ -317,8 +346,13 @@ function AddBot({ onAdded, onError }: { onAdded: () => void; onError: (message: 
         Bot ekle
       </h2>
       <p className="bancho-add-hint">
-        Hesap turnuvada oynamamalı. Hakemler odaya kendi hesaplarıyla bağlanır; bot onları odanın hakemi yapar.{" "}
-        <a href="https://osu.ppy.sh/home/account/edit#legacy-api" target="_blank" rel="noopener noreferrer">
+        Hesap turnuvada oynamamalı. Hakemler odaya kendi hesaplarıyla bağlanır; bot onları odanın
+        hakemi yapar.{" "}
+        <a
+          href="https://osu.ppy.sh/home/account/edit#legacy-api"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           IRC şifresi hesabın ayarlarında
           <Icon name="arrowRight" size={12} />
         </a>
@@ -349,7 +383,11 @@ function AddBot({ onAdded, onError }: { onAdded: () => void; onError: (message: 
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} />
           Hemen bağlansın
         </label>
-        <button type="submit" className="btn btn-primary" disabled={busy || !username.trim() || !password}>
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={busy || !username.trim() || !password}
+        >
           {busy ? "Ekleniyor…" : "Bot ekle"}
         </button>
       </div>

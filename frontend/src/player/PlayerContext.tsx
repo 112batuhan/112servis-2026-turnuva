@@ -1,4 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { readString, writeString } from "../lib/storage";
 
 export interface Track {
@@ -77,7 +86,10 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     [track, stop],
   );
 
-  const value = useMemo(() => ({ track, volume, setVolume, toggle, stop }), [track, volume, toggle, stop]);
+  const value = useMemo(
+    () => ({ track, volume, setVolume, toggle, stop }),
+    [track, volume, toggle, stop],
+  );
   return <PlayerContext.Provider value={value}>{children}</PlayerContext.Provider>;
 }
 

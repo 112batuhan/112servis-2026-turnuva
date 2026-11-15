@@ -36,7 +36,9 @@ export function AuthNotice() {
   if (sessionExpired) {
     return (
       <div className="auth-notice alert alert-error" role="alert">
-        <span className="alert-message">Oturumun sona erdi; devam etmek için yeniden giriş yap.</span>
+        <span className="alert-message">
+          Oturumun sona erdi; devam etmek için yeniden giriş yap.
+        </span>
         <button type="button" className="btn btn-secondary btn-sm" onClick={loginWithOsu}>
           Giriş yap
         </button>

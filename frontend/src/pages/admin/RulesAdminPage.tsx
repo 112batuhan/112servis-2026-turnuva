@@ -21,7 +21,10 @@ const list =
   (open: string): Edit =>
   (selected) => ({
     before: `${open}\n`,
-    middle: (selected || "").split("\n").map((line) => `[*]${line}`).join("\n"),
+    middle: (selected || "")
+      .split("\n")
+      .map((line) => `[*]${line}`)
+      .join("\n"),
     after: "\n[/list]",
   });
 
@@ -29,7 +32,11 @@ const TOOLS: { label: string; title: string; edit: Edit; shortcut?: string }[] =
   { label: "Kalın", title: "[b]…[/b] (Ctrl+B)", edit: wrap("[b]", "[/b]"), shortcut: "b" },
   { label: "İtalik", title: "[i]…[/i] (Ctrl+I)", edit: wrap("[i]", "[/i]"), shortcut: "i" },
   { label: "Altı çizili", title: "[u]…[/u] (Ctrl+U)", edit: wrap("[u]", "[/u]"), shortcut: "u" },
-  { label: "Başlık", title: "[heading]…[/heading]: bölüm başlığı, içindekilerde görünür", edit: wrap("[heading]", "[/heading]") },
+  {
+    label: "Başlık",
+    title: "[heading]…[/heading]: bölüm başlığı, içindekilerde görünür",
+    edit: wrap("[heading]", "[/heading]"),
+  },
   { label: "Numaralı liste", title: "[list=1] ve her satır için [*]", edit: list("[list=1]") },
   { label: "Liste", title: "[list] ve her satır için [*]", edit: list("[list]") },
   { label: "Link", title: "[url=adres]…[/url]", edit: wrap("[url=https://]", "[/url]") },
@@ -128,11 +135,20 @@ export function RulesAdminPage() {
             Sayfayı aç
           </Link>
           {dirty && (
-            <button type="button" className="btn btn-secondary" onClick={() => saved && setDraft(saved.bbcode)}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => saved && setDraft(saved.bbcode)}
+            >
               Değişiklikleri geri al
             </button>
           )}
-          <button type="button" className="btn btn-primary" disabled={!dirty || saving} onClick={() => void save()}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={!dirty || saving}
+            onClick={() => void save()}
+          >
             {saving ? "Kaydediliyor…" : "Kaydet"}
           </button>
         </div>

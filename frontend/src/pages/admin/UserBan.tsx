@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 import { createPortal } from "react-dom";
 import type { AdminUser } from "../../api/types";
 import { Icon } from "../../components/Icon";
@@ -32,7 +40,9 @@ export function UserBan({ user, self, busy, onBan, onUnban }: Props) {
   const banned = user.banned_at !== null;
   // What the popover shows, fixed when it opens: the list reloads before a ban or an unban closes
   // it, and it shouldn't flip to the other side for that moment.
-  const [shows, setShows] = useState<{ kind: "ban" } | { kind: "details"; reason: string; meta: string } | null>(null);
+  const [shows, setShows] = useState<
+    { kind: "ban" } | { kind: "details"; reason: string; meta: string } | null
+  >(null);
   const open = shows !== null;
   const [reason, setReason] = useState("");
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -60,7 +70,8 @@ export function UserBan({ user, self, busy, onBan, onUnban }: Props) {
   useEffect(() => {
     if (!open) return;
     const inside = (target: EventTarget | null) =>
-      target instanceof Node && (popRef.current?.contains(target) || triggerRef.current?.contains(target));
+      target instanceof Node &&
+      (popRef.current?.contains(target) || triggerRef.current?.contains(target));
     const onPointer = (e: PointerEvent) => {
       if (!inside(e.target)) close(false);
     };
@@ -77,7 +88,9 @@ export function UserBan({ user, self, busy, onBan, onUnban }: Props) {
 
   if (self && !banned) return null;
 
-  const label = banned ? `${user.username} banlı: ayrıntılar` : `${user.username} kullanıcısını banla`;
+  const label = banned
+    ? `${user.username} banlı: ayrıntılar`
+    : `${user.username} kullanıcısını banla`;
 
   function toggle() {
     if (open) return close(false);
@@ -117,7 +130,11 @@ export function UserBan({ user, self, busy, onBan, onUnban }: Props) {
             // Tabbing out of it puts it away too.
             onBlur={(e) => {
               const next = e.relatedTarget;
-              if (next instanceof Node && !popRef.current?.contains(next) && !triggerRef.current?.contains(next)) {
+              if (
+                next instanceof Node &&
+                !popRef.current?.contains(next) &&
+                !triggerRef.current?.contains(next)
+              ) {
                 close(false);
               }
             }}
@@ -125,7 +142,11 @@ export function UserBan({ user, self, busy, onBan, onUnban }: Props) {
             {shows.kind === "details" ? (
               <>
                 <div className="user-ban-pop-details">
-                  <span className={shows.reason ? "user-ban-pop-reason" : "user-ban-pop-reason is-empty"}>
+                  <span
+                    className={
+                      shows.reason ? "user-ban-pop-reason" : "user-ban-pop-reason is-empty"
+                    }
+                  >
                     {shows.reason || "Sebep belirtilmedi"}
                   </span>
                   <span className="user-ban-pop-meta">{shows.meta}</span>
@@ -191,7 +212,10 @@ function useAnchored(
     const below = anchor.bottom + GAP;
     const above = anchor.top - GAP - box.height;
     const top = below + box.height <= window.innerHeight - MARGIN || above < MARGIN ? below : above;
-    const left = Math.max(MARGIN, Math.min(anchor.right - box.width, window.innerWidth - MARGIN - box.width));
+    const left = Math.max(
+      MARGIN,
+      Math.min(anchor.right - box.width, window.innerWidth - MARGIN - box.width),
+    );
     setPosition({ top: Math.max(MARGIN, top), left });
   }, [triggerRef, floatRef]);
 

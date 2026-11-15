@@ -19,7 +19,14 @@ interface SplitProps {
  * How a match's winner was predicted: one bar split in the room's sides (team 1 blue on the left,
  * team 2 red on the right), each share at its end, the bigger one in ink.
  */
-export function PickemSplitBar({ team1, team2, names, named = false, mine = null, counted = false }: SplitProps) {
+export function PickemSplitBar({
+  team1,
+  team2,
+  names,
+  named = false,
+  mine = null,
+  counted = false,
+}: SplitProps) {
   const total = team1 + team2;
   const [p1, p2] = shares(team1, team2);
   if (total === 0) return <p className="pickem-split-empty">Kimse tahmin etmedi.</p>;
@@ -49,8 +56,12 @@ export function PickemSplitBar({ team1, team2, names, named = false, mine = null
       >
         {share(1, p1, team1)}
         <span className="pickem-split-track" aria-hidden="true">
-          {team1 > 0 && <span className="pickem-split-fill is-team-blue" style={{ flexGrow: team1 }} />}
-          {team2 > 0 && <span className="pickem-split-fill is-team-red" style={{ flexGrow: team2 }} />}
+          {team1 > 0 && (
+            <span className="pickem-split-fill is-team-blue" style={{ flexGrow: team1 }} />
+          )}
+          {team2 > 0 && (
+            <span className="pickem-split-fill is-team-red" style={{ flexGrow: team2 }} />
+          )}
         </span>
         {share(2, p2, team2)}
       </div>

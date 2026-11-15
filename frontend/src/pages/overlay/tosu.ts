@@ -78,7 +78,9 @@ function same(a: TosuTourney, b: TosuTourney): boolean {
     a.clients.length === b.clients.length &&
     a.clients.every((c, i) => {
       const d = b.clients[i];
-      return c.ipcId === d.ipcId && c.team === d.team && c.userId === d.userId && c.score === d.score;
+      return (
+        c.ipcId === d.ipcId && c.team === d.team && c.userId === d.userId && c.score === d.score
+      );
     })
   );
 }

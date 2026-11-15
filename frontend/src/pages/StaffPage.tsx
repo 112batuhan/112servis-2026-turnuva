@@ -36,7 +36,9 @@ export function StaffPage() {
       <div className="page-header">
         <h1>Ekip</h1>
         {staff && <span className="badge">{staff.length}</span>}
-        <div className="page-header-aside staff-hint">Discord adına tıklarsan etiketi kopyalanır.</div>
+        <div className="page-header-aside staff-hint">
+          Discord adına tıklarsan etiketi kopyalanır.
+        </div>
       </div>
       <ErrorAlert message={error} onDismiss={() => setError(null)} />
       {!staff && !error && <p className="status">Yükleniyor…</p>}
@@ -73,7 +75,14 @@ export function StaffPage() {
 function StaffRow({ member, isYou }: { member: StaffMember; isYou: boolean }) {
   return (
     <li className={`staff-member ${isYou ? "is-you" : ""}`}>
-      <img className="staff-avatar" src={member.avatar_url} alt="" width={40} height={40} loading="lazy" />
+      <img
+        className="staff-avatar"
+        src={member.avatar_url}
+        alt=""
+        width={40}
+        height={40}
+        loading="lazy"
+      />
       <div className="staff-member-text">
         <span className="staff-member-name-line">
           <a

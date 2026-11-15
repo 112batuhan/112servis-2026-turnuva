@@ -23,7 +23,10 @@ export function useRoomStaff(): StaffMember[] | null {
     fetchStaff()
       .then(
         (all) =>
-          live && setStaff(all.filter((s) => s.roles.some((r) => ROOM_ROLES.includes(r) || REF_ROLES.includes(r)))),
+          live &&
+          setStaff(
+            all.filter((s) => s.roles.some((r) => ROOM_ROLES.includes(r) || REF_ROLES.includes(r))),
+          ),
       )
       .catch(() => {});
     return () => {
@@ -34,7 +37,12 @@ export function useRoomStaff(): StaffMember[] | null {
 }
 
 /** The role someone in the room is there as, if they're staff; by osu! id once it's known. */
-export function staffRole(staff: StaffMember[] | null, slot: Pick<RoomSlot, "userId" | "username">): Role | null {
-  const member = staff?.find((s) => (slot.userId !== null ? s.osu_id === slot.userId : sameName(s.username, slot.username)));
+export function staffRole(
+  staff: StaffMember[] | null,
+  slot: Pick<RoomSlot, "userId" | "username">,
+): Role | null {
+  const member = staff?.find((s) =>
+    slot.userId !== null ? s.osu_id === slot.userId : sameName(s.username, slot.username),
+  );
   return member ? (ROOM_ROLES.find((r) => member.roles.includes(r)) ?? null) : null;
 }

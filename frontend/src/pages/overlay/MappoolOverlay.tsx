@@ -50,7 +50,8 @@ function gridScale(rows: PoolEntry[][]): number {
   const last = rows[rows.length - 1].length;
   const reachesWell = (last * (PILL_W + PILL_GAP) - PILL_GAP) / 2 > 960 - 760;
   const bottom = reachesWell ? 845 : 905;
-  const byHeight = rows.length > 1 ? (bottom - PILL_H - GRID_TOP) / (rows.length - 1) / ROW_PITCH : 1;
+  const byHeight =
+    rows.length > 1 ? (bottom - PILL_H - GRID_TOP) / (rows.length - 1) / ROW_PITCH : 1;
   return Math.min(1, byWidth, byHeight);
 }
 
@@ -61,7 +62,10 @@ export function MappoolOverlay({ view }: { view: BroadcastMatch | null }) {
     const id = side === 1 ? match?.team1_id : match?.team2_id;
     return match?.teams.find((t) => t.id === id) ?? null;
   };
-  const marks = useMemo(() => (match ? mapMarks(match, tally) : new Map<string, MapMark>()), [match, tally]);
+  const marks = useMemo(
+    () => (match ? mapMarks(match, tally) : new Map<string, MapMark>()),
+    [match, tally],
+  );
   const rows = useMemo(() => (match ? poolRows(match, poolEntries(match)) : []), [match]);
   const scale = gridScale(rows);
   const currentId = view?.page.currentEntry?.map.id ?? null;
@@ -74,7 +78,11 @@ export function MappoolOverlay({ view }: { view: BroadcastMatch | null }) {
         <div key={side} className={`mp-team ${SIDE_CLASS[side]}`}>
           <TeamBanner team={team(side)} side={side} />
           <h2 className="ov-team-name mp-team-name">{team(side)?.name ?? ""}</h2>
-          <StarPips wins={(side === 1 ? tally?.team1 : tally?.team2) ?? 0} bestOf={match?.stage?.best_of ?? null} side={side} />
+          <StarPips
+            wins={(side === 1 ? tally?.team1 : tally?.team2) ?? 0}
+            bestOf={match?.stage?.best_of ?? null}
+            side={side}
+          />
         </div>
       ))}
       <StageTitle match={match} />

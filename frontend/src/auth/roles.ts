@@ -62,7 +62,11 @@ export function canPlay(user: WithRoles): boolean {
  * custom mappers only look at it.
  */
 export function canViewPool(user: WithRoles): boolean {
-  return hasRole(user, "map_pooler") || holdsRole(user, "pool_tester") || holdsRole(user, "custom_mapper");
+  return (
+    hasRole(user, "map_pooler") ||
+    holdsRole(user, "pool_tester") ||
+    holdsRole(user, "custom_mapper")
+  );
 }
 
 /** The roles that see the admin bracket tab; pool testers and custom mappers only get the map pool. */

@@ -200,7 +200,8 @@ export interface StaffMember {
   discord_username: string | null;
 }
 
-export type Eligibility = "eligible" | "not_player" | "banned" | "in_team" | "unranked" | "over_limit";
+export type Eligibility =
+  "eligible" | "not_player" | "banned" | "in_team" | "unranked" | "over_limit";
 
 export interface PlayerResult extends Player {
   eligibility: Eligibility;
@@ -1178,7 +1179,14 @@ export interface StatStanding {
   team_best: number;
   /** Qualifier: their lobby isn't over, so missing maps don't count yet. */
   pending: boolean;
-  best: { map_id: string; match_id: string; z: number; score: number; rank: number; field: number } | null;
+  best: {
+    map_id: string;
+    match_id: string;
+    z: number;
+    score: number;
+    rank: number;
+    field: number;
+  } | null;
   per_map: StatCell[];
   /** The maps the team (a player's team) or its opponents picked or banned, in pool order. */
   drafts: StatDraftTally[];

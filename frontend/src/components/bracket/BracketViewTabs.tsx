@@ -74,7 +74,13 @@ export function CountdownToggle({ on, onToggle }: { on: boolean; onToggle: () =>
   );
 }
 
-export function BracketViewTabs({ view, onChange }: { view: BracketView; onChange: (view: BracketView) => void }) {
+export function BracketViewTabs({
+  view,
+  onChange,
+}: {
+  view: BracketView;
+  onChange: (view: BracketView) => void;
+}) {
   return (
     <div className="bracket-view-tabs" role="group" aria-label="Görünüm">
       {VIEWS.map((v) => (

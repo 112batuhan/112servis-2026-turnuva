@@ -33,7 +33,8 @@ export function RefereeWatchers({ viewers }: { viewers: RefereeViewer[] | undefi
     const anchor = triggerRef.current.getBoundingClientRect();
     const list = listRef.current.getBoundingClientRect();
     let top = anchor.bottom + GAP;
-    if (top + list.height > window.innerHeight - MARGIN) top = Math.max(MARGIN, anchor.top - GAP - list.height);
+    if (top + list.height > window.innerHeight - MARGIN)
+      top = Math.max(MARGIN, anchor.top - GAP - list.height);
     const left = Math.max(MARGIN, Math.min(anchor.left, window.innerWidth - MARGIN - list.width));
     setPosition({ top, left });
   }, [open, viewers]);

@@ -43,7 +43,10 @@ export function DiscordMention({ player, fallback, compact = false }: Props) {
     }
   }
 
-  if (compact) return <CompactMention username={username} copyable={!!discordId} state={state} onCopy={copy} />;
+  if (compact)
+    return (
+      <CompactMention username={username} copyable={!!discordId} state={state} onCopy={copy} />
+    );
 
   // Without the id there's nothing to mention, so just show the name.
   if (!discordId) return <>@{username}</>;
@@ -139,7 +142,9 @@ function CompactMention({ username, copyable, state, onCopy }: CompactProps) {
           >
             <span className="discord-mention-tip-name">@{username}</span>
             {hint && (
-              <span className={`discord-mention-tip-hint${state !== "idle" ? ` is-${state}` : ""}`}>{hint}</span>
+              <span className={`discord-mention-tip-hint${state !== "idle" ? ` is-${state}` : ""}`}>
+                {hint}
+              </span>
             )}
           </span>,
           document.body,

@@ -1,4 +1,12 @@
-import { useCallback, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode, type RefObject } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import "./Cockpit.css";
 
 // The cockpit shell the referee page and the public match page share: its three panels, and on a
@@ -74,15 +82,25 @@ interface CockpitTabsProps {
  * The phone's cockpit tabs. Each one carries where its panel stands (the draft, the score, the
  * chat), so nobody has to switch to look.
  */
-export function CockpitTabs({ tabsRef, label: listLabel, active, onSelect, status }: CockpitTabsProps) {
+export function CockpitTabs({
+  tabsRef,
+  label: listLabel,
+  active,
+  onSelect,
+  status,
+}: CockpitTabsProps) {
   function onKeyDown(e: KeyboardEvent) {
     const at = TABS.findIndex((t) => t.id === active);
     const to =
-      e.key === "ArrowRight" ? (at + 1) % TABS.length
-      : e.key === "ArrowLeft" ? (at + TABS.length - 1) % TABS.length
-      : e.key === "Home" ? 0
-      : e.key === "End" ? TABS.length - 1
-      : null;
+      e.key === "ArrowRight"
+        ? (at + 1) % TABS.length
+        : e.key === "ArrowLeft"
+          ? (at + TABS.length - 1) % TABS.length
+          : e.key === "Home"
+            ? 0
+            : e.key === "End"
+              ? TABS.length - 1
+              : null;
     if (to === null) return;
     e.preventDefault();
     onSelect(TABS[to].id);
@@ -90,7 +108,13 @@ export function CockpitTabs({ tabsRef, label: listLabel, active, onSelect, statu
   }
 
   return (
-    <div className="referee-tabs" role="tablist" aria-label={listLabel} ref={tabsRef} onKeyDown={onKeyDown}>
+    <div
+      className="referee-tabs"
+      role="tablist"
+      aria-label={listLabel}
+      ref={tabsRef}
+      onKeyDown={onKeyDown}
+    >
       {TABS.map(({ id, label }) => (
         <button
           key={id}

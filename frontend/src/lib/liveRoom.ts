@@ -71,9 +71,13 @@ export interface Tally {
 export type ResultSource = "chat" | "saved";
 
 /** "Lobi C" or "W2". */
-export function roomLabel(room: Pick<RefereeRoom | PublicMatch, "kind" | "lobby_name" | "side" | "number">): string {
+export function roomLabel(
+  room: Pick<RefereeRoom | PublicMatch, "kind" | "lobby_name" | "side" | "number">,
+): string {
   if (room.kind === "qualifier") return `Lobi ${room.lobby_name ?? "?"}`;
-  return room.side && room.number !== null ? matchCode({ side: room.side, number: room.number }) : "Maç";
+  return room.side && room.number !== null
+    ? matchCode({ side: room.side, number: room.number })
+    : "Maç";
 }
 
 /** The match's players with their teams and, in a bracket match, the colour and slot each plays in. */
@@ -81,7 +85,13 @@ export function rosterOf<P extends Player>(
   room: Pick<MatchData, "kind" | "team1_id" | "team2_id"> & { teams: Team<P>[] },
 ): RosterPlayer<P>[] {
   const side = (team: Team<P>): 1 | 2 | null =>
-    room.kind !== "bracket" ? null : team.id === room.team1_id ? 1 : team.id === room.team2_id ? 2 : null;
+    room.kind !== "bracket"
+      ? null
+      : team.id === room.team1_id
+        ? 1
+        : team.id === room.team2_id
+          ? 2
+          : null;
   return room.teams.flatMap((team) => {
     const s = side(team);
     return team.players.map((player, i) => ({
@@ -94,9 +104,14 @@ export function rosterOf<P extends Player>(
 }
 
 /** The roster player a score is by: by osu! id when it's known, by name otherwise. */
-export function scorer<P extends Player>(score: MapScore, roster: RosterPlayer<P>[]): RosterPlayer<P> | undefined {
+export function scorer<P extends Player>(
+  score: MapScore,
+  roster: RosterPlayer<P>[],
+): RosterPlayer<P> | undefined {
   return roster.find((p) =>
-    score.userId !== null ? p.player.osu_id === score.userId : sameName(p.player.username, score.username),
+    score.userId !== null
+      ? p.player.osu_id === score.userId
+      : sameName(p.player.username, score.username),
   );
 }
 
@@ -140,7 +155,12 @@ export function liveTally(live: LiveRoom | null, entries: PoolEntry[]): Tally | 
   if (!live?.tally) return null;
   const finished = finishedOf(live);
   const rows = poolRows(finished, entries);
-  return { rows, outsidePool: finished.length - rows.length, team1: live.tally.team1, team2: live.tally.team2 };
+  return {
+    rows,
+    outsidePool: finished.length - rows.length,
+    team1: live.tally.team1,
+    team2: live.tally.team2,
+  };
 }
 
 /** The pool map the latest room has on. */
@@ -149,7 +169,11 @@ export function currentEntryOf(live: LiveRoom | null, entries: PoolEntry[]): Poo
 }
 
 /** A match's saved map results as the results list shows them, with its map wins. */
-export function savedTally<P extends Player>(room: MatchData, entries: PoolEntry[], roster: RosterPlayer<P>[]): Tally {
+export function savedTally<P extends Player>(
+  room: MatchData,
+  entries: PoolEntry[],
+  roster: RosterPlayer<P>[],
+): Tally {
   const rows: ResultRow[] = room.map_results.flatMap((saved, i) => {
     const entry = entries.find((e) => e.map.id === saved.map_id);
     if (!entry) return [];
@@ -171,7 +195,13 @@ export function savedTally<P extends Player>(room: MatchData, entries: PoolEntry
     return [
       {
         key: `saved:${i}`,
-        result: { beatmapId: entry.map.beatmap_id, beatmapName: null, roomMods: "", freemod: entry.freemod, scores },
+        result: {
+          beatmapId: entry.map.beatmap_id,
+          beatmapName: null,
+          roomMods: "",
+          freemod: entry.freemod,
+          scores,
+        },
         mapId: entry.map.id,
         entry,
         totals,

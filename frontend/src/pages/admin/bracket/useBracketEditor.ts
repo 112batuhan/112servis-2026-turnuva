@@ -87,7 +87,11 @@ export function useBracketEditor(staffView: boolean) {
   // Scores saved anywhere (mostly the referee pages) show at once; other changes reload
   // the bracket, unless moves are still waiting to be saved, which a reload would undo.
   useLiveBracket(
-    (e) => setData((d) => d && { ...d, matches: withScore(d.matches, e.match_id, e.team1_score, e.team2_score) }),
+    (e) =>
+      setData(
+        (d) =>
+          d && { ...d, matches: withScore(d.matches, e.match_id, e.team1_score, e.team2_score) },
+      ),
     () => {
       if (pendingMoves.current.size === 0) reload().catch(() => {});
     },

@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { loginWithOsu } from "../../api/auth";
-import type { BracketMatch, CanPredict, MyPrediction, PickemStage, PickemStanding, PickemStatus } from "../../api/types";
+import type {
+  BracketMatch,
+  CanPredict,
+  MyPrediction,
+  PickemStage,
+  PickemStanding,
+  PickemStatus,
+} from "../../api/types";
 import { useAuth } from "../../auth/AuthContext";
 import { Countdown } from "../../components/Countdown";
 import { useLinkedMatch } from "../../components/bracket/BracketViewTabs";
@@ -52,7 +59,10 @@ export function PickemPage() {
     requestAnimationFrame(() => {
       const row = document.getElementById(`pickem-${m.id}`);
       if (!row) return;
-      row.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      row.scrollIntoView({
+        block: "center",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      });
       row.classList.add("is-linked");
     });
   }, [linked, matches]);
@@ -73,7 +83,10 @@ export function PickemPage() {
       .sort((a, b) => compareByTime(a.lead, b.lead));
   }, [matches, stage]);
   // What can be predicted: each match, or each of its pairings.
-  const rows = useMemo(() => entries.flatMap((e) => (e.potentials.length > 0 ? e.potentials : [e.match])), [entries]);
+  const rows = useMemo(
+    () => entries.flatMap((e) => (e.potentials.length > 0 ? e.potentials : [e.match])),
+    [entries],
+  );
   const viewer = overview?.standings.find((s) => s.player.id === user?.id);
   const [railRef, railMore] = useMoreBelow(overview !== null && overview.stages.length > 0);
   const openStage = stages.find((s) => s.status === "open");
@@ -94,10 +107,16 @@ export function PickemPage() {
     <div className="page pickem-page" data-tab={tab}>
       <div className="page-header">
         <h1>Pick'em</h1>
-        {overview.standings.length > 0 && <span className="badge">{overview.standings.length} kişi</span>}
+        {overview.standings.length > 0 && (
+          <span className="badge">{overview.standings.length} kişi</span>
+        )}
         {openStage && openStage.id !== stage?.id && (
           <div className="page-header-aside">
-            <button type="button" className="pickem-open-call" onClick={() => setPicked(openStage.id)}>
+            <button
+              type="button"
+              className="pickem-open-call"
+              onClick={() => setPicked(openStage.id)}
+            >
               <span className="pickem-open-call-name">{openStage.name}</span> tahmine açık
               {openStage.closes_at && (
                 <Countdown
@@ -126,7 +145,12 @@ export function PickemPage() {
           />
 
           <div className="pickem-tabs" role="group" aria-label="Bölüm">
-            <button type="button" className="pickem-tab" aria-pressed={tab === "ballot"} onClick={() => setTab("ballot")}>
+            <button
+              type="button"
+              className="pickem-tab"
+              aria-pressed={tab === "ballot"}
+              onClick={() => setTab("ballot")}
+            >
               Tahminler
             </button>
             <button
@@ -146,8 +170,12 @@ export function PickemPage() {
                 <header className="pickem-stage-head">
                   <div className="pickem-stage-title-line">
                     <h2 id="pickem-stage-title">{stage.name}</h2>
-                    {stage.best_of !== null && <span className="pickem-stage-bo">{bestOfLabel(stage.best_of)}</span>}
-                    <span className={`pickem-stage-status is-${stage.status}`}>{STATUS_LABELS[stage.status]}</span>
+                    {stage.best_of !== null && (
+                      <span className="pickem-stage-bo">{bestOfLabel(stage.best_of)}</span>
+                    )}
+                    <span className={`pickem-stage-status is-${stage.status}`}>
+                      {STATUS_LABELS[stage.status]}
+                    </span>
                   </div>
                   <StageSummary stage={stage} viewer={viewer} rows={rows} mine={mine} />
                   <ul className="pickem-legend" aria-label="Puanlama">
@@ -201,8 +229,17 @@ export function PickemPage() {
               </section>
             )}
 
-            <aside ref={railRef} className="pickem-rail" data-more={railMore || undefined} aria-label="Puan durumu">
-              <PickemStandings standings={overview.standings} stage={stage} viewerId={user?.id ?? null} />
+            <aside
+              ref={railRef}
+              className="pickem-rail"
+              data-more={railMore || undefined}
+              aria-label="Puan durumu"
+            >
+              <PickemStandings
+                standings={overview.standings}
+                stage={stage}
+                viewerId={user?.id ?? null}
+              />
             </aside>
           </div>
         </>
@@ -233,7 +270,12 @@ function useMoreBelow(mounted: boolean) {
 }
 
 /** Each window's rule on the track. */
-const RULES: Record<PickemStatus, StageMark["rule"]> = { upcoming: undefined, open: "lit", locked: "set", finished: "done" };
+const RULES: Record<PickemStatus, StageMark["rule"]> = {
+  upcoming: undefined,
+  open: "lit",
+  locked: "set",
+  finished: "done",
+};
 
 /**
  * A pick'em stage on the track: played out ruled in muted ink, locked in ink, the open one lit like
@@ -277,7 +319,8 @@ function StageSummary({
       <span className="pickem-stage-mine-figure">{tally.points}</span>
       <span className="pickem-stage-mine-label">puan</span>
       <span className="pickem-stage-mine-detail">
-        <span>{tally.exact} maçta skoru,</span> <span>{tally.winners} maçta kazananı tutturdun</span>
+        <span>{tally.exact} maçta skoru,</span>{" "}
+        <span>{tally.winners} maçta kazananı tutturdun</span>
       </span>
     </p>
   );

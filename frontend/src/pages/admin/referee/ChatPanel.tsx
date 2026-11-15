@@ -1,4 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { IconButton } from "../../../components/IconButton";
 import { conversationKey, isChannel, useIrc, type ChatLine } from "../../../irc/IrcContext";
 import type { SlotTeam } from "../../../lib/bancho";
@@ -58,7 +65,8 @@ export function ChatPanel({ rooms, colors, top, visible = true, onUnread, viaBot
 
   // Viewing a conversation marks it read.
   useEffect(() => {
-    if (visible && activeKey) setSeen((s) => (s[activeKey] === lastId ? s : { ...s, [activeKey]: lastId }));
+    if (visible && activeKey)
+      setSeen((s) => (s[activeKey] === lastId ? s : { ...s, [activeKey]: lastId }));
   }, [visible, activeKey, lastId]);
 
   // Follows new lines unless the referee has scrolled up to read. A hidden log can't scroll, so
@@ -85,7 +93,8 @@ export function ChatPanel({ rooms, colors, top, visible = true, onUnread, viaBot
       ? (activeDm?.name ?? null)
       : null;
   const [sending, setSending] = useState(false);
-  const unread = (key: string, tabLines: ChatLine[]) => tabLines.filter((l) => l.id > (seen[key] ?? 0)).length;
+  const unread = (key: string, tabLines: ChatLine[]) =>
+    tabLines.filter((l) => l.id > (seen[key] ?? 0)).length;
   const totalUnread =
     rooms.reduce((n, r) => n + unread(conversationKey(r.channel), r.lines), 0) +
     dmKeys.reduce((n, key) => n + unread(key, irc.conversations[key].lines), 0);
@@ -122,7 +131,14 @@ export function ChatPanel({ rooms, colors, top, visible = true, onUnread, viaBot
     stuckToBottom.current = true;
   }
 
-  const tab = (key: string, label: string, title: string, badge: number, onClose: (() => void) | null, name: string) => (
+  const tab = (
+    key: string,
+    label: string,
+    title: string,
+    badge: number,
+    onClose: (() => void) | null,
+    name: string,
+  ) => (
     <span key={key} className={`chat-tab ${key === activeKey ? "is-active" : ""}`}>
       <button
         type="button"
@@ -136,7 +152,13 @@ export function ChatPanel({ rooms, colors, top, visible = true, onUnread, viaBot
         {badge > 0 && key !== activeKey && <span className="chat-tab-unread">{badge}</span>}
       </button>
       {onClose && (
-        <IconButton icon="close" iconSize={12} className="chat-tab-close" label={`${title} sohbetini kapat`} onClick={onClose} />
+        <IconButton
+          icon="close"
+          iconSize={12}
+          className="chat-tab-close"
+          label={`${title} sohbetini kapat`}
+          onClick={onClose}
+        />
       )}
     </span>
   );
@@ -188,7 +210,11 @@ export function ChatPanel({ rooms, colors, top, visible = true, onUnread, viaBot
       >
         {lines.length === 0 && (
           <p className="chat-empty muted">
-            {activeRoom ? "Bu odada henüz mesaj yok." : online ? "Mesaj yok." : "Özel mesajlar için Bancho'ya bağlan."}
+            {activeRoom
+              ? "Bu odada henüz mesaj yok."
+              : online
+                ? "Mesaj yok."
+                : "Özel mesajlar için Bancho'ya bağlan."}
           </p>
         )}
         {lines.map((line) => (
@@ -209,7 +235,9 @@ export function ChatPanel({ rooms, colors, top, visible = true, onUnread, viaBot
           type="submit"
           className="btn btn-primary"
           disabled={
-            !draft.trim() || sending || (throughBot ? !target : !online || (activeRoom !== undefined && !target))
+            !draft.trim() ||
+            sending ||
+            (throughBot ? !target : !online || (activeRoom !== undefined && !target))
           }
         >
           Gönder

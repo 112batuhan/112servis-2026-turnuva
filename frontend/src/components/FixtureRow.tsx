@@ -1,7 +1,14 @@
 import { Link } from "react-router-dom";
 import type { BracketMatch, Team } from "../api/types";
 import { stageLabel } from "../lib/bestOf";
-import { isLive, matchCode, scoreHalves, sourceLabel, winningSlot, type Source } from "../lib/bracket";
+import {
+  isLive,
+  matchCode,
+  scoreHalves,
+  sourceLabel,
+  winningSlot,
+  type Source,
+} from "../lib/bracket";
 import { formatShortMatchTime } from "../lib/format";
 import { Countdown } from "./Countdown";
 import { Icon } from "./Icon";
@@ -35,7 +42,10 @@ export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Prop
   const halves = match.concluded_at || live ? scoreHalves(match) : null;
   // While it's live, whoever is ahead reads like a winner; level, neither does.
   const leading =
-    live && match.team1_score !== null && match.team2_score !== null && match.team1_score !== match.team2_score
+    live &&
+    match.team1_score !== null &&
+    match.team2_score !== null &&
+    match.team1_score !== match.team2_score
       ? match.team1_score > match.team2_score
         ? 1
         : 2
@@ -67,7 +77,9 @@ export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Prop
   return (
     <Link
       to={to}
-      className={["fixture-row", live && "is-live", potential && "is-potential"].filter(Boolean).join(" ")}
+      className={["fixture-row", live && "is-live", potential && "is-potential"]
+        .filter(Boolean)
+        .join(" ")}
       title={potential ? "İki takım da bu maça gelirse oynanır" : undefined}
     >
       <span className="fixture-when">
@@ -87,7 +99,15 @@ export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Prop
       {side(1)}
       <span
         className={live ? "fixture-score is-live" : "fixture-score"}
-        aria-label={halves ? (match.forfeit_slot && match.concluded_at ? "Hükmen sonuç" : live ? "Canlı skor" : "Skor") : undefined}
+        aria-label={
+          halves
+            ? match.forfeit_slot && match.concluded_at
+              ? "Hükmen sonuç"
+              : live
+                ? "Canlı skor"
+                : "Skor"
+            : undefined
+        }
       >
         {halves ? (
           <>

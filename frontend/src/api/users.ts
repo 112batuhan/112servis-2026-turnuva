@@ -9,6 +9,7 @@ export const updateUserRoles = (userId: string, roles: Role[]) =>
   put<AdminUser>(`/api/users/${userId}/roles`, { roles });
 
 /** Bans a user from taking part (teams, lobbies, reschedules, pick'em), or changes the reason. */
-export const banUser = (userId: string, reason: string) => put<UserBan>(`/api/users/${userId}/ban`, { reason });
+export const banUser = (userId: string, reason: string) =>
+  put<UserBan>(`/api/users/${userId}/ban`, { reason });
 
 export const unbanUser = (userId: string) => del(`/api/users/${userId}/ban`);

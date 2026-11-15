@@ -25,7 +25,8 @@ export function QualifiersPage() {
 
   const lobbies = data?.lobbies;
   const myTeamId = data?.my_team_id ?? null;
-  const myLobby = (myTeamId ? lobbies?.find((l) => l.teams.some((t) => t.id === myTeamId)) : undefined) ?? null;
+  const myLobby =
+    (myTeamId ? lobbies?.find((l) => l.teams.some((t) => t.id === myTeamId)) : undefined) ?? null;
   // Once their lobby has started a team stays where it is.
   const canMove = myTeamId !== null && (!myLobby || myLobby.open);
 
@@ -33,7 +34,12 @@ export function QualifiersPage() {
     if (!myTeamId) return undefined;
     if (lobby === myLobby) {
       return lobby.open ? (
-        <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => run(leaveLobby)}>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          disabled={busy}
+          onClick={() => run(leaveLobby)}
+        >
           Lobiden ayrıl
         </button>
       ) : undefined;
@@ -74,7 +80,8 @@ export function QualifiersPage() {
           {myLobby ? (
             <>
               <p>
-                Takımın <strong>Lobi {myLobby.name}</strong> için kayıtlı: {formatMatchTime(myLobby.starts_at)}.{" "}
+                Takımın <strong>Lobi {myLobby.name}</strong> için kayıtlı:{" "}
+                {formatMatchTime(myLobby.starts_at)}.{" "}
                 {myLobby.open
                   ? "Lobi başlayana kadar sen veya takım arkadaşın başka bir lobiye geçebilirsiniz."
                   : "Lobi başladığı için artık değiştirilemez."}

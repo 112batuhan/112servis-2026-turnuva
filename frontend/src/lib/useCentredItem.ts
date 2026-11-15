@@ -6,7 +6,11 @@ import { useLayoutEffect, useRef } from "react";
  * when the track first shows or turns, and glides when `key` moves on (a stage picked, the current
  * stage advancing). Used by the stage tracks (`StageTabs`, the landing's).
  */
-export function useCentredItem<T extends HTMLElement>(selector: string, key: string | null, count: number) {
+export function useCentredItem<T extends HTMLElement>(
+  selector: string,
+  key: string | null,
+  count: number,
+) {
   const ref = useRef<T>(null);
   // The key centred last: a different one glides; the first, or the same again, jumps.
   const centred = useRef<string | null | undefined>(undefined);
@@ -39,5 +43,8 @@ function centre(track: HTMLElement, selector: string, behavior: ScrollBehavior) 
   if (!item) return;
   const box = track.getBoundingClientRect();
   const at = item.getBoundingClientRect();
-  track.scrollTo({ left: track.scrollLeft + at.left - box.left - (box.width - at.width) / 2, behavior });
+  track.scrollTo({
+    left: track.scrollLeft + at.left - box.left - (box.width - at.width) / 2,
+    behavior,
+  });
 }

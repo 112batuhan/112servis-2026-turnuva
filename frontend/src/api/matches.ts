@@ -10,7 +10,8 @@ export const leaveLobby = () => del("/api/me/qualifier");
 export const fetchQualifiers = () => get<StaffQualifiers>("/api/qualifiers");
 
 // Host-only.
-export const createLobby = (startsAt: string) => post<void>("/api/qualifiers", { starts_at: startsAt });
+export const createLobby = (startsAt: string) =>
+  post<void>("/api/qualifiers", { starts_at: startsAt });
 export const rescheduleLobby = (id: string, startsAt: string) =>
   patch<void>(`/api/qualifiers/${id}`, { starts_at: startsAt });
 export const deleteLobby = (id: string) => del(`/api/qualifiers/${id}`);
@@ -25,14 +26,19 @@ export const fetchReferees = () => get<Player[]>("/api/referees");
 export const setReferee = (matchId: string, refereeId: string | null) =>
   put<void>(`/api/matches/${matchId}/referee`, { referee_id: refereeId });
 /** Adds an osu! multiplayer room, by link or room id. */
-export const addMatchRoom = (matchId: string, link: string) => post<void>(`/api/matches/${matchId}/rooms`, { link });
-export const removeMatchRoom = (matchId: string, mpId: number) => del(`/api/matches/${matchId}/rooms/${mpId}`);
-export const setMatchNotes = (matchId: string, notes: string) => put<void>(`/api/matches/${matchId}/notes`, { notes });
+export const addMatchRoom = (matchId: string, link: string) =>
+  post<void>(`/api/matches/${matchId}/rooms`, { link });
+export const removeMatchRoom = (matchId: string, mpId: number) =>
+  del(`/api/matches/${matchId}/rooms/${mpId}`);
+export const setMatchNotes = (matchId: string, notes: string) =>
+  put<void>(`/api/matches/${matchId}/notes`, { notes });
 export const concludeMatch = (matchId: string) => post<void>(`/api/matches/${matchId}/conclude`);
 /** Host-only. */
 export const reopenMatch = (matchId: string) => post<void>(`/api/matches/${matchId}/reopen`);
 
 // Anyone: the public match page.
-export const fetchPublicMatch = (matchId: string) => get<PublicMatch>(`/api/public/matches/${matchId}`);
+export const fetchPublicMatch = (matchId: string) =>
+  get<PublicMatch>(`/api/public/matches/${matchId}`);
 /** The saved chat of each of the match's rooms; new lines arrive over the live socket. */
-export const fetchPublicChat = (matchId: string) => get<RoomChat[]>(`/api/public/matches/${matchId}/chat`);
+export const fetchPublicChat = (matchId: string) =>
+  get<RoomChat[]>(`/api/public/matches/${matchId}/chat`);

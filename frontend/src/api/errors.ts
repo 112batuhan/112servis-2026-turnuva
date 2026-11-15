@@ -79,7 +79,8 @@ export const ERROR_TEXT = {
     concluded: "Bu maç bitti.",
     concluded_results: "Bu maç bitti; sonuçlarını değiştirmek için yeniden aç.",
     concluded_score: "Bu maç bitti; skoru değiştirmek için yeniden aç.",
-    concluded_teams: "Bu maç bitti; takımlarını ya da bağlantılarını değiştirmeden önce yeniden aç.",
+    concluded_teams:
+      "Bu maç bitti; takımlarını ya da bağlantılarını değiştirmeden önce yeniden aç.",
     next_concluded: "Bu maçın bağlandığı maç bitmiş; önce onu yeniden aç.",
     needs_room: "Önce maçın odasını ekle.",
     concluded_needs_room: "Bitmiş bir maçın en az bir odası olmalı; önce maçı yeniden aç.",
@@ -176,7 +177,8 @@ export const ERROR_TEXT = {
   },
   rules: {
     too_long: "Kurallar çok uzun.",
-    changed: "Sen açtıktan sonra kurallar başkası tarafından kaydedildi; onların sürümünü görmek için yenile.",
+    changed:
+      "Sen açtıktan sonra kurallar başkası tarafından kaydedildi; onların sürümünü görmek için yenile.",
   },
 } satisfies Record<string, Record<string, string>>;
 
@@ -250,6 +252,10 @@ export const DISCORD_LINK_ERROR_TEXT: Record<DiscordLinkError, string> = {
 };
 
 /** The text for a code read from the address bar, which may be anything. */
-export function textFor<K extends string>(table: Record<K, string>, code: string, fallback: K): string {
+export function textFor<K extends string>(
+  table: Record<K, string>,
+  code: string,
+  fallback: K,
+): string {
   return code in table ? table[code as K] : table[fallback];
 }

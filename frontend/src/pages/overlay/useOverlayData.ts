@@ -40,7 +40,13 @@ export function useQualifierSeeds(): ReadonlyMap<string, number> {
         if (!qualifier) return;
         const stats = await fetchStageStats(qualifier.id);
         if (stopped) return;
-        setSeeds(new Map(stats.stats.teams.flatMap((t) => (t.rank === null ? [] : [[t.team_id, t.rank] as const]))));
+        setSeeds(
+          new Map(
+            stats.stats.teams.flatMap((t) =>
+              t.rank === null ? [] : [[t.team_id, t.rank] as const],
+            ),
+          ),
+        );
       } catch {
         // No published qualifier, or not counted yet: the page leaves the seed out.
       }
@@ -66,7 +72,10 @@ export function useHeld<T>(value: T, hold: boolean): T {
 }
 
 /** The stage the schedule shows: the match on stream's, else the one being played, else the next to play. */
-export function currentStageId(matches: BracketMatch[], onStream: BracketMatch | null): string | null {
+export function currentStageId(
+  matches: BracketMatch[],
+  onStream: BracketMatch | null,
+): string | null {
   if (onStream?.stage) return onStream.stage.id;
   const live = matches.find((m) => m.stage && !m.concluded_at && m.rooms.length > 0);
   if (live?.stage) return live.stage.id;
@@ -74,16 +83,25 @@ export function currentStageId(matches: BracketMatch[], onStream: BracketMatch |
     .filter((m) => m.stage && !m.concluded_at)
     .sort((a, b) => (a.stage?.position ?? 0) - (b.stage?.position ?? 0));
   if (open[0]?.stage) return open[0].stage.id;
-  const last = [...matches].filter((m) => m.stage).sort((a, b) => (b.stage?.position ?? 0) - (a.stage?.position ?? 0));
+  const last = [...matches]
+    .filter((m) => m.stage)
+    .sort((a, b) => (b.stage?.position ?? 0) - (a.stage?.position ?? 0));
   return last[0]?.stage?.id ?? null;
 }
 
 /** A team's bracket matches this tournament, newest first, leaving out `except`. */
-export function useTeamHistory(bracket: PublicBracket | null, teamId: string | null, except: string | null) {
+export function useTeamHistory(
+  bracket: PublicBracket | null,
+  teamId: string | null,
+  except: string | null,
+) {
   return useMemo(() => {
     if (!bracket || !teamId) return [];
     return bracket.matches
-      .filter((m) => m.id !== except && m.concluded_at && (m.team1_id === teamId || m.team2_id === teamId))
+      .filter(
+        (m) =>
+          m.id !== except && m.concluded_at && (m.team1_id === teamId || m.team2_id === teamId),
+      )
       .sort((a, b) => (b.concluded_at ?? "").localeCompare(a.concluded_at ?? ""));
   }, [bracket, teamId, except]);
 }

@@ -3,7 +3,15 @@ import { bestOfLabel } from "../../lib/bestOf";
 import { matchCode, scoreHalves, winningSlot } from "../../lib/bracket";
 import { formatRank, formatShortMatchTime } from "../../lib/format";
 import { roomLabel } from "../../lib/liveRoom";
-import { BannerChip, Crystal, Masthead, OverlayStage, SIDE_CLASS, TrophyGlow, type Side } from "./parts";
+import {
+  BannerChip,
+  Crystal,
+  Masthead,
+  OverlayStage,
+  SIDE_CLASS,
+  TrophyGlow,
+  type Side,
+} from "./parts";
 import type { BroadcastMatch } from "./useBroadcastMatch";
 import { useTeamHistory } from "./useOverlayData";
 import "./TeamsPage.css";
@@ -88,7 +96,11 @@ function TeamSide({
       <ul className="tm-players" aria-label="Oyuncular">
         {team?.players.map((p) => (
           <li key={p.id}>
-            {p.avatar_url ? <img src={p.avatar_url} alt="" /> : <span className="tm-avatar-blank" />}
+            {p.avatar_url ? (
+              <img src={p.avatar_url} alt="" />
+            ) : (
+              <span className="tm-avatar-blank" />
+            )}
             <span className="tm-player-name">{p.username}</span>
             <span className="tm-rank">{formatRank(p.global_rank)}</span>
           </li>
@@ -117,12 +129,21 @@ function sideOf(m: BracketMatch, teamId: string | null): Side | null {
  * An earlier match from the team's side: a filled crystal for a win, a hollow one for a loss, the
  * code, the opponent and the score with the team's own figure first.
  */
-function HistoryRow({ match, teamId, teams }: { match: BracketMatch; teamId: string | null; teams: Team[] }) {
+function HistoryRow({
+  match,
+  teamId,
+  teams,
+}: {
+  match: BracketMatch;
+  teamId: string | null;
+  teams: Team[];
+}) {
   const own = sideOf(match, teamId);
   const won = own !== null && winningSlot(match) === own;
   const opponent = teams.find((t) => t.id === (own === 1 ? match.team2_id : match.team1_id));
   const halves = scoreHalves(match);
-  const score = halves && own ? (own === 1 ? `${halves[0]}–${halves[1]}` : `${halves[1]}–${halves[0]}`) : "";
+  const score =
+    halves && own ? (own === 1 ? `${halves[0]}–${halves[1]}` : `${halves[1]}–${halves[0]}`) : "";
   return (
     <li className={won ? "is-won" : "is-lost"}>
       <Crystal kind={won ? "won" : "open"} className="tm-result" />

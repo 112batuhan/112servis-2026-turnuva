@@ -16,7 +16,13 @@ const ROWS = 6;
 // One empty list, so no bracket doesn't make a new one every render.
 const NO_MATCHES: never[] = [];
 
-export function SchedulePage({ bracket, matchId }: { bracket: PublicBracket | null; matchId: string | null }) {
+export function SchedulePage({
+  bracket,
+  matchId,
+}: {
+  bracket: PublicBracket | null;
+  matchId: string | null;
+}) {
   const matches = bracket?.matches ?? NO_MATCHES;
   const onStream = matches.find((m) => m.id === matchId) ?? null;
   const stageId = currentStageId(matches, onStream);
@@ -73,7 +79,17 @@ export function SchedulePage({ bracket, matchId }: { bracket: PublicBracket | nu
  * them "vs", the running score while it's live, or the result (the winner's figure in its colour,
  * the loser's banner and name dimmed). Its code rides the top edge, with the time or "Canlı".
  */
-function Fixture({ match, teams, onStream, index }: { match: BracketMatch; teams: Team[]; onStream: boolean; index: number }) {
+function Fixture({
+  match,
+  teams,
+  onStream,
+  index,
+}: {
+  match: BracketMatch;
+  teams: Team[];
+  onStream: boolean;
+  index: number;
+}) {
   const team = (id: string | null) => teams.find((t) => t.id === id) ?? null;
   const live = isLive(match);
   const winner = winningSlot(match);
@@ -98,9 +114,13 @@ function Fixture({ match, teams, onStream, index }: { match: BracketMatch; teams
       <span className="sc-middle">
         {showScore ? (
           <>
-            <span className={`sc-figure is-side-1 ${winner === 2 ? "is-loser" : ""}`}>{halves[0]}</span>
+            <span className={`sc-figure is-side-1 ${winner === 2 ? "is-loser" : ""}`}>
+              {halves[0]}
+            </span>
             <span className="sc-dash">–</span>
-            <span className={`sc-figure is-side-2 ${winner === 1 ? "is-loser" : ""}`}>{halves[1]}</span>
+            <span className={`sc-figure is-side-2 ${winner === 1 ? "is-loser" : ""}`}>
+              {halves[1]}
+            </span>
           </>
         ) : (
           <span className="sc-vs">vs</span>
@@ -115,7 +135,11 @@ function Fixture({ match, teams, onStream, index }: { match: BracketMatch; teams
             Canlı
           </>
         ) : match.concluded_at ? (
-          match.forfeit_slot ? "Hükmen" : "Bitti"
+          match.forfeit_slot ? (
+            "Hükmen"
+          ) : (
+            "Bitti"
+          )
         ) : match.starts_at ? (
           formatShortMatchTime(match.starts_at)
         ) : (

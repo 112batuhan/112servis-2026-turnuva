@@ -5,7 +5,11 @@ import { ApiError, DISCORD_LINK_ERROR_TEXT, ERROR_TEXT, LOGIN_ERROR_TEXT } from 
 // The codes here mirror the backend's enums; these check they still list the same variants.
 
 const SOURCES: Record<string, string> = import.meta.glob(
-  ["../../../backend/src/error.rs", "../../../backend/src/bancho/relay.rs", "../../../backend/src/handlers/auth.rs"],
+  [
+    "../../../backend/src/error.rs",
+    "../../../backend/src/bancho/relay.rs",
+    "../../../backend/src/handlers/auth.rs",
+  ],
   { query: "?raw", import: "default", eager: true },
 );
 
@@ -27,45 +31,61 @@ function enumBody(path: string, name: string): string {
 
 /** A Rust enum's unit variants as serde's snake_case writes them, in order. */
 function variants(path: string, name: string): string[] {
-  return [...enumBody(path, name).matchAll(/^\s+([A-Z][A-Za-z0-9]*),$/gm)].map((m) => snakeCase(m[1]));
+  return [...enumBody(path, name).matchAll(/^\s+([A-Z][A-Za-z0-9]*),$/gm)].map((m) =>
+    snakeCase(m[1]),
+  );
 }
 
 /** Every `group.code` the backend can answer with: ErrorCode's groups and each group's variants. */
 function backendCodes(): string[] {
-  const groups = [...enumBody("error.rs", "ErrorCode").matchAll(/^\s+([A-Z]\w*)\(#\[from\] (\w+)\),$/gm)];
+  const groups = [
+    ...enumBody("error.rs", "ErrorCode").matchAll(/^\s+([A-Z]\w*)\(#\[from\] (\w+)\),$/gm),
+  ];
   if (groups.length === 0) throw new Error("ErrorCode has no groups");
-  return groups.flatMap(([, group, inner]) => variants("error.rs", inner).map((code) => `${snakeCase(group)}.${code}`));
+  return groups.flatMap(([, group, inner]) =>
+    variants("error.rs", inner).map((code) => `${snakeCase(group)}.${code}`),
+  );
 }
 
 describe("error codes", () => {
   const texts: Record<string, Record<string, string>> = ERROR_TEXT;
-  const frontend = Object.entries(texts).flatMap(([group, codes]) => Object.keys(codes).map((c) => `${group}.${c}`));
+  const frontend = Object.entries(texts).flatMap(([group, codes]) =>
+    Object.keys(codes).map((c) => `${group}.${c}`),
+  );
 
   it("are the backend's groups and their variants", () => {
     expect(frontend.sort()).toEqual(backendCodes().sort());
   });
 
   it("each have their own Turkish text", () => {
-    for (const codes of Object.values(texts)) for (const text of Object.values(codes)) expect(text).toBeTruthy();
+    for (const codes of Object.values(texts))
+      for (const text of Object.values(codes)) expect(text).toBeTruthy();
   });
 });
 
 describe("callback errors", () => {
   it("cover CallbackError between the login and the Discord link pages", () => {
-    const shown = new Set([...Object.keys(LOGIN_ERROR_TEXT), ...Object.keys(DISCORD_LINK_ERROR_TEXT)]);
+    const shown = new Set([
+      ...Object.keys(LOGIN_ERROR_TEXT),
+      ...Object.keys(DISCORD_LINK_ERROR_TEXT),
+    ]);
     expect([...shown].sort()).toEqual(variants("handlers/auth.rs", "CallbackError").sort());
   });
 });
 
 describe("relay close reasons", () => {
   it("are CloseReason's variants", () => {
-    expect(Object.keys(CLOSE_REASON_TEXT).sort()).toEqual(variants("bancho/relay.rs", "CloseReason").sort());
+    expect(Object.keys(CLOSE_REASON_TEXT).sort()).toEqual(
+      variants("bancho/relay.rs", "CloseReason").sort(),
+    );
   });
 });
 
 describe("ApiError", () => {
   it("shows a code in Turkish, else the server's message, else the status", () => {
-    expect(new ApiError(409, "lobby.full", "that lobby is full").message).toBe(ERROR_TEXT.lobby.full);
+    expect(new ApiError(409, "lobby.full", "that lobby is full").message).toBe(
+      ERROR_TEXT.lobby.full,
+    );
     expect(new ApiError(409, null, "something new").message).toBe("something new");
     expect(new ApiError(502, null).message).toBe("İstek başarısız oldu (502)");
   });

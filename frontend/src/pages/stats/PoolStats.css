@@ -8,7 +8,8 @@
 }
 
 .pool-stats-sheet.is-bracket {
-  --pool-cols: 56px minmax(240px, 1.5fr) 84px 84px 92px 150px minmax(170px, 1fr) minmax(150px, 1fr) 76px;
+  --pool-cols: 56px minmax(240px, 1.5fr) 84px 84px 92px 150px minmax(170px, 1fr) minmax(150px, 1fr)
+    76px;
 }
 
 .pool-stats-head,

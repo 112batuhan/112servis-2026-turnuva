@@ -24,7 +24,14 @@ export function MatchPickem({ match }: { match: PublicMatch }) {
 
   const load = useCallback(() => fetchMatchPickem(match.id).then(setData, () => {}), [match.id]);
   // Read again whenever the match changes in a way that moves the pick'em.
-  const key = [match.team1_id, match.team2_id, match.starts_at, match.rooms.length, match.concluded_at, match.forfeit_slot].join("|");
+  const key = [
+    match.team1_id,
+    match.team2_id,
+    match.starts_at,
+    match.rooms.length,
+    match.concluded_at,
+    match.forfeit_slot,
+  ].join("|");
   useEffect(() => {
     load();
   }, [load, key]);
@@ -34,7 +41,8 @@ export function MatchPickem({ match }: { match: PublicMatch }) {
   const team2 = match.teams.find((t) => t.id === match.team2_id);
   const names: [string, string] = [team1?.name ?? "Takım 1", team2?.name ?? "Takım 2"];
   const bestOf = match.stage?.best_of ?? null;
-  const mineSlot = data.mine && !data.mine.void ? (data.mine.team_id === match.team1_id ? 1 : 2) : null;
+  const mineSlot =
+    data.mine && !data.mine.void ? (data.mine.team_id === match.team1_id ? 1 : 2) : null;
 
   async function pick(teamId: string, loser: number) {
     setSaving("pick");
@@ -71,10 +79,16 @@ export function MatchPickem({ match }: { match: PublicMatch }) {
           </h3>
           <p className="match-pickem-status">
             <span>
-              {data.stage_name} · <span className={`is-${data.status}`}>{STATUS_LABELS[data.status]}</span>
+              {data.stage_name} ·{" "}
+              <span className={`is-${data.status}`}>{STATUS_LABELS[data.status]}</span>
             </span>
             {data.status === "open" && data.closes_at && (
-              <Countdown to={data.closes_at} suffix="kaldı" className="match-pickem-countdown" onElapsed={load} />
+              <Countdown
+                to={data.closes_at}
+                suffix="kaldı"
+                className="match-pickem-countdown"
+                onElapsed={load}
+              />
             )}
           </p>
         </div>
@@ -125,7 +139,13 @@ export function MatchPickem({ match }: { match: PublicMatch }) {
 
       {isLocked(data.status) && data.split && (
         <div className="match-pickem-reveal">
-          <PickemSplitBar team1={data.split.team1} team2={data.split.team2} names={names} named mine={mineSlot} />
+          <PickemSplitBar
+            team1={data.split.team1}
+            team2={data.split.team2}
+            names={names}
+            named
+            mine={mineSlot}
+          />
           {data.mine && !data.mine.void && (
             <p className="match-pickem-mine">
               <span>

@@ -46,13 +46,19 @@ export function QualifiersAdminPage() {
     readJson("qualifiers-unassigned-collapsed", false),
   );
 
-  useEffect(() => writeJson("qualifiers-unassigned-collapsed", unassignedCollapsed), [unassignedCollapsed]);
+  useEffect(
+    () => writeJson("qualifiers-unassigned-collapsed", unassignedCollapsed),
+    [unassignedCollapsed],
+  );
 
   const reload = useCallback(async () => setData(await fetchQualifiers()), []);
 
   useEffect(() => {
     reload().catch((e) => setError(errorMessage(e)));
-    if (isHost) fetchReferees().then(setReferees).catch((e) => setError(errorMessage(e)));
+    if (isHost)
+      fetchReferees()
+        .then(setReferees)
+        .catch((e) => setError(errorMessage(e)));
   }, [reload, isHost]);
 
   const run: Run = async (action) => {
@@ -74,7 +80,13 @@ export function QualifiersAdminPage() {
 
   // Notes save in the background so typing never waits on the server.
   function saveNotes(lobby: StaffLobby, notes: string) {
-    setData((d) => d && { ...d, lobbies: d.lobbies.map((l) => (l.id === lobby.id ? { ...l, referee_notes: notes } : l)) });
+    setData(
+      (d) =>
+        d && {
+          ...d,
+          lobbies: d.lobbies.map((l) => (l.id === lobby.id ? { ...l, referee_notes: notes } : l)),
+        },
+    );
     setMatchNotes(lobby.id, notes).catch((e) => {
       setError(errorMessage(e));
       reload().catch(() => {});
@@ -107,7 +119,10 @@ export function QualifiersAdminPage() {
         {data && (
           <div className="page-header-aside">
             {data.pool_stage_id && (
-              <Link to={`/mappool?stage=${data.pool_stage_id}`} className="btn btn-secondary btn-sm">
+              <Link
+                to={`/mappool?stage=${data.pool_stage_id}`}
+                className="btn btn-secondary btn-sm"
+              >
                 Mappool
               </Link>
             )}
@@ -128,7 +143,11 @@ export function QualifiersAdminPage() {
                   value={newTime}
                   onChange={(e) => setNewTime(e.target.value)}
                 />
-                <button type="submit" className="btn btn-primary btn-sm" disabled={busy || !newTime}>
+                <button
+                  type="submit"
+                  className="btn btn-primary btn-sm"
+                  disabled={busy || !newTime}
+                >
                   Lobi ekle
                 </button>
               </form>
@@ -275,8 +294,12 @@ function StaffLobbyCard({
               className="btn btn-danger btn-sm lobby-delete"
               disabled={busy}
               onClick={() => {
-                const teams = lobby.teams.length > 0 ? ` İçindeki ${lobby.teams.length} takım lobisiz kalır.` : "";
-                if (window.confirm(`Lobi ${lobby.name} silinsin mi?${teams}`)) run(() => deleteLobby(lobby.id));
+                const teams =
+                  lobby.teams.length > 0
+                    ? ` İçindeki ${lobby.teams.length} takım lobisiz kalır.`
+                    : "";
+                if (window.confirm(`Lobi ${lobby.name} silinsin mi?${teams}`))
+                  run(() => deleteLobby(lobby.id));
               }}
             >
               Lobiyi sil
@@ -292,7 +315,8 @@ function StaffLobbyCard({
               disabled={busy || lobby.rooms.length === 0}
               title={lobby.rooms.length > 0 ? undefined : "Önce maç linkini ekle"}
               onClick={() => {
-                if (window.confirm(`Lobi ${lobby.name} bitti olarak işaretlensin mi?`)) run(() => concludeMatch(lobby.id));
+                if (window.confirm(`Lobi ${lobby.name} bitti olarak işaretlensin mi?`))
+                  run(() => concludeMatch(lobby.id));
               }}
             >
               Maçı bitir
@@ -338,7 +362,11 @@ function StaffLobbyCard({
               />
             ) : (
               <span className="staff-referee">
-                {lobby.referee ? <strong>{lobby.referee.username}</strong> : <span className="muted">Henüz yok</span>}
+                {lobby.referee ? (
+                  <strong>{lobby.referee.username}</strong>
+                ) : (
+                  <span className="muted">Henüz yok</span>
+                )}
                 {!concluded && !lobby.referee && (
                   <button
                     type="button"
@@ -406,7 +434,16 @@ interface LobbySelectProps {
 }
 
 // Hosts can move a team into any lobby that has room, started or not.
-function LobbySelect({ label, team, current, lobbies, capacity, disabled, compact, onSelect }: LobbySelectProps) {
+function LobbySelect({
+  label,
+  team,
+  current,
+  lobbies,
+  capacity,
+  disabled,
+  compact,
+  onSelect,
+}: LobbySelectProps) {
   const select = (
     <select
       className={compact ? "icon-select-native" : "select select-sm"}

@@ -12,7 +12,14 @@ export const APP = "112servis-overlay";
 /** A page the overlay draws. */
 export type ScreenPage = "gameplay" | "mappool" | "teams" | "winner" | "schedule" | "bracket";
 
-export const SCREEN_PAGES: ScreenPage[] = ["gameplay", "mappool", "teams", "winner", "schedule", "bracket"];
+export const SCREEN_PAGES: ScreenPage[] = [
+  "gameplay",
+  "mappool",
+  "teams",
+  "winner",
+  "schedule",
+  "bracket",
+];
 
 /** What the dock has the overlay show. */
 export interface OverlayState {
@@ -32,15 +39,17 @@ export function completeState(state: Partial<OverlayState> | null | undefined): 
 }
 
 export type ControlMessage =
-  | { app: typeof APP; kind: "hello" }
-  | { app: typeof APP; kind: "state"; state: OverlayState };
+  { app: typeof APP; kind: "hello" } | { app: typeof APP; kind: "state"; state: OverlayState };
 
 export function isControlMessage(data: unknown): data is ControlMessage {
   return typeof data === "object" && data !== null && (data as { app?: unknown }).app === APP;
 }
 
 /** Sends a control message to every client of the streamer's OBS. */
-export function broadcast(request: ReturnType<typeof useObs>["request"], message: ControlMessage): Promise<unknown> {
+export function broadcast(
+  request: ReturnType<typeof useObs>["request"],
+  message: ControlMessage,
+): Promise<unknown> {
   return request("BroadcastCustomEvent", { eventData: message });
 }
 
@@ -77,7 +86,8 @@ export function useOverlayControl(): { state: OverlayState } {
   useEffect(
     () =>
       onEvent((type, data) => {
-        if (type === "CustomEvent" && isControlMessage(data) && data.kind === "state") setState(completeState(data.state));
+        if (type === "CustomEvent" && isControlMessage(data) && data.kind === "state")
+          setState(completeState(data.state));
       }),
     [onEvent],
   );

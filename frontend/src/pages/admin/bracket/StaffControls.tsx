@@ -22,7 +22,9 @@ export function RefereeControl({ match, editor, options, discord }: Props & { di
   const concluded = match.concluded_at !== null;
   // Players contact the referee there, so the list shows it next to the name, as a mark to keep the
   // column narrow.
-  const mention = discord && match.referee && <DiscordMention player={match.referee} fallback="" compact />;
+  const mention = discord && match.referee && (
+    <DiscordMention player={match.referee} fallback="" compact />
+  );
 
   if (hasRole(user, "host")) {
     return (
@@ -41,7 +43,11 @@ export function RefereeControl({ match, editor, options, discord }: Props & { di
   }
   return (
     <span className="staff-control">
-      {match.referee ? <strong>{match.referee.username}</strong> : <span className="muted">Henüz yok</span>}
+      {match.referee ? (
+        <strong>{match.referee.username}</strong>
+      ) : (
+        <span className="muted">Henüz yok</span>
+      )}
       {mention}
       {holdsRole(user, "referee") && !concluded && !match.referee && (
         <button
@@ -72,7 +78,12 @@ export function RefereeControl({ match, editor, options, discord }: Props & { di
  * match or give up their own (until it's concluded), except a match their own team plays in, and
  * everyone else just sees who it is.
  */
-export function StreamerControl({ match, editor, options, myTeamId }: Props & { myTeamId: string | null }) {
+export function StreamerControl({
+  match,
+  editor,
+  options,
+  myTeamId,
+}: Props & { myTeamId: string | null }) {
   const user = useSignedInUser();
   const concluded = match.concluded_at !== null;
   const playing = myTeamId !== null && (match.team1_id === myTeamId || match.team2_id === myTeamId);
@@ -91,7 +102,11 @@ export function StreamerControl({ match, editor, options, myTeamId }: Props & { 
   }
   return (
     <span className="staff-control">
-      {match.streamer ? <strong>{match.streamer.username}</strong> : <span className="muted">Henüz yok</span>}
+      {match.streamer ? (
+        <strong>{match.streamer.username}</strong>
+      ) : (
+        <span className="muted">Henüz yok</span>
+      )}
       {holdsRole(user, "streamer") && !concluded && !match.streamer && (
         <button
           type="button"

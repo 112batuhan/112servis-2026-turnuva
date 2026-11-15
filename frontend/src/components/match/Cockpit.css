@@ -285,7 +285,10 @@
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr);
     grid-template-areas: none;
-    height: max(420px, calc(100svh - var(--nav-height, 0px) - var(--referee-bar-height, 60px) - var(--space-3)));
+    height: max(
+      420px,
+      calc(100svh - var(--nav-height, 0px) - var(--referee-bar-height, 60px) - var(--space-3))
+    );
   }
 
   .referee-cockpit > * {

@@ -156,13 +156,27 @@ function MapInfo({ map, note, hr, onRecompute }: MapInfoProps) {
             <Stat
               label="Star rating"
               value={<StarRating value={map.star_rating} />}
-              hr={hrValue((s) => <StarRating value={s.starRating} />)}
+              hr={hrValue((s) => (
+                <StarRating value={s.starRating} />
+              ))}
             />
             <Stat label="BPM" value={`${Math.round(map.bpm)} bpm`} between={!!stats} />
             <Stat label="Uzunluk" value={formatLength(map.total_length)} between={!!stats} />
-            <Stat label="CS" value={`CS ${map.cs.toFixed(1)}`} hr={hrValue((s) => `CS ${s.cs.toFixed(1)}`)} />
-            <Stat label="AR" value={`AR ${map.ar.toFixed(1)}`} hr={hrValue((s) => `AR ${s.ar.toFixed(1)}`)} />
-            <Stat label="OD" value={`OD ${map.od.toFixed(1)}`} hr={hrValue((s) => `OD ${s.od.toFixed(1)}`)} />
+            <Stat
+              label="CS"
+              value={`CS ${map.cs.toFixed(1)}`}
+              hr={hrValue((s) => `CS ${s.cs.toFixed(1)}`)}
+            />
+            <Stat
+              label="AR"
+              value={`AR ${map.ar.toFixed(1)}`}
+              hr={hrValue((s) => `AR ${s.ar.toFixed(1)}`)}
+            />
+            <Stat
+              label="OD"
+              value={`OD ${map.od.toFixed(1)}`}
+              hr={hrValue((s) => `OD ${s.od.toFixed(1)}`)}
+            />
           </dl>
         </div>
         {hr === "missing" && (
@@ -326,9 +340,17 @@ function EditorActions({ map, editor }: { map: PublicPoolMap; editor: MapCardEdi
           </optgroup>
         ))}
       </select>
-      <IconButton icon="refresh" label="İstatistikleri osu!'dan yeniden hesapla" onClick={editor.onRecompute} />
+      <IconButton
+        icon="refresh"
+        label="İstatistikleri osu!'dan yeniden hesapla"
+        onClick={editor.onRecompute}
+      />
       {inSlot ? (
-        <IconButton icon="undo" label="Ortak havuza geri gönder" onClick={() => editor.onMove(null)} />
+        <IconButton
+          icon="undo"
+          label="Ortak havuza geri gönder"
+          onClick={() => editor.onMove(null)}
+        />
       ) : (
         <IconButton icon="trash" label="Map'i sil" tone="danger" onClick={editor.onDelete} />
       )}

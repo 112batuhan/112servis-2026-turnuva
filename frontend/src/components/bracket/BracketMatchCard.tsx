@@ -93,7 +93,10 @@ export function BracketMatchCard({
           </span>
         )}
         {match.concluded_at && (
-          <span className="bm-card-icon is-done" title={match.forfeit_slot !== null ? "Hükmen sonuçlandı" : "Tamamlandı"}>
+          <span
+            className="bm-card-icon is-done"
+            title={match.forfeit_slot !== null ? "Hükmen sonuçlandı" : "Tamamlandı"}
+          >
             <Icon name="check" size={14} />
           </span>
         )}
@@ -121,7 +124,9 @@ export function BracketMatchCard({
             ) : (
               <>
                 <TeamBanner />
-                <span className="bm-card-name is-empty">{slot.source ? sourceLabel(slot.source) : "Belirlenmedi"}</span>
+                <span className="bm-card-name is-empty">
+                  {slot.source ? sourceLabel(slot.source) : "Belirlenmedi"}
+                </span>
               </>
             )}
             <span className="bm-card-score">{slot.score ?? ""}</span>

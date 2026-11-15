@@ -49,7 +49,9 @@ export function AdminIndexRedirect() {
   const user = useSignedInUser();
   const saved = readString(lastPageKey(user.id));
 
-  let target = hasRole(user, "host") ? USERS_TAB : ADMIN_TABS.find((tab) => canAccess(user, tab.access))!.path;
+  let target = hasRole(user, "host")
+    ? USERS_TAB
+    : ADMIN_TABS.find((tab) => canAccess(user, tab.access))!.path;
   if (saved && canOpen(user, saved)) target = saved;
 
   return <Navigate to={target} replace />;

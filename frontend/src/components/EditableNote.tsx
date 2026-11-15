@@ -17,7 +17,15 @@ interface Props {
 
 // Idle: one truncated line (full text in a tooltip on hover/focus). Click to edit in a
 // textarea that grows with its content. Blur or Escape saves.
-export function EditableNote({ value, label, placeholder, isPrivate, onSave, onEditingChange, readOnly }: Props) {
+export function EditableNote({
+  value,
+  label,
+  placeholder,
+  isPrivate,
+  onSave,
+  onEditingChange,
+  readOnly,
+}: Props) {
   const [editing, setEditing] = useState(false);
   const [clipped, setClipped] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -52,7 +60,11 @@ export function EditableNote({ value, label, placeholder, isPrivate, onSave, onE
   if (readOnly) {
     if (!value) return null;
     return (
-      <div className={`${classes} note-view is-readonly`} title={label} tabIndex={clipped ? 0 : undefined}>
+      <div
+        className={`${classes} note-view is-readonly`}
+        title={label}
+        tabIndex={clipped ? 0 : undefined}
+      >
         <span ref={textRef} className="note-view-text">
           {value}
         </span>

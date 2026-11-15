@@ -1,4 +1,13 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { ircSocketUrl } from "../api/referee";
 import { useSignedInUser } from "../auth/AuthContext";
 import { hasRole } from "../auth/roles";
@@ -37,7 +46,15 @@ type ServerMsg =
   | { type: "no_session" }
   | { type: "bot_account" }
   | { type: "message"; from: string; target: string; text: string; action: boolean; seq?: number }
-  | { type: "past_message"; from: string; target: string; text: string; action: boolean; at: number; seq: number }
+  | {
+      type: "past_message";
+      from: string;
+      target: string;
+      text: string;
+      action: boolean;
+      at: number;
+      seq: number;
+    }
   | { type: "joined"; channel: string }
   | { type: "parted"; channel: string }
   | { type: "conversation_closed"; name: string }
@@ -147,16 +164,19 @@ export function IrcProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const addLine = useCallback((name: string, line: Omit<ChatLine, "id" | "at">, past?: { at: number }) => {
-    const full = past
-      ? { ...line, id: nextPastId.current--, at: past.at }
-      : { ...line, id: nextId.current++, at: Date.now() };
-    setConversations((all) => {
-      const key = conversationKey(name);
-      const current = all[key] ?? { name, lines: [] };
-      return { ...all, [key]: { ...current, lines: [...current.lines, full].slice(-MAX_LINES) } };
-    });
-  }, []);
+  const addLine = useCallback(
+    (name: string, line: Omit<ChatLine, "id" | "at">, past?: { at: number }) => {
+      const full = past
+        ? { ...line, id: nextPastId.current--, at: past.at }
+        : { ...line, id: nextId.current++, at: Date.now() };
+      setConversations((all) => {
+        const key = conversationKey(name);
+        const current = all[key] ?? { name, lines: [] };
+        return { ...all, [key]: { ...current, lines: [...current.lines, full].slice(-MAX_LINES) } };
+      });
+    },
+    [],
+  );
 
   const setJoined = useCallback((channel: string, joined: boolean) => {
     setChannels((all) => {
@@ -196,16 +216,27 @@ export function IrcProvider({ children }: { children: ReactNode }) {
           );
           break;
         case "login_blocked":
-          setError(`Çok fazla hatalı giriş denemesi. ${Math.ceil(msg.retry_after / 60)} dakika sonra tekrar dene.`);
+          setError(
+            `Çok fazla hatalı giriş denemesi. ${Math.ceil(msg.retry_after / 60)} dakika sonra tekrar dene.`,
+          );
           break;
         case "message":
           if (msg.seq) seen.current.seq = msg.seq;
-          addLine(conversationOf(msg), { from: msg.from, text: msg.text, action: msg.action, notice: false });
+          addLine(conversationOf(msg), {
+            from: msg.from,
+            text: msg.text,
+            action: msg.action,
+            notice: false,
+          });
           break;
         case "past_message":
           if (msg.seq <= seen.current.seq) break;
           seen.current.seq = msg.seq;
-          addLine(conversationOf(msg), { from: msg.from, text: msg.text, action: msg.action, notice: false }, msg);
+          addLine(
+            conversationOf(msg),
+            { from: msg.from, text: msg.text, action: msg.action, notice: false },
+            msg,
+          );
           break;
         case "joined":
           setJoined(msg.channel, true);
@@ -224,7 +255,9 @@ export function IrcProvider({ children }: { children: ReactNode }) {
           break;
         }
         case "closed":
-          setError((e) => e ?? `Bağlantı kapandı: ${CLOSE_REASON_TEXT[msg.reason] ?? "bilinmeyen sebep"}`);
+          setError(
+            (e) => e ?? `Bağlantı kapandı: ${CLOSE_REASON_TEXT[msg.reason] ?? "bilinmeyen sebep"}`,
+          );
           break;
       }
     },
@@ -302,7 +335,10 @@ export function IrcProvider({ children }: { children: ReactNode }) {
     };
   }, [canReferee, resume]);
 
-  const send = useCallback((target: string, text: string) => sendJson({ type: "send", target, text }), [sendJson]);
+  const send = useCallback(
+    (target: string, text: string) => sendJson({ type: "send", target, text }),
+    [sendJson],
+  );
   const close = useCallback(
     (name: string) => {
       drop(name);
@@ -319,7 +355,18 @@ export function IrcProvider({ children }: { children: ReactNode }) {
   );
 
   const api = useMemo<IrcApi>(
-    () => ({ status, nick, error, conversations, channels, connect, disconnect, send, close, attend }),
+    () => ({
+      status,
+      nick,
+      error,
+      conversations,
+      channels,
+      connect,
+      disconnect,
+      send,
+      close,
+      attend,
+    }),
     [status, nick, error, conversations, channels, connect, disconnect, send, close, attend],
   );
 

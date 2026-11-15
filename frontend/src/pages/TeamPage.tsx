@@ -31,7 +31,13 @@ import { TeamCard } from "../components/TeamCard";
 import { TeamMatches } from "../components/TeamMatches";
 import { isLobbyLive } from "../lib/bracket";
 import { ELIGIBILITY_LABELS, eligibilityBadgeClass } from "../lib/eligibility";
-import { BANNER_MAX_BYTES, formatMatchTime, formatRank, formatTeamValue, TEAM_NAME_MAX } from "../lib/format";
+import {
+  BANNER_MAX_BYTES,
+  formatMatchTime,
+  formatRank,
+  formatTeamValue,
+  TEAM_NAME_MAX,
+} from "../lib/format";
 import "./TeamPage.css";
 
 const SEARCH_DELAY_MS = 300;
@@ -42,15 +48,16 @@ function LeftDiscordNotice({ team, left, myId }: { team: Team; left: string[]; m
   if (left.includes(myId)) {
     return (
       <p className="alert alert-error team-rank-warning" role="status">
-        Turnuvanın Discord sunucusundan ayrıldın. Maçlarının kanallarını görebilmek için sunucuya geri dön.
+        Turnuvanın Discord sunucusundan ayrıldın. Maçlarının kanallarını görebilmek için sunucuya
+        geri dön.
       </p>
     );
   }
   const names = team.players.filter((p) => left.includes(p.id)).map((p) => p.username);
   return (
     <p className="alert alert-error team-rank-warning" role="status">
-      {names.join(", ")} turnuvanın Discord sunucusundan ayrıldı. Maç kanallarını görebilmesi için sunucuya geri dönmesi
-      gerekiyor.
+      {names.join(", ")} turnuvanın Discord sunucusundan ayrıldı. Maç kanallarını görebilmesi için
+      sunucuya geri dönmesi gerekiyor.
     </p>
   );
 }
@@ -87,7 +94,10 @@ export function TeamPage() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => runSearch(query).catch((e) => setError(errorMessage(e))), SEARCH_DELAY_MS);
+    const timer = setTimeout(
+      () => runSearch(query).catch((e) => setError(errorMessage(e))),
+      SEARCH_DELAY_MS,
+    );
     return () => clearTimeout(timer);
   }, [query, runSearch, setError]);
 
@@ -104,7 +114,10 @@ export function TeamPage() {
 
       {staffOnly && (
         <section className="panel">
-          <p className="status">Yetkililer (hostlar, map pooler'lar ve hakemler) turnuvayı yönettiği için takıma katılamaz. Yayıncılar oynayabilir.</p>
+          <p className="status">
+            Yetkililer (hostlar, map pooler'lar ve hakemler) turnuvayı yönettiği için takıma
+            katılamaz. Yayıncılar oynayabilir.
+          </p>
         </section>
       )}
 
@@ -115,9 +128,12 @@ export function TeamPage() {
               <Icon name="ban" size={20} />
               <div className="team-ban-notice-body">
                 <strong className="team-ban-notice-title">Hostlar seni turnuvadan banladı.</strong>
-                {user.ban.reason && <span className="team-ban-notice-reason">Sebep: {user.ban.reason}</span>}
+                {user.ban.reason && (
+                  <span className="team-ban-notice-reason">Sebep: {user.ban.reason}</span>
+                )}
                 <span className="team-ban-notice-effects">
-                  Takım kuramaz, takımını değiştiremez, eleme lobisine katılamaz ve maç saati öneremezsin.
+                  Takım kuramaz, takımını değiştiremez, eleme lobisine katılamaz ve maç saati
+                  öneremezsin.
                 </span>
               </div>
             </div>
@@ -125,7 +141,9 @@ export function TeamPage() {
           <RankSummary status={status} />
           {frozen && (
             <section className="panel">
-              <p className="status">Hostlar takımları dondurdu, artık takım kurulamaz veya değiştirilemez.</p>
+              <p className="status">
+                Hostlar takımları dondurdu, artık takım kurulamaz veya değiştirilemez.
+              </p>
             </section>
           )}
           {!user.discord && !status.team && !frozen && !banned && (
@@ -150,14 +168,23 @@ export function TeamPage() {
                   </p>
                 )}
                 <LeftDiscordNotice team={status.team} left={status.left_discord} myId={user.id} />
-                <MyTeam team={status.team} readOnly={frozen || banned} busy={busy} run={run} onError={setError} />
+                <MyTeam
+                  team={status.team}
+                  readOnly={frozen || banned}
+                  busy={busy}
+                  run={run}
+                  onError={setError}
+                />
                 <QualifierInfo teamId={status.team.id} canJoin={!banned} onError={setError} />
               </section>
               <section className="panel">
                 <h2>Maçlar</h2>
                 <TeamMatches key={matchesVersion} teamId={status.team.id} />
               </section>
-              <MatchReschedules onRescheduled={() => setMatchesVersion((v) => v + 1)} onError={setError} />
+              <MatchReschedules
+                onRescheduled={() => setMatchesVersion((v) => v + 1)}
+                onError={setError}
+              />
             </>
           ) : (
             <>
@@ -223,7 +250,8 @@ export function TeamPage() {
                     />
                   </label>
                   <p className="muted team-name-hint">
-                    Her davetle birlikte gönderilir. Takım kurulduktan sonra ikiniz de değiştirebilirsiniz.
+                    Her davetle birlikte gönderilir. Takım kurulduktan sonra ikiniz de
+                    değiştirebilirsiniz.
                   </p>
                   <input
                     className="input team-search"
@@ -249,7 +277,12 @@ export function TeamPage() {
                               <button
                                 type="button"
                                 className="btn btn-primary btn-sm"
-                                disabled={busy || !canForm || !teamName.trim() || p.eligibility !== "eligible"}
+                                disabled={
+                                  busy ||
+                                  !canForm ||
+                                  !teamName.trim() ||
+                                  p.eligibility !== "eligible"
+                                }
                                 title={teamName.trim() ? undefined : "Önce takımına bir ad ver"}
                                 onClick={() => run(() => sendInvite(p.id, teamName))}
                               >
@@ -335,7 +368,11 @@ function MyTeam({ team, readOnly, busy, run, onError }: MyTeamProps) {
               className="btn btn-danger btn-sm"
               disabled={busy}
               onClick={() => {
-                if (window.confirm("Takımını dağıtmak istiyor musun? Sen ve takım arkadaşın yeniden takımsız kalırsınız.")) {
+                if (
+                  window.confirm(
+                    "Takımını dağıtmak istiyor musun? Sen ve takım arkadaşın yeniden takımsız kalırsınız.",
+                  )
+                ) {
                   run(disbandMyTeam);
                 }
               }}
@@ -345,7 +382,9 @@ function MyTeam({ team, readOnly, busy, run, onError }: MyTeamProps) {
           </>
         }
       />
-      <p className="muted team-name-hint">Banner en fazla 2 MB boyutunda PNG, JPEG, GIF veya WebP olmalı; 3:1 oranında kırpılır.</p>
+      <p className="muted team-name-hint">
+        Banner en fazla 2 MB boyutunda PNG, JPEG, GIF veya WebP olmalı; 3:1 oranında kırpılır.
+      </p>
     </>
   );
 }
@@ -430,7 +469,9 @@ function RankSummary({ status }: { status: TeamStatus }) {
       <section className="team-limit" aria-label="Takım değeri">
         <p className="team-limit-figures">
           <span className="team-limit-label">Takım değeri</span>
-          <span className={over ? "team-limit-value num is-over" : "team-limit-value num"}>{formatTeamValue(value)}</span>
+          <span className={over ? "team-limit-value num is-over" : "team-limit-value num"}>
+            {formatTeamValue(value)}
+          </span>
           <span className="team-limit-max num">/ {formatTeamValue(status.limit)}</span>
         </p>
         <div
@@ -456,9 +497,9 @@ function RankSummary({ status }: { status: TeamStatus }) {
             <span className="team-limit-value num">{formatRank(status.min_partner_rank)}</span>
           </p>
           <p className="muted team-limit-note">
-            Rank'ın {formatRank(status.global_rank)}. İkinizin takım değeri {formatTeamValue(status.limit)} limitini
-            aşmamalı, bu yüzden takım arkadaşının rank'ı {formatRank(status.min_partner_rank)} ya da daha geride
-            olmalı.
+            Rank'ın {formatRank(status.global_rank)}. İkinizin takım değeri{" "}
+            {formatTeamValue(status.limit)} limitini aşmamalı, bu yüzden takım arkadaşının rank'ı{" "}
+            {formatRank(status.min_partner_rank)} ya da daha geride olmalı.
           </p>
         </>
       ) : (
@@ -506,7 +547,11 @@ function InviteList({ title, empty, invites, actions }: InviteListProps) {
           {invites.map((invite) => (
             <li key={invite.id} className="team-row">
               <PlayerChip player={invite.player} />
-              <RowMeta eligibility={invite.eligibility} teamValue={invite.team_value} teamName={invite.team_name} />
+              <RowMeta
+                eligibility={invite.eligibility}
+                teamValue={invite.team_value}
+                teamName={invite.team_name}
+              />
               <div className="team-row-actions">{actions(invite)}</div>
             </li>
           ))}

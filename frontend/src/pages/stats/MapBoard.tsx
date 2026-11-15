@@ -55,7 +55,10 @@ export function MapBoard({ kind, index, ownTeam, mapId, onMap }: Props) {
   const teamName = (teamId: string) => index.team.get(teamId)?.name;
 
   return (
-    <section className="map-board" aria-label={kind === "players" ? "Map'te oyuncu skorları" : "Map'te takım skorları"}>
+    <section
+      className="map-board"
+      aria-label={kind === "players" ? "Map'te oyuncu skorları" : "Map'te takım skorları"}
+    >
       <nav className="map-board-picker" aria-label="Mapler">
         {index.entries.map((e) => {
           const count = index.map.get(e.map.id)?.teams.count ?? 0;
@@ -75,16 +78,23 @@ export function MapBoard({ kind, index, ownTeam, mapId, onMap }: Props) {
       </nav>
 
       <header className="map-board-head">
-        {entry.map.cover_url && <img className="map-board-cover" src={entry.map.cover_url} alt="" loading="lazy" />}
+        {entry.map.cover_url && (
+          <img className="map-board-cover" src={entry.map.cover_url} alt="" loading="lazy" />
+        )}
         <div className="map-board-title">
           <h3>
             <MapLabel entry={entry} />
-            <a href={`https://osu.ppy.sh/b/${entry.map.beatmap_id}`} target="_blank" rel="noopener noreferrer">
+            <a
+              href={`https://osu.ppy.sh/b/${entry.map.beatmap_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               {entry.map.title}
             </a>
           </h3>
           <p className="map-board-sub">
-            {entry.map.artist} · [{entry.map.version}] · <span className="num">{entry.map.star_rating.toFixed(2)}</span>★
+            {entry.map.artist} · [{entry.map.version}] ·{" "}
+            <span className="num">{entry.map.star_rating.toFixed(2)}</span>★
           </p>
         </div>
         {field && field.count > 0 && (
@@ -144,7 +154,9 @@ export function MapBoard({ kind, index, ownTeam, mapId, onMap }: Props) {
             <tbody>
               {kind === "players"
                 ? playerRows
-                    .filter((r) => matchesQuery(query, name(r.play.user_id), teamName(r.team.team_id)))
+                    .filter((r) =>
+                      matchesQuery(query, name(r.play.user_id), teamName(r.team.team_id)),
+                    )
                     .map((r) => (
                       <tr
                         key={`${r.team.match_id}:${r.play.user_id}:${r.play.score}`}
@@ -162,7 +174,10 @@ export function MapBoard({ kind, index, ownTeam, mapId, onMap }: Props) {
                           {formatScore(r.play.score)}
                           {!r.play.passed && <span className="stats-fail">fail</span>}
                         </td>
-                        <td className="is-num is-opt" title={r.play.accuracy === null ? accuracyUnknown : undefined}>
+                        <td
+                          className="is-num is-opt"
+                          title={r.play.accuracy === null ? accuracyUnknown : undefined}
+                        >
                           {formatAccuracy(r.play.accuracy)}
                         </td>
                         <td className="is-opt stats-mods">{formatMods(r.play.mods)}</td>
@@ -177,29 +192,42 @@ export function MapBoard({ kind, index, ownTeam, mapId, onMap }: Props) {
                 : teamRows
                     .filter((p) => {
                       const team = index.team.get(p.team_id);
-                      return matchesQuery(query, team?.name, ...(team?.players.map((x) => x.username) ?? []));
+                      return matchesQuery(
+                        query,
+                        team?.name,
+                        ...(team?.players.map((x) => x.username) ?? []),
+                      );
                     })
                     .map((p) => (
-                      <tr key={`${p.match_id}:${p.team_id}:${p.score}`} className={p.team_id === ownTeam ? "is-own" : undefined}>
+                      <tr
+                        key={`${p.match_id}:${p.team_id}:${p.score}`}
+                        className={p.team_id === ownTeam ? "is-own" : undefined}
+                      >
                         <td className="is-rank">{p.rank}</td>
                         <td className="is-who">
                           <TeamWho team={index.team.get(p.team_id)} own={p.team_id === ownTeam} />
                           <span className="map-board-split">
                             {p.players.map((pp) => (
                               <span key={pp.user_id}>
-                                {name(pp.user_id)} <span className="num">{formatScore(pp.score)}</span>
+                                {name(pp.user_id)}{" "}
+                                <span className="num">{formatScore(pp.score)}</span>
                                 <span className="map-board-split-mods">{formatMods(pp.mods)}</span>
                               </span>
                             ))}
                           </span>
                         </td>
                         <td className="is-num is-score">{formatScore(p.score)}</td>
-                        <td className="is-num is-opt" title={p.accuracy === null ? accuracyUnknown : undefined}>
+                        <td
+                          className="is-num is-opt"
+                          title={p.accuracy === null ? accuracyUnknown : undefined}
+                        >
                           {formatAccuracy(p.accuracy)}
                         </td>
                         {!index.qualifier && (
                           <td className="is-opt2">
-                            <span className={`map-board-result is-${p.won === null ? "tie" : p.won ? "won" : "lost"}`}>
+                            <span
+                              className={`map-board-result is-${p.won === null ? "tie" : p.won ? "won" : "lost"}`}
+                            >
                               {p.won === null ? "Berabere" : p.won ? "Kazandı" : "Kaybetti"}
                             </span>
                             {p.picked && <span className="map-board-picked">pick</span>}

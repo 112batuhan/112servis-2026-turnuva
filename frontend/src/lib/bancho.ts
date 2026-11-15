@@ -83,7 +83,13 @@ export const EMPTY_ROOM: RoomState = {
 };
 
 export function fromLiveScore(s: LiveScore): MapScore {
-  return { username: s.username, userId: s.user_id, score: s.score, passed: s.passed, mods: s.mods };
+  return {
+    username: s.username,
+    userId: s.user_id,
+    score: s.score,
+    passed: s.passed,
+    mods: s.mods,
+  };
 }
 
 /** The server's reading of a room, as the pages use it. */
@@ -151,7 +157,8 @@ export function showsHrStats(categoryName: string): boolean {
 }
 
 /** Whether someone was added as a referee of the room. */
-export const isRoomRef = (room: Pick<RoomState, "refs">, username: string) => room.refs.includes(normalizeName(username));
+export const isRoomRef = (room: Pick<RoomState, "refs">, username: string) =>
+  room.refs.includes(normalizeName(username));
 
 // ---------- the chat as spectators read it ----------
 

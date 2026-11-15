@@ -22,7 +22,16 @@ interface Props {
   editorFor?: (map: PoolMap) => MapCardEditor;
 }
 
-export function CategoryEditor({ category, slots, maps, expanded, onToggle, busy, actions, editorFor }: Props) {
+export function CategoryEditor({
+  category,
+  slots,
+  maps,
+  expanded,
+  onToggle,
+  busy,
+  actions,
+  editorFor,
+}: Props) {
   return (
     <PoolSection
       title={category.name}
@@ -46,7 +55,9 @@ export function CategoryEditor({ category, slots, maps, expanded, onToggle, busy
       }
     >
       {slots.length === 0 && (
-        <p className="pool-empty">{editorFor ? "Map eklemek için slot ekle." : "Henüz slot yok."}</p>
+        <p className="pool-empty">
+          {editorFor ? "Map eklemek için slot ekle." : "Henüz slot yok."}
+        </p>
       )}
       {slots.map((slot, i) => (
         <EditorSlot
@@ -78,7 +89,11 @@ function EditorSlot({ slot, categoryName, number, map, actions, editorFor }: Edi
 
   function remove() {
     const hasContent = map || slot.editor_notes;
-    if (hasContent && !confirm(`${name} slot'u kaldırılsın mı? Notları silinir ve map'i ortak havuza geri döner.`)) return;
+    if (
+      hasContent &&
+      !confirm(`${name} slot'u kaldırılsın mı? Notları silinir ve map'i ortak havuza geri döner.`)
+    )
+      return;
     actions.deleteSlot(slot.id);
   }
 
@@ -94,14 +109,28 @@ function EditorSlot({ slot, categoryName, number, map, actions, editorFor }: Edi
             readOnly={!editorFor}
             onSave={(v) => actions.saveSlotNotes(slot.id, v)}
           />
-          {editorFor && <IconButton icon="close" label={`${name} slot'unu kaldır`} tone="danger" onClick={remove} />}
+          {editorFor && (
+            <IconButton
+              icon="close"
+              label={`${name} slot'unu kaldır`}
+              tone="danger"
+              onClick={remove}
+            />
+          )}
         </div>
       )}
       {map ? (
-        <MapCard map={map} editor={editorFor?.(map)} viewOnly={!editorFor} showHr={showsHrStats(categoryName)} />
+        <MapCard
+          map={map}
+          editor={editorFor?.(map)}
+          viewOnly={!editorFor}
+          showHr={showsHrStats(categoryName)}
+        />
       ) : (
         <EmptySlot>
-          {editorFor ? `Buraya bir map sürükle ya da map üzerindeki "Taşı…" menüsünü kullan` : "Boş slot"}
+          {editorFor
+            ? `Buraya bir map sürükle ya da map üzerindeki "Taşı…" menüsünü kullan`
+            : "Boş slot"}
         </EmptySlot>
       )}
     </Slot>

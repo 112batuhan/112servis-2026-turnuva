@@ -45,7 +45,13 @@ export function InlineEdit({ value, onSave, label, maxLength }: Props) {
   return (
     <span className="inline-edit">
       <span className="inline-edit-text">{value}</span>
-      <IconButton icon="pencil" label={label} iconSize={14} className="inline-edit-btn" onClick={() => setEditing(true)} />
+      <IconButton
+        icon="pencil"
+        label={label}
+        iconSize={14}
+        className="inline-edit-btn"
+        onClick={() => setEditing(true)}
+      />
     </span>
   );
 }

@@ -111,7 +111,9 @@ function TeamPlayers<P extends Player>({
   view: PlayersViewProps<P>;
 }) {
   const { lobby } = view;
-  const slots = team.players.map((p) => lobby.slots.find((s) => s.userId === p.osu_id || sameName(s.username, p.username)));
+  const slots = team.players.map((p) =>
+    lobby.slots.find((s) => s.userId === p.osu_id || sameName(s.username, p.username)),
+  );
   const inRoom = slots.filter(Boolean).length;
   const name = (
     <h3 className="room-players-team-name">
@@ -178,7 +180,11 @@ function PlayerRow<P extends Player>({
         <img className="room-player-avatar" src={player.avatar_url} alt="" loading="lazy" />
         <span className="room-player-text">
           <span className="room-player-name">
-            <a href={`https://osu.ppy.sh/users/${player.osu_id}`} target="_blank" rel="noopener noreferrer">
+            <a
+              href={`https://osu.ppy.sh/users/${player.osu_id}`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               {player.username}
             </a>
           </span>
@@ -191,7 +197,9 @@ function PlayerRow<P extends Player>({
     );
   }
   const misplaced = Boolean(
-    slot && ((home !== null && slot.slot !== home) || (color !== null && slot.team !== null && slot.team !== color)),
+    slot &&
+    ((home !== null && slot.slot !== home) ||
+      (color !== null && slot.team !== null && slot.team !== color)),
   );
   const classes = [
     "room-player",
@@ -213,7 +221,11 @@ function PlayerRow<P extends Player>({
       <img className="room-player-avatar" src={player.avatar_url} alt="" loading="lazy" />
       <span className="room-player-text">
         <span className="room-player-name">
-          <a href={`https://osu.ppy.sh/users/${player.osu_id}`} target="_blank" rel="noopener noreferrer">
+          <a
+            href={`https://osu.ppy.sh/users/${player.osu_id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             {player.username}
           </a>
           {slot?.host && <span className="badge">Host</span>}
@@ -241,7 +253,13 @@ function PlayerRow<P extends Player>({
  * their role, and anyone else, who shouldn't be. The referee kicks those one by one or all at
  * once (the room's bot also kicks them as they join).
  */
-function Strangers<P extends Player>({ strangers, view }: { strangers: RoomSlot[]; view: PlayersViewProps<P> }) {
+function Strangers<P extends Player>({
+  strangers,
+  view,
+}: {
+  strangers: RoomSlot[];
+  view: PlayersViewProps<P>;
+}) {
   const outsiders = strangers.filter((s) => !view.staffRoleOf?.(s));
   const { kick } = view;
   return (
@@ -253,9 +271,16 @@ function Strangers<P extends Player>({ strangers, view }: { strangers: RoomSlot[
             type="button"
             className="btn btn-danger btn-sm room-players-kick-all"
             disabled={!kick.enabled}
-            title={kick.enabled ? "Maçın oyuncusu, host, hakem ya da yayıncı olmayan herkesi odadan atar" : kick.disabledReason}
+            title={
+              kick.enabled
+                ? "Maçın oyuncusu, host, hakem ya da yayıncı olmayan herkesi odadan atar"
+                : kick.disabledReason
+            }
             onClick={() => {
-              if (window.confirm(`${outsiders.map((s) => s.username).join(", ")} odadan atılsın mı?`)) kick.all();
+              if (
+                window.confirm(`${outsiders.map((s) => s.username).join(", ")} odadan atılsın mı?`)
+              )
+                kick.all();
             }}
           >
             Hepsini at ({outsiders.length})
@@ -264,7 +289,12 @@ function Strangers<P extends Player>({ strangers, view }: { strangers: RoomSlot[
       </h3>
       <ul className="room-players-list">
         {strangers.map((slot) => (
-          <StrangerRow key={slot.slot} slot={slot} role={view.staffRoleOf?.(slot) ?? null} view={view} />
+          <StrangerRow
+            key={slot.slot}
+            slot={slot}
+            role={view.staffRoleOf?.(slot) ?? null}
+            view={view}
+          />
         ))}
       </ul>
     </div>
@@ -283,14 +313,29 @@ function StrangerRow<P extends Player>({
 }) {
   const { kick } = view;
   return (
-    <li className={`room-player is-${slot.status} is-stranger${role ? " is-staff" : " is-outsider"}`}>
-      <SlotNumber name={slot.username} slot={slot} home={null} color={null} misplaced={false} view={view} />
+    <li
+      className={`room-player is-${slot.status} is-stranger${role ? " is-staff" : " is-outsider"}`}
+    >
+      <SlotNumber
+        name={slot.username}
+        slot={slot}
+        home={null}
+        color={null}
+        misplaced={false}
+        view={view}
+      />
       <span className="room-player-text">
         <span className="room-player-name">
-          <a href={`https://osu.ppy.sh/users/${slot.userId ?? ""}`} target="_blank" rel="noopener noreferrer">
+          <a
+            href={`https://osu.ppy.sh/users/${slot.userId ?? ""}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             {slot.username}
           </a>
-          {role && <span className="badge badge-info">{STAFF_LABELS[role] ?? ROLE_LABELS[role]}</span>}
+          {role && (
+            <span className="badge badge-info">{STAFF_LABELS[role] ?? ROLE_LABELS[role]}</span>
+          )}
           {slot.host && <span className="badge">Host</span>}
         </span>
         <span className="room-player-meta">
@@ -350,18 +395,31 @@ function SlotNumber<P extends Player>({
 }) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
-  const classes = ["room-player-slot", slot?.team && `is-team-${slot.team}`, misplaced && "is-misplaced"]
+  const classes = [
+    "room-player-slot",
+    slot?.team && `is-team-${slot.team}`,
+    misplaced && "is-misplaced",
+  ]
     .filter(Boolean)
     .join(" ");
   const figure = slot ? slot.slot : "–";
   // Where they belong, said only when they aren't there: the chip's colour and figure show it.
-  const belongs = misplaced && home !== null && color !== null ? `; yeri ${home}. slot, ${TEAM_NAMES[color]}` : "";
+  const belongs =
+    misplaced && home !== null && color !== null
+      ? `; yeri ${home}. slot, ${TEAM_NAMES[color]}`
+      : "";
   const control = view.slotControl;
   if (!control || !slot) {
     return (
       <span
         className={classes}
-        title={slot ? describeSlot(slot) + belongs : home ? `Odada değil; yeri ${home}. slot` : "Odada değil"}
+        title={
+          slot
+            ? describeSlot(slot) + belongs
+            : home
+              ? `Odada değil; yeri ${home}. slot`
+              : "Odada değil"
+        }
       >
         {figure}
         {belongs && <span className="sr-only">{belongs}</span>}
@@ -381,7 +439,11 @@ function SlotNumber<P extends Player>({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={`${name}: ${describeSlot(slot)}${belongs}. Yerini değiştir`}
-        title={control.enabled ? `${describeSlot(slot)}${belongs} · yerini değiştir` : control.disabledReason}
+        title={
+          control.enabled
+            ? `${describeSlot(slot)}${belongs} · yerini değiştir`
+            : control.disabledReason
+        }
         disabled={!control.enabled}
         onClick={() => setOpen((o) => !o)}
       >
@@ -445,7 +507,13 @@ function SlotPicker({
     return () => document.removeEventListener("pointerdown", away);
   }, []);
   const zone = (n: number): SlotTeam | null =>
-    !teamMode ? null : SIDE_SLOTS[1].includes(n) ? SIDE_COLOR[1] : SIDE_SLOTS[2].includes(n) ? SIDE_COLOR[2] : null;
+    !teamMode
+      ? null
+      : SIDE_SLOTS[1].includes(n)
+        ? SIDE_COLOR[1]
+        : SIDE_SLOTS[2].includes(n)
+          ? SIDE_COLOR[2]
+          : null;
   const atHome = (home === null || slot.slot === home) && (color === null || slot.team === color);
 
   return (
@@ -473,15 +541,21 @@ function SlotPicker({
             <button
               key={n}
               type="button"
-              className={["slot-picker-slot", z && `is-zone-${z}`, n === home && "is-home"].filter(Boolean).join(" ")}
+              className={["slot-picker-slot", z && `is-zone-${z}`, n === home && "is-home"]
+                .filter(Boolean)
+                .join(" ")}
               aria-pressed={mine}
               aria-label={`${n}. slot${holder && !mine ? `, ${holder.username} ile yer değiştir` : ""}${n === home ? " (yeri)" : ""}`}
               onClick={() => !mine && onPlace(n, null)}
             >
-              <span className={`room-player-slot is-small${holder?.team ? ` is-team-${holder.team}` : holder ? "" : " is-free"}`}>
+              <span
+                className={`room-player-slot is-small${holder?.team ? ` is-team-${holder.team}` : holder ? "" : " is-free"}`}
+              >
                 {n}
               </span>
-              <span className="slot-picker-holder">{mine ? "burada" : (holder?.username ?? "boş")}</span>
+              <span className="slot-picker-holder">
+                {mine ? "burada" : (holder?.username ?? "boş")}
+              </span>
               {n === home && <span className="slot-picker-home">yeri</span>}
             </button>
           );
@@ -526,12 +600,21 @@ const SIDE_ORDER: SlotTeam[] = [SIDE_COLOR[1], SIDE_COLOR[2]];
  * freemod off everyone plays the room's, so nothing per player) and whether they're ready, or
  * their score once they've finished the map being played.
  */
-function SlotState({ slot, lobby, hint }: { slot: RoomSlot; lobby: RoomState; hint: string | undefined }) {
+function SlotState({
+  slot,
+  lobby,
+  hint,
+}: {
+  slot: RoomSlot;
+  lobby: RoomState;
+  hint: string | undefined;
+}) {
   const score = lobby.current.find((s) => sameName(s.username, slot.username));
   const freemod = isFreemod(lobby.mods);
   let mods: { text: string; plain: boolean; title?: string } | null = null;
   if (slot.mods) mods = { text: splitMods(slot.mods).join(""), plain: false };
-  else if (freemod && !slot.modsKnown) mods = { text: "?", plain: true, title: hint ?? "Modları henüz okunmadı" };
+  else if (freemod && !slot.modsKnown)
+    mods = { text: "?", plain: true, title: hint ?? "Modları henüz okunmadı" };
   else if (freemod) mods = { text: "NM", plain: true };
 
   return (

@@ -35,12 +35,20 @@ export function ArgPage() {
                 : "Mesaj yollayabilmek için osu! ile giriş yap ve Discord hesabını bağla."}
             </p>
             {user ? (
-              <button type="button" className="btn btn-discord btn-lg btn-block" onClick={linkDiscord}>
+              <button
+                type="button"
+                className="btn btn-discord btn-lg btn-block"
+                onClick={linkDiscord}
+              >
                 <DiscordMark />
                 Discord hesabını bağla
               </button>
             ) : (
-              <button type="button" className="btn btn-primary btn-lg btn-block" onClick={loginWithOsu}>
+              <button
+                type="button"
+                className="btn btn-primary btn-lg btn-block"
+                onClick={loginWithOsu}
+              >
                 osu! ile giriş yap
               </button>
             )}
@@ -95,7 +103,11 @@ function Riddle() {
           aria-label="Cevap"
           autoFocus
         />
-        <button type="submit" className="btn btn-primary btn-block" disabled={busy || !guess.trim()}>
+        <button
+          type="submit"
+          className="btn btn-primary btn-block"
+          disabled={busy || !guess.trim()}
+        >
           Gönder
         </button>
       </form>

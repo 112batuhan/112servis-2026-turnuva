@@ -3,7 +3,14 @@ import { Icon } from "../Icon";
 import { stageLabel, type Race } from "../../lib/bestOf";
 import { stepLabel, type Draft, type DraftStep } from "../../lib/draftOrder";
 import { formatLength } from "../../lib/format";
-import { matchTeams, poolEntries, type DraftTurn, type MatchData, type MatchTeam, type PoolEntry } from "../../lib/matchPool";
+import {
+  matchTeams,
+  poolEntries,
+  type DraftTurn,
+  type MatchData,
+  type MatchTeam,
+  type PoolEntry,
+} from "../../lib/matchPool";
 import "./PoolView.css";
 
 /** Where the draft stands: a ban or a pick to make, then the tiebreaker; nothing once a team has won. */
@@ -50,7 +57,11 @@ interface PoolViewProps {
     onPick: (entry: PoolEntry) => void;
   };
   /** The referee's ban and pick buttons at the end of each map. */
-  renderActions?: (entry: PoolEntry, banned: MatchTeam | undefined, picked: MatchTeam | undefined) => ReactNode;
+  renderActions?: (
+    entry: PoolEntry,
+    banned: MatchTeam | undefined,
+    picked: MatchTeam | undefined,
+  ) => ReactNode;
 }
 
 /**
@@ -58,7 +69,15 @@ interface PoolViewProps {
  * map with what happened to it (banned, picked, on in the room, played). Shared by the referee
  * page and the public match page.
  */
-export function PoolView({ room, currentEntry, played, draft, phase, pick, renderActions }: PoolViewProps) {
+export function PoolView({
+  room,
+  currentEntry,
+  played,
+  draft,
+  phase,
+  pick,
+  renderActions,
+}: PoolViewProps) {
   const entries = poolEntries(room);
   const teams = matchTeams(room);
   const teamOf = (id: string) => teams.find((t) => t.id === id);
@@ -71,14 +90,18 @@ export function PoolView({ room, currentEntry, played, draft, phase, pick, rende
       <h2 className="pool-panel-title">
         Mappool
         {room.stage && (
-          <span className="pool-panel-stage">{room.kind === "bracket" ? stageLabel(room.stage) : room.stage.name}</span>
+          <span className="pool-panel-stage">
+            {room.kind === "bracket" ? stageLabel(room.stage) : room.stage.name}
+          </span>
         )}
         {phase && <span className="pool-panel-phase">{phase}</span>}
       </h2>
       {!room.stage && <p className="pool-panel-note">Bu maça stage seçilmemiş.</p>}
       {room.stage && entries.length === 0 && (
         <p className="pool-panel-note">
-          {pick || room.stage.published ? "Bu stage'in havuzunda map yok." : "Bu stage'in havuzu henüz yayımlanmadı."}
+          {pick || room.stage.published
+            ? "Bu stage'in havuzunda map yok."
+            : "Bu stage'in havuzu henüz yayımlanmadı."}
         </p>
       )}
 
@@ -103,22 +126,31 @@ export function PoolView({ room, currentEntry, played, draft, phase, pick, rende
                 </span>
                 <span className="pool-pick-meta">
                   <Icon name="star" size={11} className="pool-pick-star" />
-                  {map.star_rating.toFixed(2)} · {formatLength(map.total_length)} · {Math.round(map.bpm)} BPM
+                  {map.star_rating.toFixed(2)} · {formatLength(map.total_length)} ·{" "}
+                  {Math.round(map.bpm)} BPM
                   {freemod && " · Freemod"} · [{map.version}]
                 </span>
               </span>
               {banned && (
-                <span className={`pool-mark is-team-${banned.color}`} title={`${banned.name} yasakladı`}>
+                <span
+                  className={`pool-mark is-team-${banned.color}`}
+                  title={`${banned.name} yasakladı`}
+                >
                   yasak
                 </span>
               )}
               {picked && (
-                <span className={`pool-mark is-team-${picked.color}`} title={`${picked.name} seçti`}>
+                <span
+                  className={`pool-mark is-team-${picked.color}`}
+                  title={`${picked.name} seçti`}
+                >
                   seçim
                 </span>
               )}
               {!banned && !picked && current && <span className="pool-mark is-current">Odada</span>}
-              {!banned && !picked && !current && played.has(map.id) && <span className="pool-mark">Oynandı</span>}
+              {!banned && !picked && !current && played.has(map.id) && (
+                <span className="pool-mark">Oynandı</span>
+              )}
             </>
           );
           return (
@@ -155,7 +187,9 @@ export function PoolView({ room, currentEntry, played, draft, phase, pick, rende
                   {body}
                 </a>
               )}
-              {renderActions && <span className="pool-mark-actions">{renderActions(entry, banned, picked)}</span>}
+              {renderActions && (
+                <span className="pool-mark-actions">{renderActions(entry, banned, picked)}</span>
+              )}
             </li>
           );
         })}
@@ -218,7 +252,11 @@ function DraftStrip({
               title={text}
               aria-current={step.state === "next" ? "step" : undefined}
             >
-              <Icon name={step.kind === "ban" ? "ban" : "target"} size={12} className="pool-draft-icon" />
+              <Icon
+                name={step.kind === "ban" ? "ban" : "target"}
+                size={12}
+                className="pool-draft-icon"
+              />
               {content(step, team) && <span aria-hidden="true">{content(step, team)}</span>}
               <span className="sr-only">{text}</span>
             </li>

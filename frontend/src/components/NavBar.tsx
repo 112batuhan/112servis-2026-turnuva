@@ -8,7 +8,8 @@ import { Icon } from "./Icon";
 import { NotificationBell } from "./NotificationBell";
 import "./NavBar.css";
 
-const linkClass = ({ isActive }: { isActive: boolean }) => (isActive ? "nav-link is-active" : "nav-link");
+const linkClass = ({ isActive }: { isActive: boolean }) =>
+  isActive ? "nav-link is-active" : "nav-link";
 
 /**
  * The top bar. On the public pages it links to them, with a button on the right into the admin
@@ -34,7 +35,9 @@ export function NavBar() {
     const bar = barRef.current;
     if (!bar) return;
     const root = document.documentElement;
-    const observer = new ResizeObserver(() => root.style.setProperty("--nav-height", `${bar.offsetHeight}px`));
+    const observer = new ResizeObserver(() =>
+      root.style.setProperty("--nav-height", `${bar.offsetHeight}px`),
+    );
     observer.observe(bar);
     return () => {
       observer.disconnect();
@@ -72,7 +75,8 @@ export function NavBar() {
       observer.disconnect();
     };
   }, [inAdmin, user]);
-  const fade = [overflow.start && "start", overflow.end && "end"].filter(Boolean).join(" ") || undefined;
+  const fade =
+    [overflow.start && "start", overflow.end && "end"].filter(Boolean).join(" ") || undefined;
 
   async function handleSignOut() {
     await signOut();

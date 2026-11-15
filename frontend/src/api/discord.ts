@@ -3,13 +3,15 @@ import type { DiscordSettings, DiscordView, Subscriptions } from "./types";
 
 // Host-only: the bot's settings on /admin/discord.
 export const fetchDiscord = () => get<DiscordView>("/api/discord");
-export const saveDiscordSettings = (settings: DiscordSettings) => put<void>("/api/discord/settings", settings);
+export const saveDiscordSettings = (settings: DiscordSettings) =>
+  put<void>("/api/discord/settings", settings);
 /** Rechecks who's in the server, everyone's roles and every match channel. */
 export const syncDiscord = () => post<void>("/api/discord/sync");
 /** Switches the bot off (disconnects, drops its waiting jobs) or back on (reconnects and syncs everything). */
 export const setDiscordActive = (active: boolean) => put<void>("/api/discord/active", { active });
 /** Stops new match channels from opening, or lets them open again (every match that needs one gets it). */
-export const setDiscordChannelsPaused = (paused: boolean) => put<void>("/api/discord/channels/paused", { paused });
+export const setDiscordChannelsPaused = (paused: boolean) =>
+  put<void>("/api/discord/channels/paused", { paused });
 /** Deletes every match channel, archived ones included, in the background. */
 export const deleteDiscordChannels = () => post<void>("/api/discord/channels/delete");
 

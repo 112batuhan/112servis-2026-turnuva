@@ -16,7 +16,14 @@ export interface BracketWeek {
   usual: string;
 }
 
-const USUAL = ["Round of 32", "Round of 16", "Quarterfinals", "Semifinals", "Finals", "Grand Final"];
+const USUAL = [
+  "Round of 32",
+  "Round of 16",
+  "Quarterfinals",
+  "Semifinals",
+  "Finals",
+  "Grand Final",
+];
 
 /**
  * The weeks a format is played over, as the backend lays the bracket out (`seeding.rs`): winners
@@ -47,7 +54,9 @@ export function bracketWeeks(format: BracketFormat): BracketWeek[] {
     if (losers.length > 0) {
       const last = losers[losers.length - 1];
       const name = last === losersRounds ? "Losers final" : `L${losers.join("–")}`;
-      parts.push(losers.length > 1 && last === losersRounds ? `L${losers[0]} · Losers final` : name);
+      parts.push(
+        losers.length > 1 && last === losersRounds ? `L${losers[0]} · Losers final` : name,
+      );
     }
     return { rounds: parts.join(" · "), matches, usual: name };
   });

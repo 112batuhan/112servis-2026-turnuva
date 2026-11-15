@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
 import { Link } from "react-router-dom";
 import { fetchBracket } from "../../api/bracket";
 import { fetchPickem, setStagePickemMode } from "../../api/pickem";
@@ -53,7 +60,11 @@ export function StagesAdminPage() {
   const { busy, error, setError, run } = useAction(() => load());
 
   const load = useCallback(async () => {
-    const [list, bracket, picks] = await Promise.all([fetchStages(), fetchBracket(), fetchPickem()]);
+    const [list, bracket, picks] = await Promise.all([
+      fetchStages(),
+      fetchBracket(),
+      fetchPickem(),
+    ]);
     const counts = new Map<string, number>();
     for (const m of bracket.matches) {
       if (m.stage) counts.set(m.stage.id, (counts.get(m.stage.id) ?? 0) + 1);
@@ -68,7 +79,9 @@ export function StagesAdminPage() {
   }, [load, setError]);
 
   const ids = useMemo(() => (stages ?? []).map((s) => s.id), [stages]);
-  const reorderProps = useDragReorder((dragged, target) => applyOrder(moveToTarget(ids, dragged, target)));
+  const reorderProps = useDragReorder((dragged, target) =>
+    applyOrder(moveToTarget(ids, dragged, target)),
+  );
 
   // Ordering applies right away and saves in the background.
   function applyOrder(next: string[] | null) {
@@ -82,7 +95,9 @@ export function StagesAdminPage() {
 
   // Applies right away and saves in the background, like the order.
   function applyBestOf(stage: Stage, bestOf: number | null) {
-    setStages((list) => list && list.map((s) => (s.id === stage.id ? { ...s, best_of: bestOf } : s)));
+    setStages(
+      (list) => list && list.map((s) => (s.id === stage.id ? { ...s, best_of: bestOf } : s)),
+    );
     setStageBestOf(stage.id, bestOf).catch((e) => {
       setError(errorMessage(e));
       load().catch(() => {});
@@ -100,7 +115,9 @@ export function StagesAdminPage() {
 
   // Applies right away and saves in the background; null goes back to the default order.
   function applyDraftOrder(stage: Stage, order: string | null) {
-    setStages((list) => list && list.map((s) => (s.id === stage.id ? { ...s, draft_order: order } : s)));
+    setStages(
+      (list) => list && list.map((s) => (s.id === stage.id ? { ...s, draft_order: order } : s)),
+    );
     setStageDraftOrder(stage.id, order).catch((e) => {
       setError(errorMessage(e));
       load().catch(() => {});
@@ -157,7 +174,9 @@ export function StagesAdminPage() {
               </option>
             ))}
           </select>
-          <span className="stages-admin-qualifier-hint">Eleme lobileri bu stage'in map'leriyle oynanır.</span>
+          <span className="stages-admin-qualifier-hint">
+            Eleme lobileri bu stage'in map'leriyle oynanır.
+          </span>
         </label>
       )}
 
@@ -205,7 +224,10 @@ export function StagesAdminPage() {
                   />
                 </span>
                 <span className="stage-row-cell stage-row-abbr-cell">
-                  <AbbreviationField stage={stage} onSave={(value) => applyAbbreviation(stage, value)} />
+                  <AbbreviationField
+                    stage={stage}
+                    onSave={(value) => applyAbbreviation(stage, value)}
+                  />
                 </span>
                 <span className="stage-row-cell stage-row-badges">
                   <span
@@ -223,8 +245,14 @@ export function StagesAdminPage() {
                       className="select select-sm stage-row-bo"
                       value={stage.best_of ?? ""}
                       aria-label={`${stage.name}: kaç map üzerinden oynanıyor`}
-                      title={stage.best_of ? `${firstTo(stage.best_of)} map alan kazanır` : "Maçlar kaç map üzerinden oynanıyor"}
-                      onChange={(e) => applyBestOf(stage, e.target.value ? Number(e.target.value) : null)}
+                      title={
+                        stage.best_of
+                          ? `${firstTo(stage.best_of)} map alan kazanır`
+                          : "Maçlar kaç map üzerinden oynanıyor"
+                      }
+                      onChange={(e) =>
+                        applyBestOf(stage, e.target.value ? Number(e.target.value) : null)
+                      }
                     >
                       <option value="">Bo —</option>
                       {BEST_OF_CHOICES.map((n) => (
@@ -232,15 +260,19 @@ export function StagesAdminPage() {
                           {bestOfLabel(n)}
                         </option>
                       ))}
-                      {stage.best_of !== null && !(BEST_OF_CHOICES as readonly number[]).includes(stage.best_of) && (
-                        <option value={stage.best_of}>{bestOfLabel(stage.best_of)}</option>
-                      )}
+                      {stage.best_of !== null &&
+                        !(BEST_OF_CHOICES as readonly number[]).includes(stage.best_of) && (
+                          <option value={stage.best_of}>{bestOfLabel(stage.best_of)}</option>
+                        )}
                     </select>
                   </span>
                   {/* Left empty when the stage has none, so the column's separator still stands. */}
                   <span className="stage-row-cell stage-row-order-cell">
                     {!stage.is_qualifier && (
-                      <DraftOrderField stage={stage} onSave={(order) => applyDraftOrder(stage, order)} />
+                      <DraftOrderField
+                        stage={stage}
+                        onSave={(order) => applyDraftOrder(stage, order)}
+                      />
                     )}
                   </span>
                   <span className="stage-row-cell stage-row-pickem-cell">
@@ -286,7 +318,13 @@ const MAX_ABBREVIATION = 6;
  * A stage's short name, which the bracket board writes on each of its matches' cards. Enter or
  * leaving the field saves it; Escape puts back the saved one; emptied, the stage has none.
  */
-function AbbreviationField({ stage, onSave }: { stage: Stage; onSave: (value: string | null) => void }) {
+function AbbreviationField({
+  stage,
+  onSave,
+}: {
+  stage: Stage;
+  onSave: (value: string | null) => void;
+}) {
   const saved = stage.abbreviation ?? "";
   const [text, setText] = useState(saved);
   useEffect(() => setText(saved), [saved]);
@@ -326,7 +364,13 @@ function AbbreviationField({ stage, onSave }: { stage: Stage; onSave: (value: st
  * fixed. Enter or leaving the field saves it written the stored way; Escape puts back the saved one;
  * emptied, the stage goes back to the default.
  */
-function DraftOrderField({ stage, onSave }: { stage: Stage; onSave: (order: string | null) => void }) {
+function DraftOrderField({
+  stage,
+  onSave,
+}: {
+  stage: Stage;
+  onSave: (order: string | null) => void;
+}) {
   const saved = stage.draft_order ?? "";
   const [text, setText] = useState(saved);
   const [editing, setEditing] = useState(false);
@@ -422,7 +466,11 @@ function OrderPreview({ order, fallback }: { order: DraftOrder; fallback: boolea
 
 const PICKEM_MODES: { mode: PickemMode; label: string; hint: string }[] = [
   { mode: "auto", label: "Otomatik", hint: "Önceki stage bitince açılır, ilk maçla kilitlenir" },
-  { mode: "open", label: "Aç", hint: "Şimdi açık, saati geçmiş olsa bile; her maç odası açılınca ya da bitince kilitlenir" },
+  {
+    mode: "open",
+    label: "Aç",
+    hint: "Şimdi açık, saati geçmiş olsa bile; her maç odası açılınca ya da bitince kilitlenir",
+  },
   { mode: "closed", label: "Kapat", hint: "Şimdi kilitli; tahminlerin dağılımı açıklanır" },
 ];
 
@@ -438,7 +486,10 @@ function PickemControl({
 }) {
   return (
     <span className="stage-row-pickem">
-      <span className={`stage-row-pickem-status is-${pickem.status}`} title={`Pick'em: ${STATUS_LABELS[pickem.status]}`}>
+      <span
+        className={`stage-row-pickem-status is-${pickem.status}`}
+        title={`Pick'em: ${STATUS_LABELS[pickem.status]}`}
+      >
         {STATUS_LABELS[pickem.status]}
       </span>
       <span className="bracket-view-tabs" role="group" aria-label={`${stage.name} pick'em`}>
@@ -487,10 +538,11 @@ function StagesHelp() {
           <h2>Stage'ler</h2>
           <div className="stages-help-body">
             <p>
-              Turnuvanın turları, oynandıkları sırayla: sürükleyerek ya da oklarla sırala, kalemle yeniden adlandır.
-              Kategoriler, map'ler ve yayınlama <Link to="/admin/mappool">Mappool</Link> sekmesinde (yayınlanana kadar
-              mappool <em>Taslak</em>); bir maçın stage'i <Link to="/admin/bracket">Bracket</Link> sekmesindeki maç
-              panelinde seçilir.
+              Turnuvanın turları, oynandıkları sırayla: sürükleyerek ya da oklarla sırala, kalemle
+              yeniden adlandır. Kategoriler, map'ler ve yayınlama{" "}
+              <Link to="/admin/mappool">Mappool</Link> sekmesinde (yayınlanana kadar mappool{" "}
+              <em>Taslak</em>); bir maçın stage'i <Link to="/admin/bracket">Bracket</Link>{" "}
+              sekmesindeki maç panelinde seçilir.
             </p>
           </div>
         </section>
@@ -500,9 +552,10 @@ function StagesHelp() {
           <div className="stages-help-body">
             <p>
               Adın yanındaki kısa alan, en fazla {MAX_ABBREVIATION} karakter (ör.{" "}
-              <span className="stages-help-code">QF</span>, <span className="stages-help-code">GF</span>): bracket
-              tablosunda her maç kartının üstünde kodun yanında yazar, üzerine gelince stage'in tam adı görünür. Boş
-              bırakılırsa kartta yalnızca maç kodu olur.
+              <span className="stages-help-code">QF</span>,{" "}
+              <span className="stages-help-code">GF</span>): bracket tablosunda her maç kartının
+              üstünde kodun yanında yazar, üzerine gelince stage'in tam adı görünür. Boş bırakılırsa
+              kartta yalnızca maç kodu olur.
             </p>
           </div>
         </section>
@@ -511,7 +564,8 @@ function StagesHelp() {
           <h2>Eleme mappool'u</h2>
           <div className="stages-help-body">
             <p>
-              Eleme lobileri seçilen stage'in map'leriyle oynanır. Eleme stage'inin pick-ban sırası ve pick'em'i olmaz.
+              Eleme lobileri seçilen stage'in map'leriyle oynanır. Eleme stage'inin pick-ban sırası
+              ve pick'em'i olmaz.
             </p>
           </div>
         </section>
@@ -520,10 +574,11 @@ function StagesHelp() {
           <h2>Bo</h2>
           <div className="stages-help-body">
             <p>
-              Maçların kaç map üzerinden oynandığı: <span className="stages-help-code">Bo{BEST_OF_EXAMPLE}</span>'da{" "}
-              <span className="num">{firstTo(BEST_OF_EXAMPLE)}</span> map alan kazanır. Hakem sayfası skoru buna göre
-              tutar ve beraberlikte tiebreaker'ı açar; maç sayfası ve Discord da gösterir. Bo'su seçilmemiş stage'in
-              maçları pick'em'de tahmin edilemez.
+              Maçların kaç map üzerinden oynandığı:{" "}
+              <span className="stages-help-code">Bo{BEST_OF_EXAMPLE}</span>'da{" "}
+              <span className="num">{firstTo(BEST_OF_EXAMPLE)}</span> map alan kazanır. Hakem
+              sayfası skoru buna göre tutar ve beraberlikte tiebreaker'ı açar; maç sayfası ve
+              Discord da gösterir. Bo'su seçilmemiş stage'in maçları pick'em'de tahmin edilemez.
             </p>
           </div>
         </section>
@@ -562,8 +617,8 @@ function StagesHelp() {
               </p>
             )}
             <p>
-              Boş bırakılırsa <span className="stages-help-code">{DEFAULT_DRAFT_ORDER}</span>. Yazarken alanın altında
-              böyle okunur; Enter kaydeder, Esc vazgeçer.
+              Boş bırakılırsa <span className="stages-help-code">{DEFAULT_DRAFT_ORDER}</span>.
+              Yazarken alanın altında böyle okunur; Enter kaydeder, Esc vazgeçer.
             </p>
           </div>
         </section>
@@ -575,11 +630,17 @@ function StagesHelp() {
             <dl className="stages-help-list">
               <div>
                 <dt>Otomatik</dt>
-                <dd>Önceki stage'in bütün maçları bitince açılır, stage'in ilk maçı başlayınca kilitlenir.</dd>
+                <dd>
+                  Önceki stage'in bütün maçları bitince açılır, stage'in ilk maçı başlayınca
+                  kilitlenir.
+                </dd>
               </div>
               <div>
                 <dt>Aç</dt>
-                <dd>Şimdi açar, saati geçmiş olsa bile; her maç kendi odası açılınca ya da sonucu girilince kilitlenir.</dd>
+                <dd>
+                  Şimdi açar, saati geçmiş olsa bile; her maç kendi odası açılınca ya da sonucu
+                  girilince kilitlenir.
+                </dd>
               </div>
               <div>
                 <dt>Kapat</dt>
@@ -593,7 +654,13 @@ function StagesHelp() {
   );
 }
 
-function NewStageForm({ busy, onCreate }: { busy: boolean; onCreate: (name: string) => Promise<boolean> }) {
+function NewStageForm({
+  busy,
+  onCreate,
+}: {
+  busy: boolean;
+  onCreate: (name: string) => Promise<boolean>;
+}) {
   const [name, setName] = useState("");
 
   async function submit(e: FormEvent) {
