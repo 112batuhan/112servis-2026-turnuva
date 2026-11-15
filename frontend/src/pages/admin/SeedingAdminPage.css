@@ -32,7 +32,7 @@
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-4);
-  background: var(--color-surface);
+  background: var(--color-surface-raised);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
 }
@@ -223,7 +223,7 @@
   top: var(--nav-height, 56px);
   z-index: 1;
   padding: var(--space-2);
-  background: var(--color-bg);
+  background: var(--color-surface);
   border-bottom: var(--rule-heavy);
   color: var(--color-text-muted);
   font-size: var(--text-xs);
@@ -483,6 +483,11 @@
 }
 
 @media (max-width: 560px) {
+  /* The panel opens up on phones (layout.css), so the pinned header goes back to the page ground. */
+  .seeding-head {
+    background: var(--color-bg);
+  }
+
   .seeding-list {
     grid-template-columns:
       [seed] 2.75rem

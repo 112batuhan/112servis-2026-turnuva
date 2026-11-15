@@ -13,14 +13,16 @@
   width: 100%;
 }
 
-/* Scrolls inside a frame as tall as the grid's, so the page header above stays in view. */
+/* A ruled sheet like the app's other tables (stats, seeding), not a box: the heavy rule over it, rows on
+   hairlines. It scrolls inside a frame as tall as the grid's, so the page header above stays in view;
+   the heavy rule is the frame's, so it stays put over the scrolling rows, and a hairline closes it. */
 .bracket-list-scroll {
   align-self: stretch;
   max-width: 100%;
   max-height: clamp(520px, 75vh, 1000px);
   overflow: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-top: var(--rule-heavy);
+  border-bottom: var(--rule);
 }
 
 .bracket-list {
@@ -37,18 +39,26 @@
   white-space: nowrap;
 }
 
+/* On the ground, ruled off by a strong hairline, as the stats tables' head. The rule is a shadow, since a
+   collapsed border doesn't stick with its cell. */
 .bracket-list thead th {
   position: sticky;
   top: 0;
-  z-index: 1;
-  background: var(--color-surface-raised);
+  z-index: 2;
+  background: var(--color-bg);
+  box-shadow: inset 0 -1px 0 var(--color-border-strong);
   color: var(--color-text-muted);
   font-size: var(--text-xs);
   font-weight: 600;
 }
 
 .bracket-list tbody tr {
-  border-top: 1px solid var(--color-border);
+  border-top: var(--rule);
+}
+
+/* The head's rule already sits over the first row. */
+.bracket-list tbody tr:first-child {
+  border-top: none;
 }
 
 .bracket-list tbody tr.is-mine {
@@ -345,11 +355,11 @@ button.bracket-list-code:hover {
 }
 
 @container (max-width: 960px) {
+  /* The blocks keep the heavy rule over them; without a frame to close there's no hairline under. */
   .bracket-list-scroll {
     max-height: none;
     overflow: visible;
-    border: 0;
-    border-radius: 0;
+    border-bottom: 0;
   }
 
   .bracket-list,
@@ -567,6 +577,11 @@ button.bracket-list-code:hover {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     column-gap: var(--space-5);
+  }
+
+  /* Both blocks of the first line sit right under the heavy rule. */
+  .bracket-list tbody tr:nth-child(2) {
+    border-top: none;
   }
 }
 

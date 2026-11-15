@@ -109,7 +109,7 @@ export function SeedingAdminPage() {
   }
 
   return (
-    <section className="seeding-page">
+    <section className="panel seeding-page">
       <div className="page-header">
         <h1>Sıralama sonuçları</h1>
         {data && <span className="badge">{ranked}</span>}
