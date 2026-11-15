@@ -1,0 +1,73 @@
+/* A Z score: the figure, then a meter centred on the map's mean. Above it in ink, below it in
+   muted ink; a missing qualifier map (scored as a 0) in danger, since it's a penalty. */
+/* The meter's width, which a table's Z head also reads to line up with the figure. */
+:root {
+  --zval-bar-w: 52px;
+}
+
+.zval {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.zval-num {
+  min-width: 3.4em;
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  line-height: 1;
+  text-align: right;
+}
+
+.zval.is-lg .zval-num {
+  font-size: var(--text-xl);
+  font-weight: 800;
+}
+
+.zval.is-down .zval-num {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.zval.is-missing .zval-num {
+  color: var(--color-danger);
+}
+
+.zval-bar {
+  position: relative;
+  flex: none;
+  width: var(--zval-bar-w);
+  height: 6px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface-sunken);
+}
+
+/* The mean, where every bar starts. */
+.zval-bar::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  background: var(--color-border-strong);
+}
+
+.zval-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--radius-full);
+  background: var(--color-text);
+}
+
+.zval.is-down .zval-fill {
+  background: var(--color-text-subtle);
+}
+
+.zval.is-missing .zval-fill {
+  background: var(--color-danger);
+}
