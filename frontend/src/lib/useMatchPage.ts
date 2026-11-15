@@ -1,9 +1,9 @@
 import { useCallback, useMemo } from "react";
-import { fetchPublicChat, fetchPublicMatch } from "../../api/matches";
-import type { Player } from "../../api/types";
-import type { ChatLine } from "../../irc/IrcContext";
-import { sameName, type RoomSlot } from "../../lib/bancho";
-import { raceOf, type Race } from "../../lib/bestOf";
+import { fetchPublicChat, fetchPublicMatch } from "../api/matches";
+import type { Player } from "../api/types";
+import type { ChatLine } from "../irc/IrcContext";
+import { sameName, type RoomSlot } from "./bancho";
+import { raceOf, type Race } from "./bestOf";
 import {
   currentEntryOf,
   finishedOf,
@@ -13,17 +13,11 @@ import {
   type FinishedMap,
   type RosterPlayer,
   type Tally,
-} from "../../lib/liveRoom";
-import {
-  draftTurn,
-  matchDraft,
-  matchTeams,
-  poolEntries,
-  type MatchTeam,
-} from "../../lib/matchPool";
-import { toChatLine } from "../../lib/roomChat";
-import { useMatchFeed } from "../../lib/useMatchFeed";
-import { useLive } from "../../live/LiveContext";
+} from "./liveRoom";
+import { draftTurn, matchDraft, matchTeams, poolEntries, type MatchTeam } from "./matchPool";
+import { toChatLine } from "./roomChat";
+import { useMatchFeed } from "./useMatchFeed";
+import { useLive } from "../live/LiveContext";
 
 // The public match page reads the same room the referee page runs: the match as saved, the room
 // as its bot reads it (the same reading on every page), and each room's chat as the bot saved it,

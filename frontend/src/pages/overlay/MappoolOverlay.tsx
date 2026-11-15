@@ -2,7 +2,7 @@ import { useMemo, type CSSProperties } from "react";
 import type { PublicMatch } from "../../api/types";
 import { BANCHO_BOT, isRoomNoise, sameName } from "../../lib/bancho";
 import { poolEntries, type PoolEntry } from "../../lib/matchPool";
-import type { PublicRoomChat } from "../match/useMatchPage";
+import type { PublicRoomChat } from "../../lib/useMatchPage";
 import {
   categoryName,
   MapPill,

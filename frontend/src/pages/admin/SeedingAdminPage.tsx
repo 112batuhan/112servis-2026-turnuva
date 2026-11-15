@@ -18,7 +18,7 @@ import { RANK_WARNING_LABELS } from "../../lib/eligibility";
 import { moveBy, moveToTarget } from "../../lib/reorder";
 import { bracketWeeks, defaultStages, FORMAT_LABELS, FORMAT_TEAMS } from "../../lib/seeding";
 import { useAction } from "../../lib/useAction";
-import { ZValue } from "../stats/StatsParts";
+import { ZValue } from "../../components/ZValue";
 import "./SeedingAdminPage.css";
 
 const FORMATS: BracketFormat[] = ["round_of_32", "round_of_16"];

@@ -1,8 +1,8 @@
 import { useSearchParams } from "react-router-dom";
-import { linkDiscord } from "../api/auth";
-import { DISCORD_LINK_ERROR_TEXT, textFor } from "../api/errors";
-import { useSignedInUser } from "../auth/AuthContext";
-import { DiscordMark } from "../components/DiscordMark";
+import { linkDiscord } from "../../api/auth";
+import { DISCORD_LINK_ERROR_TEXT, textFor } from "../../api/errors";
+import { useSignedInUser } from "../../auth/AuthContext";
+import { DiscordMark } from "../../components/DiscordMark";
 
 export function LinkDiscordPage() {
   const user = useSignedInUser();

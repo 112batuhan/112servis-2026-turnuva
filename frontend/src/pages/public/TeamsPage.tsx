@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { errorMessage } from "../api/client";
-import { fetchPublicTeams } from "../api/teams";
-import type { TeamList } from "../api/types";
-import { ErrorAlert } from "../components/ErrorAlert";
-import { RanksUpdated } from "../components/RanksUpdated";
-import { TeamCard } from "../components/TeamCard";
-import { TeamRow, TeamRows } from "../components/TeamRow";
-import { TeamViewTabs, useTeamView } from "../components/TeamViewTabs";
-import { teamAnchorId } from "../lib/teamLink";
+import { errorMessage } from "../../api/client";
+import { fetchPublicTeams } from "../../api/teams";
+import type { TeamList } from "../../api/types";
+import { ErrorAlert } from "../../components/ErrorAlert";
+import { RanksUpdated } from "../../components/RanksUpdated";
+import { TeamCard } from "../../components/TeamCard";
+import { TeamRow, TeamRows } from "../../components/TeamRow";
+import { TeamViewTabs, useTeamView } from "../../components/TeamViewTabs";
+import { teamAnchorId } from "../../lib/teamLink";
 
 export function TeamsPage() {
   const [list, setList] = useState<TeamList | null>(null);

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { errorMessage } from "../api/client";
-import { useAction } from "../lib/useAction";
+import { errorMessage } from "../../api/client";
+import { useAction } from "../../lib/useAction";
 import {
   acceptInvite,
   deleteInvite,
@@ -12,32 +12,32 @@ import {
   searchPlayers,
   sendInvite,
   uploadMyBanner,
-} from "../api/teams";
-import { fetchPublicQualifiers } from "../api/matches";
-import type { Invite, PlayerResult, PublicQualifiers, Team, TeamStatus } from "../api/types";
-import { useSignedInUser } from "../auth/AuthContext";
-import { canPlay } from "../auth/roles";
-import { Countdown } from "../components/Countdown";
-import { DiscordMark } from "../components/DiscordMark";
-import { DiscordMention } from "../components/DiscordMention";
-import { ErrorAlert } from "../components/ErrorAlert";
-import { Icon } from "../components/Icon";
-import { MatchReschedules } from "../components/MatchReschedules";
-import { PlayerChip } from "../components/PlayerChip";
-import { LobbyStatus } from "../components/LobbyCard";
-import { MatchPageLink } from "../components/MatchPageLink";
-import { RoomLinks } from "../components/RoomLinks";
-import { TeamCard } from "../components/TeamCard";
-import { TeamMatches } from "../components/TeamMatches";
-import { isLobbyLive } from "../lib/bracket";
-import { ELIGIBILITY_LABELS, eligibilityBadgeClass } from "../lib/eligibility";
+} from "../../api/teams";
+import { fetchPublicQualifiers } from "../../api/matches";
+import type { Invite, PlayerResult, PublicQualifiers, Team, TeamStatus } from "../../api/types";
+import { useSignedInUser } from "../../auth/AuthContext";
+import { canPlay } from "../../auth/roles";
+import { Countdown } from "../../components/Countdown";
+import { DiscordMark } from "../../components/DiscordMark";
+import { DiscordMention } from "../../components/DiscordMention";
+import { ErrorAlert } from "../../components/ErrorAlert";
+import { Icon } from "../../components/Icon";
+import { MatchReschedules } from "../../components/MatchReschedules";
+import { PlayerChip } from "../../components/PlayerChip";
+import { LobbyStatus } from "../../components/LobbyCard";
+import { MatchPageLink } from "../../components/MatchPageLink";
+import { RoomLinks } from "../../components/RoomLinks";
+import { TeamCard } from "../../components/TeamCard";
+import { TeamMatches } from "../../components/TeamMatches";
+import { isLobbyLive } from "../../lib/bracket";
+import { ELIGIBILITY_LABELS, eligibilityBadgeClass } from "../../lib/eligibility";
 import {
   BANNER_MAX_BYTES,
   formatMatchTime,
   formatRank,
   formatTeamValue,
   TEAM_NAME_MAX,
-} from "../lib/format";
+} from "../../lib/format";
 import "./TeamPage.css";
 
 const SEARCH_DELAY_MS = 300;

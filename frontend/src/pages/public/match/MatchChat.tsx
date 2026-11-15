@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { isRoomNoise, type SlotTeam } from "../../lib/bancho";
-import { readJson, writeJson } from "../../lib/storage";
-import { ChatRow } from "../../components/match/ChatRow";
-import type { PublicRoomChat } from "./useMatchPage";
-import "../../components/match/ChatRow.css";
+import { isRoomNoise, type SlotTeam } from "../../../lib/bancho";
+import { readJson, writeJson } from "../../../lib/storage";
+import { ChatRow } from "../../../components/match/ChatRow";
+import type { PublicRoomChat } from "../../../lib/useMatchPage";
+import "../../../components/match/ChatRow.css";
 import "./MatchChat.css";
 
 interface Props {

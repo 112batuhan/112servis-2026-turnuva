@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { errorMessage } from "../api/client";
-import { fetchStaff } from "../api/staff";
-import type { Role, StaffMember } from "../api/types";
-import { useAuth } from "../auth/AuthContext";
-import { DiscordMark } from "../components/DiscordMark";
-import { DiscordMention } from "../components/DiscordMention";
-import { ErrorAlert } from "../components/ErrorAlert";
+import { errorMessage } from "../../api/client";
+import { fetchStaff } from "../../api/staff";
+import type { Role, StaffMember } from "../../api/types";
+import { useAuth } from "../../auth/AuthContext";
+import { DiscordMark } from "../../components/DiscordMark";
+import { DiscordMention } from "../../components/DiscordMention";
+import { ErrorAlert } from "../../components/ErrorAlert";
 import "./StaffPage.css";
 
 /** The roles in the order the page lists them. */

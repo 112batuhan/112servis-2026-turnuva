@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useMatchPage, type MatchPageState } from "../match/useMatchPage";
+import { useMatchPage, type MatchPageState } from "../../lib/useMatchPage";
 import { IPC, type TosuTourney } from "./tosu";
 
 // The match as the overlays show it: the site's data (the same reading the public match page

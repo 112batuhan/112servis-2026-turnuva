@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { errorMessage } from "../api/client";
-import { fetchPublicStage, fetchPublicStages } from "../api/mappool";
-import type { Category, PublicStage, PublicStageDetail } from "../api/types";
-import { ErrorAlert } from "../components/ErrorAlert";
-import { Icon } from "../components/Icon";
-import { MapCard } from "../components/MapCard";
-import { PoolSection } from "../components/PoolSection";
-import { EmptySlot, Slot } from "../components/Slot";
-import { StageTabs } from "../components/StageTabs";
-import { showsHrStats } from "../lib/bancho";
-import { useStoredSet } from "../lib/useExpandedSet";
-import { createStageCache, useStageCache } from "../lib/useStageCache";
-import { useLiveBracket } from "../live/LiveContext";
+import { errorMessage } from "../../api/client";
+import { fetchPublicStage, fetchPublicStages } from "../../api/mappool";
+import type { Category, PublicStage, PublicStageDetail } from "../../api/types";
+import { ErrorAlert } from "../../components/ErrorAlert";
+import { Icon } from "../../components/Icon";
+import { MapCard } from "../../components/MapCard";
+import { PoolSection } from "../../components/PoolSection";
+import { EmptySlot, Slot } from "../../components/Slot";
+import { StageTabs } from "../../components/StageTabs";
+import { showsHrStats } from "../../lib/bancho";
+import { useStoredSet } from "../../lib/useExpandedSet";
+import { createStageCache, useStageCache } from "../../lib/useStageCache";
+import { useLiveBracket } from "../../live/LiveContext";
 
 /** Every published pool as last read: a stage opened again shows at once while it's read again. */
 const poolCache = createStageCache(fetchPublicStage);

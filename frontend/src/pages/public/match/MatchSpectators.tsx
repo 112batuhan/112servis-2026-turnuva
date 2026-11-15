@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { useAuth } from "../../auth/AuthContext";
-import { Icon } from "../../components/Icon";
-import type { Spectators } from "../../live/LiveContext";
+import { useAuth } from "../../../auth/AuthContext";
+import { Icon } from "../../../components/Icon";
+import type { Spectators } from "../../../live/LiveContext";
 import "./MatchSpectators.css";
 
 // Kept free at the viewport's edges, and between the button and the list.

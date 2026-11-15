@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
-import type { StatMap } from "../../api/types";
-import type { PoolEntry } from "../../lib/matchPool";
+import type { StatMap } from "../../../api/types";
+import type { PoolEntry } from "../../../lib/matchPool";
 import { MapLabel, MatchCode, PanelTools, PlayerName, TeamName } from "./StatsParts";
 import {
   accuracyUnknown,

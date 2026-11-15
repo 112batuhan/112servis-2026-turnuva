@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
-import type { StatPlayerPlay, StatTeamPlay } from "../../api/types";
-import { MapLabel, MatchCode, PanelTools, PlayerName, TeamWho, ZValue } from "./StatsParts";
+import type { StatPlayerPlay, StatTeamPlay } from "../../../api/types";
+import { ZValue } from "../../../components/ZValue";
+import { MapLabel, MatchCode, PanelTools, PlayerName, TeamWho } from "./StatsParts";
 import {
   accuracyUnknown,
   formatAccuracy,

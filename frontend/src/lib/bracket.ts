@@ -10,7 +10,7 @@ export function bracketMatchPath(matchId: string, admin: boolean): string {
   return `${admin ? "/admin/bracket" : "/bracket"}?match=${matchId}`;
 }
 
-/** A match's public page, which follows it live (pages/match/MatchPage.tsx). */
+/** A match's public page, which follows it live (pages/public/match/MatchPage.tsx). */
 export function matchPagePath(matchId: string): string {
   return `/match/${matchId}`;
 }

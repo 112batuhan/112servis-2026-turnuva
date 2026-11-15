@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
-import { fetchStageActivity, fetchStageStats } from "../../api/stats";
-import type { StageActivity } from "../../api/types";
-import { createStageCache, useStageCache } from "../../lib/useStageCache";
-import { useLive } from "../../live/LiveContext";
+import { fetchStageActivity, fetchStageStats } from "../../../api/stats";
+import type { StageActivity } from "../../../api/types";
+import { createStageCache, useStageCache } from "../../../lib/useStageCache";
+import { useLive } from "../../../live/LiveContext";
 
 // A finished map pushes a score (bracket) or a match change (a lobby, osu!'s accuracy):
 // a burst of them is gathered into one reload.

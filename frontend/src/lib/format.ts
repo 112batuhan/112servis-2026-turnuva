@@ -96,3 +96,15 @@ export const TEAM_NAME_MAX = 32;
 
 /** Mirrors BANNER_MAX_BYTES in backend/src/handlers/team.rs. */
 export const BANNER_MAX_BYTES = 2 * 1024 * 1024;
+
+const twoDecimals = new Intl.NumberFormat("tr-TR", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/** +1,23 / −0,45, with a real minus sign. */
+export function formatZ(z: number): string {
+  const rounded = Math.round(z * 100) / 100;
+  if (rounded === 0) return "0,00";
+  return `${rounded > 0 ? "+" : "−"}${twoDecimals.format(Math.abs(rounded))}`;
+}

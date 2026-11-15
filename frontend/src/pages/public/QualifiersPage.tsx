@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { errorMessage } from "../api/client";
-import { useAction } from "../lib/useAction";
-import { fetchPublicQualifiers, joinLobby, leaveLobby } from "../api/matches";
-import type { Lobby, PublicQualifiers } from "../api/types";
-import { useAuth } from "../auth/AuthContext";
-import { canPlay } from "../auth/roles";
-import { Countdown } from "../components/Countdown";
-import { ErrorAlert } from "../components/ErrorAlert";
-import { LobbyCard } from "../components/LobbyCard";
-import { formatMatchTime } from "../lib/format";
+import { errorMessage } from "../../api/client";
+import { useAction } from "../../lib/useAction";
+import { fetchPublicQualifiers, joinLobby, leaveLobby } from "../../api/matches";
+import type { Lobby, PublicQualifiers } from "../../api/types";
+import { useAuth } from "../../auth/AuthContext";
+import { canPlay } from "../../auth/roles";
+import { Countdown } from "../../components/Countdown";
+import { ErrorAlert } from "../../components/ErrorAlert";
+import { LobbyCard } from "../../components/LobbyCard";
+import { formatMatchTime } from "../../lib/format";
 import "./QualifiersPage.css";
 
 export function QualifiersPage() {

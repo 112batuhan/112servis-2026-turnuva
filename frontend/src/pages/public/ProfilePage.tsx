@@ -1,8 +1,8 @@
 import { Link } from "react-router-dom";
-import { useSignedInUser } from "../auth/AuthContext";
-import { canPlay, isStaff, PLAYER_LABEL, ROLE_LABELS } from "../auth/roles";
-import { DiscordMark } from "../components/DiscordMark";
-import { formatRank } from "../lib/format";
+import { useSignedInUser } from "../../auth/AuthContext";
+import { canPlay, isStaff, PLAYER_LABEL, ROLE_LABELS } from "../../auth/roles";
+import { DiscordMark } from "../../components/DiscordMark";
+import { formatRank } from "../../lib/format";
 import "./ProfilePage.css";
 
 export function ProfilePage() {

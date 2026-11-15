@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { fetchPublicBracket } from "../../api/bracket";
-import { errorMessage } from "../../api/client";
-import { fetchPickem, predictMatch, withdrawPrediction } from "../../api/pickem";
+import { fetchPublicBracket } from "../../../api/bracket";
+import { errorMessage } from "../../../api/client";
+import { fetchPickem, predictMatch, withdrawPrediction } from "../../../api/pickem";
 import type {
   BracketMatch,
   MyPrediction,
   PickemOverview,
   PublicBracket,
   Team,
-} from "../../api/types";
-import { firstTo } from "../../lib/bestOf";
-import { withScore } from "../../lib/bracket";
-import { useLiveRefresh } from "../../lib/useLiveRefresh";
-import { useLiveBracket } from "../../live/LiveContext";
+} from "../../../api/types";
+import { firstTo } from "../../../lib/bestOf";
+import { withScore } from "../../../lib/bracket";
+import { useLiveRefresh } from "../../../lib/useLiveRefresh";
+import { useLiveBracket } from "../../../live/LiveContext";
 
 /**
  * The pick'em page's data: the stages' pick'em with the viewer's predictions and the standings,

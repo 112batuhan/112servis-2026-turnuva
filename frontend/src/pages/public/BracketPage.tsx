@@ -1,28 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { errorMessage } from "../api/client";
-import { fetchPublicBracket } from "../api/bracket";
-import type { PublicBracket, Team } from "../api/types";
-import { useAuth } from "../auth/AuthContext";
-import { BracketCalendar } from "../components/bracket/BracketCalendar";
-import { BracketGrid } from "../components/bracket/BracketGrid";
-import { BracketList } from "../components/bracket/BracketList";
-import { BracketSearch, useBracketSearch } from "../components/bracket/BracketSearch";
+import { errorMessage } from "../../api/client";
+import { fetchPublicBracket } from "../../api/bracket";
+import type { PublicBracket, Team } from "../../api/types";
+import { useAuth } from "../../auth/AuthContext";
+import { BracketCalendar } from "../../components/bracket/BracketCalendar";
+import { BracketGrid } from "../../components/bracket/BracketGrid";
+import { BracketList } from "../../components/bracket/BracketList";
+import { BracketSearch, useBracketSearch } from "../../components/bracket/BracketSearch";
 import {
   SelectedMatchBar,
   SubscribeButton,
   useSubscriptions,
-} from "../components/bracket/MatchSubscription";
+} from "../../components/bracket/MatchSubscription";
 import {
   BracketViewTabs,
   CountdownToggle,
   useBracketView,
   useCountdownMode,
   useLinkedMatch,
-} from "../components/bracket/BracketViewTabs";
-import { ErrorAlert } from "../components/ErrorAlert";
-import { withScore } from "../lib/bracket";
-import { useLiveRefresh } from "../lib/useLiveRefresh";
-import { useLiveBracket } from "../live/LiveContext";
+} from "../../components/bracket/BracketViewTabs";
+import { ErrorAlert } from "../../components/ErrorAlert";
+import { withScore } from "../../lib/bracket";
+import { useLiveRefresh } from "../../lib/useLiveRefresh";
+import { useLiveBracket } from "../../live/LiveContext";
 
 export function BracketPage() {
   const { user } = useAuth();

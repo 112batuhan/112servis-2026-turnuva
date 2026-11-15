@@ -1,6 +1,6 @@
 import { createContext } from "react";
-import type { Player, StageStats, StatMap, StatMatch, Team } from "../../api/types";
-import { poolEntries, type PoolEntry } from "../../lib/matchPool";
+import type { Player, StageStats, StatMap, StatMatch, Team } from "../../../api/types";
+import { poolEntries, type PoolEntry } from "../../../lib/matchPool";
 
 /** Where the open section puts its controls: the end of the tab strip's row (`PanelTools`). */
 export const ToolsSlot = createContext<HTMLElement | null>(null);
@@ -57,10 +57,6 @@ const percent = new Intl.NumberFormat("tr-TR", {
   maximumFractionDigits: 2,
 });
 const share = new Intl.NumberFormat("tr-TR", { style: "percent", maximumFractionDigits: 0 });
-const decimal = new Intl.NumberFormat("tr-TR", {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
 
 /** 1.234.567 */
 export const formatScore = (n: number) => integer.format(Math.round(n));
@@ -71,13 +67,6 @@ export const formatAccuracy = (a: number | null) => (a === null ? "—" : percen
 /** %31 */
 export const formatShare = (part: number, whole: number) =>
   whole > 0 ? share.format(part / whole) : "—";
-
-/** +1,23 / −0,45, with a real minus sign. */
-export function formatZ(z: number): string {
-  const rounded = Math.round(z * 100) / 100;
-  if (rounded === 0) return "0,00";
-  return `${rounded > 0 ? "+" : "−"}${decimal.format(Math.abs(rounded))}`;
-}
 
 /** Mods as they're played, NoFail left out (every map has it): "HDHR"; "NM" for none. */
 export function formatMods(mods: string | null): string {

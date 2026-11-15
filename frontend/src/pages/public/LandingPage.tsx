@@ -1,29 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { loginWithOsu } from "../api/auth";
-import { fetchPublicBracket } from "../api/bracket";
-import { errorMessage } from "../api/client";
-import { fetchPublicStages } from "../api/mappool";
-import { fetchPublicQualifiers } from "../api/matches";
-import type { BracketMatch, PublicBracket, PublicQualifiers, PublicStage } from "../api/types";
-import { useAuth } from "../auth/AuthContext";
-import { canPlay } from "../auth/roles";
-import { Countdown } from "../components/Countdown";
-import { FixtureRow } from "../components/FixtureRow";
-import { StageTabs, type StageMark } from "../components/StageTabs";
+import { loginWithOsu } from "../../api/auth";
+import { fetchPublicBracket } from "../../api/bracket";
+import { errorMessage } from "../../api/client";
+import { fetchPublicStages } from "../../api/mappool";
+import { fetchPublicQualifiers } from "../../api/matches";
+import type { BracketMatch, PublicBracket, PublicQualifiers, PublicStage } from "../../api/types";
+import { useAuth } from "../../auth/AuthContext";
+import { canPlay } from "../../auth/roles";
+import { Countdown } from "../../components/Countdown";
+import { FixtureRow } from "../../components/FixtureRow";
+import { StageTabs, type StageMark } from "../../components/StageTabs";
 import {
   compareByTime,
   fixturePath,
   incomingSources,
   withPotentials,
   withScore,
-} from "../lib/bracket";
-import { formatMatchTime } from "../lib/format";
-import { useLiveRefresh } from "../lib/useLiveRefresh";
-import { useLiveBracket } from "../live/LiveContext";
-import bannerLarge from "../assets/banner-1316.webp";
-import bannerSmall from "../assets/banner-760.webp";
-import crest from "../assets/crest.webp";
+} from "../../lib/bracket";
+import { formatMatchTime } from "../../lib/format";
+import { useLiveRefresh } from "../../lib/useLiveRefresh";
+import { useLiveBracket } from "../../live/LiveContext";
+import bannerLarge from "../../assets/banner-1316.webp";
+import bannerSmall from "../../assets/banner-760.webp";
+import crest from "../../assets/crest.webp";
 import "./LandingPage.css";
 
 const UPCOMING_LIMIT = 6;

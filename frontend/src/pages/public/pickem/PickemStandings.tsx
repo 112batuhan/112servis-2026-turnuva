@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
-import type { PickemStage, PickemStanding, PickemTally, Player } from "../../api/types";
-import { isLocked } from "../../lib/pickem";
-import "../../components/bracket/BracketViewTabs.css";
+import type { PickemStage, PickemStanding, PickemTally, Player } from "../../../api/types";
+import { isLocked } from "../../../lib/pickem";
+import "../../../components/bracket/BracketViewTabs.css";
 
 const SHOWN = 20;
 

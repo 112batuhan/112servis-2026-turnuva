@@ -7,17 +7,17 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 import { MiniPlayer } from "./components/MiniPlayer";
 import { NavBar } from "./components/NavBar";
 import { AdminIndexRedirect, AdminLayout } from "./pages/admin/AdminLayout";
-import { ArgPage } from "./pages/ArgPage";
-import { BracketPage } from "./pages/BracketPage";
-import { LandingPage } from "./pages/LandingPage";
-import { LinkDiscordPage } from "./pages/LinkDiscordPage";
-import { ProfilePage } from "./pages/ProfilePage";
-import { PublicPoolPage } from "./pages/PublicPoolPage";
-import { QualifiersPage } from "./pages/QualifiersPage";
-import { RulesPage } from "./pages/RulesPage";
-import { StaffPage } from "./pages/StaffPage";
-import { TeamPage } from "./pages/TeamPage";
-import { TeamsPage } from "./pages/TeamsPage";
+import { ArgPage } from "./pages/public/ArgPage";
+import { BracketPage } from "./pages/public/BracketPage";
+import { LandingPage } from "./pages/public/LandingPage";
+import { LinkDiscordPage } from "./pages/public/LinkDiscordPage";
+import { ProfilePage } from "./pages/public/ProfilePage";
+import { PublicPoolPage } from "./pages/public/PublicPoolPage";
+import { QualifiersPage } from "./pages/public/QualifiersPage";
+import { RulesPage } from "./pages/public/RulesPage";
+import { StaffPage } from "./pages/public/StaffPage";
+import { TeamPage } from "./pages/public/TeamPage";
+import { TeamsPage } from "./pages/public/TeamsPage";
 import { usePlayer } from "./player/PlayerContext";
 
 // Pages most visitors never open (the staff's, and the heavier public ones) load when
@@ -47,9 +47,9 @@ const RulesAdminPage = page(() => import("./pages/admin/RulesAdminPage"), "Rules
 const StagesAdminPage = page(() => import("./pages/admin/StagesAdminPage"), "StagesAdminPage");
 const TeamsAdminPage = page(() => import("./pages/admin/TeamsAdminPage"), "TeamsAdminPage");
 const UsersPage = page(() => import("./pages/admin/UsersPage"), "UsersPage");
-const MatchPage = page(() => import("./pages/match/MatchPage"), "MatchPage");
-const PickemPage = page(() => import("./pages/pickem/PickemPage"), "PickemPage");
-const StatsPage = page(() => import("./pages/stats/StatsPage"), "StatsPage");
+const MatchPage = page(() => import("./pages/public/match/MatchPage"), "MatchPage");
+const PickemPage = page(() => import("./pages/public/pickem/PickemPage"), "PickemPage");
+const StatsPage = page(() => import("./pages/public/stats/StatsPage"), "StatsPage");
 
 // The broadcast overlays and their control dock (pages/overlay), outside the site's shell.
 const OverlayApp = lazy(() => import("./pages/overlay/OverlayApp"));

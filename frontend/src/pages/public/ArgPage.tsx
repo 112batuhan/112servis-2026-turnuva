@@ -1,9 +1,9 @@
 import { type FormEvent, useState } from "react";
-import { guessArg } from "../api/arg";
-import { linkDiscord, loginWithOsu } from "../api/auth";
-import { errorMessage } from "../api/client";
-import { useAuth } from "../auth/AuthContext";
-import { DiscordMark } from "../components/DiscordMark";
+import { guessArg } from "../../api/arg";
+import { linkDiscord, loginWithOsu } from "../../api/auth";
+import { errorMessage } from "../../api/client";
+import { useAuth } from "../../auth/AuthContext";
+import { DiscordMark } from "../../components/DiscordMark";
 import "./ArgPage.css";
 
 /** The hidden page behind the navbar's trophy. The server checks every answer and only

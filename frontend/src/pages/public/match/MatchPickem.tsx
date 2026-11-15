@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { errorMessage } from "../../api/client";
-import { fetchMatchPickem, predictMatch, withdrawPrediction } from "../../api/pickem";
-import type { MatchPickem as MatchPickemData, PublicMatch } from "../../api/types";
-import { Countdown } from "../../components/Countdown";
-import { Icon } from "../../components/Icon";
-import { PickemClear } from "../../components/pickem/PickemClear";
-import { PickemSlider } from "../../components/pickem/PickemSlider";
-import { PickemSplitBar } from "../../components/pickem/PickemSplit";
-import { isLocked, pickemMatchPath, pointsLabel, STATUS_LABELS } from "../../lib/pickem";
+import { errorMessage } from "../../../api/client";
+import { fetchMatchPickem, predictMatch, withdrawPrediction } from "../../../api/pickem";
+import type { MatchPickem as MatchPickemData, PublicMatch } from "../../../api/types";
+import { Countdown } from "../../../components/Countdown";
+import { Icon } from "../../../components/Icon";
+import { PickemClear } from "../../../components/pickem/PickemClear";
+import { PickemSlider } from "../../../components/pickem/PickemSlider";
+import { PickemSplitBar } from "../../../components/pickem/PickemSplit";
+import { isLocked, pickemMatchPath, pointsLabel, STATUS_LABELS } from "../../../lib/pickem";
 import "./MatchPickem.css";
 
 /**

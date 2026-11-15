@@ -1,13 +1,14 @@
 import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { StatCell, StatDraftTally, StatStanding } from "../../api/types";
-import { Icon } from "../../components/Icon";
-import { MapLabel, PanelTools, PlayerName, TeamWho, ZValue } from "./StatsParts";
+import type { StatCell, StatDraftTally, StatStanding } from "../../../api/types";
+import { Icon } from "../../../components/Icon";
+import { ZValue } from "../../../components/ZValue";
+import { formatZ } from "../../../lib/format";
+import { MapLabel, PanelTools, PlayerName, TeamWho } from "./StatsParts";
 import {
   accuracyUnknown,
   formatAccuracy,
   formatScore,
-  formatZ,
   matchesQuery,
   type StatsIndex,
 } from "./statsModel";

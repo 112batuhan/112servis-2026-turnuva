@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { loginWithOsu } from "../../api/auth";
+import { loginWithOsu } from "../../../api/auth";
 import type {
   BracketMatch,
   CanPredict,
@@ -8,17 +8,23 @@ import type {
   PickemStage,
   PickemStanding,
   PickemStatus,
-} from "../../api/types";
-import { useAuth } from "../../auth/AuthContext";
-import { Countdown } from "../../components/Countdown";
-import { useLinkedMatch } from "../../components/bracket/BracketViewTabs";
-import { ErrorAlert } from "../../components/ErrorAlert";
-import { StageTabs, type StageMark } from "../../components/StageTabs";
-import { PickemPotentials } from "../../components/pickem/PickemPotentials";
-import { PickemRow } from "../../components/pickem/PickemRow";
-import { bestOfLabel } from "../../lib/bestOf";
-import { compareByTime, incomingSources, isUndecided, potentialRows } from "../../lib/bracket";
-import { canPredictMatch, defaultStage, isLocked, POINTS, STATUS_LABELS } from "../../lib/pickem";
+} from "../../../api/types";
+import { useAuth } from "../../../auth/AuthContext";
+import { Countdown } from "../../../components/Countdown";
+import { useLinkedMatch } from "../../../components/bracket/BracketViewTabs";
+import { ErrorAlert } from "../../../components/ErrorAlert";
+import { StageTabs, type StageMark } from "../../../components/StageTabs";
+import { PickemPotentials } from "../../../components/pickem/PickemPotentials";
+import { PickemRow } from "../../../components/pickem/PickemRow";
+import { bestOfLabel } from "../../../lib/bestOf";
+import { compareByTime, incomingSources, isUndecided, potentialRows } from "../../../lib/bracket";
+import {
+  canPredictMatch,
+  defaultStage,
+  isLocked,
+  POINTS,
+  STATUS_LABELS,
+} from "../../../lib/pickem";
 import { PickemStandings } from "./PickemStandings";
 import { usePickem } from "./usePickem";
 import "./PickemPage.css";

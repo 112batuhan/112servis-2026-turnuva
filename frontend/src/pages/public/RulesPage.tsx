@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { errorMessage } from "../api/client";
-import { fetchRules } from "../api/rules";
-import type { Rules } from "../api/types";
-import { BBCode } from "../components/BBCode";
-import { ErrorAlert } from "../components/ErrorAlert";
-import { type BBHeading, headingsOf, parseBBCode } from "../lib/bbcode";
-import { formatDate } from "../lib/format";
+import { errorMessage } from "../../api/client";
+import { fetchRules } from "../../api/rules";
+import type { Rules } from "../../api/types";
+import { BBCode } from "../../components/BBCode";
+import { ErrorAlert } from "../../components/ErrorAlert";
+import { type BBHeading, headingsOf, parseBBCode } from "../../lib/bbcode";
+import { formatDate } from "../../lib/format";
 import "./RulesPage.css";
 
 export function RulesPage() {
