@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { BracketMatch } from "../api/types";
-import { BOARD, isLive, overlapsAny, potentialRows, scoreHalves, winningSlot, withPotentials } from "./bracket";
+import { BOARD, currentStageId, isLive, overlapsAny, potentialRows, scoreHalves, winningSlot, withPotentials } from "./bracket";
 
-// The bracket rules the views mirror from the server: who won (services/bracket.rs `outcome`),
+// The bracket rules the views mirror from the server: who won (services/bracket.rs `outcome`), the stage being
+// played (stage_track.rs),
 // when a match is live, potential matches as rows, and the board's no-overlap rule (frontend only).
 
 const NOW = Date.parse("2026-11-10T12:00:00Z");
@@ -116,5 +117,35 @@ describe("overlapsAny", () => {
 
   it("ignores the card being moved", () => {
     expect(overlapsAny([card], { x: 1, y: 1 }, "a")).toBe(false);
+  });
+});
+
+describe("currentStageId", () => {
+  const stage = (id: string, position: number) => ({ id, name: id, published: true, position, best_of: 7 });
+  const r16 = stage("r16", 1);
+  const qf = stage("qf", 2);
+
+  it("is the stage of the earliest unfinished match, unscheduled ones last", () => {
+    const matches = [
+      match({ id: "a", stage: r16, starts_at: at(-60), concluded_at: at(-10) }),
+      match({ id: "b", stage: qf, starts_at: null }),
+      match({ id: "c", stage: qf, starts_at: at(60) }),
+      match({ id: "d", stage: r16, starts_at: at(30) }),
+    ];
+    expect(currentStageId(matches)).toBe("r16");
+    expect(currentStageId(matches.filter((m) => m.id !== "d"))).toBe("qf");
+  });
+
+  it("breaks a tie on time by code, winners first", () => {
+    const matches = [
+      match({ id: "l", side: "losers", number: 1, stage: qf, starts_at: at(0) }),
+      match({ id: "w", side: "winners", number: 2, stage: r16, starts_at: at(0) }),
+    ];
+    expect(currentStageId(matches)).toBe("r16");
+  });
+
+  it("skips matches without a stage, and is null once every staged match is over", () => {
+    expect(currentStageId([match({ starts_at: at(0) }), match({ id: "b", stage: qf, starts_at: at(10) })])).toBe("qf");
+    expect(currentStageId([match({ stage: qf, concluded_at: at(0) }), match({ id: "b" })])).toBeNull();
   });
 });

@@ -20,6 +20,7 @@ pub mod ranks;
 pub mod referee;
 pub mod reschedule;
 pub mod rules;
+pub mod seeding;
 pub mod session;
 pub mod settings;
 pub mod stages;

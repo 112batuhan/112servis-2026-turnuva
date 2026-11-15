@@ -8,7 +8,19 @@ const CLEAR_SQL: &str = include_str!("../../seed/clear.sql");
 // Seeding runs in one transaction, so a failed seed leaves the old data in place.
 const RESEED_SQL: &str = concat!(
     include_str!("../../seed/clear.sql"),
+    include_str!("../../seed/model.sql"),
     include_str!("../../seed/seed.sql")
+);
+// The tournament after its qualifier instead, with no bracket yet. seed.sql drops the
+// score model at its end, so it's made again.
+const QUALIFIERS_SQL: &str = concat!(
+    include_str!("../../seed/model.sql"),
+    include_str!("../../seed/qualifiers.sql")
+);
+// Only a few teams instead: no lobby, score, stage or bracket (teams.sql).
+const TEAMS_SQL: &str = concat!(
+    include_str!("../../seed/clear.sql"),
+    include_str!("../../seed/teams.sql")
 );
 const LIVE_SQL: &str = include_str!("../../seed/live.sql");
 
@@ -80,6 +92,21 @@ pub async fn seed(pool: &PgPool) -> sqlx::Result<()> {
     tx.commit().await
 }
 
+// A few teams and the dev staff, nothing played (teams.sql).
+pub async fn seed_teams(pool: &PgPool) -> sqlx::Result<()> {
+    let mut tx = pool.begin().await?;
+    run_seed(&mut tx, TEAMS_SQL).await?;
+    tx.commit().await
+}
+
+// The regular seed turned into the tournament just after its qualifier (qualifiers.sql).
+pub async fn seed_qualifiers(pool: &PgPool) -> sqlx::Result<()> {
+    let mut tx = pool.begin().await?;
+    reseed(&mut tx).await?;
+    tx.execute(QUALIFIERS_SQL).await?;
+    tx.commit().await
+}
+
 pub enum LiveSeed {
     Done,
     // A dummy account, which the reseed would delete.
@@ -118,8 +145,13 @@ pub async fn seed_live(pool: &PgPool, user_id: Uuid) -> sqlx::Result<LiveSeed> {
 }
 
 async fn reseed(conn: &mut PgConnection) -> sqlx::Result<()> {
+    run_seed(conn, RESEED_SQL).await
+}
+
+// Runs a seed, then gives the seeded teams named in BANNERS their banners.
+async fn run_seed(conn: &mut PgConnection, sql: &'static str) -> sqlx::Result<()> {
     // A plain &str runs as a simple query, which may hold several statements.
-    conn.execute(RESEED_SQL).await?;
+    conn.execute(sql).await?;
     let (names, images): (Vec<&str>, Vec<&[u8]>) = BANNERS.into_iter().unzip();
     sqlx::query(
         r#"

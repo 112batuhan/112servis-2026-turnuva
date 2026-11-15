@@ -231,8 +231,20 @@ export interface Team<P extends Player = Player> {
 
 export type RankWarning = "over_limit" | "unranked";
 
+/** A team's place in the qualifier, which seeds the bracket (backend `services::stats::QualifierPlace`). */
+export interface QualifierPlace {
+  rank: number;
+  /** Its lobby isn't over, so the place can still change. */
+  pending: boolean;
+  /** A bracket was made and it isn't in it: the seeding's cut left it out of the tournament. */
+  eliminated: boolean;
+}
+
+/** A team in the team lists, with its qualifier place (null until it has one; public only once the qualifier's pool is). */
+export type ListedTeam<P extends Player = Player> = Team<P> & { qualifier: QualifierPlace | null };
+
 export interface TeamList<P extends Player = Player> {
-  teams: Team<P>[];
+  teams: ListedTeam<P>[];
   frozen: boolean;
   limit: number;
   /** When every team member's rank was last refreshed from osu!. */
@@ -1189,4 +1201,50 @@ export interface StageStats {
     teams: StatStanding[];
     players: StatStanding[];
   };
+}
+
+// ---------- seeding (/admin/seeding, backend services/seeding.rs) ----------
+
+/** The bracket a seeding makes: double elimination from a Round of 32 or a Round of 16. */
+export type BracketFormat = "round_of_32" | "round_of_16";
+
+/** What the qualifier says of a team. */
+export interface SeedStanding {
+  rank: number;
+  z_sum: number;
+  total_score: number;
+  /** Maps played, and maps counted as a 0 (missed though the lobby is over). */
+  plays: number;
+  missing: number;
+  /** Its lobby isn't over, so its missing maps don't count yet. */
+  pending: boolean;
+}
+
+export interface SeedTeam extends Team<AdminTeamPlayer> {
+  /** null: no place in the qualifier (it played no lobby). */
+  qualifier: SeedStanding | null;
+  /** The qualifier lobby it signed up for ("B"). */
+  lobby: string | null;
+  /** The hosts banned one of its players; the qualifier's order puts it last. */
+  banned: boolean;
+  /** It plays in the bracket. */
+  in_bracket: boolean;
+  /** Its seed in the qualifier's order (banned teams last), from 1: where it is unless a host moved it. */
+  qualifier_seed: number;
+}
+
+export interface Seeding {
+  /** In seeding order, best seed first. */
+  teams: SeedTeam[];
+  /** A host rearranged it: it's no longer the qualifier's order. */
+  custom: boolean;
+  qualifier_stage_id: string | null;
+  pool_size: number;
+  /** Qualifier lobbies with teams that aren't concluded; a bracket waits for them. */
+  lobbies_not_over: number;
+  /** The bracket's matches, and how many have been played (concluded or with a room). */
+  matches: number;
+  played: number;
+  /** The bracket stages in play order. */
+  stages: Stage[];
 }

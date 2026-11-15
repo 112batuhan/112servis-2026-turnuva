@@ -183,6 +183,18 @@ export function groupByStage<M extends BracketMatch>(matches: M[]): StageGroup<M
   return [...groups.values()].sort((a, b) => position(a) - position(b));
 }
 
+/**
+ * The bracket stage being played now: the stage of the earliest unfinished match (by time, then code), as the
+ * stage track decides it for bracket stages (backend `stage_track.rs`); matches without a stage don't count.
+ * null once every match with a stage is over, or before any has one.
+ */
+export function currentStageId(matches: BracketMatch[]): string | null {
+  const next = matches
+    .filter((m) => m.stage && !m.concluded_at)
+    .sort(compareByTime)[0];
+  return next?.stage?.id ?? null;
+}
+
 /** W1, W2, …, then L1, L2, … */
 export function compareByCode(a: BracketMatch, b: BracketMatch): number {
   if (a.side !== b.side) return a.side === "winners" ? -1 : 1;

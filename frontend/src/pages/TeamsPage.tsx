@@ -15,6 +15,8 @@ export function TeamsPage() {
   const teams = list?.teams;
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useTeamView("public");
+  // The qualifier column shows once any team has a place in it.
+  const seeded = teams?.some((t) => t.qualifier) ?? false;
   // Set when another page linked to a team (/teams#team-<id>).
   const target = useLocation().hash.slice(1);
 
@@ -51,14 +53,19 @@ export function TeamsPage() {
       {teams && teams.length > 0 && view === "cards" && (
         <div className="team-grid is-ruled">
           {teams.map((team) => (
-            <TeamCard key={team.id} team={team} highlight={teamAnchorId(team.id) === target} />
+            <TeamCard key={team.id} team={team} qualifier={seeded ? team.qualifier : undefined} highlight={teamAnchorId(team.id) === target} />
           ))}
         </div>
       )}
       {teams && teams.length > 0 && view === "rows" && (
-        <TeamRows>
+        <TeamRows qualifier={seeded}>
           {teams.map((team) => (
-            <TeamRow key={team.id} team={team} highlight={teamAnchorId(team.id) === target} />
+            <TeamRow
+              key={team.id}
+              team={team}
+              qualifier={seeded ? team.qualifier : undefined}
+              highlight={teamAnchorId(team.id) === target}
+            />
           ))}
         </TeamRows>
       )}

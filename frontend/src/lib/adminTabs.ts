@@ -5,6 +5,7 @@ export const ADMIN_TABS: { path: string; label: string; access: Access }[] = [
   { path: "/admin/stages", label: "Stage'ler", access: "host" },
   { path: "/admin/mappool", label: "Mappool", access: "pool" },
   { path: "/admin/qualifiers", label: "Elemeler", access: "referee" },
+  { path: "/admin/seeding", label: "Sıralama sonuçları", access: "host" },
   { path: "/admin/bracket", label: "Maçlar", access: "matches" },
   { path: "/admin/users", label: "Kullanıcılar", access: "host" },
   { path: "/admin/teams", label: "Takımlar", access: "host" },

@@ -28,7 +28,8 @@ use crate::{
     error::{AppError, AuthError, BracketError, GeneralError, MatchError, PoolError, StaffError},
     role::Role,
     services::{
-        bracket::{conclude, save_score},
+        self,
+        bracket::{conclude, deletion_jobs, save_score},
         matches::load_match,
     },
     stats_cache,
@@ -41,7 +42,10 @@ use crate::{
 pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/public/bracket", get(list_public_bracket))
-        .route("/bracket", get(list_bracket).post(create_match))
+        .route(
+            "/bracket",
+            get(list_bracket).post(create_match).delete(remove_bracket),
+        )
         .route("/bracket/{id}", put(update_match).delete(delete_match))
         .route("/bracket/{id}/position", put(move_match))
         .route("/bracket/{id}/score", put(set_score))
@@ -525,6 +529,17 @@ async fn move_match(
     Ok(StatusCode::NO_CONTENT)
 }
 
+// DELETE /api/bracket — host-only. Takes the whole bracket down while none of it has
+// been played, e.g. to make it again from a corrected seeding.
+async fn remove_bracket(
+    State(state): State<AppState>,
+    user: AuthUser,
+) -> Result<impl IntoResponse, AppError> {
+    user.require_role(Role::Host)?;
+    services::seeding::remove_bracket(&state).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
 // DELETE /api/bracket/:id — host-only. Teams it already sent on stay where they are.
 // Its potential matches go with it, and the ones it decided are worked out again.
 async fn delete_match(
@@ -533,33 +548,15 @@ async fn delete_match(
     Path(id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
-    let channel = db::discord::channel_of(&state.db, id).await?;
-    // Its public announcement, if it had one, stays and says it was cancelled.
-    let stored = db::discord::match_discord(&state.db, id).await?;
-    let info = db::discord::match_info(&state.db, id).await?;
     let mut tx = state.db.begin().await?;
     db::potential::lock(&mut tx).await?;
     let mut jobs = db::potential::remove_of_match(&mut tx, id).await?;
+    jobs.extend(deletion_jobs(&mut tx, id).await?);
     // Its rooms go with it; the bot closes the ones it made (crate::bancho).
     if !db::bracket::delete_match(&mut *tx, id).await? {
         return Err(GeneralError::NotFound.into());
     }
     jobs.extend(db::potential::sync(&mut tx, &[]).await?);
-    if let Some(channel_id) = channel {
-        jobs.push(Job::ArchiveChannel {
-            channel_id,
-            kind: MatchKind::Bracket,
-        });
-    }
-    if let (Some(channel_id), Some(message_id), Some(info)) =
-        (stored.announce_channel_id, stored.announce_message_id, info)
-    {
-        jobs.push(Job::AnnouncementCancelled {
-            channel_id,
-            message_id,
-            title: crate::discord::announcement_title(&info),
-        });
-    }
     state.discord.enqueue(&mut *tx, &jobs).await?;
     tx.commit().await?;
     state.live.bracket_changed();

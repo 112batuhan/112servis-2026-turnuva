@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { errorMessage } from "../api/client";
-import { devClear, devLoginAs, devSeed, devSeedLive, fetchDevAccounts } from "../api/dev";
+import { devClear, devLoginAs, devSeed, devSeedLive, devSeedQualifiers, devSeedTeams, fetchDevAccounts } from "../api/dev";
 import type { DevAccount } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { ROLE_LABELS } from "../auth/roles";
@@ -98,6 +98,24 @@ export function DevSwitcher() {
           <div className="dev-panel-actions">
             <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => run(devSeed)}>
               Reseed dummies
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={busy}
+              title="Reseed as the tournament just after its qualifier: 40 teams, every lobby played, no bracket yet (for /admin/seeding)"
+              onClick={() => run(devSeedQualifiers)}
+            >
+              Reseed: qualifiers done
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={busy}
+              title="Reseed with only seven teams and the dev staff: no lobby, score or bracket, so no qualifier places"
+              onClick={() => run(devSeedTeams)}
+            >
+              Reseed: teams only
             </button>
             {real && (
               <button

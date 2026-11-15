@@ -13,6 +13,7 @@ import {
 import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import type { Team } from "../api/types";
+import { loadQualifierPlaces, useQualifierPlaces } from "../lib/useQualifierPlaces";
 import { TeamCard } from "./TeamCard";
 import "./TeamPopover.css";
 
@@ -42,6 +43,12 @@ export function TeamPopover({ team, className, children }: Props) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  // The team's qualifier place, which no page's team data carries: read for every popover at
+  // once, and waited for before the card is measured so it doesn't grow once placed.
+  const places = useQualifierPlaces(open);
+  const ready = places !== undefined;
+  // Before the qualifier has places, the card has no row for them at all.
+  const hasPlaces = places !== undefined && Object.keys(places).length > 0;
 
   const hide = useCallback((refocus = false) => {
     setOpen(false);
@@ -70,7 +77,7 @@ export function TeamPopover({ team, className, children }: Props) {
 
   // Below the name, or above it when there's no room below; kept inside the viewport.
   useLayoutEffect(() => {
-    if (!open || !triggerRef.current || !cardRef.current) return;
+    if (!open || !ready || !triggerRef.current || !cardRef.current) return;
     const anchor = triggerRef.current.getBoundingClientRect();
     const card = cardRef.current.getBoundingClientRect();
     let top = anchor.bottom + GAP;
@@ -79,7 +86,7 @@ export function TeamPopover({ team, className, children }: Props) {
     }
     const left = Math.max(MARGIN, Math.min(anchor.left, window.innerWidth - MARGIN - card.width));
     setPosition({ top, left });
-  }, [open]);
+  }, [open, ready]);
 
   // Once placed, focus moves into the card so its links are next in the tab order.
   useEffect(() => {
@@ -130,6 +137,9 @@ export function TeamPopover({ team, className, children }: Props) {
         aria-expanded={open}
         onClick={onClick}
         onKeyDown={onKeyDown}
+        // Pointing at the name starts reading the places, so the card rarely waits for them.
+        onPointerEnter={() => void loadQualifierPlaces()}
+        onFocus={() => void loadQualifierPlaces()}
       >
         {children}
       </span>
@@ -151,7 +161,7 @@ export function TeamPopover({ team, className, children }: Props) {
             onDoubleClick={stop}
             onKeyDown={stop}
           >
-            <TeamCard team={team} />
+            <TeamCard team={team} qualifier={hasPlaces ? (places[team.id] ?? null) : undefined} />
           </div>,
           document.body,
         )}

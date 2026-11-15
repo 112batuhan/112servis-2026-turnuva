@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../api/client";
 import { disbandTeam, fetchTeams, refreshRanks, removeTeamBanner, renameTeam, setTeamsFrozen } from "../../api/teams";
-import type { AdminTeamPlayer, Team } from "../../api/types";
+import type { AdminTeamPlayer, ListedTeam } from "../../api/types";
 import { DiscordMention } from "../../components/DiscordMention";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { Icon } from "../../components/Icon";
@@ -12,10 +12,10 @@ import { TeamViewTabs, useTeamView } from "../../components/TeamViewTabs";
 import { BANNED_PLAYER_WARNING } from "../../lib/eligibility";
 
 /** Whether the hosts banned one of the team's players. The team stays until a host disbands it. */
-const hasBannedPlayer = (team: Team<AdminTeamPlayer>) => team.players.some((p) => p.banned);
+const hasBannedPlayer = (team: ListedTeam<AdminTeamPlayer>) => team.players.some((p) => p.banned);
 
 export function TeamsAdminPage() {
-  const [teams, setTeams] = useState<Team<AdminTeamPlayer>[] | null>(null);
+  const [teams, setTeams] = useState<ListedTeam<AdminTeamPlayer>[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [ranksUpdatedAt, setRanksUpdatedAt] = useState<string | null>(null);
@@ -23,6 +23,8 @@ export function TeamsAdminPage() {
   const [frozen, setFrozen] = useState(false);
   const [freezing, setFreezing] = useState(false);
   const [view, setView] = useTeamView("admin");
+  // The qualifier column shows once any team has a place in it.
+  const seeded = teams?.some((t) => t.qualifier) ?? false;
   const flagged = teams?.filter((t) => t.rank_warning || hasBannedPlayer(t)).length ?? 0;
 
   const load = useCallback(async () => {
@@ -66,7 +68,7 @@ export function TeamsAdminPage() {
     }
   }
 
-  async function rename(team: Team<AdminTeamPlayer>, name: string) {
+  async function rename(team: ListedTeam<AdminTeamPlayer>, name: string) {
     setError(null);
     try {
       await renameTeam(team.id, name);
@@ -76,7 +78,7 @@ export function TeamsAdminPage() {
     }
   }
 
-  async function removeBanner(team: Team<AdminTeamPlayer>) {
+  async function removeBanner(team: ListedTeam<AdminTeamPlayer>) {
     if (!window.confirm(`${team.name} takımının banner'ı kaldırılsın mı?`)) return;
     setError(null);
     setBusyId(team.id);
@@ -90,7 +92,7 @@ export function TeamsAdminPage() {
     }
   }
 
-  async function disband(team: Team<AdminTeamPlayer>) {
+  async function disband(team: ListedTeam<AdminTeamPlayer>) {
     if (!window.confirm(`${team.name} takımı dağıtılsın mı?`)) return;
     setError(null);
     setBusyId(team.id);
@@ -105,10 +107,11 @@ export function TeamsAdminPage() {
   }
 
   // The same team, its controls and its players' Discords, for a card or a row.
-  const teamProps = (team: Team<AdminTeamPlayer>, i: number) => ({
+  const teamProps = (team: ListedTeam<AdminTeamPlayer>, i: number) => ({
     team,
     flag: hasBannedPlayer(team) ? BANNED_PLAYER_WARNING : undefined,
     position: i + 1,
+    qualifier: seeded ? team.qualifier : undefined,
     onRename: (name: string) => rename(team, name),
     renderPlayerExtra: (p: AdminTeamPlayer) => (
       <span className="muted">
@@ -206,7 +209,7 @@ export function TeamsAdminPage() {
         </div>
       )}
       {teams && teams.length > 0 && view === "rows" && (
-        <TeamRows numbered>
+        <TeamRows numbered qualifier={seeded}>
           {teams.map((team, i) => (
             <TeamRow key={team.id} {...teamProps(team, i)} />
           ))}

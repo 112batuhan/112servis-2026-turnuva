@@ -21,6 +21,7 @@ pub mod pickem;
 pub mod referee;
 pub mod reschedule;
 pub mod rules;
+pub mod seeding;
 pub mod stages;
 pub mod stats;
 pub mod team;
@@ -94,6 +95,7 @@ mod tests {
             .merge(super::referee::routes())
             .merge(super::reschedule::routes())
             .merge(super::rules::routes())
+            .merge(super::seeding::routes())
             .merge(super::stats::routes())
             .merge(super::notifications::routes())
             .merge(super::pickem::routes())

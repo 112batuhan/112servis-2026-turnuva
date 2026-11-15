@@ -66,6 +66,12 @@ export const ERROR_TEXT = {
     slot_has_source: "Bu yere zaten başka bir maçtan takım geliyor.",
     link_to_itself: "Bir maç kendisine bağlanamaz.",
     loop: "Bu bağlantı bracket'i bu maça geri döndürür.",
+    not_empty: "Bracket'te zaten maç var; önce maçları kaldır.",
+    already_played: "Bracket'te oynanmış maçlar var; bracket kaldırılamaz.",
+    qualifiers_not_over: "Önce bütün eleme lobileri bitirilmeli.",
+    bad_seeding: "Sıralamada her takım bir kez yer almalı.",
+    wrong_team_count: "Bracket, formatının aldığı sayıda takımla kurulur.",
+    bad_stages: "Bracket'in her haftasına bir stage seçilmeli.",
   },
   match: {
     changed: "Maç değişti; yenileyip tekrar dene.",

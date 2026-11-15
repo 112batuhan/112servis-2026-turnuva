@@ -4,12 +4,14 @@
 
 use std::collections::HashSet;
 
+use sqlx::PgConnection;
 use uuid::Uuid;
 
 use crate::{
     db::{
         self,
         bracket::{BracketLock, MapResultRow, Outcome},
+        matches::MatchKind,
         potential::Before,
     },
     discord::jobs::Job,
@@ -18,6 +20,31 @@ use crate::{
 };
 
 const SCORE_MAX: i32 = 99;
+
+// What Discord has to hear of a bracket match about to be deleted: its channel goes to
+// the archive, and its public announcement, if it had one, stays and says it was
+// cancelled.
+pub async fn deletion_jobs(conn: &mut PgConnection, id: Uuid) -> sqlx::Result<Vec<Job>> {
+    let mut jobs = Vec::new();
+    if let Some(channel_id) = db::discord::channel_of(&mut *conn, id).await? {
+        jobs.push(Job::ArchiveChannel {
+            channel_id,
+            kind: MatchKind::Bracket,
+        });
+    }
+    let stored = db::discord::match_discord(&mut *conn, id).await?;
+    let info = db::discord::match_info(&mut *conn, id).await?;
+    if let (Some(channel_id), Some(message_id), Some(info)) =
+        (stored.announce_channel_id, stored.announce_message_id, info)
+    {
+        jobs.push(Job::AnnouncementCancelled {
+            channel_id,
+            message_id,
+            title: crate::discord::announcement_title(&info),
+        });
+    }
+    Ok(jobs)
+}
 // More finished maps than any match plays, warmups and replays included.
 const MAP_RESULTS_MAX: usize = 50;
 // Longer than any set of mod acronyms a player can have on.

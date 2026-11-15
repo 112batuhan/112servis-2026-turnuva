@@ -1,10 +1,12 @@
 -- Removes every dummy account (negative osu_id) and anything hanging off it.
 -- Teams are deleted whole, so a real account teamed with a dummy is freed too, and
--- so are matches a dummy refereed, streamed or played in. Seeded map pools go too, and
--- seeded stages once they're empty. A deleted match's room chat goes with it, and its
--- potential matches with it (or with their teams).
-WITH gone AS (
-    DELETE FROM matches m
+-- so are matches a dummy refereed, streamed or played in, and the bracket matches
+-- those lead into. Seeded map pools go too, and seeded stages once they're empty. A
+-- deleted match's room chat goes with it, and its potential matches with it (or with
+-- their teams).
+WITH RECURSIVE dummy AS (
+    SELECT m.id
+    FROM matches m
     WHERE EXISTS (SELECT 1 FROM osu_users u WHERE u.id = m.referee_id AND u.osu_id < 0)
        OR EXISTS (
            SELECT 1 FROM qualifier_entries e
@@ -19,6 +21,17 @@ WITH gone AS (
            JOIN osu_users u ON u.id = tm.user_id
            WHERE b.match_id = m.id AND u.osu_id < 0
        )
+),
+-- And every bracket match those lead into: the rest of a bracket made from the dummies
+-- (/admin/seeding), whose later rounds have no team yet.
+fed (id) AS (
+    SELECT id FROM dummy
+    UNION
+    SELECT l.target_id FROM bracket_links l JOIN fed f ON f.id = l.source_id
+),
+gone AS (
+    DELETE FROM matches m
+    WHERE m.id IN (SELECT id FROM fed)
     RETURNING m.id
 )
 -- Every part of this statement sees match_rooms as it was before the matches went.

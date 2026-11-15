@@ -19,7 +19,7 @@ import {
 } from "../../../components/bracket/BracketViewTabs";
 import { RefereeRoomLink } from "../../../components/bracket/RefereeRoomLink";
 import { ErrorAlert } from "../../../components/ErrorAlert";
-import { firstFreeSpot, incomingSources, isLive, SIDE_LABELS } from "../../../lib/bracket";
+import { currentStageId, firstFreeSpot, incomingSources, isLive, SIDE_LABELS } from "../../../lib/bracket";
 import { useLive } from "../../../live/LiveContext";
 import { MatchPanel } from "./MatchPanel";
 import { RefereeControl, StreamerControl } from "./StaffControls";
@@ -72,8 +72,14 @@ export function BracketAdminPage() {
     if (id) setSelectedId(id);
   }
 
-  const unrefereed = matches.filter((m) => !m.referee && !m.concluded_at).length;
-  const unstreamed = matches.filter((m) => !m.streamer && !m.concluded_at).length;
+  // Staff still to find for the stage being played; later stages' matches are filled in when it's their turn.
+  const currentStage = useMemo(() => {
+    const id = currentStageId(matches);
+    return matches.find((m) => m.stage?.id === id)?.stage ?? null;
+  }, [matches]);
+  const toStaff = matches.filter((m) => currentStage && m.stage?.id === currentStage.id && !m.concluded_at);
+  const unrefereed = toStaff.filter((m) => !m.referee).length;
+  const unstreamed = toStaff.filter((m) => !m.streamer).length;
   const shared = {
     matches,
     teams,
@@ -89,12 +95,12 @@ export function BracketAdminPage() {
         <h1>Maçlar</h1>
         {data && <span className="badge">{matches.length} maç</span>}
         {unrefereed > 0 && (
-          <span className="badge badge-warning" title="Henüz hakemi olmayan maçlar">
+          <span className="badge badge-warning" title={`${currentStage?.name} maçlarından henüz hakemi olmayanlar`}>
             {unrefereed} hakemsiz
           </span>
         )}
         {unstreamed > 0 && (
-          <span className="badge" title="Henüz yayıncısı olmayan maçlar">
+          <span className="badge" title={`${currentStage?.name} maçlarından henüz yayıncısı olmayanlar`}>
             {unstreamed} yayıncısız
           </span>
         )}

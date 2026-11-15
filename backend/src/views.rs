@@ -34,7 +34,7 @@ pub struct Team<P> {
     banner_url: Option<String>,
     pub team_value: Option<f64>,
     rank_warning: Option<RankWarning>,
-    players: Vec<P>,
+    pub players: Vec<P>,
 }
 
 #[derive(Debug, Serialize)]
@@ -59,6 +59,10 @@ impl AdminTeamPlayer {
             discord_in_guild: row.discord_in_guild,
             banned: row.banned,
         }
+    }
+
+    pub fn banned(&self) -> bool {
+        self.banned
     }
 }
 

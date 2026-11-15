@@ -26,6 +26,36 @@
     [tools] max-content;
 }
 
+/* With the qualifier's places: their column before the value. */
+.team-lines.has-qualifier {
+  grid-template-columns:
+    [banner] 7.5rem
+    [name] minmax(10rem, 1.1fr)
+    [players] minmax(0, 2fr)
+    [qualifier] 5rem
+    [value] 6.5rem
+    [tools] max-content;
+}
+
+.team-lines.is-numbered.has-qualifier {
+  grid-template-columns:
+    [position] 2.25rem
+    [banner] 7.5rem
+    [name] minmax(10rem, 1.1fr)
+    [players] minmax(0, 2fr)
+    [qualifier] 5rem
+    [value] 6.5rem
+    [tools] max-content;
+}
+
+.team-line-qualifier {
+  justify-self: end;
+}
+
+.team-line-none {
+  color: var(--color-text-subtle);
+}
+
 .team-lines-head,
 .team-lines-list,
 .team-line,
@@ -286,6 +316,25 @@
       [tools] max-content;
   }
 
+  .team-lines.has-qualifier {
+    grid-template-columns:
+      [name] minmax(8rem, 1fr)
+      [players] minmax(0, 1.7fr)
+      [qualifier] 4rem
+      [value] 4.5rem
+      [tools] max-content;
+  }
+
+  .team-lines.is-numbered.has-qualifier {
+    grid-template-columns:
+      [position] 1.75rem
+      [name] minmax(8rem, 1fr)
+      [players] minmax(0, 1.7fr)
+      [qualifier] 4rem
+      [value] 4.5rem
+      [tools] max-content;
+  }
+
   .team-lines-head-team {
     grid-column: span 1;
   }
@@ -377,6 +426,32 @@
     grid-template-areas:
       "position name value tools"
       "players players players players";
+  }
+
+  .team-lines.has-qualifier .team-line-main {
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      "name qualifier value tools"
+      "players players players players";
+  }
+
+  .team-lines.is-numbered.has-qualifier .team-line-main {
+    grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas:
+      "position name qualifier value tools"
+      "players players players players players";
+  }
+
+  .team-line-qualifier {
+    grid-area: qualifier;
+  }
+
+  .team-line-qualifier .qualifier-fact.is-compact .qualifier-fact-label {
+    display: inline;
+  }
+
+  .team-line-qualifier .qualifier-fact {
+    gap: var(--space-1);
   }
 
   .team-line-position {

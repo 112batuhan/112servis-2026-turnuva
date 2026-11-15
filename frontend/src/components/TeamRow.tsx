@@ -1,24 +1,36 @@
 import { useId, useState, type ReactNode } from "react";
 import { API_URL } from "../api/client";
-import type { Player, Team } from "../api/types";
+import type { Player, QualifierPlace, Team } from "../api/types";
 import { RANK_WARNING_LABELS } from "../lib/eligibility";
 import { formatTeamValue, TEAM_NAME_MAX } from "../lib/format";
 import { teamAnchorId } from "../lib/teamLink";
 import { Icon } from "./Icon";
 import { InlineEdit } from "./InlineEdit";
 import { PlayerChip } from "./PlayerChip";
+import { QualifierFact } from "./TeamCard";
 import { TeamMatches } from "./TeamMatches";
 import "./TeamRow.css";
 
 /** The row list's frame: a line of column names over the rows, which line up through a subgrid. */
-export function TeamRows({ numbered, children }: { numbered?: boolean; children: ReactNode }) {
+export function TeamRows({
+  numbered,
+  qualifier,
+  children,
+}: {
+  numbered?: boolean;
+  /** Adds the qualifier place column; pass `qualifier` to every row then. */
+  qualifier?: boolean;
+  children: ReactNode;
+}) {
+  const classes = ["team-lines", numbered && "is-numbered", qualifier && "has-qualifier"].filter(Boolean).join(" ");
   return (
     <div className="team-lines-frame">
-      <div className={numbered ? "team-lines is-numbered" : "team-lines"}>
+      <div className={classes}>
         <div className="team-lines-head" aria-hidden="true">
           {numbered && <span>#</span>}
           <span className="team-lines-head-team">Takım</span>
           <span>Oyuncular</span>
+          {qualifier && <span className="team-lines-head-value">Eleme</span>}
           <span className="team-lines-head-value">Takım değeri</span>
           <span />
         </div>
@@ -44,6 +56,8 @@ interface Props<P extends Player> {
    * team like a rank warning does, but leaves the value alone: it isn't what's wrong.
    */
   flag?: string;
+  /** Its qualifier place, in a `qualifier` list (null: none yet). Left out, the column isn't there. */
+  qualifier?: QualifierPlace | null;
 }
 
 /** One team as a line of the row list (`TeamRows`): the same facts as its `TeamCard`, read across. */
@@ -55,6 +69,7 @@ export function TeamRow<P extends Player>({
   actions,
   highlight,
   flag,
+  qualifier,
 }: Props<P>) {
   const [matchesOpen, setMatchesOpen] = useState(false);
   const matchesId = useId();
@@ -98,6 +113,11 @@ export function TeamRow<P extends Player>({
             </li>
           ))}
         </ul>
+        {qualifier !== undefined && (
+          <span className="team-line-qualifier">
+            {qualifier ? <QualifierFact place={qualifier} compact /> : <span className="team-line-none">—</span>}
+          </span>
+        )}
         <span className="team-line-value num" aria-label={`Takım değeri ${formatTeamValue(team.team_value)}`}>
           {formatTeamValue(team.team_value)}
         </span>

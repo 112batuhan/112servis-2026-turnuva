@@ -21,6 +21,7 @@ use crate::{
     error::{AppError, AuthError, GeneralError, TeamError},
     rank_refresh,
     role::{Role, Roles},
+    services::{self, stats::QualifierPlace},
     team_rank,
     views::{group_teams, AdminTeamPlayer, Team},
     AppState,
@@ -545,7 +546,7 @@ async fn team_banner(
 
 #[derive(Debug, Serialize)]
 pub struct TeamList<P> {
-    teams: Vec<Team<P>>,
+    teams: Vec<ListedTeam<P>>,
     frozen: bool,
     limit: f64,
     // When every team member's rank was last refreshed.
@@ -553,9 +554,20 @@ pub struct TeamList<P> {
     ranks_updated_at: Option<OffsetDateTime>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ListedTeam<P> {
+    #[serde(flatten)]
+    team: Team<P>,
+    // Its place in the qualifier (the bracket's seeding); None until it has one.
+    qualifier: Option<QualifierPlace>,
+}
+
+// `unpublished`: the qualifier's places even while its stage isn't published (the
+// hosts' list); the public list only shows what /stats shows.
 async fn team_list<P>(
     state: &AppState,
     to_player: impl Fn(TeamMemberRow) -> P,
+    unpublished: bool,
 ) -> Result<TeamList<P>, AppError> {
     let rows = db::team::list_team_members(&state.db, None).await?;
     let mut teams = group_teams(rows, to_player);
@@ -564,8 +576,15 @@ async fn team_list<P>(
         let value = |t: &Team<P>| t.team_value.unwrap_or(f64::NEG_INFINITY);
         value(b).total_cmp(&value(a))
     });
+    let places = services::stats::qualifier_places(&state.db, unpublished).await?;
     Ok(TeamList {
-        teams,
+        teams: teams
+            .into_iter()
+            .map(|team| ListedTeam {
+                qualifier: places.get(&team.id).copied(),
+                team,
+            })
+            .collect(),
         frozen: db::settings::teams_frozen(&state.db).await?,
         limit: team_rank::LIMIT,
         ranks_updated_at: db::settings::ranks_updated_at(&state.db).await?,
@@ -574,7 +593,7 @@ async fn team_list<P>(
 
 // GET /api/public/teams — every team with its players.
 async fn list_public_teams(State(state): State<AppState>) -> Result<impl IntoResponse, AppError> {
-    Ok(Json(team_list(&state, |row| row.player).await?))
+    Ok(Json(team_list(&state, |row| row.player, false).await?))
 }
 
 // GET /api/teams — host-only. Like the public list, plus each player's Discord.
@@ -583,7 +602,7 @@ async fn list_teams(
     user: AuthUser,
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
-    let list = team_list(&state, AdminTeamPlayer::from_row).await?;
+    let list = team_list(&state, AdminTeamPlayer::from_row, true).await?;
     Ok(Json(list))
 }
 

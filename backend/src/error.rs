@@ -400,6 +400,18 @@ pub enum BracketError {
     LinkToItself,
     #[error("that link would make the bracket loop back to this match")]
     Loop,
+    #[error("the bracket already has matches, remove them first")]
+    NotEmpty,
+    #[error("matches of the bracket have been played, so it can't be removed")]
+    AlreadyPlayed,
+    #[error("every qualifier lobby has to be concluded first")]
+    QualifiersNotOver,
+    #[error("the seeding has to list each team once")]
+    BadSeeding,
+    #[error("the bracket needs exactly as many teams as its format seeds")]
+    WrongTeamCount,
+    #[error("every week of the bracket needs one of the bracket stages")]
+    BadStages,
 }
 
 impl BracketError {
@@ -410,8 +422,15 @@ impl BracketError {
             | Self::TeamPlaysItself
             | Self::BadSlot
             | Self::LinkToItself
-            | Self::Loop => StatusCode::BAD_REQUEST,
-            Self::MatchNumberTaken | Self::SlotHasSource => StatusCode::CONFLICT,
+            | Self::Loop
+            | Self::BadSeeding
+            | Self::WrongTeamCount
+            | Self::BadStages => StatusCode::BAD_REQUEST,
+            Self::MatchNumberTaken
+            | Self::SlotHasSource
+            | Self::NotEmpty
+            | Self::AlreadyPlayed
+            | Self::QualifiersNotOver => StatusCode::CONFLICT,
         }
     }
 }

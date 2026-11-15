@@ -2,7 +2,7 @@
 //! saved (crate::stats). Public, like the stage's pool. What's counted is kept until the
 //! site next changes (crate::stats_cache).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use axum::{
     body::Bytes,
@@ -16,15 +16,10 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use crate::{
-    db::{
-        self,
-        bracket::Side,
-        mappool::PublicStageDetail,
-        stats::{StatMatch, StatScore},
-        team::Player,
-    },
+    db::{self, bracket::Side, mappool::PublicStageDetail, stats::StatMatch, team::Player},
     error::{AppError, GeneralError},
-    stats::{self, DraftIn, Input, MatchIn, ScoreIn, Stats},
+    services::{self, stats::Counted},
+    stats::Stats,
     views::{group_teams, lobby_name, Team},
     AppState,
 };
@@ -33,7 +28,12 @@ pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/public/stats", get(list_stage_activity))
         .route("/public/stats/{id}", get(get_stage_stats))
+        .route("/public/qualifier-places", get(list_qualifier_places))
 }
+
+// The stats cache's key for the qualifier places (the nil id holds the stage activity;
+// every other key is a stage's random id).
+const QUALIFIER_PLACES_KEY: Uuid = Uuid::from_u128(1);
 
 fn json(body: Bytes) -> impl IntoResponse {
     ([(header::CONTENT_TYPE, "application/json")], body)
@@ -49,6 +49,21 @@ async fn list_stage_activity(State(state): State<AppState>) -> Result<impl IntoR
         .stats_cache
         .get_or_count(Uuid::nil(), || async {
             to_body(&db::stats::stage_activity(&state.db).await?)
+        })
+        .await?;
+    Ok(json(body))
+}
+
+// GET /api/public/qualifier-places — each team's place in the qualifier, by team id,
+// once the qualifier's stage is published (as /stats shows it). The team popovers read
+// it, whichever page's team data opened them.
+async fn list_qualifier_places(
+    State(state): State<AppState>,
+) -> Result<impl IntoResponse, AppError> {
+    let body = state
+        .stats_cache
+        .get_or_count(QUALIFIER_PLACES_KEY, || async {
+            to_body(&services::stats::qualifier_places(&state.db, false).await?)
         })
         .await?;
     Ok(json(body))
@@ -108,79 +123,24 @@ async fn count_stage(state: &AppState, id: Uuid) -> Result<Bytes, AppError> {
     let stage = db::stages::get_published_stage(&state.db, id)
         .await?
         .ok_or(GeneralError::NotFound)?;
-    let qualifier = stage.is_qualifier;
-    let categories = db::mappool::list_categories(&state.db, id).await?;
-    let slots = db::mappool::list_public_slots(&state.db, id).await?;
-    let maps = db::mappool::list_public_maps(&state.db, id).await?;
-
-    // The pool in category and slot order.
-    let mut order: Vec<Uuid> = Vec::new();
-    for c in &categories {
-        let mut own: Vec<_> = slots.iter().filter(|s| s.category_id == c.id).collect();
-        own.sort_by_key(|s| s.position);
-        for slot in own {
-            if let Some(m) = maps.iter().find(|m| m.slot_id == Some(slot.id)) {
-                order.push(m.id);
-            }
-        }
-    }
-
-    let (matches, scores, drafts) = if qualifier {
-        (
-            db::stats::qualifier_lobbies(&state.db).await?,
-            db::stats::qualifier_scores(&state.db, id).await?,
-            Vec::new(),
-        )
-    } else {
-        (
-            db::stats::bracket_matches(&state.db, id).await?,
-            db::stats::bracket_scores(&state.db, id).await?,
-            db::stats::drafts(&state.db, id).await?,
-        )
-    };
-
-    let rows = db::team::list_team_members(&state.db, None).await?;
-    let mut members: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
-    for r in &rows {
-        members.entry(r.team_id).or_default().push(r.player.id);
-    }
-
-    let stats = stats::compute(&Input {
-        qualifier,
-        maps: &order,
-        matches: &matches
-            .iter()
-            .map(|m| MatchIn {
-                id: m.id,
-                concluded: m.concluded_at.is_some(),
-                teams: m.teams.clone(),
-            })
-            .collect::<Vec<_>>(),
-        scores: &scores.iter().map(score_in).collect::<Vec<_>>(),
-        drafts: &drafts
-            .iter()
-            .map(|d| DraftIn {
-                match_id: d.match_id,
-                map_id: d.map_id,
-                team_id: d.team_id,
-                opponent_id: d.opponent_id,
-                ban: d.ban,
-            })
-            .collect::<Vec<_>>(),
-        members: &members,
-    });
+    let pool = services::stats::stage_pool(&state.db, id).await?;
+    let Counted {
+        matches,
+        members,
+        stats,
+    } = services::stats::count(&state.db, id, stage.is_qualifier, &pool.order).await?;
 
     let shown: HashSet<Uuid> = stats.teams.iter().map(|t| t.id).collect();
-    let teams = group_teams(rows, |r| r.player)
+    let teams = group_teams(members, |r| r.player)
         .into_iter()
         .filter(|t| shown.contains(&t.id))
         .collect();
     to_body(&StageStats {
         pool: PublicStageDetail {
             stage,
-            categories,
-            slots,
-            maps,
+            categories: pool.categories,
+            slots: pool.slots,
+            maps: pool.maps,
         },
         matches: matches
             .iter()
@@ -195,18 +155,4 @@ async fn count_stage(state: &AppState, id: Uuid) -> Result<Bytes, AppError> {
         teams,
         stats,
     })
-}
-
-fn score_in(s: &StatScore) -> ScoreIn {
-    ScoreIn {
-        match_id: s.match_id,
-        position: s.position,
-        map_id: s.map_id,
-        user_id: s.user_id,
-        team_id: s.team_id,
-        score: s.score,
-        accuracy: s.accuracy,
-        mods: s.mods.clone(),
-        passed: s.passed,
-    }
 }

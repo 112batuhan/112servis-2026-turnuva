@@ -30,6 +30,7 @@ const DiscordAdminPage = page(() => import("./pages/admin/DiscordAdminPage"), "D
 const MapPoolEditorPage = page(() => import("./pages/admin/mappool/MapPoolEditorPage"), "MapPoolEditorPage");
 const QualifiersAdminPage = page(() => import("./pages/admin/QualifiersAdminPage"), "QualifiersAdminPage");
 const RefereeRoomPage = page(() => import("./pages/admin/referee/RefereeRoomPage"), "RefereeRoomPage");
+const SeedingAdminPage = page(() => import("./pages/admin/SeedingAdminPage"), "SeedingAdminPage");
 const RulesAdminPage = page(() => import("./pages/admin/RulesAdminPage"), "RulesAdminPage");
 const StagesAdminPage = page(() => import("./pages/admin/StagesAdminPage"), "StagesAdminPage");
 const TeamsAdminPage = page(() => import("./pages/admin/TeamsAdminPage"), "TeamsAdminPage");
@@ -121,6 +122,10 @@ export function App() {
                 <Route
                   path="qualifiers"
                   element={<RequireAuth access="referee" redirect="/admin"><QualifiersAdminPage /></RequireAuth>}
+                />
+                <Route
+                  path="seeding"
+                  element={<RequireAuth access="host" redirect="/admin"><SeedingAdminPage /></RequireAuth>}
                 />
                 <Route
                   path="bracket"

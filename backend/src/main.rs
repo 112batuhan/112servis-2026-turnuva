@@ -16,6 +16,7 @@ mod rank_refresh;
 mod role;
 mod room_scores;
 mod secret;
+mod seeding;
 mod services;
 mod stage_track;
 mod stats;
@@ -185,6 +186,7 @@ async fn main() {
         .merge(handlers::referee::routes())
         .merge(handlers::reschedule::routes())
         .merge(handlers::rules::routes())
+        .merge(handlers::seeding::routes())
         .merge(handlers::stages::routes())
         .merge(handlers::stats::routes())
         .merge(handlers::notifications::routes())

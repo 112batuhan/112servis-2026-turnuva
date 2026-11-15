@@ -64,7 +64,7 @@ The first host has to be set by hand in SQL: `UPDATE osu_users SET roles = '{hos
 - `auth-and-roles.md`: sessions, OAuth flows and their state cookie, roles, bans, rules page, staff page.
 - `mappool.md`: stages, categories, slots, pool maps and their stats, best of, draft order, pack links.
 - `teams.md`: 2v2 teams, invites, rank limit, banners, freezing.
-- `matches-and-bracket.md`: matches, qualifier lobbies, the bracket, forfeits, potential matches, live scores and the live socket, presence, reschedules, notifications.
+- `matches-and-bracket.md`: matches, qualifier lobbies, the seeding and the bracket made from it, the bracket, forfeits, potential matches, live scores and the live socket, presence, reschedules, notifications.
 - `pickem.md`: windows, scoring, privacy, the ballot.
 - `statistics.md`: Z-scores, saved map results, accuracy from osu!, the response cache.
 - `match-page.md`: the public match page.

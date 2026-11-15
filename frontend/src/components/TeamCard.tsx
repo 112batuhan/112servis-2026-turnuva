@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { API_URL } from "../api/client";
-import type { Player, Team } from "../api/types";
+import type { Player, QualifierPlace, Team } from "../api/types";
 import { RANK_WARNING_LABELS } from "../lib/eligibility";
 import { formatTeamValue, TEAM_NAME_MAX } from "../lib/format";
 import { teamAnchorId } from "../lib/teamLink";
@@ -31,6 +31,11 @@ interface Props<P extends Player> {
    * team like a rank warning does, but leaves the value alone: it isn't what's wrong.
    */
   flag?: string;
+  /**
+   * Its place in the qualifier (the bracket's seeding), shown under the value. Null where the list
+   * has places but this team has none ("—", so the cards beside it keep their line); left out, no row.
+   */
+  qualifier?: QualifierPlace | null;
 }
 
 export function TeamCard<P extends Player>({
@@ -43,6 +48,7 @@ export function TeamCard<P extends Player>({
   showMatches = true,
   showValue = true,
   flag,
+  qualifier,
 }: Props<P>) {
   const [matchesOpen, setMatchesOpen] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -108,8 +114,11 @@ export function TeamCard<P extends Player>({
       <div className={showValue ? "team-card-body" : "team-card-body is-players-only"} aria-hidden={matchesOpen || undefined}>
         {showValue && (
           <div className="team-card-value">
-            <span className="team-card-value-label">Takım değeri</span>
-            <span className="team-card-value-number num">{formatTeamValue(team.team_value)}</span>
+            <div className="team-card-fact">
+              <span className="team-card-value-label">Takım değeri</span>
+              <span className="team-card-value-number num">{formatTeamValue(team.team_value)}</span>
+            </div>
+            {qualifier !== undefined && <QualifierFact place={qualifier} />}
             {team.rank_warning && <span className="team-card-warning">{RANK_WARNING_LABELS[team.rank_warning]}</span>}
             {flag && <span className="team-card-warning">{flag}</span>}
           </div>
@@ -150,5 +159,50 @@ export function TeamCard<P extends Player>({
         </div>
       )}
     </article>
+  );
+}
+
+/**
+ * "Eleme sıralaması #7": the team's place in the qualifier, provisional while its lobby is on. On a
+ * card it's a fact like the team value, its label over its figure; `compact` is a row's one line.
+ * Null: no place ("—").
+ */
+export function QualifierFact({ place, compact = false }: { place: QualifierPlace | null; compact?: boolean }) {
+  const title = !place
+    ? "Eleme sıralamasında yok"
+    : place.eliminated
+      ? "Eleme sıralaması: bracket'e giremedi, turnuvadan elendi"
+      : place.pending
+      ? "Eleme sıralaması: lobisi sürüyor, sırası değişebilir"
+      : "Eleme sıralaması (bracket seed'i)";
+  const figure = (
+    <span className="qualifier-fact-figure">
+      <span
+        className={[
+          "qualifier-fact-rank num",
+          !place && "qualifier-fact-none",
+          place?.eliminated && "is-eliminated",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        {place ? `#${place.rank}` : "—"}
+      </span>
+      {place?.pending && <span className="qualifier-fact-pending">sürüyor</span>}
+    </span>
+  );
+  if (compact) {
+    return (
+      <span className="qualifier-fact is-compact" title={title}>
+        <span className="qualifier-fact-label">Eleme</span>
+        {figure}
+      </span>
+    );
+  }
+  return (
+    <div className="team-card-fact qualifier-fact" title={title}>
+      <span className="team-card-value-label">Eleme sıralaması</span>
+      {figure}
+    </div>
   );
 }
