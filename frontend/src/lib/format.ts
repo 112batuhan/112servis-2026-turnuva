@@ -94,7 +94,7 @@ export function formatTeamValue(value: number | null | undefined): string {
 /** Mirrors TEAM_NAME_MAX in backend/src/handlers/team.rs. */
 export const TEAM_NAME_MAX = 32;
 
-/** Mirrors BANNER_MAX_BYTES in backend/src/handlers/team.rs. */
+/** Mirrors MAX_UPLOAD_BYTES in backend/src/banner.rs. */
 export const BANNER_MAX_BYTES = 2 * 1024 * 1024;
 
 const twoDecimals = new Intl.NumberFormat("tr-TR", {

@@ -311,6 +311,10 @@ pub enum TeamError {
     TheyInvitedYou,
     #[error("banners must be PNG, JPEG, GIF or WebP images")]
     BadBanner,
+    #[error("banners can be at most 4096 pixels a side and 4096x2048 in all, and an animated one has to be smaller or shorter")]
+    BannerTooLarge,
+    #[error("wait a few seconds before uploading another banner")]
+    BannerCooldown,
 }
 
 impl TeamError {
@@ -324,7 +328,9 @@ impl TeamError {
             | Self::NameLength
             | Self::NameCharacters
             | Self::InviteSelf
-            | Self::BadBanner => StatusCode::BAD_REQUEST,
+            | Self::BadBanner
+            | Self::BannerTooLarge => StatusCode::BAD_REQUEST,
+            Self::BannerCooldown => StatusCode::TOO_MANY_REQUESTS,
             Self::AlreadyInTeam
             | Self::PlayerInTeam
             | Self::SomeoneInTeam

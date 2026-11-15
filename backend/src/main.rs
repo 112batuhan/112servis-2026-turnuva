@@ -1,5 +1,6 @@
 mod auth;
 mod bancho;
+mod banner;
 mod config;
 mod db;
 mod discord;
@@ -91,6 +92,8 @@ pub struct AppState {
     pub stats_cache: stats_cache::StatsCache,
     // The public bracket last read, likewise.
     pub bracket_cache: stats_cache::StatsCache,
+    // When each team last uploaded a banner.
+    pub banner_cooldowns: banner::Cooldowns,
 }
 
 #[tokio::main]
@@ -148,6 +151,7 @@ async fn main() {
         discord: discord::Discord::new(&config.discord_bot),
         stats_cache: stats_cache::StatsCache::stats(),
         bracket_cache: stats_cache::StatsCache::bracket(),
+        banner_cooldowns: banner::Cooldowns::default(),
     };
     stats_cache::spawn_invalidation(&state);
     // Seeds loaded straight into the database, and bracket changes from before potential

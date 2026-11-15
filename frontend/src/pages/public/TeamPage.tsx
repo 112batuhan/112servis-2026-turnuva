@@ -384,6 +384,8 @@ function MyTeam({ team, readOnly, busy, run, onError }: MyTeamProps) {
       />
       <p className="muted team-name-hint">
         Banner en fazla 2 MB boyutunda PNG, JPEG, GIF veya WebP olmalı; 3:1 oranında kırpılır.
+        Hareketli GIF'ler hareketli kalır (en fazla 300 kare); hareketli WebP'nin yalnızca ilk
+        karesi kullanılır.
       </p>
     </>
   );

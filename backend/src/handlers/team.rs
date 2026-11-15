@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use crate::{
     auth::AuthUser,
+    banner,
     db::{
         self,
         team::{InviteRow, Player, PlayerState, TeamMemberRow},
@@ -41,7 +42,7 @@ pub fn routes() -> Router<AppState> {
             "/me/team/banner",
             put(upload_my_banner)
                 .delete(remove_my_banner)
-                .layer(DefaultBodyLimit::max(BANNER_MAX_BYTES)),
+                .layer(DefaultBodyLimit::max(banner::MAX_UPLOAD_BYTES)),
         )
         .route("/invites", post(send_invite))
         .route("/invites/{id}", delete(delete_invite))
@@ -462,25 +463,8 @@ async fn disband_my_team(
 
 // ---------- banners ----------
 
-const BANNER_MAX_BYTES: usize = 2 * 1024 * 1024;
-
-// Trusts the file's magic bytes rather than the request's Content-Type.
-fn banner_content_type(data: &[u8]) -> Option<&'static str> {
-    if data.starts_with(b"\x89PNG\r\n\x1a\n") {
-        Some("image/png")
-    } else if data.starts_with(b"\xff\xd8\xff") {
-        Some("image/jpeg")
-    } else if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
-        Some("image/gif")
-    } else if data.len() >= 12 && data.starts_with(b"RIFF") && &data[8..12] == b"WEBP" {
-        Some("image/webp")
-    } else {
-        None
-    }
-}
-
 // PUT /api/me/team/banner — either player sets their team's banner. The body is
-// the raw image.
+// the raw image; what's stored is the copy `banner::process` makes of it.
 async fn upload_my_banner(
     State(state): State<AppState>,
     user: AuthUser,
@@ -489,9 +473,17 @@ async fn upload_my_banner(
     user.require_not_banned()?;
     require_unfrozen(&state.db).await?;
     let team_id = user.team_id(&state.db).await?;
-    let content_type = banner_content_type(&body).ok_or(TeamError::BadBanner)?;
+    if !state.banner_cooldowns.take(team_id) {
+        return Err(TeamError::BannerCooldown.into());
+    }
+    let stored = tokio::task::spawn_blocking(move || banner::process(&body))
+        .await
+        .map_err(|err| {
+            tracing::error!(error = ?err, "banner processing failed");
+            GeneralError::Internal
+        })??;
     let mut tx = state.db.begin().await?;
-    db::team::set_banner(&mut *tx, team_id, content_type, &body).await?;
+    db::team::set_banner(&mut *tx, team_id, stored.content_type, &stored.data).await?;
     sync_team_matches(&state, &mut tx, team_id).await?;
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
@@ -517,8 +509,10 @@ async fn remove_my_banner(
     require_unfrozen(&state.db).await?;
     let team_id = user.team_id(&state.db).await?;
     let mut tx = state.db.begin().await?;
-    db::team::delete_banner(&mut *tx, team_id).await?;
-    sync_team_matches(&state, &mut tx, team_id).await?;
+    // Nothing to tell Discord when there was no banner to remove.
+    if db::team::delete_banner(&mut *tx, team_id).await? {
+        sync_team_matches(&state, &mut tx, team_id).await?;
+    }
     tx.commit().await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -538,6 +532,11 @@ async fn team_banner(
             "public, max-age=31536000, immutable".to_string(),
         ),
         (header::X_CONTENT_TYPE_OPTIONS, "nosniff".to_string()),
+        // Opened on its own, the image can't load or run anything.
+        (
+            header::CONTENT_SECURITY_POLICY,
+            "default-src 'none'; sandbox".to_string(),
+        ),
     ];
     Ok((headers, banner.data))
 }

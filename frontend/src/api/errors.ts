@@ -44,6 +44,9 @@ export const ERROR_TEXT = {
     invite_already_sent: "Davet zaten gönderilmiş.",
     they_invited_you: "Seni zaten davet ettiler; onların davetini kabul et.",
     bad_banner: "Banner PNG, JPEG, GIF ya da WebP olmalı.",
+    banner_too_large:
+      "Banner çok büyük: bir kenarı en fazla 4096 piksel, tamamı en fazla 4096×2048 olabilir; hareketli GIF daha küçük ya da daha kısa olmalı.",
+    banner_cooldown: "Yeni bir banner yüklemeden önce birkaç saniye bekle.",
   },
   pool: {
     name_required: "Bir isim gir.",
