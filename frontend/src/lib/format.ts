@@ -102,9 +102,8 @@ const twoDecimals = new Intl.NumberFormat("tr-TR", {
   maximumFractionDigits: 2,
 });
 
-/** +1,23 / −0,45, with a real minus sign. */
-export function formatZ(z: number): string {
-  const rounded = Math.round(z * 100) / 100;
-  if (rounded === 0) return "0,00";
-  return `${rounded > 0 ? "+" : "−"}${twoDecimals.format(Math.abs(rounded))}`;
+/** Points (a Z-percentile, or a sum of them): 0,84 / 7,25 / −1,00, with a real minus sign. */
+export function formatPoints(points: number): string {
+  const rounded = Math.round(points * 100) / 100;
+  return `${rounded < 0 ? "−" : ""}${twoDecimals.format(Math.abs(rounded))}`;
 }

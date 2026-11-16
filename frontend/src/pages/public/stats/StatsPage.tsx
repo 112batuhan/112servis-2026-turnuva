@@ -27,7 +27,7 @@ import "./StatsPage.css";
 /**
  * /stats — every published stage's statistics, counted from the scores the site saved as the
  * matches are played: the pool's picks, bans and best scores, each map's player and team
- * leaderboards, and the player and team standings, all measured in Z scores against the field
+ * leaderboards, and the player and team standings, all measured in points (Z-percentiles) against the field
  * that played the same map. The qualifier's team standings are the bracket's seeding.
  */
 export function StatsPage() {
@@ -218,7 +218,7 @@ function stageMark(s: PublicStage, activity: StageActivity[] | null): StageMark 
   return { note: "Henüz skor yok" };
 }
 
-/** The stage's name and what's counted so far, with how the Z scores are worked out. */
+/** The stage's name and what's counted so far, with how the points are worked out. */
 function StageSummary({ stage, index }: { stage: PublicStage; index: StatsIndex }) {
   const { stats, matches } = index.data;
   const live = matches.filter((m) => m.live).length;
@@ -261,31 +261,81 @@ function StageSummary({ stage, index }: { stage: PublicStage; index: StatsIndex 
 function ZExplainer({ qualifier }: { qualifier: boolean }) {
   return (
     <details className="stats-explain">
-      <summary>Z skoru nasıl hesaplanıyor?</summary>
+      <summary>
+        {qualifier ? "Puan ve seed nasıl hesaplanıyor?" : "Puan nasıl hesaplanıyor?"}
+      </summary>
       <div className="stats-explain-body">
-        <p className="stats-formula">Z = (skor − ortalama) / standart sapma</p>
-        <p>Standart sapma, o map'teki skorların ortalamadan ne kadar saptığının ölçüsüdür:</p>
-        <p className="stats-formula">σ = √( Σ(skor − ortalama)² / (skor sayısı − 1) )</p>
-        <p>
-          Z sayısı, skorun ortalamadan ne kadar yukarıda veya aşağıda olduğunu hesaplar. Bu sayede
-          herkesin iyi oynadığı map'lerde düşük skor yapmak ya da herkesin kötü oynadığı map'te iyi
-          skor yapmak, herkese yakın skor yapmaktan daha ağırlıklıdır.
-        </p>
         {qualifier && (
-          <>
+          <section className="stats-explain-part" aria-labelledby="stats-explain-seed">
+            <h3 id="stats-explain-seed">Sıralama puanı</h3>
+            <p className="stats-explain-lead">
+              Seed'i belirleyen puandır: bir takımın her map'te aldığı puanların (Z-yüzdelik)
+              toplamı.
+            </p>
+            <p className="stats-formula">sıralama puanı = Σ map puanı − eksik map sayısı</p>
+            <dl className="stats-explain-scale">
+              <div>
+                <dt>0–1</dt>
+                <dd>
+                  Skoru olan her map'in puanı. Geçilemeyen (fail) skorlar da olduğu gibi sayılır.
+                </dd>
+              </div>
+              <div>
+                <dt>−1</dt>
+                <dd>
+                  Lobisi bitmiş bir takımın hiç skoru olmayan map'i: toplamdan 1 puan düşülür. Eksik
+                  map o map'in ortalamasına ve sapmasına katılmaz, böylece kimsenin puanını
+                  değiştirmez.
+                </dd>
+              </div>
+            </dl>
             <p>
-              <strong>Seeding:</strong> takımlar bütün maplerdeki Z'lerinin toplamına göre
-              sıralanır; bracket'taki seed'leri bu sıradır. Bir map tekrar oynandıysa takımın son
-              denemesi sayılır.
+              Tablodaki Puan bu toplamdır; bracket'taki seed'ler bu sıradır. Bir map en çok 1 puan
+              verdiği için tek bir map'teki çok yüksek skor sıralamayı tek başına belirlemez.
             </p>
             <p>
-              Lobisi bitmiş bir takımın skoru olmayan map'i 0 puan sayılır: o map'te 0'ın alacağı Z
-              verilir, ama 0 map'in ortalamasına ve sapmasına katılmaz, böylece diğer takımların
-              Z'si değişmez. Lobisi daha oynanmamış ya da sürmekte olan takımların eksik mapleri
-              henüz sayılmaz.
+              Bir map tekrar oynandıysa takımın son denemesi sayılır. Lobisi daha oynanmamış ya da
+              sürmekte olan takımların eksik mapleri henüz sayılmaz.
             </p>
-          </>
+          </section>
         )}
+        <section className="stats-explain-part" aria-labelledby="stats-explain-points">
+          <h3 id="stats-explain-points">Puan (Z-yüzdelik)</h3>
+          <p className="stats-explain-lead">
+            Bir skorun, o map'teki skorların yaklaşık ne kadarını geride bıraktığıdır: 0 ile 1
+            arasında bir sayı.
+            {!qualifier && " Sıralama, oynanan maplerdeki puanların ortalamasına göredir."}
+          </p>
+          <p>
+            Önce skorun map ortalamasından kaç standart sapma yukarıda ya da aşağıda olduğuna (Z)
+            bakılır:
+          </p>
+          <p className="stats-formula">Z = (skor − ortalama) / standart sapma</p>
+          <p className="stats-formula">σ = √( Σ(skor − ortalama)² / (skor sayısı − 1) )</p>
+          <p>
+            Sonra Z, standart normal dağılımda o noktanın altında kalan paya çevrilir (Φ, hesap
+            tablolarındaki NORMSDIST):
+          </p>
+          <p className="stats-formula">puan = Φ(Z)</p>
+          <dl className="stats-explain-scale">
+            <div>
+              <dt>0,84</dt>
+              <dd>Ortalamanın bir standart sapma üstünde bir skor.</dd>
+            </div>
+            <div>
+              <dt>0,50</dt>
+              <dd>Tam map'in ortalaması kadar bir skor.</dd>
+            </div>
+            <div>
+              <dt>0,16</dt>
+              <dd>Ortalamanın bir standart sapma altında bir skor.</dd>
+            </div>
+          </dl>
+          <p>
+            Ortalamaya yakın skorlardaki farklar puanı en çok değiştirir; çok yüksek ya da çok düşük
+            skorlarda puan 1'e ya da 0'a yaklaşır ve daha fazla değişmez.
+          </p>
+        </section>
       </div>
     </details>
   );

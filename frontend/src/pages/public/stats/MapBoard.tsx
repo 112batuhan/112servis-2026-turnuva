@@ -148,7 +148,12 @@ export function MapBoard({ kind, index, ownTeam, mapId, onMap }: Props) {
                 <th className="is-num is-opt">Accuracy</th>
                 {kind === "players" && <th className="is-opt">Mod</th>}
                 {kind === "teams" && !index.qualifier && <th className="is-opt2">Sonuç</th>}
-                <th className="is-z">Z</th>
+                <th
+                  className="is-z"
+                  title="Z-yüzdelik: skorun bu map'teki skorların yaklaşık ne kadarını geride bıraktığı (0–1)"
+                >
+                  Puan
+                </th>
                 <th className="is-opt2">Maç</th>
               </tr>
             </thead>
@@ -183,7 +188,7 @@ export function MapBoard({ kind, index, ownTeam, mapId, onMap }: Props) {
                         </td>
                         <td className="is-opt stats-mods">{formatMods(r.play.mods)}</td>
                         <td className="is-z">
-                          <ZValue z={r.play.z} />
+                          <ZValue value={r.play.points} />
                         </td>
                         <td className="is-opt2">
                           <MatchCode matchId={r.team.match_id} index={index} />
@@ -235,7 +240,7 @@ export function MapBoard({ kind, index, ownTeam, mapId, onMap }: Props) {
                           </td>
                         )}
                         <td className="is-z">
-                          <ZValue z={p.z} />
+                          <ZValue value={p.points} />
                         </td>
                         <td className="is-opt2">
                           <MatchCode matchId={p.match_id} index={index} />

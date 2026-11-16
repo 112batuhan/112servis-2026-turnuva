@@ -1099,7 +1099,9 @@ export interface StatPlayerPlay {
   accuracy: number | null;
   mods: string | null;
   passed: boolean;
-  z: number;
+  /** The Z-percentile among every player's play on the map: the share of a normal field it beats,
+   * 0..1. */
+  points: number;
   /** Among every player's play on the map; level scores share it. */
   rank: number;
 }
@@ -1111,7 +1113,8 @@ export interface StatTeamPlay {
   team_id: string;
   score: number;
   accuracy: number | null;
-  z: number;
+  /** The Z-percentile among the teams' plays on the map, 0..1. */
+  points: number;
   rank: number;
   /** Bracket matches: whether the team won the map; null for a tie (or a lobby). */
   won: boolean | null;
@@ -1143,8 +1146,9 @@ export interface StatMap {
 /** A team's or a player's standing on one map. */
 export interface StatCell {
   map_id: string;
-  /** The play's Z (a bracket stage's plays averaged); a missing qualifier map's is the Z of a 0. */
-  z: number;
+  /** The play's points, its Z-percentile (a bracket stage's plays averaged); -1 for a missing
+   * qualifier map. */
+  points: number;
   score: number | null;
   accuracy: number | null;
   rank: number | null;
@@ -1167,10 +1171,12 @@ export interface StatStanding {
   team_id: string;
   /** The seed in the qualifier; null until there's anything to rank. */
   rank: number | null;
-  z_sum: number;
-  z_avg: number;
+  /** The sum of the maps' points, missing ones included: what the qualifier seeds by. */
+  points: number;
+  /** The plays' average points: what a bracket stage ranks by. */
+  points_avg: number;
   plays: number;
-  /** The maps counted in z_sum, missing ones included. */
+  /** The maps counted in points, missing ones included. */
   maps_counted: number;
   total_score: number;
   avg_score: number;
@@ -1182,7 +1188,7 @@ export interface StatStanding {
   best: {
     map_id: string;
     match_id: string;
-    z: number;
+    points: number;
     score: number;
     rank: number;
     field: number;
@@ -1223,9 +1229,10 @@ export type BracketFormat = "round_of_32" | "round_of_16";
 /** What the qualifier says of a team. */
 export interface SeedStanding {
   rank: number;
-  z_sum: number;
+  /** The sum of its points (Z-percentiles) over the pool: what the qualifier ranks by. */
+  points: number;
   total_score: number;
-  /** Maps played, and maps counted as a 0 (missed though the lobby is over). */
+  /** Maps played, and maps counted as -1 (no score though the lobby is over). */
   plays: number;
   missing: number;
   /** Its lobby isn't over, so its missing maps don't count yet. */

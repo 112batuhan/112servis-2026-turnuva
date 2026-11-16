@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import type { StatCell, StatDraftTally, StatStanding } from "../../../api/types";
 import { Icon } from "../../../components/Icon";
 import { ZValue } from "../../../components/ZValue";
-import { formatZ } from "../../../lib/format";
+import { formatPoints } from "../../../lib/format";
 import { MapLabel, PanelTools, PlayerName, TeamWho } from "./StatsParts";
 import {
   accuracyUnknown,
@@ -16,7 +16,15 @@ import "./Standings.css";
 
 type Kind = "players" | "teams";
 type View = "table" | "matrix";
-type Metric = "z" | "rank" | "score" | "accuracy";
+type Metric = "points" | "rank" | "score" | "accuracy";
+
+/** What a matrix cell can show. */
+const METRICS: [Metric, string][] = [
+  ["score", "Skor"],
+  ["accuracy", "Accuracy"],
+  ["points", "Puan"],
+  ["rank", "Sıra"],
+];
 
 interface Props {
   kind: Kind;
@@ -44,8 +52,9 @@ const RANK_SORT: Sort = { id: "rank", dir: "best" };
 
 /**
  * The stage's standings: every player or team with what they did across the pool. The qualifier
- * ranks teams by the sum of their Z scores, which is the bracket's seeding; a bracket stage by the
- * average Z of the maps played. A table to sort and search, or the same rows against every map.
+ * ranks teams by their points (each map's Z-percentile, between 0 and 1, summed), which is the
+ * bracket's seeding; a bracket stage by the average points of the maps played. A table to sort and
+ * search, or the same rows against every map.
  */
 export function Standings({ kind, index, ownTeam }: Props) {
   const [query, setQuery] = useState("");
@@ -90,15 +99,17 @@ export function Standings({ kind, index, ownTeam }: Props) {
     );
 
   const columns: Column[] = useMemo(() => {
-    const zSum: Column = {
-      id: "z",
-      label: q ? "Z toplamı" : "Ort. Z",
+    const points: Column = {
+      id: "points",
+      label: q ? "Puan" : "Ort. puan",
       title: q
-        ? "Bütün maplerdeki Z'lerin toplamı; eksik mapler 0 puan sayılır"
-        : "Oynanan maplerdeki Z'lerin ortalaması",
+        ? "Sıralama puanı: her map'teki skorun Z-yüzdeliği (0–1) toplanır; skoru olmayan her map için 1 puan düşülür"
+        : "Oynanan maplerdeki puanların (Z-yüzdelik, 0–1) ortalaması",
       className: "is-z",
-      value: (s) => (q ? s.z_sum : s.z_avg),
-      render: (s) => <ZValue z={q ? s.z_sum : s.z_avg} size="lg" />,
+      value: (s) => (q ? s.points : s.points_avg),
+      render: (s) => (
+        <ZValue value={q ? s.points : s.points_avg} max={q ? poolSize : 1} size="lg" />
+      ),
     };
     const maps: Column = {
       id: "maps",
@@ -114,7 +125,7 @@ export function Standings({ kind, index, ownTeam }: Props) {
             {missing > 0 && (
               <span
                 className="standings-missing"
-                title="Lobisi bittiği hâlde skoru olmayan mapler: 0 puan sayıldı"
+                title="Lobisi bittiği hâlde skoru olmayan mapler: her biri için 1 puan düşüldü"
               >
                 {missing} eksik
               </span>
@@ -152,14 +163,14 @@ export function Standings({ kind, index, ownTeam }: Props) {
     const best: Column = {
       id: "best",
       label: "En iyi map",
-      title: "Sahasının en üstünde kaldığı oyun: Z'si ve o map'teki sırası",
+      title: "Sahasının en üstünde kaldığı oyun: puanı ve o map'teki sırası",
       className: "is-opt2",
-      value: (s) => s.best?.z ?? -Infinity,
+      value: (s) => s.best?.points ?? -Infinity,
       render: (s) =>
         s.best ? (
           <span className="standings-best">
             <MapLabel entry={index.entry.get(s.best.map_id)} />
-            <span className="num">{formatZ(s.best.z)}</span>
+            <span className="num">{formatPoints(s.best.points)}</span>
             <span className="standings-best-rank">
               {s.best.rank}./{s.best.field}
             </span>
@@ -168,7 +179,7 @@ export function Standings({ kind, index, ownTeam }: Props) {
           <span className="standings-none">—</span>
         ),
     };
-    const out: Column[] = [zSum, maps, score, accuracy];
+    const out: Column[] = [points, maps, score, accuracy];
     if (kind === "players") {
       out.push({
         id: "team-best",
@@ -334,14 +345,7 @@ export function Standings({ kind, index, ownTeam }: Props) {
           {/* What the matrix's cells show, over the matrix itself. */}
           <div className="standings-matrix-bar">
             <div className="bracket-view-tabs" role="group" aria-label="Hücrede">
-              {(
-                [
-                  ["score", "Skor"],
-                  ["accuracy", "Accuracy"],
-                  ["z", "Z"],
-                  ["rank", "Sıra"],
-                ] as const
-              ).map(([id, label]) => (
+              {METRICS.map(([id, label]) => (
                 <button
                   key={id}
                   type="button"
@@ -380,8 +384,9 @@ export function Standings({ kind, index, ownTeam }: Props) {
             isOwn={isOwn}
             sortedBy={mapSort}
             onSort={toggleMapSort}
-            total={(s) => (q ? s.z_sum : s.z_avg)}
-            whoLabel={`${kind === "teams" ? "Takım" : "Oyuncu"} · ${q ? "Z toplamı" : "Ort. Z"}`}
+            total={(s) => (q ? s.points : s.points_avg)}
+            totalMax={q ? poolSize : 1}
+            whoLabel={`${kind === "teams" ? "Takım" : "Oyuncu"} · ${q ? "Puan" : "Ort. puan"}`}
           />
         </>
       )}
@@ -493,26 +498,26 @@ function DraftLegend({ kind }: { kind: Kind }) {
   );
 }
 
-/** "Sort by …" in Turkish takes the dative: skora, accuracy'ye, Z'ye, sıraya. */
+/** "Sort by …" in Turkish takes the dative: skora, accuracy'ye, puana, sıraya. */
 const METRIC_DATIVE: Record<Metric, string> = {
   score: "skora",
   accuracy: "accuracy'ye",
-  z: "Z'ye",
+  points: "puana",
   rank: "sıraya",
 };
 
-/** A matrix cell as a sort key, higher first: its score, accuracy or Z, or its place turned
+/** A matrix cell as a sort key, higher first: its score, accuracy or points, or its place turned
  * round so first comes first. A map the row has no figure for sorts last; a missing qualifier
- * map counts as the 0 it was scored as. */
+ * map sorts under every score. */
 function cellValue(cell: StatCell | undefined, metric: Metric): number {
   if (!cell) return -Infinity;
   switch (metric) {
     case "score":
-      return cell.score ?? 0;
+      return cell.score ?? -1;
     case "accuracy":
       return cell.accuracy ?? -Infinity;
-    case "z":
-      return cell.z;
+    case "points":
+      return cell.points;
     case "rank":
       return cell.rank === null ? -Infinity : -cell.rank;
   }
@@ -529,13 +534,15 @@ interface MatrixProps {
   sortedBy: string | null;
   onSort: (id: string) => void;
   total: (s: StatStanding) => number;
+  /** The most the total can be: the pool's size for the qualifier's sum, 1 for an average. */
+  totalMax: number;
   whoLabel: string;
 }
 
 /**
  * The rows against every map of the pool: each cell what they did there (the metric picked),
- * shaded brighter the further above the map's field they were. A missing qualifier map shows the
- * 0 it was scored as.
+ * shaded brighter the further above the map's mean they were. A missing qualifier map shows its
+ * penalty.
  */
 function Matrix({
   rows,
@@ -547,6 +554,7 @@ function Matrix({
   sortedBy,
   onSort,
   total,
+  totalMax,
   whoLabel,
 }: MatrixProps) {
   return (
@@ -592,7 +600,7 @@ function Matrix({
               <td className="stats-matrix-who">
                 <span className="stats-matrix-who-line">
                   {who(s)}
-                  <ZValue z={total(s)} />
+                  <ZValue value={total(s)} max={totalMax} />
                 </span>
               </td>
               {index.entries.map((e) => (
@@ -638,17 +646,17 @@ function MatrixCell({
     return (
       <td
         className="stats-matrix-cell is-missing"
-        title={`Skoru yok: 0 puan sayıldı (Z ${formatZ(cell.z)})`}
+        title={`Skoru yok: ${formatPoints(cell.points)} puan sayıldı`}
       >
-        {metric === "z" ? formatZ(cell.z) : "0"}
+        {formatPoints(cell.points)}
       </td>
     );
   }
-  // Brightest at two and a half deviations above the field.
-  const heat = Math.max(0, Math.min(1, cell.z / 2.5));
+  // Unlit at the map's mean (half a point), brightest at a whole one.
+  const heat = Math.max(0, Math.min(1, (cell.points - 0.5) * 2));
   const text =
-    metric === "z"
-      ? formatZ(cell.z)
+    metric === "points"
+      ? formatPoints(cell.points)
       : metric === "rank"
         ? `${cell.rank ?? "—"}.`
         : metric === "score"
@@ -658,13 +666,13 @@ function MatrixCell({
     <td
       className={[
         "stats-matrix-cell",
-        cell.z < 0 && "is-below",
+        cell.points < 0.5 && "is-below",
         marks?.picker && `picked-by-${marks.picker}`,
       ]
         .filter(Boolean)
         .join(" ")}
       style={{ "--heat": heat } as CSSProperties}
-      title={`Z ${formatZ(cell.z)} · ${formatScore(cell.score ?? 0)} · ${formatAccuracy(cell.accuracy)}${cell.plays > 1 ? ` · ${cell.plays} oyun` : ""}${marks ? `\n${marks.text}` : ""}`}
+      title={`Puan ${formatPoints(cell.points)} · ${formatScore(cell.score ?? 0)} · ${formatAccuracy(cell.accuracy)}${cell.plays > 1 ? ` · ${cell.plays} oyun` : ""}${marks ? `\n${marks.text}` : ""}`}
     >
       {text}
       {said}

@@ -1,32 +1,30 @@
-import { formatZ } from "../lib/format";
+import { formatPoints } from "../lib/format";
 import "./ZValue.css";
 
-// How many deviations fill half the meter.
-const Z_SPAN = 3;
-
 /**
- * A Z score as its figure beside a small meter centred on the map's mean: filled right of the
- * centre for a score above it, left for one below, in proportion up to three deviations.
+ * Points (a Z-percentile: the share of the map's field a play beats, between 0 and 1) as their
+ * figure beside a small meter that fills from its start, with the field's mean marked at its
+ * middle. With `max` it's a sum of them over that many maps (the qualifier's seeding points),
+ * filled towards `max`; it stays empty below 0.
  */
 export function ZValue({
-  z,
+  value,
+  max = 1,
   missing = false,
   size = "md",
 }: {
-  z: number;
+  value: number;
+  max?: number;
   missing?: boolean;
   size?: "md" | "lg";
 }) {
-  const half = (Math.min(Math.abs(z), Z_SPAN) / Z_SPAN) * 50;
-  const tone = missing ? "is-missing" : z >= 0 ? "is-up" : "is-down";
+  const share = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
+  const tone = missing ? "is-missing" : share >= 0.5 ? "is-up" : "is-down";
   return (
     <span className={`zval ${tone} is-${size}`}>
-      <span className="zval-num">{formatZ(z)}</span>
+      <span className="zval-num">{formatPoints(value)}</span>
       <span className="zval-bar" aria-hidden="true">
-        <span
-          className="zval-fill"
-          style={{ left: z >= 0 ? "50%" : `${50 - half}%`, width: `${half}%` }}
-        />
+        <span className="zval-fill" style={{ width: `${share * 100}%` }} />
       </span>
     </span>
   );

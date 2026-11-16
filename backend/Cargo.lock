@@ -252,6 +252,7 @@ dependencies = [
  "dotenvy",
  "gif",
  "image",
+ "libm",
  "oauth2",
  "rand 0.8.7",
  "reqwest",

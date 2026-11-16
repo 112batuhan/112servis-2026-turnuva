@@ -26,3 +26,4 @@ thiserror = "1"
 serenity = { version = "0.12", default-features = false, features = ["builder", "client", "gateway", "model", "http", "rustls_backend", "utils"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 gif = "0.14"
+libm = "0.2"

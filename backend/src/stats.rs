@@ -1,17 +1,21 @@
 //! A stage's statistics, counted from the scores the site saved: every team's and every
 //! player's plays on each pool map, each measured against the field that played the same
-//! map (its Z score: how many standard deviations above or below that map's mean), the
-//! maps' picks, bans and best scores, and the standings.
+//! map, the maps' picks, bans and best scores, and the standings.
+//!
+//! A play's measure is its points, the Z-percentile: its Z (how many standard deviations
+//! above or below the map's mean) put through the standard normal distribution, so the
+//! share of a bell-shaped field it beats, between 0 and 1. A failed play counts like any
+//! other.
 //!
 //! The qualifier decides the seeding, so its rules differ from a bracket stage's:
 //! - a team's latest attempt at a map is the one that counts (a replay replaces it);
-//! - a team (or player) without a score on a map whose lobby is over gets the Z a score
-//!   of 0 would have against those who played it, without counting in that map's mean
-//!   and deviation, so a no-show doesn't move everyone else's Z;
-//! - teams are seeded by the sum of their Z scores over the pool.
+//! - teams are seeded by the sum of their points over the pool;
+//! - a team (or player) without any score on a map whose lobby is over gets -1 for it,
+//!   whatever the others scored, without counting in that map's mean and deviation, so
+//!   a no-show doesn't move anyone else's points.
 //!
 //! In a bracket stage every play counts (a team can play a map in two matches), and
-//! teams and players are ranked by their average Z.
+//! teams and players are ranked by their average points.
 
 use std::collections::{HashMap, HashSet};
 
@@ -97,7 +101,22 @@ impl Field {
             0.0
         }
     }
+
+    // A play's Z-percentile: the share of a normal field a play this far from the mean
+    // beats, between 0 and 1; 0.5 when the field can't say.
+    fn points(&self, value: f64) -> f64 {
+        normal_cdf(self.z(value))
+    }
 }
+
+// The standard normal distribution's cumulative function (NORMSDIST).
+fn normal_cdf(z: f64) -> f64 {
+    0.5 * libm::erfc(-z / std::f64::consts::SQRT_2)
+}
+
+// The points of a qualifier map without a score though the lobby is over: one whole
+// map's worth taken off the sum, whatever the others scored on it.
+const MISSING_POINTS: f64 = -1.0;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PlayerPlay {
@@ -106,7 +125,8 @@ pub struct PlayerPlay {
     pub accuracy: Option<f64>,
     pub mods: Option<String>,
     pub passed: bool,
-    pub z: f64,
+    // The Z-percentile among every player's play on the map.
+    pub points: f64,
     // Among every player's play on the map, best first; level scores share it.
     pub rank: usize,
 }
@@ -120,7 +140,8 @@ pub struct TeamPlay {
     pub score: i64,
     // The players' average.
     pub accuracy: Option<f64>,
-    pub z: f64,
+    // The Z-percentile among the teams' plays on the map.
+    pub points: f64,
     pub rank: usize,
     // Bracket matches: whether the team won the map (None for a tie).
     pub won: Option<bool>,
@@ -167,9 +188,9 @@ pub struct MapStats {
 #[derive(Debug, Clone, Serialize)]
 pub struct Cell {
     pub map_id: Uuid,
-    // The play's Z; the average over a bracket stage's plays of the map; for a missing
-    // qualifier map, the Z of a score of 0.
-    pub z: f64,
+    // The play's points (its Z-percentile); the average over a bracket stage's plays of
+    // the map; -1 for a missing qualifier map.
+    pub points: f64,
     // The best score on it (none when missing).
     pub score: Option<i64>,
     pub accuracy: Option<f64>,
@@ -194,7 +215,7 @@ pub struct DraftTally {
 pub struct Standout {
     pub map_id: Uuid,
     pub match_id: Uuid,
-    pub z: f64,
+    pub points: f64,
     pub score: i64,
     pub rank: usize,
     // How many played the map.
@@ -208,10 +229,12 @@ pub struct Standing {
     pub team_id: Uuid,
     // Seed in the qualifier; None until there's anything to rank.
     pub rank: Option<usize>,
-    pub z_sum: f64,
-    pub z_avg: f64,
+    // The sum of the maps' points, missing ones included: what the qualifier seeds by.
+    pub points: f64,
+    // The plays' average points: what a bracket stage ranks by.
+    pub points_avg: f64,
     pub plays: usize,
-    // The maps counted in z_sum, missing ones included.
+    // The maps counted in points, missing ones included.
     pub maps_counted: usize,
     pub total_score: i64,
     pub avg_score: f64,
@@ -327,7 +350,7 @@ pub fn compute(input: &Input) -> Stats {
         .map(|d| (d.match_id, d.map_id, d.team_id))
         .collect();
 
-    // Each map's fields and every play's Z and place.
+    // Each map's fields and every play's points and place.
     let mut plays: Vec<TeamPlay> = Vec::new();
     let mut maps: Vec<MapStats> = Vec::new();
     for &map_id in input.maps {
@@ -376,7 +399,7 @@ pub fn compute(input: &Input) -> Stats {
                     accuracy: s.accuracy,
                     mods: s.mods.clone(),
                     passed: s.passed,
-                    z: players.z(s.score as f64),
+                    points: players.points(s.score as f64),
                     rank: player_ranks[&(*s as *const ScoreIn)],
                 })
                 .collect();
@@ -408,7 +431,7 @@ pub fn compute(input: &Input) -> Stats {
                 team_id: a.team_id,
                 score,
                 accuracy,
-                z: teams.z(score as f64),
+                points: teams.points(score as f64),
                 rank: team_ranks[i],
                 won,
                 picked: is_pick,
@@ -468,7 +491,8 @@ pub fn compute(input: &Input) -> Stats {
             .find(|m| m.teams.contains(&team))
             .is_none_or(|m| m.concluded)
     };
-    let field_of = |map_id: Uuid| maps.iter().find(|m| m.map_id == map_id);
+    // A missing map only counts once somebody has played it.
+    let played = |map_id: Uuid| maps.iter().any(|m| m.map_id == map_id && m.teams.count > 0);
 
     let mut teams: Vec<Standing> = team_ids
         .iter()
@@ -478,14 +502,12 @@ pub fn compute(input: &Input) -> Stats {
             let mut per_map = Vec::new();
             for &map_id in input.maps {
                 let on: Vec<&&TeamPlay> = own.iter().filter(|p| p.map_id == map_id).collect();
-                let field = field_of(map_id).map(|m| m.teams);
                 if let Some(cell) = cell_of(
                     map_id,
                     &on.iter()
-                        .map(|p| (p.z, p.score, p.accuracy, p.rank))
+                        .map(|p| (p.points, p.score, p.accuracy, p.rank))
                         .collect::<Vec<_>>(),
-                    field,
-                    input.qualifier && !pending,
+                    input.qualifier && !pending && played(map_id),
                 ) {
                     per_map.push(cell);
                 }
@@ -499,7 +521,7 @@ pub fn compute(input: &Input) -> Stats {
                         .map(|p| Played {
                             map_id: p.map_id,
                             match_id: p.match_id,
-                            z: p.z,
+                            points: p.points,
                             score: p.score,
                             rank: p.rank,
                             accuracy: p.accuracy,
@@ -537,7 +559,7 @@ pub fn compute(input: &Input) -> Stats {
                     Some(Played {
                         map_id: p.map_id,
                         match_id: p.match_id,
-                        z: me.z,
+                        points: me.points,
                         score: me.score,
                         rank: me.rank,
                         accuracy: me.accuracy,
@@ -553,10 +575,11 @@ pub fn compute(input: &Input) -> Stats {
                 let on: Vec<(f64, i64, Option<f64>, usize)> = mine
                     .iter()
                     .filter(|p| p.map_id == map_id)
-                    .map(|p| (p.z, p.score, p.accuracy, p.rank))
+                    .map(|p| (p.points, p.score, p.accuracy, p.rank))
                     .collect();
-                let field = field_of(map_id).map(|m| m.players);
-                if let Some(cell) = cell_of(map_id, &on, field, input.qualifier && !pending) {
+                if let Some(cell) =
+                    cell_of(map_id, &on, input.qualifier && !pending && played(map_id))
+                {
                     per_map.push(cell);
                 }
             }
@@ -584,27 +607,20 @@ pub fn compute(input: &Input) -> Stats {
 struct Played {
     map_id: Uuid,
     match_id: Uuid,
-    z: f64,
+    points: f64,
     score: i64,
     rank: usize,
     accuracy: Option<f64>,
     team_best: bool,
 }
 
-// A standing on a map from its plays there (z, score, accuracy, rank); a missing map
-// gets the Z of a 0 against the field when `penalize`, and nothing otherwise. A map
-// nobody has played yet has no cell.
-fn cell_of(
-    map_id: Uuid,
-    plays: &[(f64, i64, Option<f64>, usize)],
-    field: Option<Field>,
-    penalize: bool,
-) -> Option<Cell> {
+// A standing on a map from its plays there (points, score, accuracy, rank); a map
+// without any is the missing map's -1 when `penalize`, and has no cell otherwise.
+fn cell_of(map_id: Uuid, plays: &[(f64, i64, Option<f64>, usize)], penalize: bool) -> Option<Cell> {
     if plays.is_empty() {
-        let field = field.filter(|f| f.count > 0 && penalize)?;
-        return Some(Cell {
+        return penalize.then_some(Cell {
             map_id,
-            z: field.z(0.0),
+            points: MISSING_POINTS,
             score: None,
             accuracy: None,
             rank: None,
@@ -614,7 +630,7 @@ fn cell_of(
     }
     Some(Cell {
         map_id,
-        z: plays.iter().map(|p| p.0).sum::<f64>() / plays.len() as f64,
+        points: plays.iter().map(|p| p.0).sum::<f64>() / plays.len() as f64,
         score: plays.iter().map(|p| p.1).max(),
         accuracy: mean(plays.iter().filter_map(|p| p.2)),
         rank: plays.iter().map(|p| p.3).min(),
@@ -659,14 +675,14 @@ fn standing(
     field_size: impl Fn(&MapStats) -> usize,
 ) -> Standing {
     let total_score: i64 = played.iter().map(|p| p.score).sum();
-    let z_sum: f64 = per_map.iter().map(|c| c.z).sum();
+    let points: f64 = per_map.iter().map(|c| c.points).sum();
     let best = played
         .iter()
-        .max_by(|a, b| a.z.total_cmp(&b.z))
+        .max_by(|a, b| a.points.total_cmp(&b.points))
         .map(|p| Standout {
             map_id: p.map_id,
             match_id: p.match_id,
-            z: p.z,
+            points: p.points,
             score: p.score,
             rank: p.rank,
             field: maps
@@ -678,8 +694,8 @@ fn standing(
         id,
         team_id,
         rank: None,
-        z_sum,
-        z_avg: mean(played.iter().map(|p| p.z)).unwrap_or(0.0),
+        points,
+        points_avg: mean(played.iter().map(|p| p.points)).unwrap_or(0.0),
         plays: played.len(),
         maps_counted: per_map.len(),
         total_score,
@@ -697,11 +713,11 @@ fn standing(
     }
 }
 
-// The qualifier seeds by the sum of Z (missing maps included), a bracket stage ranks by
-// the average Z of the plays; level values share a place. Standings with nothing to
-// rank go last, unranked.
+// The qualifier seeds by the sum of the maps' points (missing maps included), a bracket
+// stage ranks by the average points of the plays; level values share a place. Standings
+// with nothing to rank go last, unranked.
 fn rank_standings(rows: &mut [Standing], qualifier: bool) {
-    let value = |s: &Standing| if qualifier { s.z_sum } else { s.z_avg };
+    let value = |s: &Standing| if qualifier { s.points } else { s.points_avg };
     rows.sort_by(|a, b| {
         (b.maps_counted > 0)
             .cmp(&(a.maps_counted > 0))
@@ -775,7 +791,85 @@ mod tests {
     }
 
     #[test]
-    fn a_missing_qualifier_map_scores_as_a_zero_without_moving_the_field() {
+    fn points_are_the_share_of_a_normal_field_beaten() {
+        assert_eq!(normal_cdf(0.0), 0.5);
+        assert!((normal_cdf(1.0) - 0.841_344_746).abs() < 1e-9);
+        assert!((normal_cdf(-1.96) - 0.024_997_895).abs() < 1e-9);
+        // One deviation above and below the mean; the mean itself is a half.
+        let f = Field::of(&[800.0, 600.0, 400.0]);
+        assert!((f.points(800.0) - normal_cdf(1.0)).abs() < 1e-12);
+        assert_eq!(f.points(600.0), 0.5);
+        assert!((f.points(800.0) + f.points(400.0) - 1.0).abs() < 1e-12);
+        // Level plays can't be told apart: each is the field's middle.
+        assert_eq!(Field::of(&[700.0, 700.0]).points(700.0), 0.5);
+    }
+
+    #[test]
+    fn a_runaway_score_earns_no_more_than_its_map() {
+        // Team 1 runs away with map 1 and is last on map 2; team 2 is second on map 1 and
+        // first on map 2. Every play stays between 0 and 1, so the all-rounder is ahead.
+        let maps = [id(1), id(2)];
+        let members = members(&[1, 2, 3, 4]);
+        let matches = [lobby(50, &[1, 2, 3, 4], true)];
+        let scores: Vec<ScoreIn> = [
+            play(50, 1, 1, 1, [5000, 5000]),
+            play(50, 1, 1, 2, [150, 150]),
+            play(50, 1, 1, 3, [100, 100]),
+            play(50, 1, 1, 4, [100, 100]),
+            play(50, 2, 2, 1, [100, 100]),
+            play(50, 2, 2, 2, [400, 400]),
+            play(50, 2, 2, 3, [200, 200]),
+            play(50, 2, 2, 4, [300, 300]),
+        ]
+        .concat();
+        let stats = compute(&Input {
+            qualifier: true,
+            maps: &maps,
+            matches: &matches,
+            scores: &scores,
+            drafts: &[],
+            members: &members,
+        });
+        for s in stats.teams.iter().chain(&stats.players) {
+            assert_eq!(s.per_map.len(), 2);
+            assert!(s.per_map.iter().all(|c| c.points > 0.0 && c.points < 1.0));
+            let sum: f64 = s.per_map.iter().map(|c| c.points).sum();
+            assert!((s.points - sum).abs() < 1e-12);
+        }
+        assert_eq!(stats.teams[0].id, id(102));
+    }
+
+    #[test]
+    fn a_failed_play_counts_like_any_other() {
+        let maps = [id(1)];
+        let members = members(&[1, 2, 3]);
+        let matches = [lobby(50, &[1, 2, 3], true)];
+        let mut scores: Vec<ScoreIn> = [
+            play(50, 1, 1, 1, [400, 400]),
+            play(50, 1, 1, 2, [300, 300]),
+            play(50, 1, 1, 3, [200, 200]),
+        ]
+        .concat();
+        for s in scores.iter_mut().filter(|s| s.team_id == id(103)) {
+            s.passed = false;
+        }
+        let stats = compute(&Input {
+            qualifier: true,
+            maps: &maps,
+            matches: &matches,
+            scores: &scores,
+            drafts: &[],
+            members: &members,
+        });
+        // Team 3's failed play is in the field and scores its own points, not the -1.
+        assert_eq!(stats.maps[0].teams.count, 3);
+        let team3 = stats.teams.iter().find(|t| t.id == id(103)).unwrap();
+        assert!(!team3.per_map[0].missing);
+        assert!((team3.points - normal_cdf(-1.0)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn a_missing_qualifier_map_takes_a_point_off_without_moving_the_field() {
         let maps = [id(1), id(2)];
         let members = members(&[1, 2, 3]);
         let matches = [lobby(50, &[1, 2, 3], true)];
@@ -802,9 +896,14 @@ mod tests {
         let team3 = stats.teams.iter().find(|t| t.id == id(103)).unwrap();
         let missing = team3.per_map.iter().find(|c| c.map_id == id(2)).unwrap();
         assert!(missing.missing);
-        assert!((missing.z - map2.teams.z(0.0)).abs() < 1e-9);
         assert_eq!(team3.maps_counted, 2);
+        // A missing map is -1 point, however the others played it.
+        assert_eq!(missing.points, -1.0);
+        // Team 3 was a deviation under the mean on map 1.
+        assert!((team3.points - (normal_cdf(-1.0) - 1.0)).abs() < 1e-12);
         // Seeded by the sum: team 1 won both maps.
+        let best = normal_cdf(1.0) + normal_cdf(std::f64::consts::FRAC_1_SQRT_2);
+        assert!((stats.teams[0].points - best).abs() < 1e-12);
         let seeds: Vec<(Uuid, Option<usize>)> =
             stats.teams.iter().map(|t| (t.id, t.rank)).collect();
         assert_eq!(

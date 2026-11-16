@@ -7,7 +7,7 @@
   font-size: var(--text-md);
 }
 
-/* The stage shown: its name, what's been counted, and how the Z scores work. */
+/* The stage shown: its name, what's been counted, and how the points work. */
 .stats-stage {
   margin-bottom: var(--space-3);
 }
@@ -60,7 +60,6 @@
 
 .stats-explain {
   flex-basis: 100%;
-  max-width: 76ch;
   color: var(--color-text-muted);
   font-size: var(--text-md);
 }
@@ -79,8 +78,26 @@
   text-decoration-color: currentColor;
 }
 
+/* One ruled part per measure (the qualifier's seeding, then the points), side by side when there's room
+   for two readable columns. */
 .stats-explain-body {
-  padding: var(--space-2) 0 var(--space-1);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr));
+  gap: var(--space-4) var(--space-6);
+  max-width: 140ch;
+  padding: var(--space-3) 0 var(--space-2);
+}
+
+.stats-explain-part {
+  max-width: 72ch;
+  padding-top: var(--space-3);
+  border-top: var(--rule);
+}
+
+.stats-explain-part h3 {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text);
+  font-size: var(--text-lg);
 }
 
 .stats-explain-body p {
@@ -88,13 +105,51 @@
   line-height: 1.55;
 }
 
-.stats-explain-body .stats-formula {
-  color: var(--color-text);
-  font-family: var(--font-mono);
+.stats-explain-body p:last-child {
+  margin-bottom: 0;
 }
 
-.stats-explain-body strong {
+/* What the measure is, said once in ink before how it's worked out. */
+.stats-explain-body .stats-explain-lead {
   color: var(--color-text);
+}
+
+.stats-explain-body .stats-formula {
+  margin-block: var(--space-3);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+/* What a value means: the figure, then its meaning, a hairline between the rows. */
+.stats-explain-scale {
+  margin: var(--space-3) 0;
+  border-bottom: var(--rule);
+}
+
+.stats-explain-scale > div {
+  display: grid;
+  grid-template-columns: 3.5ch 1fr;
+  gap: var(--space-3);
+  align-items: baseline;
+  padding: var(--space-2) 0;
+  border-top: var(--rule);
+}
+
+.stats-explain-scale dt {
+  color: var(--color-text);
+  font-family: var(--font-display);
+  font-stretch: var(--font-display-stretch);
+  font-size: var(--text-lg);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: right;
+}
+
+.stats-explain-scale dd {
+  margin: 0;
+  line-height: 1.55;
 }
 
 /* The sections, as a ruled strip of tabs (the open one underlined in frost), with the open
@@ -276,7 +331,7 @@
   font-weight: 800;
 }
 
-/* A Z score sits at the column's end, so its figure lines up under the head: the head stops
+/* A points figure sits at the column's end, so its figure lines up under the head: the head stops
    where the figure does, short of the meter beside it. */
 .stats-table .is-z {
   width: 1%;

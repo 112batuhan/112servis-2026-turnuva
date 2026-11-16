@@ -26,9 +26,10 @@ use crate::{
 #[derive(Debug, Serialize)]
 pub struct SeedStanding {
     pub rank: usize,
-    pub z_sum: f64,
+    // The sum of its points (Z-percentiles) over the pool: what the qualifier ranks by.
+    pub points: f64,
     pub total_score: i64,
-    // Maps played, and maps counted as a 0 (missed although the lobby is over).
+    // Maps played, and maps counted as -1 (no score although the lobby is over).
     pub plays: usize,
     pub missing: usize,
     // Its lobby isn't over, so its missing maps don't count yet.
@@ -99,7 +100,7 @@ pub async fn view(state: &AppState) -> Result<SeedingView, AppError> {
                     s.id,
                     SeedStanding {
                         rank,
-                        z_sum: s.z_sum,
+                        points: s.points,
                         total_score: s.total_score,
                         plays: s.plays,
                         missing: s.per_map.iter().filter(|c| c.missing).count(),

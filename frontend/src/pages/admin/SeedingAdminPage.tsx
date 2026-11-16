@@ -152,7 +152,9 @@ export function SeedingAdminPage() {
                     </>
                   )}
                 </p>
-                <p className="seeding-note">Seed sırası kilitlendi. Yeni bracket için önce bütün maçları kaldır.</p>
+                <p className="seeding-note">
+                  Seed sırası kilitlendi. Yeni bracket için önce bütün maçları kaldır.
+                </p>
                 <div className="seeding-actions">
                   <Link to="/admin/bracket" className="btn btn-secondary">
                     <Icon name="bracket" size={16} />
@@ -274,7 +276,7 @@ export function SeedingAdminPage() {
                   <span>Seed</span>
                   <span>Takım</span>
                   <span className="is-right">Eleme</span>
-                  <span className="is-right seeding-opt">Z toplamı</span>
+                  <span className="is-right seeding-opt">Puan</span>
                   <span className="is-right seeding-opt2">Mapler</span>
                   <span />
                 </li>
@@ -438,7 +440,11 @@ function SeedRow({
         )}
       </span>
       <span className="is-right seeding-opt">
-        {q ? <ZValue z={q.z_sum} size="lg" /> : <span className="seeding-none">—</span>}
+        {q ? (
+          <ZValue value={q.points} max={poolSize} size="lg" />
+        ) : (
+          <span className="seeding-none">—</span>
+        )}
       </span>
       <span className="is-right seeding-opt2 seeding-maps">
         {q ? (
@@ -447,7 +453,7 @@ function SeedRow({
               {q.plays}/{poolSize}
             </span>
             {q.missing > 0 ? (
-              <span className="seeding-missing">{q.missing} eksik · 0 sayıldı</span>
+              <span className="seeding-missing">{q.missing} eksik · her biri −1</span>
             ) : (
               <span className="seeding-total num">{score.format(q.total_score)}</span>
             )}
