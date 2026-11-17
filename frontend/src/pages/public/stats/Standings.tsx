@@ -101,7 +101,7 @@ export function Standings({ kind, index, ownTeam }: Props) {
   const columns: Column[] = useMemo(() => {
     const points: Column = {
       id: "points",
-      label: q ? "Puan" : "Ort. puan",
+      label: q ? "Toplam puan" : "Ort. puan",
       title: q
         ? "Sıralama puanı: her map'teki skorun Z-yüzdeliği (0–1) toplanır; skoru olmayan her map için 1 puan düşülür"
         : "Oynanan maplerdeki puanların (Z-yüzdelik, 0–1) ortalaması",
@@ -386,7 +386,8 @@ export function Standings({ kind, index, ownTeam }: Props) {
             onSort={toggleMapSort}
             total={(s) => (q ? s.points : s.points_avg)}
             totalMax={q ? poolSize : 1}
-            whoLabel={`${kind === "teams" ? "Takım" : "Oyuncu"} · ${q ? "Puan" : "Ort. puan"}`}
+            whoLabel={kind === "teams" ? "Takım" : "Oyuncu"}
+            totalLabel={q ? "Toplam puan" : "Ort. puan"}
           />
         </>
       )}
@@ -537,12 +538,13 @@ interface MatrixProps {
   /** The most the total can be: the pool's size for the qualifier's sum, 1 for an average. */
   totalMax: number;
   whoLabel: string;
+  totalLabel: string;
 }
 
 /**
  * The rows against every map of the pool: each cell what they did there (the metric picked),
  * shaded brighter the further above the map's mean they were. A missing qualifier map shows its
- * penalty.
+ * penalty under points and "Oynamadı" under the other metrics.
  */
 function Matrix({
   rows,
@@ -556,6 +558,7 @@ function Matrix({
   total,
   totalMax,
   whoLabel,
+  totalLabel,
 }: MatrixProps) {
   return (
     <div className="stats-matrix-wrap">
@@ -563,7 +566,12 @@ function Matrix({
         <thead>
           <tr>
             <th className="is-rank">Sıra</th>
-            <th className="stats-matrix-who">{whoLabel}</th>
+            <th className="stats-matrix-who">
+              <span className="stats-matrix-who-line">
+                <span>{whoLabel}</span>
+                <span>{totalLabel}</span>
+              </span>
+            </th>
             {index.entries.map((e) => (
               <th
                 key={e.map.id}
@@ -648,7 +656,7 @@ function MatrixCell({
         className="stats-matrix-cell is-missing"
         title={`Skoru yok: ${formatPoints(cell.points)} puan sayıldı`}
       >
-        {formatPoints(cell.points)}
+        {metric === "points" ? formatPoints(cell.points) : "Oynamadı"}
       </td>
     );
   }
