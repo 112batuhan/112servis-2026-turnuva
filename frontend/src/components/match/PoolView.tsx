@@ -136,7 +136,8 @@ export function PoolView({
                   className={`pool-mark is-team-${banned.color}`}
                   title={`${banned.name} yasakladı`}
                 >
-                  yasak
+                  <Icon name="ban" size={14} />
+                  <span className="sr-only">{`${banned.name} yasakladı`}</span>
                 </span>
               )}
               {picked && (
@@ -144,7 +145,8 @@ export function PoolView({
                   className={`pool-mark is-team-${picked.color}`}
                   title={`${picked.name} seçti`}
                 >
-                  seçim
+                  <Icon name="target" size={14} />
+                  <span className="sr-only">{`${picked.name} seçti`}</span>
                 </span>
               )}
               {!banned && !picked && current && <span className="pool-mark is-current">Odada</span>}

@@ -269,6 +269,8 @@
 
 /* What happened to the map, in the colour of the team that did it. */
 .pool-mark {
+  display: inline-flex;
+  align-items: center;
   flex-shrink: 0;
   max-width: 7rem;
   overflow: hidden;
