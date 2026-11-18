@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Icon } from "../Icon";
 import { IconButton } from "../IconButton";
 import { splitMods, type MapResult } from "../../lib/bancho";
-import { bestOfLabel, firstTo, raceOf, type Race } from "../../lib/bestOf";
+import { bestOfLabel, firstTo, standingOf, type Standing } from "../../lib/bestOf";
 import { formatScore } from "../../lib/format";
 import type { ManualResult } from "../../api/types";
 import {
@@ -71,8 +71,8 @@ interface ScoreSheetProps {
   ignore?: { ignored: Set<string>; disabled: boolean; toggle: (key: string) => void };
   /** The button that takes back a hand-awarded result. */
   renderManualAction?: (manual: ManualResult, label: string) => ReactNode;
-  /** The referee's control in the race line (concluding a won match). */
-  raceAction?: (race: Race) => ReactNode;
+  /** The referee's control in the standing line (concluding a won match). */
+  standingAction?: (standing: Standing) => ReactNode;
   /** Under the maps. */
   footer?: ReactNode;
 }
@@ -87,7 +87,7 @@ export function ScoreSheet({
   status,
   ignore,
   renderManualAction,
-  raceAction,
+  standingAction,
   footer,
 }: ScoreSheetProps) {
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -102,8 +102,8 @@ export function ScoreSheet({
       ? [room.team1_score ?? 0, room.team2_score ?? 0]
       : [tally.team1, tally.team2]
     : null;
-  const race =
-    bestOf !== null && score && !room.forfeit_slot ? raceOf(bestOf, score[0], score[1]) : null;
+  const standing =
+    bestOf !== null && score && !room.forfeit_slot ? standingOf(bestOf, score[0], score[1]) : null;
 
   // A lobby has no score: just its finished pool maps.
   const rows: ResultRow[] = tally?.rows ?? poolRows(finished, entries);
@@ -135,8 +135,14 @@ export function ScoreSheet({
         <div className="sheet-head-end" />
       </div>
 
-      {race && score && !concluded && (
-        <RaceLine race={race} score={score} teams={teams} room={room} action={raceAction} />
+      {standing && score && !concluded && (
+        <StandingLine
+          standing={standing}
+          score={score}
+          teams={teams}
+          room={room}
+          action={standingAction}
+        />
       )}
 
       {empty && (
@@ -358,33 +364,33 @@ function ScoreHeads({
  * point, a team that has the wins it needs (the referee still concludes it), or a score the best
  * of can't have. Nothing otherwise; the tiebreaker shows in the pool and the room.
  */
-function RaceLine({
-  race,
+function StandingLine({
+  standing,
   score,
   teams,
   room,
   action,
 }: {
-  race: Race;
+  standing: Standing;
   score: [number, number];
   teams: MatchTeam[];
   room: MatchData;
-  action?: (race: Race) => ReactNode;
+  action?: (standing: Standing) => ReactNode;
 }) {
-  if (race.kind === "open" || race.kind === "tiebreaker") return null;
+  if (standing.kind === "open" || standing.kind === "tiebreaker") return null;
   const bestOf = room.stage?.best_of ?? 0;
   const line = `${score[0]} – ${score[1]}`;
   let tone = "";
   let body: ReactNode;
-  switch (race.kind) {
+  switch (standing.kind) {
     case "matchPoint": {
-      const team = teams[race.slots[0] - 1];
+      const team = teams[standing.slots[0] - 1];
       tone = ` is-match-point is-team-${team.color}`;
       body = (
         <>
-          <strong className="sheet-race-title">Maç sayısı</strong>
-          <span className="sheet-race-detail">
-            <span className={`sheet-race-team is-team-${team.color}`}>{team.name}</span> bir map
+          <strong className="sheet-standing-title">Maç sayısı</strong>
+          <span className="sheet-standing-detail">
+            <span className={`sheet-standing-team is-team-${team.color}`}>{team.name}</span> bir map
             daha alırsa kazanır
           </span>
         </>
@@ -392,12 +398,12 @@ function RaceLine({
       break;
     }
     case "won": {
-      const team = teams[race.slot - 1];
+      const team = teams[standing.slot - 1];
       tone = ` is-won is-team-${team.color}`;
       body = (
         <>
-          <strong className="sheet-race-title">{team.name} maçı aldı</strong>
-          <span className="sheet-race-detail">
+          <strong className="sheet-standing-title">{team.name} maçı aldı</strong>
+          <span className="sheet-standing-detail">
             {line} · {bestOfLabel(bestOf)} · hakem onaylayınca kesinleşir
           </span>
         </>
@@ -408,19 +414,19 @@ function RaceLine({
       tone = " is-over";
       body = (
         <>
-          <strong className="sheet-race-title">Skor {bestOfLabel(bestOf)}'u aşıyor</strong>
-          <span className="sheet-race-detail">
+          <strong className="sheet-standing-title">Skor {bestOfLabel(bestOf)}'u aşıyor</strong>
+          <span className="sheet-standing-detail">
             {line} · sayılan map'lere bak, fazladan biri sayılmış olabilir
           </span>
         </>
       );
       break;
   }
-  const extra = action?.(race);
+  const extra = action?.(standing);
   return (
-    <div className={`sheet-race${tone}`} role="status">
-      <span className="sheet-race-text">{body}</span>
-      {extra && <span className="sheet-race-action">{extra}</span>}
+    <div className={`sheet-standing${tone}`} role="status">
+      <span className="sheet-standing-text">{body}</span>
+      {extra && <span className="sheet-standing-action">{extra}</span>}
     </div>
   );
 }

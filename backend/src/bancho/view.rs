@@ -11,8 +11,8 @@ use super::{
     context::MatchContext,
     room::{MapScore, RoomState},
     tally::{
-        entry_of, race_of, room_results, row_of, tally, turn_of, Finished, Race, TallyInput,
-        TeamTotal,
+        entry_of, room_results, row_of, standing_of, tally, turn_of, Finished, Standing,
+        TallyInput, TeamTotal,
     },
 };
 use crate::{draft::Turn, osu_api::matches::MatchGame};
@@ -160,8 +160,8 @@ pub fn build(
     // Nobody picks at the tiebreaker or once a team has won.
     let drafting = match (&tallied, ctx.best_of) {
         (Some(t), Some(best_of)) => !matches!(
-            race_of(best_of, t.team1, t.team2),
-            Race::Tiebreaker | Race::Won
+            standing_of(best_of, t.team1, t.team2),
+            Standing::Tiebreaker | Standing::Won
         ),
         _ => true,
     };

@@ -6,5 +6,6 @@ pub mod autoref;
 pub mod bracket;
 pub mod matches;
 pub mod notifications;
+pub mod referee;
 pub mod seeding;
 pub mod stats;

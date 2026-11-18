@@ -38,7 +38,7 @@ import {
   type ScoreMode,
   type SlotTeam,
 } from "../../../lib/bancho";
-import { raceOf, type Race } from "../../../lib/bestOf";
+import { standingOf, type Standing } from "../../../lib/bestOf";
 import { LIVE_REFRESH_MS } from "../../../lib/useLiveRefresh";
 import {
   currentEntryOf,
@@ -227,12 +227,12 @@ export function useRefereeRoom(matchId: string) {
   const scoreSaved = live?.score_saved ?? false;
 
   // How many maps the match is played to and where the score stands against it. Concluding stays
-  // the referee's call: a decided race only offers it.
+  // the referee's call: a decided match only offers it.
   const bestOf = room?.kind === "bracket" ? (room.stage?.best_of ?? null) : null;
-  const race = useMemo<Race | null>(
+  const standing = useMemo<Standing | null>(
     () =>
       bestOf !== null && tally !== null && !room?.forfeit_slot
-        ? raceOf(bestOf, tally.team1, tally.team2)
+        ? standingOf(bestOf, tally.team1, tally.team2)
         : null,
     [bestOf, tally, room?.forfeit_slot],
   );
@@ -240,7 +240,7 @@ export function useRefereeRoom(matchId: string) {
   // The bans and picks against the stage's order, and the next one (the order's, or the referee's
   // say until the next mark). Nobody bans or picks at the tiebreaker or once a team has won.
   const drafting =
-    room?.concluded_at === null && race?.kind !== "tiebreaker" && race?.kind !== "won";
+    room?.concluded_at === null && standing?.kind !== "tiebreaker" && standing?.kind !== "won";
   const draft = useMemo(
     () => (room ? matchDraft(room, room.settings.next_pick_team_id, drafting) : null),
     [room, drafting],
@@ -498,7 +498,7 @@ export function useRefereeRoom(matchId: string) {
     tally,
     scoreSaved,
     bestOf,
-    race,
+    standing,
     streamer,
     streamerIsRef,
     autoEnabled,

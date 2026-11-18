@@ -1,4 +1,4 @@
-//! The auto referee's saved state and log (bancho/autoref.rs), its switch, and the
+//! The auto referee's saved state and log (bancho/autoref/), its switch, and the
 //! matches it should open a room for now.
 
 use serde::Serialize;

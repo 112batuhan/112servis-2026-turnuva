@@ -14,7 +14,7 @@ pub struct RoomSettings {
     #[serde(with = "time::serde::rfc3339::option")]
     pub osu_synced_at: Option<OffsetDateTime>,
     pub next_pick_team_id: Option<Uuid>,
-    // The auto referee runs the match (bancho/autoref.rs); false: manual control.
+    // The auto referee runs the match (bancho/autoref/); false: manual control.
     pub auto_ref: bool,
 }
 

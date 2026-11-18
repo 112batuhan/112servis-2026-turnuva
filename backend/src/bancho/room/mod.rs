@@ -3,12 +3,26 @@
 //! BanchoBot's; anything unrecognised is just left in the chat. The room's state is a
 //! fold of its saved chat, so a restart reads it back from the database.
 
+pub mod commands;
+mod mods;
+mod parse;
+#[cfg(test)]
+mod tests;
+
+pub use mods::{is_freemod, mod_acronyms, split_mods};
+pub use parse::{parse_created, parse_joined, parse_left};
+
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
-use super::irc::{normalize_name, same_name};
+use crate::bancho::names::{normalize_name, same_name};
+
+use self::{
+    mods::describe_mods,
+    parse::{digits, parse_finished, parse_slot, word},
+};
 
 // BanchoBot's line as a map starts.
 pub const MATCH_STARTED: &str = "The match has started!";
@@ -112,184 +126,6 @@ pub struct RoomState {
     // When the map being played started: the room's last "The match has started!".
     #[serde(with = "time::serde::rfc3339::option")]
     pub map_started_at: Option<OffsetDateTime>,
-}
-
-// The room id from BanchoBot's reply to !mp make.
-pub fn parse_created(text: &str) -> Option<i64> {
-    let rest = text.strip_prefix("Created the tournament match ")?;
-    let rest = rest.strip_prefix(OSU)?.strip_prefix("/mp/")?;
-    let (id, _) = rest.split_once(' ').unwrap_or((rest, ""));
-    id.parse().ok()
-}
-
-// BanchoBot announcing a player joining: their name, slot and team.
-pub fn parse_joined(text: &str) -> Option<(&str, i32, Option<SlotTeam>)> {
-    let body = text.strip_suffix('.')?;
-    let at = body.rfind(" joined in slot ")?;
-    let (name, rest) = (&body[..at], &body[at + " joined in slot ".len()..]);
-    if name.is_empty() {
-        return None;
-    }
-    let (slot, team) = match rest.split_once(" for team ") {
-        Some((slot, team)) => (
-            slot,
-            Some(SlotTeam::parse(team).filter(|_| team == "red" || team == "blue")?),
-        ),
-        None => (rest, None),
-    };
-    Some((name, digits(slot)?, team))
-}
-
-// BanchoBot announcing someone leaving the room, or being kicked from it: their name.
-pub fn parse_left(text: &str) -> Option<&str> {
-    let name = text.strip_suffix(" left the game.").or_else(|| {
-        text.strip_prefix("Kicked ")
-            .and_then(|t| t.strip_suffix(" from the match."))
-    })?;
-    (!name.is_empty()).then_some(name)
-}
-
-fn digits(s: &str) -> Option<i32> {
-    (!s.is_empty() && s.bytes().all(|b| b.is_ascii_digit()))
-        .then(|| s.parse().ok())
-        .flatten()
-}
-
-fn word(s: &str) -> bool {
-    !s.is_empty() && s.chars().all(|c| c.is_alphanumeric() || c == '_')
-}
-
-// BanchoBot's mod names, as osu! abbreviates them.
-fn mod_acronym(name: &str) -> String {
-    match name {
-        "nofail" => "NF",
-        "easy" => "EZ",
-        "touchdevice" => "TD",
-        "hidden" => "HD",
-        "hardrock" => "HR",
-        "suddendeath" => "SD",
-        "doubletime" => "DT",
-        "relax" => "RX",
-        "halftime" => "HT",
-        "nightcore" => "NC",
-        "flashlight" => "FL",
-        "spunout" => "SO",
-        "relax2" | "autopilot" => "AP",
-        "perfect" => "PF",
-        "fadein" => "FI",
-        "mirror" => "MR",
-        "scorev2" => "V2",
-        other => return other.to_uppercase(),
-    }
-    .to_string()
-}
-
-// "Hidden, HardRock" (BanchoBot's names, freemod left out) as acronyms: "HDHR".
-pub fn mod_acronyms(names: &str) -> String {
-    names
-        .split(',')
-        .map(|n| n.split_whitespace().collect::<String>().to_lowercase())
-        .filter(|n| !n.is_empty() && n != "freemod" && n != "none")
-        .map(|n| mod_acronym(&n))
-        .collect()
-}
-
-// "HDHR" -> ["HD", "HR"]; "NM" and "" are no mods.
-pub fn split_mods(acronyms: &str) -> Vec<String> {
-    let upper: Vec<char> = acronyms
-        .to_uppercase()
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric())
-        .collect();
-    upper
-        .chunks(2)
-        .filter(|c| c.len() == 2)
-        .map(|c| c.iter().collect::<String>())
-        .filter(|m| m != "NM")
-        .collect()
-}
-
-// Whether the room's mods, as BanchoBot described them, include freemod.
-pub fn is_freemod(mods: Option<&str>) -> bool {
-    let lower = mods.unwrap_or_default().to_lowercase();
-    lower.contains("freemod") || lower.contains("free mod")
-}
-
-// "Enabled Hidden, NoFail, disabled FreeMod" / "Disabled all mods, enabled FreeMod"
-fn describe_mods(text: &str) -> String {
-    if text.to_lowercase().contains("enabled freemod") {
-        return "Freemod".into();
-    }
-    match text.strip_prefix("Enabled ") {
-        Some(rest) => match rest.find(", disabled ") {
-            Some(i) => rest[..i].to_string(),
-            None => rest.to_string(),
-        },
-        None => String::new(),
-    }
-}
-
-// "Slot 1  Ready https://osu.ppy.sh/u/2 Name  [Host / Team Blue / Hidden]"
-fn parse_slot(text: &str) -> Option<RoomSlot> {
-    let rest = text.strip_prefix("Slot ")?;
-    let (slot, rest) = rest.split_once(' ')?;
-    let slot = digits(slot)?;
-    let url = format!(" {OSU}/u/");
-    let at = rest.find(&url)?;
-    let status = rest[..at].trim();
-    if !status.starts_with(|c: char| c.is_ascii_alphabetic())
-        || !status.chars().all(|c| c.is_ascii_alphabetic() || c == ' ')
-    {
-        return None;
-    }
-    let rest = &rest[at + url.len()..];
-    let (id, rest) = rest.split_once(' ')?;
-    let user_id: i64 = id.parse().ok()?;
-    // The name is padded with spaces and may be followed by " [Host / Team Red / mods]".
-    let (name, extra) = match rest.strip_suffix(']') {
-        Some(inner) => {
-            let open = (1..inner.len())
-                .filter(|&i| inner.is_char_boundary(i))
-                .find(|&i| inner[i..].starts_with(' ') && inner[i..].trim_start().starts_with('['));
-            match open {
-                Some(i) => {
-                    let bracket = inner[i..].find('[').map(|b| i + b + 1)?;
-                    (&inner[..i], Some(&inner[bracket..]))
-                }
-                None => (rest, None),
-            }
-        }
-        None => (rest, None),
-    };
-    let name = name.trim();
-    if name.is_empty() {
-        return None;
-    }
-    let parts: Vec<&str> = extra
-        .unwrap_or_default()
-        .split(" / ")
-        .map(str::trim)
-        .collect();
-    let team_part = parts.iter().copied().find(|p| p.starts_with("Team "));
-    let mods: Vec<&str> = parts
-        .iter()
-        .copied()
-        .filter(|&p| p != "Host" && Some(p) != team_part && !p.is_empty())
-        .collect();
-    Some(RoomSlot {
-        slot,
-        username: name.to_string(),
-        user_id: Some(user_id),
-        team: team_part.and_then(|t| SlotTeam::parse(&t[5..])),
-        status: match status {
-            "Ready" => SlotStatus::Ready,
-            "No Map" => SlotStatus::NoMap,
-            _ => SlotStatus::NotReady,
-        },
-        host: parts.contains(&"Host"),
-        mods: mod_acronyms(&mods.join(", ")),
-        mods_known: true,
-    })
 }
 
 impl RoomState {
@@ -570,29 +406,6 @@ impl RoomState {
     }
 }
 
-// "Name finished playing (Score: 123, PASSED)."
-fn parse_finished(text: &str) -> Option<MapScore> {
-    let body = text.strip_suffix(").")?;
-    let at = body.rfind(" finished playing (Score: ")?;
-    let name = &body[..at];
-    let (score, result) = body[at + " finished playing (Score: ".len()..].split_once(", ")?;
-    if name.is_empty() || !score.bytes().all(|b| b.is_ascii_digit()) {
-        return None;
-    }
-    let passed = match result {
-        "PASSED" => true,
-        "FAILED" => false,
-        _ => return None,
-    };
-    Some(MapScore {
-        username: name.to_string(),
-        user_id: None,
-        score: score.parse().ok()?,
-        passed,
-        mods: None,
-    })
-}
-
 // A room as BanchoBot's lines in its chat describe it.
 pub fn read_lobby<'a>(lines: impl IntoIterator<Item = (&'a str, OffsetDateTime)>) -> RoomState {
     let mut room = RoomState::default();
@@ -600,111 +413,4 @@ pub fn read_lobby<'a>(lines: impl IntoIterator<Item = (&'a str, OffsetDateTime)>
         room.apply(text, at);
     }
     room
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn now() -> OffsetDateTime {
-        OffsetDateTime::UNIX_EPOCH
-    }
-
-    fn read(lines: &[&str]) -> RoomState {
-        read_lobby(lines.iter().map(|l| (*l, now())))
-    }
-
-    #[test]
-    fn reads_settings() {
-        let room = read(&[
-            "Room name: 112S: (A) vs (B), History: https://osu.ppy.sh/mp/123",
-            "Beatmap: https://osu.ppy.sh/b/42 Artist - Title [Hard]",
-            "Team mode: TeamVs, Win condition: ScoreV2",
-            "Active mods: Freemod",
-            "Players: 2",
-            "Slot 1  Not Ready https://osu.ppy.sh/u/-5 Dev Player [Host / Team Blue / Hidden, HardRock]",
-            "Slot 3  Ready     https://osu.ppy.sh/u/7 [Toy]           [Team Red]",
-        ]);
-        assert_eq!(room.name.as_deref(), Some("112S: (A) vs (B)"));
-        assert_eq!(room.beatmap_id, Some(42));
-        assert_eq!(room.team_mode.as_deref(), Some("TeamVs"));
-        assert!(is_freemod(room.mods.as_deref()));
-        assert_eq!(room.slots.len(), 2);
-        let a = &room.slots[0];
-        assert_eq!(
-            (a.slot, a.user_id, a.username.as_str()),
-            (1, Some(-5), "Dev Player")
-        );
-        assert_eq!(a.team, Some(SlotTeam::Blue));
-        assert!(a.host);
-        assert_eq!(a.mods, "HDHR");
-        let b = &room.slots[1];
-        assert_eq!(
-            (b.username.as_str(), b.status, b.team),
-            ("[Toy]", SlotStatus::Ready, Some(SlotTeam::Red))
-        );
-    }
-
-    #[test]
-    fn follows_live_events() {
-        let mut room = read(&[
-            "A joined in slot 1 for team blue.",
-            "B b joined in slot 2.",
-            "B b moved to slot 4",
-            "B b changed to Red",
-            "Changed beatmap to https://osu.ppy.sh/b/9 Song [Insane]",
-            "Enabled Hidden, NoFail, disabled FreeMod",
-            "Added Some_Ref to the match referees",
-        ]);
-        assert_eq!(
-            room.slots.iter().map(|s| s.slot).collect::<Vec<_>>(),
-            [1, 4]
-        );
-        assert_eq!(room.slots[1].team, Some(SlotTeam::Red));
-        assert_eq!(room.beatmap_id, Some(9));
-        assert_eq!(room.mods.as_deref(), Some("Hidden, NoFail"));
-        assert!(room.is_ref("some ref"));
-        room.apply(MATCH_STARTED, now());
-        assert!(room.playing);
-        room.apply("A finished playing (Score: 1000, PASSED).", now());
-        room.apply("B b finished playing (Score: 900, FAILED).", now());
-        room.apply("The match has finished!", now());
-        assert!(!room.playing);
-        let result = &room.results[0];
-        assert_eq!(result.beatmap_id, Some(9));
-        assert_eq!(result.room_mods, "HDNF");
-        assert!(!result.freemod);
-        assert_eq!(result.scores[1].mods.as_deref(), Some("HDNF"));
-        assert!(!result.scores[1].passed);
-        room.apply("Kicked A from the match.", now());
-        room.apply("B b left the game.", now());
-        assert!(room.slots.is_empty());
-        room.apply("Removed Some_Ref from the match referees", now());
-        assert!(room.refs.is_empty());
-    }
-
-    #[test]
-    fn parses_replies() {
-        assert_eq!(
-            parse_created(
-                "Created the tournament match https://osu.ppy.sh/mp/111 112S: (A) vs (B)"
-            ),
-            Some(111)
-        );
-        assert_eq!(
-            parse_joined("x joined in slot 3 for team red."),
-            Some(("x", 3, Some(SlotTeam::Red)))
-        );
-        assert_eq!(parse_left("Kicked y from the match."), Some("y"));
-        assert_eq!(mod_acronyms("Hidden, DoubleTime"), "HDDT");
-        assert_eq!(split_mods("hdhrNM"), ["HD", "HR"]);
-        let mut room = RoomState::default();
-        room.apply(
-            "Beatmap changed to: Song [Hard] (https://osu.ppy.sh/b/5)",
-            now(),
-        );
-        assert_eq!(room.beatmap_id, Some(5));
-        room.apply("Changed match settings to 4 slots, TeamVs, ScoreV2", now());
-        assert_eq!(room.size, Some(4));
-    }
 }

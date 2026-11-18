@@ -168,7 +168,7 @@ function MatchView({ matchId }: { matchId: string }) {
                 played={page.played}
                 draft={page.draft}
                 phase={
-                  page.live && page.teams.length === 2 ? draftPhase(page.turn, page.race) : null
+                  page.live && page.teams.length === 2 ? draftPhase(page.turn, page.standing) : null
                 }
               />
             )}
@@ -351,12 +351,12 @@ function SheetStatus({ page }: { page: MatchPageState }) {
 
 /** The phone's pool tab: the next ban or pick by the stage's order, its team in their colour. */
 function PoolStatus({ page }: { page: MatchPageState }) {
-  const { match, teams, turn, live, race } = page;
+  const { match, teams, turn, live, standing } = page;
   if (!match) return null;
   const maps = poolEntries(match).length;
-  if (!live || teams.length !== 2 || maps === 0 || race?.kind === "won")
+  if (!live || teams.length !== 2 || maps === 0 || standing?.kind === "won")
     return <span className="num">{maps} map</span>;
-  if (race?.kind === "tiebreaker") return <span>Tiebreaker</span>;
+  if (standing?.kind === "tiebreaker") return <span>Tiebreaker</span>;
   if (!turn) return <span className="num">{maps} map</span>;
   return <TurnStatus turn={turn} />;
 }

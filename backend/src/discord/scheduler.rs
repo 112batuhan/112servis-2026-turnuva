@@ -12,7 +12,7 @@ use crate::{db, AppState};
 const CHECK_EVERY: Duration = Duration::from_secs(30);
 const REMIND_BEFORE_SECS: i64 = 60 * 60;
 const ANNOUNCE_BEFORE_SECS: i64 = 15 * 60;
-// The auto referee's reminder: it opens the room 10 minutes before (bancho/manager.rs).
+// The auto referee's reminder: it opens the room 10 minutes before (bancho/manager/timers.rs).
 const AUTOREF_REMIND_BEFORE_SECS: i64 = 20 * 60;
 
 pub async fn run(state: AppState) {

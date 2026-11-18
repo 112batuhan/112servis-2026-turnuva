@@ -1,0 +1,388 @@
+//! Driving the auto referee (crate::bancho::autoref): handing it a snapshot of the match,
+//! carrying out the actions it returns, and the private messages players send the bots.
+
+use std::collections::HashSet;
+
+use time::OffsetDateTime;
+use tokio::time::Instant;
+use uuid::Uuid;
+
+use crate::bancho::{
+    autoref::{Action, AutoRef, Snapshot},
+    connection::{
+        bot::Priority,
+        irc::{room_channel, valid_name},
+    },
+    names::same_name,
+    room::commands::player_ref,
+    tally::{osu_results, tally, TallyInput},
+    view::{finished_of, RoomAccess, ViewRoom},
+    Request,
+};
+use crate::{
+    db::{self, autoref::LogLevel, matches::MatchKind},
+    discord::jobs::Alert,
+    error::{AppError, MatchError},
+    osu_api,
+    services::{self, bracket::Mark},
+};
+
+use super::read_osu_games;
+use super::{AutoWrite, Manager, INVITE_EVERY};
+
+impl Manager {
+    pub(super) fn auto_log(&self, id: Uuid, level: LogLevel, message: String) {
+        let _ = self.autoref.send(AutoWrite::Log(id, level, message));
+    }
+
+    // The latest room, when the auto referee runs the match now: it's in auto mode, not
+    // over, and the room's bot is in the room.
+    pub(super) fn auto_on(&self, id: Uuid) -> Option<i64> {
+        let run = self.runs.get(&id)?;
+        let ctx = &run.ctx;
+        if !ctx.settings.auto_ref || ctx.concluded() || (ctx.is_bracket() && ctx.sides.is_none()) {
+            return None;
+        }
+        let mp_id = self.latest_room(id)?;
+        let room = self.rooms.get(&mp_id)?;
+        (room.joined && !room.closed && self.bot_online(room.bot)).then_some(mp_id)
+    }
+
+    // The match as its auto referee reads it, for `f`. None without a room.
+    pub(super) fn with_snapshot<R>(&self, id: Uuid, f: impl FnOnce(&Snapshot) -> R) -> Option<R> {
+        let run = self.runs.get(&id)?;
+        let view = self.base_view(id)?;
+        let room = *self.match_rooms(id).last()?;
+        let ctx = &run.ctx;
+        let played: HashSet<Uuid> = view
+            .finished
+            .iter()
+            .filter(|f| f.counted)
+            .filter_map(|f| f.map_id)
+            .collect();
+        let finished: HashSet<Uuid> = view.finished.iter().filter_map(|f| f.map_id).collect();
+        let snapshot = Snapshot {
+            now: OffsetDateTime::now_utc(),
+            bracket: ctx.is_bracket(),
+            starts_at: ctx.starts_at,
+            room_added_at: room.added_at,
+            teams: &ctx.teams,
+            roster: &ctx.roster,
+            entries: &ctx.entries,
+            bans: &ctx.bans,
+            picks: &ctx.picks,
+            turn: view.next_turn,
+            score: view.tally.as_ref().map(|t| (t.team1, t.team2)),
+            best_of: ctx.best_of,
+            played: &played,
+            finished: &finished,
+            room: &room.state,
+            no_fail: ctx.settings.no_fail,
+            first_step_team: ctx.draft_order.steps.first().map_or(1, |s| s.team),
+        };
+        Some(f(&snapshot))
+    }
+
+    // Runs `f` on the match's auto referee with the match as it stands, saves where it
+    // stands, and does what it asked.
+    pub(super) async fn drive(
+        &mut self,
+        id: Uuid,
+        f: impl FnOnce(&mut AutoRef, &Snapshot, &mut Vec<Action>),
+    ) {
+        let Some(mut auto) = self.runs.get_mut(&id).map(|r| std::mem::take(&mut r.auto)) else {
+            return;
+        };
+        let mut out = Vec::new();
+        self.with_snapshot(id, |s| f(&mut auto, s, &mut out));
+        let Some(run) = self.runs.get_mut(&id) else {
+            return;
+        };
+        run.auto = auto;
+        if let Ok(value) = serde_json::to_value(&run.auto) {
+            if run.auto_saved.as_ref() != Some(&value) {
+                run.auto_saved = Some(value.clone());
+                run.dirty = true;
+                let _ = self.autoref.send(AutoWrite::State(id, value));
+            }
+        }
+        self.act(id, out).await;
+    }
+
+    // Does what the auto referee asked, in order. A change to the match is read back on
+    // the next tick.
+    async fn act(&mut self, id: Uuid, actions: Vec<Action>) {
+        for action in actions {
+            let result: Result<(), AppError> = match action {
+                Action::Send(text) => {
+                    self.auto_send(id, text);
+                    Ok(())
+                }
+                Action::Log(level, message) => {
+                    self.auto_log(id, level, message);
+                    Ok(())
+                }
+                Action::Ban { map_id, team_id } => {
+                    self.pending.insert(id);
+                    services::bracket::mark(&self.app, id, map_id, team_id, Mark::Ban).await
+                }
+                Action::Pick { map_id, team_id } => {
+                    self.pending.insert(id);
+                    services::bracket::mark(&self.app, id, map_id, team_id, Mark::Pick).await
+                }
+                Action::FirstTurn(team_id) => {
+                    self.pending.insert(id);
+                    services::referee::set_next_pick(&self.app, id, Some(team_id)).await
+                }
+                Action::FetchOsu => {
+                    self.fetch_osu(id);
+                    Ok(())
+                }
+                Action::WarmupLength(beatmap_id) => {
+                    self.fetch_length(id, beatmap_id);
+                    Ok(())
+                }
+                Action::Forfeit(slot) => {
+                    services::autoref::forfeit_no_show(&self.app, id, slot).await
+                }
+                Action::RemoveTeams(teams) => {
+                    self.pending.insert(id);
+                    services::autoref::lobby_no_show(&self.app, id, &teams).await
+                }
+                Action::Conclude => self.auto_conclude(id).await,
+                Action::Report {
+                    user_id,
+                    team_id,
+                    text,
+                } => {
+                    services::autoref::alert(
+                        &self.app,
+                        id,
+                        Alert::Report,
+                        Some((user_id, team_id)),
+                        Some(&text),
+                    )
+                    .await
+                }
+                Action::Stop {
+                    user_id,
+                    team_id,
+                    username,
+                } => {
+                    self.pending.insert(id);
+                    let auto = self.runs.get(&id).is_some_and(|r| r.ctx.settings.auto_ref);
+                    services::autoref::emergency_stop(
+                        &self.app,
+                        id,
+                        (user_id, team_id),
+                        &username,
+                        auto,
+                    )
+                    .await
+                }
+                Action::Handover(reason) => {
+                    self.pending.insert(id);
+                    self.auto_send(
+                        id,
+                        "Otomatik hakem durdu, maçı bir hakem devralacak.".into(),
+                    );
+                    services::autoref::handover(&self.app, id, &reason).await
+                }
+            };
+            if let Err(err) = result {
+                tracing::error!(error = ?err, match_id = %id, "the auto referee's action failed");
+                self.auto_log(id, LogLevel::Error, format!("İşlem başarısız: {err}"));
+            }
+        }
+    }
+
+    // A line for the match's latest room, through its bot.
+    fn auto_send(&self, id: Uuid, text: String) {
+        let Some(mp_id) = self.latest_room(id) else {
+            return;
+        };
+        if let Some(bot) = self.rooms.get(&mp_id).and_then(|r| r.bot) {
+            self.bot_send(
+                bot,
+                room_channel(mp_id),
+                text,
+                Some(mp_id),
+                Priority::Normal,
+            );
+        }
+    }
+
+    // osu!'s record of the rooms, read for the map that just finished; it takes the place
+    // of the chat's maps like a referee's sync does.
+    fn fetch_osu(&self, id: Uuid) {
+        let rooms: Vec<i64> = self.match_rooms(id).iter().map(|r| r.mp_id).collect();
+        let Some(&latest) = rooms.last() else {
+            return;
+        };
+        let expected = self.rooms.get(&latest).map_or(0, |r| r.state.results.len());
+        let app = self.app.clone();
+        let inbox = self.inbox.clone();
+        tokio::spawn(async move {
+            let confirmed = match read_osu_games(&app, &rooms).await {
+                // osu! has no record of the room (yet): the chat's maps stand.
+                Ok(games) if !games.contains_key(&latest) => false,
+                Ok(games) => {
+                    let has_it = games
+                        .get(&latest)
+                        .is_some_and(|g| osu_results(g).len() >= expected);
+                    // Sent to the manager ahead of AutorefOsu, over the same channel.
+                    if let Err(err) = services::referee::apply_osu_sync(&app, id, games).await {
+                        tracing::error!(error = ?err, match_id = %id, "could not mark the osu! sync")
+                    }
+                    has_it
+                }
+                Err(err) => {
+                    tracing::warn!(error = ?err, match_id = %id, "could not read osu!'s record for the auto referee");
+                    false
+                }
+            };
+            let _ = inbox.send(Request::AutorefOsu {
+                match_id: id,
+                confirmed,
+            });
+        });
+    }
+
+    // A warmup beatmap's length, from osu!.
+    fn fetch_length(&self, id: Uuid, beatmap_id: i64) {
+        let app = self.app.clone();
+        let inbox = self.inbox.clone();
+        tokio::spawn(async move {
+            let token = match osu_api::token::app_token(
+                &app.osu_client,
+                &app.oauth_http,
+                &app.osu_app_token,
+            )
+            .await
+            {
+                Ok(token) => token,
+                Err(err) => {
+                    tracing::warn!(error = ?err, "no osu! token for a warmup's length");
+                    return;
+                }
+            };
+            match osu_api::beatmap::fetch(&app.http_client, &token, beatmap_id).await {
+                Ok(map) => {
+                    let _ = inbox.send(Request::AutorefLength {
+                        match_id: id,
+                        beatmap_id,
+                        seconds: map.total_length,
+                    });
+                }
+                Err(err) => {
+                    tracing::warn!(error = ?err, beatmap_id, "could not read a warmup's length")
+                }
+            }
+        });
+    }
+
+    // The match is over: a bracket match's score is saved as counted, then it's
+    // concluded (the room closes CLOSE_AFTER_CONCLUDED later).
+    async fn auto_conclude(&mut self, id: Uuid) -> Result<(), AppError> {
+        let Some(run) = self.runs.get(&id) else {
+            return Ok(());
+        };
+        if run.ctx.kind == MatchKind::Qualifier {
+            return services::matches::conclude_lobby(&self.app, id).await;
+        }
+        let Some((team1, team2, maps)) = self.counted(id) else {
+            return Err(MatchError::NeedsBothTeams.into());
+        };
+        services::bracket::save_score(&self.app, id, Some(team1), Some(team2), Some(&maps)).await?;
+        services::bracket::conclude(&self.app, id, None).await?;
+        self.app.live.bracket_changed();
+        Ok(())
+    }
+
+    // A bracket match's score as the rooms count it, with the maps it's counted from.
+    fn counted(&self, id: Uuid) -> Option<(i32, i32, Vec<db::bracket::MapResultRow>)> {
+        let run = self.runs.get(&id)?;
+        let [a, b] = run.ctx.sides.clone()?;
+        let rooms: Vec<ViewRoom> = self
+            .match_rooms(id)
+            .into_iter()
+            .map(|r| ViewRoom {
+                mp_id: r.mp_id,
+                state: &r.state,
+                bot: None,
+                access: RoomAccess::In,
+            })
+            .collect();
+        let finished = finished_of(&rooms, run.osu.as_ref().map(|(_, g)| g));
+        let t = tally(&TallyInput {
+            finished: &finished,
+            entries: &run.ctx.entries,
+            picks: &run.ctx.picks,
+            roster: &run.ctx.roster,
+            ignored: &run.ctx.ignored,
+            manual: &run.ctx.manual,
+            team1_id: a.id,
+            team2_id: b.id,
+        });
+        Some((t.team1, t.team2, t.maps))
+    }
+
+    // A player wrote to one of the bots: "-davet" invites them again to their match's
+    // room, if that bot runs it.
+    pub(super) fn private_message(&mut self, bot_id: Uuid, from: &str, text: &str) {
+        if !text.trim().eq_ignore_ascii_case("-davet") || !valid_name(from) {
+            return;
+        }
+        let found = self.runs.iter().find_map(|(id, run)| {
+            let mp_id = self.latest_room(*id)?;
+            let room = self.rooms.get(&mp_id)?;
+            if room.bot != Some(bot_id) || room.closed || !room.joined || run.ctx.concluded() {
+                return None;
+            }
+            let p = run
+                .ctx
+                .roster
+                .iter()
+                .find(|p| same_name(&p.username, from))?;
+            Some((*id, mp_id, p.osu_id, p.username.clone()))
+        });
+        let Some((match_id, mp_id, osu_id, username)) = found else {
+            self.bot_send(
+                bot_id,
+                from.to_string(),
+                "Şu an seni bekleyen, bu botun yönettiği bir maç odası yok.".into(),
+                None,
+                Priority::Normal,
+            );
+            return;
+        };
+        let now = Instant::now();
+        if self
+            .invited
+            .get(&osu_id)
+            .is_some_and(|&t| now.duration_since(t) < INVITE_EVERY)
+        {
+            return;
+        }
+        self.invited.insert(osu_id, now);
+        self.bot_send(
+            bot_id,
+            room_channel(mp_id),
+            format!("!mp invite {}", player_ref(osu_id)),
+            Some(mp_id),
+            Priority::High,
+        );
+        self.bot_send(
+            bot_id,
+            from.to_string(),
+            format!("Davet gönderildi: #mp_{mp_id}"),
+            None,
+            Priority::Normal,
+        );
+        self.auto_log(
+            match_id,
+            LogLevel::Info,
+            format!("{username} -davet ile tekrar davet edildi."),
+        );
+    }
+}

@@ -16,6 +16,8 @@ use tokio::{
     time::{sleep, sleep_until, timeout, Instant},
 };
 
+use crate::bancho::names::irc_name;
+
 use super::irc::{
     self, clean_text, parse, privmsg_text, room_id, valid_name, Pacer, LINE_MAX, LOGIN_TIMEOUT,
 };
@@ -119,7 +121,7 @@ pub fn spawn(
     let stats = Arc::new(Mutex::new(LineStats::default()));
     tokio::spawn(run(
         conn,
-        irc::irc_name(&nick),
+        irc_name(&nick),
         password,
         addr,
         rx,

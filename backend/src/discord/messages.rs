@@ -13,6 +13,7 @@ use super::{
     BotResult,
 };
 use crate::{
+    bancho::autoref::{span, NO_SHOW_WAIT},
     db::{
         self,
         bracket::Side,
@@ -950,18 +951,19 @@ async fn match_event(
             let Some(team_name) = team.first().map(|pl| pl.team_name.clone()) else {
                 return Ok(());
             };
+            let wait = span(NO_SHOW_WAIT.whole_seconds());
             let embed = if *forfeit {
                 Embed::new("❌ Maç hükmen kaybedildi", COLOR_BAD)
                     .url(match_url(cx.state, info))
                     .description(format!(
-                        "Takımın **{title}** maçına 10 dakika içinde tam kadro gelmediği için maç \
+                        "Takımın **{title}** maçına {wait} içinde tam kadro gelmediği için maç \
                          hükmen kaybedildi."
                     ))
             } else {
                 Embed::new("❌ Eleme lobisinden çıkarıldınız", COLOR_BAD)
                     .url(site_url(cx.state, "/qualifiers"))
                     .description(format!(
-                        "Takımın **{title}** lobisine 10 dakika içinde tam kadro gelmediği için \
+                        "Takımın **{title}** lobisine {wait} içinde tam kadro gelmediği için \
                          lobiden çıkarıldı. Başlamamış başka bir eleme lobisine kaydolabilirsiniz: \
                          {}",
                         site_url(cx.state, "/qualifiers")

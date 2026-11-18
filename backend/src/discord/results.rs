@@ -10,6 +10,7 @@ use super::{
     snowflake, Bot, BotResult,
 };
 use crate::{
+    category,
     db::{self, discord::MatchInfo, matches::MatchKind},
     AppState,
 };
@@ -128,7 +129,7 @@ pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embe
             number(t2),
         );
         // On freemod and tiebreaker maps the players chose their mods: each one's, by team.
-        if map.is_some_and(|m| is_freemod(&m.label)) {
+        if map.is_some_and(|m| category::is_freemod(&m.label)) {
             let sides = [(info.team1_id, "🔴"), (info.team2_id, "🔵")]
                 .into_iter()
                 .filter_map(|(team, mark)| {
@@ -253,12 +254,6 @@ pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embe
         false,
     ));
     Ok(embed)
-}
-
-// A freemod (FM1) or tiebreaker (TB) map, by its pool label, as the referee page tells them.
-fn is_freemod(label: &str) -> bool {
-    let label = label.trim().to_ascii_uppercase();
-    label.starts_with("FM") || label.starts_with("TB")
 }
 
 // A player's mods as acronyms ("HDHR"), "NM" for none, "?" when they weren't read.

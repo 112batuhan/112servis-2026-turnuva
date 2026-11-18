@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Icon } from "../Icon";
-import { stageLabel, type Race } from "../../lib/bestOf";
+import { stageLabel, type Standing } from "../../lib/bestOf";
 import { stepLabel, type Draft, type DraftStep } from "../../lib/draftOrder";
 import { formatLength } from "../../lib/format";
 import {
@@ -14,9 +14,9 @@ import {
 import "./PoolView.css";
 
 /** Where the draft stands: a ban or a pick to make, then the tiebreaker; nothing once a team has won. */
-export function draftPhase(turn: DraftTurn | null, race: Race | null): string | null {
-  if (race?.kind === "won") return null;
-  if (race?.kind === "tiebreaker") return "Tiebreaker";
+export function draftPhase(turn: DraftTurn | null, standing: Standing | null): string | null {
+  if (standing?.kind === "won") return null;
+  if (standing?.kind === "tiebreaker") return "Tiebreaker";
   return turn ? `${stepLabel(turn.kind)} sırası` : null;
 }
 

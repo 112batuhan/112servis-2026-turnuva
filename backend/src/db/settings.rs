@@ -31,7 +31,7 @@ pub async fn set_teams_frozen(pool: &PgPool, frozen: bool) -> sqlx::Result<()> {
     Ok(())
 }
 
-// Whether the auto referee opens match rooms by itself (bancho/manager.rs).
+// Whether the auto referee opens match rooms by itself (bancho/manager/timers.rs).
 pub async fn auto_rooms(pool: &PgPool) -> sqlx::Result<bool> {
     sqlx::query_scalar("SELECT auto_rooms FROM app_settings")
         .fetch_one(pool)

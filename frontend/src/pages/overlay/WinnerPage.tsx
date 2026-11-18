@@ -1,7 +1,7 @@
 import { useMemo, type CSSProperties } from "react";
 import { API_URL } from "../../api/client";
 import type { BracketMatch, PublicBracket, Team } from "../../api/types";
-import { raceOf } from "../../lib/bestOf";
+import { standingOf } from "../../lib/bestOf";
 import { matchCode } from "../../lib/bracket";
 import {
   BannerChip,
@@ -37,15 +37,15 @@ export function WinnerPage({
     return match?.teams.find((t) => t.id === id) ?? null;
   };
 
-  // The winner: a forfeit's other team, the saved score once it's concluded, or a race already won.
+  // The winner: a forfeit's other team, the saved score once it's concluded, or a score that already won.
   const winner = useMemo<Side | null>(() => {
     if (!match || !tally) return null;
     if (match.forfeit_slot) return match.forfeit_slot === 1 ? 2 : 1;
     if (match.concluded_at)
       return tally.team1 > tally.team2 ? 1 : tally.team2 > tally.team1 ? 2 : null;
     const bestOf = match.stage?.best_of;
-    const race = bestOf ? raceOf(bestOf, tally.team1, tally.team2) : null;
-    return race?.kind === "won" ? race.slot : null;
+    const standing = bestOf ? standingOf(bestOf, tally.team1, tally.team2) : null;
+    return standing?.kind === "won" ? standing.slot : null;
   }, [match, tally]);
 
   const marks = useMemo(

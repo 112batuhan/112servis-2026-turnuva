@@ -476,9 +476,7 @@ async fn mark_osu_synced(
     check_runs(&state, &user, id).await?;
     let m = load_match(&state, id).await?;
     let games = crate::bancho::read_osu_games(&state, &m.mp_ids).await?;
-    let osu_synced_at = db::referee::mark_osu_synced(&state.db, id).await?;
-    state.bancho.osu_games(id, osu_synced_at, games);
-    state.live.referee_changed(id);
+    let osu_synced_at = services::referee::apply_osu_sync(&state, id, games).await?;
     Ok(Json(OsuSynced { osu_synced_at }))
 }
 
@@ -506,9 +504,7 @@ async fn set_next_pick(
             return Err(MatchError::TeamNotInMatch.into());
         }
     }
-    db::referee::set_next_pick(&state.db, id, body.team_id).await?;
-    // The match page shows whose pick it is.
-    state.live.match_changed(id);
+    services::referee::set_next_pick(&state, id, body.team_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -518,7 +514,7 @@ pub struct AutorefBody {
 }
 
 // PUT /api/matches/:id/autoref — switches the match between the auto referee
-// (bancho/autoref.rs) and manual control; switched back on, it continues where it left
+// (bancho/autoref/) and manual control; switched back on, it continues where it left
 // off.
 async fn set_autoref(
     State(state): State<AppState>,

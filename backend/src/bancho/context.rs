@@ -9,7 +9,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use super::{
-    commands::{side_color, side_slots, ROOM_PREFIX},
+    room::SlotTeam,
     tally::{lobby_key, pool_entries, score_key, PoolEntry, RosterPlayer},
 };
 use crate::{
@@ -22,6 +22,27 @@ use crate::{
     draft::DraftOrder,
     views::lobby_name,
 };
+
+// Prefixed to every room name: "112S: (Team A) vs (Team B)".
+const ROOM_PREFIX: &str = "112S";
+
+// The colour each side of a bracket match plays as: team 1 blue, team 2 red.
+fn side_color(side: u8) -> SlotTeam {
+    if side == 1 {
+        SlotTeam::Blue
+    } else {
+        SlotTeam::Red
+    }
+}
+
+// The slots each side's two players sit in: team 1 (blue) in 1 and 2, team 2 in 3 and 4.
+fn side_slots(side: u8) -> [i32; 2] {
+    if side == 1 {
+        [1, 2]
+    } else {
+        [3, 4]
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct MatchTeam {

@@ -148,9 +148,9 @@
   font-weight: 800;
 }
 
-/* ---- The race line: where the match stands against its best of, right under the score, washed
+/* ---- The standing line: where the match stands against its best of, right under the score, washed
    in the colour of what it's about (the team on match point or that won). ---- */
-.sheet-race {
+.sheet-standing {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -160,19 +160,19 @@
   border-bottom: var(--rule);
 }
 
-.sheet-race.is-won.is-team-blue {
+.sheet-standing.is-won.is-team-blue {
   background: var(--color-team-blue-soft);
 }
 
-.sheet-race.is-won.is-team-red {
+.sheet-standing.is-won.is-team-red {
   background: var(--color-team-red-soft);
 }
 
-.sheet-race.is-over {
+.sheet-standing.is-over {
   background: color-mix(in srgb, var(--color-warning) 14%, transparent);
 }
 
-.sheet-race-text {
+.sheet-standing-text {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -180,7 +180,7 @@
   min-width: 0;
 }
 
-.sheet-race-title {
+.sheet-standing-title {
   font-family: var(--font-display);
   font-stretch: var(--font-display-stretch);
   font-size: var(--text-xl);
@@ -188,30 +188,30 @@
   line-height: 1;
 }
 
-.sheet-race.is-over .sheet-race-title {
+.sheet-standing.is-over .sheet-standing-title {
   color: var(--color-warning);
 }
 
-.sheet-race-detail {
+.sheet-standing-detail {
   min-width: 0;
   color: var(--color-text-muted);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
 
-.sheet-race-team {
+.sheet-standing-team {
   font-weight: 700;
 }
 
-.sheet-race-team.is-team-blue {
+.sheet-standing-team.is-team-blue {
   color: var(--color-team-blue);
 }
 
-.sheet-race-team.is-team-red {
+.sheet-standing-team.is-team-red {
   color: var(--color-team-red);
 }
 
-.sheet-race-action {
+.sheet-standing-action {
   display: flex;
   align-items: center;
   gap: var(--space-2);

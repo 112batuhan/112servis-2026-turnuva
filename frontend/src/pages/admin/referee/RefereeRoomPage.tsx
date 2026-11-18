@@ -141,7 +141,7 @@ function RefereeRoom({ matchId }: { matchId: string }) {
 
 /** The draft's phase: the next ban or pick by the stage's order, its team in their colour. */
 function PoolStatus({ referee }: { referee: RefereeRoomState }) {
-  const { room, teams, turn, race } = referee;
+  const { room, teams, turn, standing } = referee;
   if (!room) return null;
   const maps = poolEntries(room).length;
   if (
@@ -149,11 +149,11 @@ function PoolStatus({ referee }: { referee: RefereeRoomState }) {
     teams.length !== 2 ||
     maps === 0 ||
     room.concluded_at ||
-    race?.kind === "won"
+    standing?.kind === "won"
   ) {
     return <span className="num">{maps} map</span>;
   }
-  if (race?.kind === "tiebreaker") return <span>Tiebreaker</span>;
+  if (standing?.kind === "tiebreaker") return <span>Tiebreaker</span>;
   if (!turn) return <span className="num">{maps} map</span>;
   return <TurnStatus turn={turn} />;
 }

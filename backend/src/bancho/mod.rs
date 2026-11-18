@@ -5,20 +5,19 @@
 //! of every room, here, and every page reads it (view::LiveRoom over the live socket).
 //!
 //! Hosts add the accounts on /admin/bancho; every active one stays connected
-//! (bot.rs), and the rooms are spread across them (manager.rs): each account can have
+//! (connection/bot.rs), and the rooms are spread across them (manager/): each account can have
 //! ROOM_LIMIT rooms open, counting the ones it was only made a referee of, so a bot is
 //! never added to another bot's room and the site makes no more rooms than they can
 //! hold. Referees and hosts don't join the rooms: they run them from the referee page,
 //! and talk in them through the room's bot (RoomCommand::Say). Unless a referee switches
-//! a match to manual, the room's bot also referees it by itself (autoref.rs), opening its
+//! a match to manual, the room's bot also referees it by itself (autoref/), opening its
 //! room 10 minutes before its time.
 
 pub mod autoref;
-pub mod bot;
-pub mod commands;
+pub mod connection;
 pub mod context;
-pub mod irc;
 mod manager;
+pub mod names;
 pub mod room;
 pub mod tally;
 pub mod view;
@@ -156,8 +155,8 @@ pub struct BotLimits {
 
 pub const LIMITS: BotLimits = BotLimits {
     rooms: ROOM_LIMIT,
-    lines: bot::SEND_LIMIT,
-    window_secs: bot::SEND_WINDOW.as_secs(),
+    lines: connection::bot::SEND_LIMIT,
+    window_secs: connection::bot::SEND_WINDOW.as_secs(),
 };
 
 enum Request {

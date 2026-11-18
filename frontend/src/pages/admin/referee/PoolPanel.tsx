@@ -11,7 +11,7 @@ import { PoolView, draftPhase } from "../../../components/match/PoolView";
  */
 export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
   const { room, currentEntry, finished, controlsReady, canRun, autoLock, busy, actions } = referee;
-  const { race, draft, turn } = referee;
+  const { standing, draft, turn } = referee;
   if (!room) return null;
   // The server tells apart a beatmap that's in the pool twice by the mods it was played with.
   const played = new Set<string | undefined>(finished.map((f) => f.mapId ?? undefined));
@@ -91,7 +91,7 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
       currentEntry={currentEntry}
       played={played}
       draft={draft}
-      phase={canMark ? draftPhase(turn, race) : null}
+      phase={canMark ? draftPhase(turn, standing) : null}
       pick={{
         disabled: (_entry, banned) => !controlsReady || banned !== undefined,
         title: (entry, banned) =>

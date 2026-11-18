@@ -1,6 +1,7 @@
 mod auth;
 mod bancho;
 mod banner;
+mod category;
 mod config;
 mod db;
 mod discord;

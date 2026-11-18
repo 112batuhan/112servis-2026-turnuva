@@ -2,10 +2,8 @@
 
 use std::collections::HashSet;
 
-use super::{
-    irc::{irc_name, same_name},
-    room::{RoomSlot, RoomState, SlotTeam},
-};
+use super::{RoomSlot, RoomState, SlotTeam};
+use crate::bancho::names::{irc_name, same_name};
 
 // The most slots an osu! room has.
 const MAX_SLOTS: i32 = 16;
@@ -13,27 +11,6 @@ const MAX_SLOTS: i32 = 16;
 // !mp set's team modes.
 pub const HEAD_TO_HEAD: i32 = 0;
 pub const TEAM_VS: i32 = 2;
-
-// Prefixed to every room name: "112S: (Team A) vs (Team B)".
-pub const ROOM_PREFIX: &str = "112S";
-
-// The colour each side of a bracket match plays as: team 1 blue, team 2 red.
-pub fn side_color(side: u8) -> SlotTeam {
-    if side == 1 {
-        SlotTeam::Blue
-    } else {
-        SlotTeam::Red
-    }
-}
-
-// The slots each side's two players sit in: team 1 (blue) in 1 and 2, team 2 in 3 and 4.
-pub fn side_slots(side: u8) -> [i32; 2] {
-    if side == 1 {
-        [1, 2]
-    } else {
-        [3, 4]
-    }
-}
 
 // "#<osu id>" addresses a player in !mp commands whatever their current name.
 pub fn player_ref(osu_id: i64) -> String {
@@ -201,16 +178,6 @@ pub fn place_commands(
         commands.extend(next);
     }
     commands
-}
-
-// A pool category is freemod when it's named FM or TB (FM1, TB, …).
-pub fn is_freemod_category(name: &str) -> bool {
-    let n = name.trim().to_uppercase();
-    n.starts_with("FM") || n.starts_with("TB")
-}
-
-pub fn is_tiebreaker_category(name: &str) -> bool {
-    name.trim().to_uppercase().starts_with("TB")
 }
 
 // The !mp mods line for a pool map. "HDDT" -> "!mp mods HD DT NF". Freemod maps get just

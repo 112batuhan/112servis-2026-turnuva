@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import { fetchPublicChat, fetchPublicMatch } from "../api/matches";
 import type { Player } from "../api/types";
 import { sameName, type RoomSlot } from "./bancho";
-import { raceOf, type Race } from "./bestOf";
+import { standingOf, type Standing } from "./bestOf";
 import {
   currentEntryOf,
   finishedOf,
@@ -101,12 +101,12 @@ export function useMatchPage(matchId: string, { spectate = true }: { spectate?: 
     };
   }, [match, entries, roster]);
 
-  // Where the saved score stands against the stage's best of (the tiebreaker, a decided race).
+  // Where the saved score stands against the stage's best of (the tiebreaker, a decided match).
   const bestOf = match?.kind === "bracket" ? (match.stage?.best_of ?? null) : null;
-  const race = useMemo<Race | null>(
+  const standing = useMemo<Standing | null>(
     () =>
       bestOf !== null && tally && !match?.forfeit_slot && match?.concluded_at === null
-        ? raceOf(bestOf, tally.team1, tally.team2)
+        ? standingOf(bestOf, tally.team1, tally.team2)
         : null,
     [bestOf, tally, match?.forfeit_slot, match?.concluded_at],
   );
@@ -125,7 +125,7 @@ export function useMatchPage(matchId: string, { spectate = true }: { spectate?: 
   const spectators = isLive && watchers?.match_id === matchId ? watchers : null;
   // The bans and picks against the stage's order; the next one only while the match is live and
   // there's one to make.
-  const drafting = isLive && race?.kind !== "tiebreaker" && race?.kind !== "won";
+  const drafting = isLive && standing?.kind !== "tiebreaker" && standing?.kind !== "won";
   const draft = useMemo(
     () => (match ? matchDraft(match, match.next_pick_team_id, drafting) : null),
     [match, drafting],
@@ -150,7 +150,7 @@ export function useMatchPage(matchId: string, { spectate = true }: { spectate?: 
     live: isLive,
     draft,
     turn,
-    race,
+    standing,
     spectators,
   };
 }

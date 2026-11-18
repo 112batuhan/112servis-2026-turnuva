@@ -1,4 +1,4 @@
-//! What the auto referee (bancho/autoref.rs) does to the site's data beyond the room:
+//! What the auto referee (bancho/autoref/) does to the site's data beyond the room:
 //! telling the staff (a player's -rapor or -durdur, or that it handed a match over),
 //! switching a match to manual, and settling the teams that didn't show up. The
 //! referee page's switch (handlers/referee.rs) goes through `set_enabled` too.

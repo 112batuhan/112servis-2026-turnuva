@@ -77,6 +77,6 @@ The first host has to be set by hand in SQL: `UPDATE osu_users SET roles = '{hos
 - `frontend.md`: the frontend's structure, error handling, lazy pages, the bracket views.
 - `dev-seed.md`: `DEV_LOGIN` and what the dummy seed contains.
 
-`docs/AUTO_REFEREE.md` is the guide to the auto referee for the tournament committee, hosts, referees and players (procedure, commands, switches, a manual test checklist, and every message in Turkish with its English translation); keep it in step with `bancho/autoref.rs` and the messages it sends.
+`docs/AUTO_REFEREE.md` is the guide to the auto referee for the tournament committee, hosts, referees and players (procedure, commands, switches, a manual test checklist, and every message in Turkish with its English translation); keep it in step with `bancho/autoref/` and the messages it sends.
 
 `docs/RANK_LIMIT_AND_SEEDING.md` explains the rank limit (the formula, where it comes from, what it allows) and, briefly, the Z-percentile seeding, for the committee to review. Keep its constants and table in step with `team_rank.rs`.

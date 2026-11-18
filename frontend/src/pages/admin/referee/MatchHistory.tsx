@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
-import { bestOfLabel, firstTo, type Race } from "../../../lib/bestOf";
+import { bestOfLabel, firstTo, type Standing } from "../../../lib/bestOf";
 import { formatClock } from "../../../lib/format";
 import { roomLabel } from "../../../lib/liveRoom";
 import { poolEntries, type MatchTeam } from "../../../lib/matchPool";
@@ -18,7 +18,8 @@ import { ScoreSheet } from "../../../components/match/ScoreSheet";
  * no score: its sheet lists each map's leading team. Maps outside the pool are left out.
  */
 export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
-  const { room, finished, roster, ignored, actions, canRun, busy, tally, teams, race } = referee;
+  const { room, finished, roster, ignored, actions, canRun, busy, tally, teams, standing } =
+    referee;
   const { autoLock } = referee;
   if (!room) return null;
   const concluded = room.concluded_at !== null;
@@ -32,7 +33,7 @@ export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
       finished={finished}
       roster={roster}
       status={<ScoreStatus referee={referee} />}
-      raceAction={(r) => <RaceAction referee={referee} race={r} />}
+      standingAction={(r) => <StandingAction referee={referee} standing={r} />}
       ignore={{ ignored, disabled: concluded || autoLock !== null, toggle: actions.toggleIgnored }}
       renderManualAction={
         editable
@@ -57,18 +58,18 @@ export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
               <ForfeitControl referee={referee} teams={teams} />
             </div>
           )}
-          {/* A decided race offers it in its line under the score instead. */}
-          {runs && race?.kind !== "won" && <ConcludeControl referee={referee} />}
+          {/* A decided match offers it in its line under the score instead. */}
+          {runs && standing?.kind !== "won" && <ConcludeControl referee={referee} />}
         </>
       }
     />
   );
 }
 
-/** The referee's control in the race line: concluding a match a team has won. */
-function RaceAction({ referee, race }: { referee: RefereeRoomState; race: Race }) {
+/** The referee's control in the standing line: concluding a match a team has won. */
+function StandingAction({ referee, standing }: { referee: RefereeRoomState; standing: Standing }) {
   const { room, canRun } = referee;
-  if (!room || !canRun || room.concluded_at !== null || race.kind !== "won") return null;
+  if (!room || !canRun || room.concluded_at !== null || standing.kind !== "won") return null;
   return <ConcludeControl referee={referee} />;
 }
 
@@ -146,7 +147,7 @@ function ResultSource({ referee }: { referee: RefereeRoomState }) {
  * matches. Behind a confirmation, since reopening it takes a host.
  */
 function ConcludeControl({ referee }: { referee: RefereeRoomState }) {
-  const { room, teams, tally, busy, actions, race, bestOf, autoLock } = referee;
+  const { room, teams, tally, busy, actions, standing, bestOf, autoLock } = referee;
   if (!room) return null;
   const label = roomLabel(room);
   // In auto mode the bot concludes the match once it's decided.
@@ -159,7 +160,7 @@ function ConcludeControl({ referee }: { referee: RefereeRoomState }) {
       const winner = tally.team1 > tally.team2 ? teams[0] : teams[1];
       detail = `\nSkor: ${tally.team1} – ${tally.team2} (${winner.name} kazanır)`;
       // Allowed, since something may have happened, but said.
-      if (bestOf !== null && race && race.kind !== "won") {
+      if (bestOf !== null && standing && standing.kind !== "won") {
         detail += `\n\nDikkat: ${bestOfLabel(bestOf)} maçta kazanmak için ${firstTo(bestOf)} map gerekiyor.`;
       }
     }

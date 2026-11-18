@@ -21,7 +21,7 @@ export function stageLabel(stage: { name: string; best_of: number | null }): str
 }
 
 /** Where a bracket match stands against its best of. */
-export type Race =
+export type Standing =
   /** Neither team is one map away. */
   | { kind: "open" }
   /** One team (or, before the tiebreaker, neither) is a map away: `slots` are the teams on match point. */
@@ -33,7 +33,7 @@ export type Race =
   /** More maps were counted than the best of allows; something needs a look. */
   | { kind: "over" };
 
-export function raceOf(bestOf: number, team1: number, team2: number): Race {
+export function standingOf(bestOf: number, team1: number, team2: number): Standing {
   const need = firstTo(bestOf);
   if (team1 > need || team2 > need || (team1 >= need && team2 >= need)) return { kind: "over" };
   if (team1 === need) return { kind: "won", slot: 1 };
