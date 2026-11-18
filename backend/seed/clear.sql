@@ -4,6 +4,21 @@
 -- those lead into. Seeded map pools go too, and seeded stages once they're empty. A
 -- deleted match's room chat goes with it, and its potential matches with it (or with
 -- their teams).
+-- First the auto referee test's teams of real people (autoref.sql, by name: keep them in
+-- step), with their match and its chat.
+DELETE FROM room_chat_messages
+WHERE mp_id IN (
+    SELECT r.mp_id FROM match_rooms r
+    JOIN bracket_matches b ON b.match_id = r.match_id
+    JOIN teams t ON t.id IN (b.team1_id, b.team2_id)
+    WHERE t.name IN ('Oto Hakem Test Mavi', 'Oto Hakem Test Kırmızı')
+);
+DELETE FROM matches m
+USING bracket_matches b, teams t
+WHERE b.match_id = m.id
+  AND t.id IN (b.team1_id, b.team2_id)
+  AND t.name IN ('Oto Hakem Test Mavi', 'Oto Hakem Test Kırmızı');
+DELETE FROM teams WHERE name IN ('Oto Hakem Test Mavi', 'Oto Hakem Test Kırmızı');
 WITH RECURSIVE dummy AS (
     SELECT m.id
     FROM matches m

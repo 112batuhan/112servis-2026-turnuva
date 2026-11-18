@@ -13,6 +13,7 @@ import type { DevAccount } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { ROLE_LABELS } from "../auth/roles";
 import { formatRank } from "../lib/format";
+import { DevAutorefTest } from "./DevAutorefTest";
 import { ErrorAlert } from "./ErrorAlert";
 import "./DevSwitcher.css";
 
@@ -22,6 +23,8 @@ export function DevSwitcher() {
   const { user, signOut } = useAuth();
   const [accounts, setAccounts] = useState<DevAccount[] | null>(null);
   const [open, setOpen] = useState(false);
+  // The account list, or the auto referee test's form in its place.
+  const [autoref, setAutoref] = useState(false);
   const [filter, setFilter] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,13 +44,15 @@ export function DevSwitcher() {
 
   if (!accounts) return null;
 
-  // Every page keeps its own state, so a full reload is the simplest way to show the new account's view.
-  async function run(action: () => Promise<void>) {
+  // Every page keeps its own state, so a full reload (or `after`'s page change) is the simplest
+  // way to show the new account's view.
+  async function run(action: () => Promise<void>, after?: () => void) {
     setBusy(true);
     setError(null);
     try {
       await action();
-      window.location.reload();
+      if (after) after();
+      else window.location.reload();
     } catch (e) {
       setError(errorMessage(e));
       setBusy(false);
@@ -66,45 +71,67 @@ export function DevSwitcher() {
       {open && (
         <div className="dev-panel" role="dialog" aria-label="Switch test account">
           <div className="dev-panel-header">
-            <strong>Switch account</strong>
-            <span className="muted">{accounts.length} accounts</span>
+            <strong>{autoref ? "Auto referee test" : "Switch account"}</strong>
+            {autoref ? (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy}
+                onClick={() => setAutoref(false)}
+              >
+                Accounts
+              </button>
+            ) : (
+              <span className="muted">{accounts.length} accounts</span>
+            )}
           </div>
           <ErrorAlert message={error} onDismiss={() => setError(null)} />
-          <input
-            className="input dev-filter"
-            type="search"
-            placeholder="Filter by name"
-            aria-label="Filter accounts"
-            value={filter}
-            autoFocus
-            onChange={(e) => setFilter(e.target.value)}
-          />
-          <ul className="dev-accounts">
-            {shown.map((a) => (
-              <li key={a.id}>
-                <button
-                  type="button"
-                  className={`dev-account ${a.id === user?.id ? "is-current" : ""}`}
-                  disabled={busy || a.id === user?.id}
-                  onClick={() => run(() => devLoginAs(a.id))}
-                >
-                  <img className="dev-account-avatar" src={a.avatar_url} alt="" loading="lazy" />
-                  <span className="dev-account-name">{a.username}</span>
-                  <span className="dev-account-rank">{formatRank(a.global_rank)}</span>
-                  <span className="dev-account-tags">
-                    {a.roles.map((r) => (
-                      <span key={r} className="dev-tag dev-tag-role">
-                        {ROLE_LABELS[r]}
+          {autoref ? (
+            <DevAutorefTest accounts={accounts} busy={busy} run={run} />
+          ) : (
+            <>
+              <input
+                className="input dev-filter"
+                type="search"
+                placeholder="Filter by name"
+                aria-label="Filter accounts"
+                value={filter}
+                autoFocus
+                onChange={(e) => setFilter(e.target.value)}
+              />
+              <ul className="dev-accounts">
+                {shown.map((a) => (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      className={`dev-account ${a.id === user?.id ? "is-current" : ""}`}
+                      disabled={busy || a.id === user?.id}
+                      onClick={() => run(() => devLoginAs(a.id))}
+                    >
+                      <img
+                        className="dev-account-avatar"
+                        src={a.avatar_url}
+                        alt=""
+                        loading="lazy"
+                      />
+                      <span className="dev-account-name">{a.username}</span>
+                      <span className="dev-account-rank">{formatRank(a.global_rank)}</span>
+                      <span className="dev-account-tags">
+                        {a.roles.map((r) => (
+                          <span key={r} className="dev-tag dev-tag-role">
+                            {ROLE_LABELS[r]}
+                          </span>
+                        ))}
+                        {!a.dummy && <span className="dev-tag dev-tag-real">real</span>}
+                        {a.in_team && <span className="dev-tag">team</span>}
+                        {a.discord_linked && <span className="dev-tag">discord</span>}
                       </span>
-                    ))}
-                    {!a.dummy && <span className="dev-tag dev-tag-real">real</span>}
-                    {a.in_team && <span className="dev-tag">team</span>}
-                    {a.discord_linked && <span className="dev-tag">discord</span>}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           <div className="dev-panel-actions">
             <button
               type="button"
@@ -141,6 +168,17 @@ export function DevSwitcher() {
                 onClick={() => run(devSeedLive)}
               >
                 Reseed + live match
+              </button>
+            )}
+            {!autoref && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={busy}
+                title="Two teams of real accounts you pick, in a bracket match starting in 10 minutes, for the auto referee"
+                onClick={() => setAutoref(true)}
+              >
+                Auto referee test…
               </button>
             )}
             <button

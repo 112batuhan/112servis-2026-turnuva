@@ -569,7 +569,18 @@ export interface DevAccount {
   roles: Role[];
   dummy: boolean;
   in_team: boolean;
+  team_name: string | null;
   discord_linked: boolean;
+}
+
+/** What the dev switcher's auto referee test offers (`GET /api/dev/autoref-test`). */
+export interface DevAutorefTest {
+  /** Bracket stages with a best of, a pick and ban order and a pool. */
+  stages: { id: string; name: string }[];
+  /** Off, the test's room isn't opened by itself. */
+  auto_rooms: boolean;
+  /** The test's own teams, blue then red: their players can be picked again. */
+  test_teams: string[];
 }
 
 export type MatchKind = "qualifier" | "bracket";

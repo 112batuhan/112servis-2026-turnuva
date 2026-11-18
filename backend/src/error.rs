@@ -255,6 +255,10 @@ pub enum AuthError {
     BanReasonLength,
     #[error("Sign in with a real osu! account to seed a live test for it.")]
     DevLiveNeedsRealAccount,
+    #[error("Pick four different accounts for the auto referee test.")]
+    DevAutorefPlayers,
+    #[error("That stage needs a map pool, a best of and a pick and ban order.")]
+    DevAutorefStage,
 }
 
 impl AuthError {
@@ -264,7 +268,9 @@ impl AuthError {
             | Self::OwnHostRole
             | Self::OwnBan
             | Self::BanReasonLength
-            | Self::DevLiveNeedsRealAccount => StatusCode::BAD_REQUEST,
+            | Self::DevLiveNeedsRealAccount
+            | Self::DevAutorefPlayers
+            | Self::DevAutorefStage => StatusCode::BAD_REQUEST,
             Self::Unauthenticated => StatusCode::UNAUTHORIZED,
             Self::Forbidden | Self::DiscordRequired | Self::Banned => StatusCode::FORBIDDEN,
             Self::NotInDiscordServer => StatusCode::CONFLICT,

@@ -1,5 +1,5 @@
 use serde::Serialize;
-use sqlx::{Executor, PgConnection, PgPool};
+use sqlx::{Executor, PgConnection, PgExecutor, PgPool};
 use uuid::Uuid;
 
 use crate::role::Role;
@@ -23,6 +23,9 @@ const TEAMS_SQL: &str = concat!(
     include_str!("../../seed/teams.sql")
 );
 const LIVE_SQL: &str = include_str!("../../seed/live.sql");
+const AUTOREF_SQL: &str = include_str!("../../seed/autoref.sql");
+// autoref.sql's teams, blue then red, which it and clear.sql know them by.
+pub const AUTOREF_TEAMS: [&str; 2] = ["Oto Hakem Test Mavi", "Oto Hakem Test Kırmızı"];
 
 // Banners for some of the seeded teams, by team name. They're bytes, so they're
 // added here rather than in seed.sql.
@@ -59,6 +62,7 @@ pub struct DevAccount {
     pub roles: Vec<Role>,
     pub dummy: bool,
     pub in_team: bool,
+    pub team_name: Option<String>,
     pub discord_linked: bool,
 }
 
@@ -69,6 +73,8 @@ pub async fn list_accounts(pool: &PgPool) -> sqlx::Result<Vec<DevAccount>> {
         SELECT u.id, u.osu_id, u.username, u.avatar_url, u.global_rank, u.roles,
                u.osu_id < 0 AS dummy,
                EXISTS(SELECT 1 FROM team_members m WHERE m.user_id = u.id) AS in_team,
+               (SELECT t.name FROM team_members m JOIN teams t ON t.id = m.team_id
+                WHERE m.user_id = u.id) AS team_name,
                EXISTS(SELECT 1 FROM discord_accounts d WHERE d.osu_user_id = u.id)
                    AS discord_linked
         FROM osu_users u
@@ -142,6 +148,113 @@ pub async fn seed_live(pool: &PgPool, user_id: Uuid) -> sqlx::Result<LiveSeed> {
     tx.execute(LIVE_SQL).await?;
     tx.commit().await?;
     Ok(LiveSeed::Done)
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct AutorefStage {
+    pub id: Uuid,
+    pub name: String,
+}
+
+// The stages an auto referee test can be played in: bracket stages with a best of, a
+// pick and ban order and a map in their pool.
+pub async fn autoref_stages(ex: impl PgExecutor<'_>) -> sqlx::Result<Vec<AutorefStage>> {
+    sqlx::query_as::<_, AutorefStage>(
+        r#"
+        SELECT s.id, s.name FROM stages s
+        WHERE NOT s.is_qualifier
+          AND s.best_of IS NOT NULL
+          AND s.draft_order IS NOT NULL
+          AND EXISTS (
+              SELECT 1 FROM stage_categories c
+              JOIN category_slots sl ON sl.category_id = c.id
+              JOIN pool_maps pm ON pm.slot_id = sl.id
+              WHERE c.stage_id = s.id
+          )
+        ORDER BY s.position, s.name
+        "#,
+    )
+    .fetch_all(ex)
+    .await
+}
+
+pub enum AutorefSeed {
+    // The new match.
+    Done(Uuid),
+    // Not four different accounts.
+    Players,
+    // One of them is in a team other than the last test's.
+    InTeam,
+    // Not one of autoref_stages.
+    Stage,
+}
+
+// autoref.sql: `players` (team 1's two, then team 2's) in a bracket match of `stage_id`
+// starting in 10 minutes. Leaves the rest of the data as it is.
+pub async fn seed_autoref(
+    pool: &PgPool,
+    stage_id: Uuid,
+    players: [Uuid; 4],
+) -> sqlx::Result<AutorefSeed> {
+    let distinct: std::collections::HashSet<Uuid> = players.into_iter().collect();
+    if distinct.len() != players.len() {
+        return Ok(AutorefSeed::Players);
+    }
+    let mut tx = pool.begin().await?;
+    // Real or dummy: a dummy's invite (`#-301`) finds nobody on Bancho.
+    let found: i64 = sqlx::query_scalar("SELECT count(*) FROM osu_users WHERE id = ANY($1)")
+        .bind(&players[..])
+        .fetch_one(&mut *tx)
+        .await?;
+    if found != players.len() as i64 {
+        return Ok(AutorefSeed::Players);
+    }
+    // autoref.sql removes the last test's teams first, so their players are free.
+    let in_team: bool = sqlx::query_scalar(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM team_members m JOIN teams t ON t.id = m.team_id
+            WHERE m.user_id = ANY($1)
+              AND t.name <> ALL($2)
+        )
+        "#,
+    )
+    .bind(&players[..])
+    .bind(&AUTOREF_TEAMS[..])
+    .fetch_one(&mut *tx)
+    .await?;
+    if in_team {
+        return Ok(AutorefSeed::InTeam);
+    }
+    let stage_ok = autoref_stages(&mut *tx)
+        .await?
+        .iter()
+        .any(|s| s.id == stage_id);
+    if !stage_ok {
+        return Ok(AutorefSeed::Stage);
+    }
+    // autoref.sql reads them; local to the transaction.
+    let list = players.map(|p| p.to_string()).join(",");
+    sqlx::query(
+        "SELECT set_config('dev.autoref_players', $1, true), \
+                set_config('dev.autoref_stage', $2, true)",
+    )
+    .bind(list)
+    .bind(stage_id.to_string())
+    .execute(&mut *tx)
+    .await?;
+    tx.execute(AUTOREF_SQL).await?;
+    let match_id: Uuid = sqlx::query_scalar(
+        r#"
+        SELECT b.match_id FROM bracket_matches b JOIN teams t ON t.id = b.team1_id
+        WHERE t.name = $1
+        "#,
+    )
+    .bind(AUTOREF_TEAMS[0])
+    .fetch_one(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(AutorefSeed::Done(match_id))
 }
 
 async fn reseed(conn: &mut PgConnection) -> sqlx::Result<()> {

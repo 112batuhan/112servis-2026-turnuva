@@ -25,6 +25,8 @@ export const ERROR_TEXT = {
     own_ban: "Kendini banlayamazsın.",
     ban_reason_length: "Ban sebebi en fazla 300 karakter olabilir.",
     dev_live_needs_real_account: "Canlı test için gerçek bir osu! hesabıyla giriş yap.",
+    dev_autoref_players: "Oto hakem testi için dört farklı hesap seç.",
+    dev_autoref_stage: "Bu aşamanın map havuzu, best of'u ve pick-ban sırası olmalı.",
   },
   team: {
     not_in_team: "Bir takımda değilsin.",
