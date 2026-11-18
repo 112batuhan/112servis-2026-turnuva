@@ -8,9 +8,12 @@ use crate::bancho::{
 use crate::db::autoref::LogLevel;
 
 use super::{
-    log, parse_roll, send, Action, AutoRef, Phase, Snapshot, ABORT_WINDOW, SCORE_DELAY,
-    SCORE_TRIES, WARMUP_MAX_SECS,
+    log, parse_roll, send, Action, AutoRef, Phase, Snapshot, WarmupMap, ABORT_WINDOW, SCORE_DELAY,
+    SCORE_TRIES, START_COUNTDOWN, WARMUP_MAX_SECS,
 };
+
+const POOL_WARMUP: &str =
+    "Havuzdaki mapler (ve diğer zorlukları) warmup olarak oynanamaz, başka bir map seçin.";
 
 impl AutoRef {
     // A line BanchoBot said in the room, once the room's state has it.
@@ -26,6 +29,10 @@ impl AutoRef {
                     results: s.room.results.len(),
                 };
             }
+            // A pool map started by someone else (a referee in the room): the bot follows
+            // it rather than open another over it.
+            (Phase::Draft { .. } | Phase::Next, MATCH_STARTED) => self.started_elsewhere(s, out),
+            (Phase::Waiting, MATCH_STARTED) if !s.bracket => self.started_elsewhere(s, out),
             (Phase::Playing { .. }, "Aborted the match") => self.reopen(s, out),
             (Phase::Playing { map_id, .. }, "The match has finished!") => {
                 log(
@@ -45,6 +52,7 @@ impl AutoRef {
                 }
             }
             (Phase::Warmup { .. }, MATCH_STARTED) => self.warmup_started(s, out),
+            (Phase::Warmup { .. }, "All players are ready") => self.warmup_ready(s, out),
             (Phase::Warmup { team, .. }, "The match has finished!") => {
                 self.next_warmup(s, team, out)
             }
@@ -120,22 +128,46 @@ impl AutoRef {
         );
     }
 
+    // A pool map was started without the bot: it's followed as if the bot had opened it.
+    fn started_elsewhere(&mut self, s: &Snapshot, out: &mut Vec<Action>) {
+        let Some(entry) = s.room_entry() else {
+            return;
+        };
+        log(
+            out,
+            LogLevel::Warn,
+            format!(
+                "{} bot dışında başlatıldı, bot onu takip ediyor.",
+                entry.label
+            ),
+        );
+        self.countdown = None;
+        self.phase = Phase::Playing {
+            map_id: entry.map_id,
+            results: s.room.results.len(),
+        };
+    }
+
+    // Why the warmup on can't be played: a pool song, or longer than 4 minutes.
+    fn warmup_refusal(&self, s: &Snapshot, beatmap: i64) -> Option<String> {
+        let known = self.warmups.get(&beatmap);
+        if s.in_pool(beatmap, known.map(|w| w.beatmapset_id)) {
+            return Some(POOL_WARMUP.into());
+        }
+        let secs = known.map(|w| w.seconds)?;
+        (secs > WARMUP_MAX_SECS).then(|| {
+            format!(
+                "Bu map {}:{:02} uzunluğunda, warmup 4 dakikayı geçmemeli. Başka bir map seçin.",
+                secs / 60,
+                secs % 60
+            )
+        })
+    }
+
     fn warmup_started(&mut self, s: &Snapshot, out: &mut Vec<Action>) {
-        let beatmap = s.room.beatmap_id;
-        let in_pool = beatmap.is_some_and(|b| s.entries.iter().any(|e| e.beatmap_id == b));
-        let too_long = beatmap
-            .and_then(|b| self.lengths.get(&b))
-            .is_some_and(|&secs| secs > WARMUP_MAX_SECS);
-        if in_pool || too_long {
+        if let Some(reason) = s.room.beatmap_id.and_then(|b| self.warmup_refusal(s, b)) {
             send(out, "!mp abort");
-            send(
-                out,
-                if in_pool {
-                    "Havuzdaki mapler warmup olarak oynanamaz, başka bir map seçin."
-                } else {
-                    "Bu map 4 dakikadan uzun, başka bir warmup seçin."
-                },
-            );
+            send(out, reason);
             log(
                 out,
                 LogLevel::Warn,
@@ -148,45 +180,83 @@ impl AutoRef {
         }
     }
 
+    // Everyone is ready on the warmup the host opened: the bot starts it. Not a map the
+    // rules refuse, nor one osu! hasn't described yet.
+    fn warmup_ready(&mut self, s: &Snapshot, out: &mut Vec<Action>) {
+        let Phase::Warmup { played: false, .. } = self.phase else {
+            return;
+        };
+        let Some(beatmap) = s.room.beatmap_id else {
+            return;
+        };
+        if s.room.playing || !s.everyone_present() {
+            return;
+        }
+        if let Some(reason) = self.warmup_refusal(s, beatmap) {
+            send(out, reason);
+            return;
+        }
+        if !self.warmups.contains_key(&beatmap) {
+            out.push(Action::WarmupMap(beatmap));
+            return;
+        }
+        send(out, "Herkes hazır, warmup başlıyor.");
+        send(out, format!("!mp start {START_COUNTDOWN}"));
+        log(out, LogLevel::Info, "Herkes hazır, warmup başlatıldı.");
+    }
+
     fn warmup_map(&mut self, s: &Snapshot, out: &mut Vec<Action>) {
         let Some(beatmap) = s.room.beatmap_id else {
             return;
         };
-        if s.entries.iter().any(|e| e.beatmap_id == beatmap) {
-            send(
-                out,
-                "Havuzdaki mapler warmup olarak oynanamaz, başka bir map seçin.",
-            );
-            return;
-        }
-        match self.lengths.get(&beatmap) {
-            Some(&secs) => self.warmup_too_long(s, secs, out),
-            None => out.push(Action::WarmupLength(beatmap)),
-        }
-    }
-
-    // osu! said how long a warmup beatmap is.
-    pub fn warmup_length(&mut self, s: &Snapshot, beatmap: i64, secs: i32, out: &mut Vec<Action>) {
-        self.lengths.insert(beatmap, secs);
-        if matches!(self.phase, Phase::Warmup { .. }) && s.room.beatmap_id == Some(beatmap) {
-            self.warmup_too_long(s, secs, out);
+        match self.warmups.contains_key(&beatmap) {
+            true => {
+                if let Some(reason) = self.warmup_refusal(s, beatmap) {
+                    send(out, reason);
+                }
+            }
+            // A pool map is refused at once; the set and length come from osu!.
+            false => {
+                if s.in_pool(beatmap, None) {
+                    send(out, POOL_WARMUP);
+                }
+                out.push(Action::WarmupMap(beatmap));
+            }
         }
     }
 
-    fn warmup_too_long(&mut self, s: &Snapshot, secs: i32, out: &mut Vec<Action>) {
-        if secs <= WARMUP_MAX_SECS {
+    // osu! described a warmup beatmap.
+    pub fn warmup_described(
+        &mut self,
+        s: &Snapshot,
+        beatmap: i64,
+        map: WarmupMap,
+        out: &mut Vec<Action>,
+    ) {
+        let first = self.warmups.insert(beatmap, map).is_none();
+        if !matches!(self.phase, Phase::Warmup { .. }) || s.room.beatmap_id != Some(beatmap) {
             return;
         }
-        send(
-            out,
-            format!(
-                "Bu map {}:{:02} uzunluğunda, warmup 4 dakikayı geçmemeli. Başka bir map seçin.",
-                secs / 60,
-                secs % 60
-            ),
-        );
-        if s.room.playing {
-            send(out, "!mp abort");
+        let pool_by_id = s.in_pool(beatmap, None);
+        match self.warmup_refusal(s, beatmap) {
+            // Already said for a pool map itself.
+            Some(_) if first && pool_by_id => {}
+            Some(reason) => {
+                send(out, reason);
+                if s.room.playing {
+                    send(out, "!mp abort");
+                }
+            }
+            // Everyone may have readied while osu! was asked.
+            None if !s.room.playing
+                && s.room
+                    .slots
+                    .iter()
+                    .all(|slot| slot.status == crate::bancho::room::SlotStatus::Ready) =>
+            {
+                self.warmup_ready(s, out)
+            }
+            None => {}
         }
     }
 

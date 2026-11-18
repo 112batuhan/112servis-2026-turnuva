@@ -11,6 +11,7 @@ use uuid::Uuid;
 use super::ReorderBody;
 use crate::{
     auth::AuthUser,
+    category::{self, CategoryKind},
     db,
     error::{AppError, AuthError, GeneralError, PoolError},
     osu_api,
@@ -149,6 +150,22 @@ async fn set_stage_pack_url(
 #[derive(Debug, Deserialize)]
 pub struct CreateCategoryBody {
     name: String,
+    abbreviation: String,
+    kind: CategoryKind,
+}
+
+// The short name a category is given: 1-6 letters, and no other category of the stage's.
+async fn checked_abbreviation(
+    state: &AppState,
+    stage_id: Uuid,
+    typed: &str,
+    except: Option<Uuid>,
+) -> Result<String, AppError> {
+    let abbr = category::abbreviation(typed).ok_or(PoolError::BadCategoryAbbreviation)?;
+    if db::mappool::abbreviation_taken(&state.db, stage_id, &abbr, except).await? {
+        return Err(PoolError::CategoryAbbreviationTaken.into());
+    }
+    Ok(abbr)
 }
 
 async fn create_category(
@@ -162,9 +179,12 @@ async fn create_category(
     if name.is_empty() {
         return Err(PoolError::NameRequired.into());
     }
-    Ok(Json(
-        db::mappool::create_category(&state.db, stage_id, name).await?,
-    ))
+    let abbr = checked_abbreviation(&state, stage_id, &body.abbreviation, None).await?;
+    let category =
+        db::mappool::create_category(&state.db, stage_id, name, &abbr, body.kind).await?;
+    // The bots read the pool's labels and rules from here.
+    state.live.bracket_changed();
+    Ok(Json(category))
 }
 
 #[derive(Debug, Deserialize)]
@@ -172,6 +192,10 @@ pub struct UpdateCategoryBody {
     // Each field is optional — only the ones present are changed.
     #[serde(default)]
     name: Option<String>,
+    #[serde(default)]
+    abbreviation: Option<String>,
+    #[serde(default)]
+    kind: Option<CategoryKind>,
     #[serde(default)]
     color: Option<String>,
 }
@@ -187,7 +211,8 @@ async fn reorder_categories(
     Ok(StatusCode::NO_CONTENT)
 }
 
-// PATCH /api/mappool/categories/:id — rename and/or recolour a category.
+// PATCH /api/mappool/categories/:id — rename, recolour, or change a category's short name
+// or kind.
 async fn update_category(
     State(state): State<AppState>,
     user: AuthUser,
@@ -201,9 +226,27 @@ async fn update_category(
             return Err(PoolError::NameRequired.into());
         }
     }
-    Ok(Json(
-        db::mappool::update_category(&state.db, id, name, body.color.as_deref()).await?,
-    ))
+    let abbr = match body.abbreviation.as_deref() {
+        Some(typed) => {
+            let stage_id = db::mappool::category_stage(&state.db, id)
+                .await?
+                .ok_or(GeneralError::NotFound)?;
+            Some(checked_abbreviation(&state, stage_id, typed, Some(id)).await?)
+        }
+        None => None,
+    };
+    let edit = db::mappool::CategoryEdit {
+        name,
+        abbreviation: abbr.as_deref(),
+        kind: body.kind,
+        color: body.color.as_deref(),
+    };
+    let category = db::mappool::update_category(&state.db, id, &edit).await?;
+    // Labels and rules: the bots and the match pages read them.
+    if edit.abbreviation.is_some() || edit.kind.is_some() {
+        state.live.bracket_changed();
+    }
+    Ok(Json(category))
 }
 
 async fn delete_category(
@@ -269,7 +312,8 @@ async fn resolve_stats(
 ) -> Result<db::mappool::ModStats, AppError> {
     use crate::mods::{modded_ar, modded_cs, modded_od};
 
-    let parsed = crate::mods::parse(mods);
+    // An FM or TB map is the beatmap without mods.
+    let parsed = crate::mods::parse(category::playable_mods(mods));
     let rate = crate::mods::rate(&parsed);
 
     // Only the star rating needs osu!'s difficulty calculation (nomod uses the value on
@@ -309,6 +353,20 @@ async fn resolve_stats(
     })
 }
 
+// What a map can be added with: FM or TB (a freemod or tiebreaker map), or osu!'s mods as
+// acronyms ("HDDT"; none for NoMod).
+fn is_known_mods(mods: &str) -> bool {
+    const MODS: [&str; 7] = ["HD", "HR", "DT", "NC", "HT", "EZ", "FL"];
+    if category::is_kind_mark(mods) {
+        return true;
+    }
+    mods.len().is_multiple_of(2)
+        && mods
+            .as_bytes()
+            .chunks(2)
+            .all(|m| MODS.iter().any(|k| k.as_bytes() == m))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct AddMapBody {
     beatmap_id: i64,
@@ -326,6 +384,9 @@ async fn add_map(
 ) -> Result<impl IntoResponse, AppError> {
     guard(&user)?;
     let mods = body.mods.trim().to_uppercase();
+    if !is_known_mods(&mods) {
+        return Err(PoolError::BadMods.into());
+    }
 
     let token =
         osu_api::token::app_token(&state.osu_client, &state.oauth_http, &state.osu_app_token)

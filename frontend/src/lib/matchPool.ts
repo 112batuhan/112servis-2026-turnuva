@@ -1,5 +1,6 @@
 import type { PublicMatch, PublicPoolMap, RefereeRoom } from "../api/types";
-import { isFreemodCategory, SIDE_COLOR, type SlotTeam } from "./bancho";
+import { SIDE_COLOR, type SlotTeam } from "./bancho";
+import { isTiebreaker, playsFreemod, slotLabel } from "./category";
 import { draftOf, stageDraftOrder, stepLabel, type Draft, type StepKind } from "./draftOrder";
 
 // The match's pool as the referee page shows it, shared by the pool panel and the
@@ -29,8 +30,10 @@ export type MatchData = Pick<
 > & { teams: { id: string; name: string }[] };
 
 export interface PoolEntry {
-  /** "NM1", "HD2", "TB". */
+  /** "NM1", "HD2", "TB": the category's short name and the slot's place. */
   label: string;
+  /** The category's short name: "NM" for NM3. */
+  abbreviation: string;
   /** The category's colour, "#rrggbb". */
   color: string;
   freemod: boolean;
@@ -51,7 +54,7 @@ export interface DraftTurn {
   team: MatchTeam | null;
 }
 
-/** The pool in category and slot order. A category with one slot is just its name. */
+/** The pool in category and slot order. A category with one slot is just its short name. */
 export function poolEntries(room: Pick<MatchData, "categories" | "slots" | "maps">): PoolEntry[] {
   const entries: PoolEntry[] = [];
   for (const category of room.categories) {
@@ -62,10 +65,11 @@ export function poolEntries(room: Pick<MatchData, "categories" | "slots" | "maps
       const map = room.maps.find((m) => m.slot_id === slot.id);
       if (!map) return;
       entries.push({
-        label: slots.length > 1 ? `${category.name}${i + 1}` : category.name,
+        label: slotLabel(category, i, slots.length),
+        abbreviation: category.abbreviation,
         color: category.color,
-        freemod: isFreemodCategory(category.name),
-        tiebreaker: /^TB/i.test(category.name.trim()),
+        freemod: playsFreemod(map, category.kind),
+        tiebreaker: isTiebreaker(map, category.kind),
         map,
       });
     });

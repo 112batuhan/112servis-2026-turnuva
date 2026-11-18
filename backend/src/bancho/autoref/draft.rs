@@ -7,7 +7,6 @@ use crate::bancho::{
     tally::{score_message, standing_of, PoolEntry, Standing},
 };
 use crate::{
-    category,
     db::autoref::LogLevel,
     draft::{StepKind, Turn},
 };
@@ -240,7 +239,7 @@ pub(super) fn refusal(
     if s.picks.iter().any(|p| p.map_id == entry.map_id) || s.played.contains(&entry.map_id) {
         return Some(format!("{label} zaten oynandı, başka bir map seçin."));
     }
-    if kind == StepKind::Pick && !category::repeatable(&entry.category) {
+    if kind == StepKind::Pick && !entry.repeatable {
         let last = s
             .picks
             .iter()

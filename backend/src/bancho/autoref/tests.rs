@@ -23,12 +23,14 @@ fn entry(id: u128, label: &str, category: &str, freemod: bool, tb: bool) -> Pool
     PoolEntry {
         map_id: Uuid::from_u128(id),
         beatmap_id: id as i64,
+        beatmapset_id: id as i64 + 1000,
         mods: String::new(),
         mode: "osu".into(),
         freemod,
         tiebreaker: tb,
         label: label.into(),
         category: category.into(),
+        repeatable: category == "NM",
     }
 }
 
@@ -90,7 +92,11 @@ impl World {
             picks: Vec::new(),
             missed: Vec::new(),
             played: HashSet::new(),
-            room: RoomState::default(),
+            // The bot locked it as it opened it.
+            room: RoomState {
+                locked: Some(true),
+                ..RoomState::default()
+            },
             turn: None,
             score: Some((0, 0)),
             bracket: true,
@@ -386,8 +392,11 @@ fn a_pick_is_confirmed_checked_and_started() {
     out.clear();
     ar.tick(&w.snap(at(14)), &mut out);
     assert!(sent(&out)[0].starts_with("a1: NoFail"));
+    // Beta has nobody on HD, HR, EZ or FL: an FM map needs one per team.
+    assert!(sent(&out)[1].starts_with("Beta: FM mapinde"));
     // Fixed, and ready again: it starts.
     w.room.slots[0].mods = "HDNF".into();
+    w.room.slots[2].mods = "EZNF".into();
     out.clear();
     ar.bancho(&w.snap(at(20)), "All players are ready", &mut out);
     ar.tick(&w.snap(at(24)), &mut out);
@@ -619,6 +628,7 @@ fn state_round_trips() {
             map_id: A,
             until: at(5),
             nf_warned: true,
+            fm_warned: true,
             check_at: None,
             forced: false,
             starting: Some(at(3)),
@@ -632,4 +642,275 @@ fn state_round_trips() {
     let back: AutoRef = serde_json::from_value(serde_json::to_value(&ar).unwrap()).unwrap();
     assert_eq!(back.phase, ar.phase);
     assert_eq!(back.uses, ar.uses);
+}
+
+// A pick on an FM map: everyone ready with NoFail but Beta without a mod.
+fn fm_ready(w: &mut World) -> AutoRef {
+    w.everyone_in(SlotStatus::Ready);
+    w.room.slots.iter_mut().for_each(|s| s.mods = "NF".into());
+    w.room.slots[0].mods = "HRNF".into();
+    let mut ar = AutoRef::default();
+    let mut out = Vec::new();
+    ar.enter_ready(&w.snap(at(0)), &w.entries[4].clone(), &mut out);
+    ar
+}
+
+#[test]
+fn a_team_without_an_fm_mod_stops_the_match_when_time_runs_out() {
+    let mut w = World::bracket();
+    let mut ar = fm_ready(&mut w);
+    // The timer runs out: mods are read, Beta is told and gets the grace; still nothing
+    // when it runs out, and the match stops for a referee instead of starting.
+    let mut out = Vec::new();
+    for t in 1..260 {
+        ar.tick(&w.snap(at(t)), &mut out);
+        if out.iter().any(|a| matches!(a, Action::Handover(_))) {
+            break;
+        }
+    }
+    assert_eq!(ar.phase, Phase::Next);
+    let lines = sent(&out);
+    // Each of these, in this order.
+    let mut rest = lines.iter();
+    for want in [
+        "Süre doldu, map başlıyor.",
+        "!mp settings",
+        "Beta: FM mapinde",
+        "Map 30 saniye",
+        "!mp settings",
+        "Beta: FM mapinde takımdan en az bir oyuncu HD, HR, EZ veya FL seçmeli. Seçilmediği",
+    ] {
+        assert!(rest.any(|l| l.starts_with(want)), "{want} in {lines:?}");
+    }
+    assert!(out
+        .iter()
+        .any(|a| matches!(a, Action::Handover(r) if r.contains("Beta"))));
+    assert!(!lines.contains(&"!mp start 10"));
+}
+
+#[test]
+fn the_tiebreaker_needs_no_mod() {
+    let mut w = World::bracket();
+    w.everyone_in(SlotStatus::Ready);
+    w.room.slots.iter_mut().for_each(|s| s.mods = "NF".into());
+    let mut ar = AutoRef::default();
+    let mut out = Vec::new();
+    ar.enter_ready(&w.snap(at(0)), &w.entries[5].clone(), &mut out);
+    out.clear();
+    ar.bancho(&w.snap(at(5)), "All players are ready", &mut out);
+    ar.tick(&w.snap(at(9)), &mut out);
+    assert!(sent(&out).contains(&"!mp start 10"));
+}
+
+#[test]
+fn keeps_the_room_locked() {
+    let mut w = World::bracket();
+    w.room.locked = Some(false);
+    let mut ar = AutoRef::default();
+    let mut out = Vec::new();
+    ar.tick(&w.snap(at(-100)), &mut out);
+    assert_eq!(sent(&out), ["!mp lock"]);
+    // Not asked again straight away; again once a while passed and it's still open.
+    out.clear();
+    ar.tick(&w.snap(at(-90)), &mut out);
+    assert!(sent(&out).is_empty());
+    ar.tick(&w.snap(at(-60)), &mut out);
+    assert_eq!(sent(&out), ["!mp lock"]);
+    w.room.locked = Some(true);
+    out.clear();
+    ar.tick(&w.snap(at(-30)), &mut out);
+    assert!(sent(&out).is_empty());
+}
+
+fn in_warmup(w: &mut World) -> AutoRef {
+    w.everyone_in(SlotStatus::NotReady);
+    AutoRef {
+        phase: Phase::Warmup {
+            team: 0,
+            until: at(180),
+            played: false,
+            skipped: [false, false],
+        },
+        ..AutoRef::default()
+    }
+}
+
+#[test]
+fn a_warmup_starts_once_everyone_is_ready() {
+    let mut w = World::bracket();
+    let mut ar = in_warmup(&mut w);
+    let mut out = Vec::new();
+    w.room.beatmap_id = Some(555);
+    ar.bancho(
+        &w.snap(at(5)),
+        "Beatmap changed to: Song [Hard] (https://osu.ppy.sh/b/555)",
+        &mut out,
+    );
+    assert_eq!(out, [Action::WarmupMap(555)]);
+    let map = WarmupMap {
+        seconds: 120,
+        beatmapset_id: 9,
+    };
+    out.clear();
+    ar.warmup_described(&w.snap(at(6)), 555, map, &mut out);
+    assert!(out.is_empty());
+    w.room
+        .slots
+        .iter_mut()
+        .for_each(|s| s.status = SlotStatus::Ready);
+    ar.bancho(&w.snap(at(10)), "All players are ready", &mut out);
+    assert_eq!(
+        sent(&out),
+        ["Herkes hazır, warmup başlıyor.", "!mp start 10"]
+    );
+}
+
+#[test]
+fn a_pool_song_is_no_warmup_in_any_difficulty() {
+    let mut w = World::bracket();
+    let mut ar = in_warmup(&mut w);
+    let mut out = Vec::new();
+    // Another difficulty of HD1's set (1020).
+    w.room.beatmap_id = Some(777);
+    ar.bancho(
+        &w.snap(at(5)),
+        "Beatmap changed to: Song [Easy] (https://osu.ppy.sh/b/777)",
+        &mut out,
+    );
+    assert_eq!(out, [Action::WarmupMap(777)]);
+    out.clear();
+    let map = WarmupMap {
+        seconds: 90,
+        beatmapset_id: 1020,
+    };
+    ar.warmup_described(&w.snap(at(6)), 777, map, &mut out);
+    assert!(sent(&out)[0].starts_with("Havuzdaki mapler"));
+    // Everyone ready: it isn't started; started anyway, it's aborted.
+    out.clear();
+    w.room
+        .slots
+        .iter_mut()
+        .for_each(|s| s.status = SlotStatus::Ready);
+    ar.bancho(&w.snap(at(10)), "All players are ready", &mut out);
+    assert!(!sent(&out).contains(&"!mp start 10"));
+    out.clear();
+    ar.bancho(&w.snap(at(12)), MATCH_STARTED, &mut out);
+    assert_eq!(sent(&out)[0], "!mp abort");
+    // The pool map itself is refused as soon as it's on.
+    out.clear();
+    w.room.beatmap_id = Some(20);
+    ar.bancho(
+        &w.snap(at(20)),
+        "Changed beatmap to https://osu.ppy.sh/b/20 Song",
+        &mut out,
+    );
+    assert!(sent(&out)[0].starts_with("Havuzdaki mapler"));
+}
+
+#[test]
+fn resuming_follows_a_pool_map_being_played() {
+    // A lobby a referee started by hand, then switched to auto mid-map.
+    let mut w = World::bracket();
+    w.bracket = false;
+    w.everyone_in(SlotStatus::Ready);
+    w.room.beatmap_id = Some(10);
+    w.room.playing = true;
+    let mut ar = AutoRef::default();
+    let mut out = Vec::new();
+    ar.resume(&w.snap(at(30)), &mut out);
+    assert!(matches!(ar.phase, Phase::Playing { map_id, .. } if map_id == Uuid::from_u128(10)));
+    ar.tick(&w.snap(at(31)), &mut out);
+    assert!(sent(&out).is_empty());
+    // It finishes: the scores are read, then the next map comes.
+    w.room.playing = false;
+    ar.bancho(&w.snap(at(200)), "The match has finished!", &mut out);
+    assert!(matches!(ar.phase, Phase::Scoring { .. }));
+}
+
+#[test]
+fn resuming_a_match_the_referee_started_goes_to_its_next_step() {
+    let mut w = World::bracket();
+    w.everyone_in(SlotStatus::NotReady);
+    // The referee did the warmups and the roll: A bans first.
+    w.turn = Some(Turn {
+        kind: StepKind::Ban,
+        team_id: Some(A),
+    });
+    let mut ar = AutoRef::default();
+    let mut out = Vec::new();
+    ar.resume(&w.snap(at(30)), &mut out);
+    assert_eq!(ar.phase, Phase::Next);
+    ar.tick(&w.snap(at(31)), &mut out);
+    assert!(matches!(
+        ar.phase,
+        Phase::Draft {
+            team_id: A,
+            kind: StepKind::Ban,
+            ..
+        }
+    ));
+    assert!(!sent(&out).iter().any(|t| t.contains("warmup")));
+}
+
+#[test]
+fn a_map_the_referee_put_on_for_a_pick_is_that_pick() {
+    let mut w = World::bracket();
+    w.everyone_in(SlotStatus::NotReady);
+    w.turn = Some(Turn {
+        kind: StepKind::Pick,
+        team_id: Some(B),
+    });
+    w.room.beatmap_id = Some(21);
+    let mut ar = AutoRef {
+        phase: Phase::Draft {
+            kind: StepKind::Pick,
+            team_id: B,
+            candidate: None,
+            until: at(10),
+        },
+        ..AutoRef::default()
+    };
+    let mut out = Vec::new();
+    ar.resume(&w.snap(at(300)), &mut out);
+    assert!(out.contains(&Action::Pick {
+        map_id: Uuid::from_u128(21),
+        team_id: B
+    }));
+    assert!(matches!(ar.phase, Phase::Ready { map_id, .. } if map_id == Uuid::from_u128(21)));
+    // A map already played isn't taken for one.
+    let mut w = World::bracket();
+    w.turn = Some(Turn {
+        kind: StepKind::Pick,
+        team_id: Some(B),
+    });
+    w.room.beatmap_id = Some(21);
+    w.played.insert(Uuid::from_u128(21));
+    let mut ar = AutoRef {
+        phase: Phase::Draft {
+            kind: StepKind::Pick,
+            team_id: B,
+            candidate: None,
+            until: at(10),
+        },
+        ..AutoRef::default()
+    };
+    out.clear();
+    ar.resume(&w.snap(at(300)), &mut out);
+    assert!(!out.iter().any(|a| matches!(a, Action::Pick { .. })));
+    assert_eq!(ar.phase, Phase::Next);
+}
+
+#[test]
+fn a_pool_map_started_by_someone_else_is_followed() {
+    let mut w = World::bracket();
+    w.everyone_in(SlotStatus::Ready);
+    w.room.beatmap_id = Some(11);
+    w.room.playing = true;
+    let mut ar = AutoRef {
+        phase: Phase::Next,
+        ..AutoRef::default()
+    };
+    let mut out = Vec::new();
+    ar.bancho(&w.snap(at(0)), MATCH_STARTED, &mut out);
+    assert!(matches!(ar.phase, Phase::Playing { map_id, .. } if map_id == Uuid::from_u128(11)));
 }

@@ -15,12 +15,14 @@ fn entry(id: u128, beatmap: i64, mods: &str, freemod: bool) -> PoolEntry {
     PoolEntry {
         map_id: Uuid::from_u128(id),
         beatmap_id: beatmap,
+        beatmapset_id: beatmap,
         mods: mods.into(),
         mode: "osu".into(),
         freemod,
         tiebreaker: false,
         label: format!("M{id}"),
         category: "M".into(),
+        repeatable: false,
     }
 }
 

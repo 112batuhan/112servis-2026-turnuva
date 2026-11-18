@@ -172,9 +172,9 @@ export function categoryStyle(entry: PoolEntry): CSSProperties {
   return { "--ov-cat": entry.color } as CSSProperties;
 }
 
-/** The category's name without the slot number: "NM" for NM3. */
+/** The category's short name: "NM" for NM3. */
 export function categoryName(entry: PoolEntry): string {
-  return entry.tiebreaker ? "TB" : entry.label.replace(/\d+$/, "");
+  return entry.abbreviation;
 }
 
 /** Every pool map's state on stream: who banned or picked it, and who won it. */

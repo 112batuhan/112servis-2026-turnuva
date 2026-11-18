@@ -19,12 +19,18 @@ export interface ChatLine {
 /** A saved line, marked when it arrived over the live socket rather than with a load. */
 export type StoredLine = RoomChatMessage & { streamed?: boolean };
 
+// Each saved line's ChatLine, made once: a page that rebuilds its rooms' chats (every room reading,
+// every new line) hands its rows the same objects, so the rows already drawn aren't drawn again.
+const chatLines = new WeakMap<StoredLine, ChatLine>();
+
 /**
  * Loaded lines get negative ids and streamed ones positive, so only what arrived while the page
  * was open counts as unread.
  */
 export function toChatLine(m: StoredLine): ChatLine {
-  return {
+  const known = chatLines.get(m);
+  if (known) return known;
+  const line = {
     id: m.streamed ? m.id : -m.id,
     at: Date.parse(m.sent_at),
     from: m.sender,
@@ -32,6 +38,8 @@ export function toChatLine(m: StoredLine): ChatLine {
     action: m.action,
     notice: false,
   };
+  chatLines.set(m, line);
+  return line;
 }
 
 /** Adds the lines a fetch didn't have yet (they arrived live while it was out) to what it returned. */

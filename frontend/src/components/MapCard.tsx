@@ -31,7 +31,7 @@ interface Props {
   editor?: MapCardEditor;
   /** In the editor for those who may only look: shows both notes, without any controls. */
   viewOnly?: boolean;
-  /** In a freemod category where players may take HR (FM, not TB): adds the map's HR stats. */
+  /** An FM map, where players may take HR (not TB; lib/category.ts): adds the map's HR stats. */
   showHr?: boolean;
 }
 
@@ -49,7 +49,7 @@ export function MapCard({ map, editor, viewOnly, showHr }: Props) {
         <MapInfo
           map={map}
           note={editor || viewOnly ? undefined : map.public_notes}
-          hr={showHr && !map.mods ? (hrStatsOf(map) ?? (editor ? "missing" : null)) : null}
+          hr={showHr ? (hrStatsOf(map) ?? (editor ? "missing" : null)) : null}
           onRecompute={editor?.onRecompute}
         />
       </div>
@@ -145,6 +145,13 @@ function MapInfo({ map, note, hr, onRecompute }: MapInfoProps) {
       </div>
       <div className="map-stats-row">
         <div className={`map-stats-table ${stats ? "has-hr" : ""}`}>
+          {/* An FM map's mark leads its table, before the NM / HR heads, between the two lines. */}
+          {stats && map.mods && (
+            <p className="map-stats-mark">
+              <span className="sr-only">Mods: </span>
+              {map.mods}
+            </p>
+          )}
           {stats && (
             <div className="map-stats-modes" aria-hidden="true">
               <span>NM</span>
@@ -152,7 +159,7 @@ function MapInfo({ map, note, hr, onRecompute }: MapInfoProps) {
             </div>
           )}
           <dl className="map-stats">
-            {map.mods && <Stat label="Mods" value={map.mods} highlight />}
+            {!stats && map.mods && <Stat label="Mods" value={map.mods} highlight />}
             <Stat
               label="Star rating"
               value={<StarRating value={map.star_rating} />}

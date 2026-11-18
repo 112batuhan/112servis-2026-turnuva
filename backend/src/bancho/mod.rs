@@ -192,11 +192,12 @@ enum Request {
         match_id: Uuid,
         confirmed: bool,
     },
-    // A warmup beatmap's length, for the auto referee.
-    AutorefLength {
+    // A warmup beatmap as osu! describes it, for the auto referee.
+    AutorefWarmup {
         match_id: Uuid,
         beatmap_id: i64,
         seconds: i32,
+        beatmapset_id: i64,
     },
     BotsChanged,
     Resync,

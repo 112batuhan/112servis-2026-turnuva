@@ -1029,7 +1029,8 @@ pub async fn match_codes(pool: &PgPool) -> sqlx::Result<Vec<MatchCode>> {
     .await
 }
 
-// A pool map as the results list it: its slot label and beatmap.
+// A pool map as the results list it: its slot label and beatmap, and whether the players
+// chose their mods on it (a freemod or tiebreaker category, or a map added as FM or TB).
 #[derive(Debug, sqlx::FromRow)]
 pub struct ResultMap {
     pub map_id: Uuid,
@@ -1037,17 +1038,19 @@ pub struct ResultMap {
     pub label: String,
     pub title: String,
     pub version: String,
+    pub freemod: bool,
 }
 
 pub async fn stage_maps(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<ResultMap>> {
     sqlx::query_as::<_, ResultMap>(
         r#"
-        SELECT map_id, beatmap_id, label, title, version FROM (
+        SELECT map_id, beatmap_id, label, title, version, freemod FROM (
             SELECT pm.id AS map_id, pm.beatmap_id, pm.title, pm.version, c.position, s.position AS slot_position,
                    CASE WHEN count(*) OVER (PARTITION BY c.id) > 1
-                        THEN c.name || (row_number() OVER (PARTITION BY c.id ORDER BY s.position))::text
-                        ELSE c.name
-                   END AS label
+                        THEN c.abbreviation || (row_number() OVER (PARTITION BY c.id ORDER BY s.position))::text
+                        ELSE c.abbreviation
+                   END AS label,
+                   (c.kind IN ('freemod', 'tiebreaker') OR upper(pm.mods) IN ('FM', 'TB')) AS freemod
             FROM stage_categories c
             JOIN category_slots s ON s.category_id = c.id
             LEFT JOIN pool_maps pm ON pm.slot_id = s.id

@@ -7,6 +7,7 @@ import { ErrorAlert } from "../../../components/ErrorAlert";
 import { Icon } from "../../../components/Icon";
 import type { MapCardEditor, MoveTargetGroup } from "../../../components/MapCard";
 import { StageTabs } from "../../../components/StageTabs";
+import { slotLabel } from "../../../lib/category";
 import { useExpandedSet } from "../../../lib/useExpandedSet";
 import { CategoryEditor } from "./CategoryEditor";
 import { GenericPool, GENERIC_POOL_ID } from "./GenericPool";
@@ -124,9 +125,9 @@ function buildMoveTargets(detail: StageDetail | null): MoveTargetGroup[] {
     category: category.name,
     slots: detail.slots
       .filter((s) => s.category_id === category.id)
-      .map((slot, i) => ({
+      .map((slot, i, all) => ({
         id: slot.id,
-        label: `${category.name} #${i + 1}`,
+        label: slotLabel(category, i, all.length),
         occupied: occupied.has(slot.id),
       })),
   }));

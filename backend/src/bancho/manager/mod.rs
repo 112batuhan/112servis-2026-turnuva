@@ -143,6 +143,8 @@ struct Room {
     // joins), and how many times they were moved since the last join.
     reposition_at: Option<Instant>,
     reposition_tries: u8,
+    // When the room's bot last said something in it: a slot move soon after is the bot's.
+    last_own: Option<Instant>,
 }
 
 struct Run {
@@ -157,6 +159,12 @@ struct Run {
     // The auto referee's state, and as it was last saved.
     auto: AutoRef,
     auto_saved: Option<serde_json::Value>,
+    // The auto referee was running the match when it was last driven: once it runs again
+    // (switched back to auto, the bot back in the room, a restart) it resumes first.
+    auto_live: bool,
+    // The auto referee itself switched the match to manual (a -durdur or a handover) and
+    // the room was told why, so the switch isn't announced again.
+    auto_told_off: bool,
 }
 
 struct Manager {

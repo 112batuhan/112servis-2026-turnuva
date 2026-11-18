@@ -1,8 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorMessage } from "../api/client";
-import type { LiveRoom, RoomChat } from "../api/types";
+import type { LiveRoom, RoomChat, RoomChatMessage } from "../api/types";
 import { RELOAD_DELAY_MS, useLive } from "../live/LiveContext";
 import { appendLine, mergeFetched, type StoredLine } from "./roomChat";
+
+/**
+ * How long the room's readings and chat lines that arrive together are gathered into one update.
+ * A busy room sends a reading every 200 ms and its chat in bursts (a settings dump is a dozen
+ * lines); drawing the page once per event let a page that lost the CPU (in the background, beside
+ * a game) fall further and further behind. In a background tab the browser stretches this wait to
+ * a second at most, which gathers more; the page catches up as soon as it's shown.
+ */
+const GATHER_MS = 80;
 
 // What the referee page and the public match page have in common about following a match: the
 // match as the server has it, its room as the bots read it (the same reading on every page) and
@@ -114,16 +123,45 @@ export function useMatchFeed<M extends FeedMatch>(matchId: string, feed: Feed<M>
       window.clearTimeout(timer);
       timer = window.setTimeout(reload, RELOAD_DELAY_MS);
     };
+    // The chat lines and the latest room reading not drawn yet (see GATHER_MS).
+    let lines: { mpId: number; message: RoomChatMessage }[] = [];
+    let reading: LiveRoom | null = null;
+    let flushTimer: number | undefined;
+    const flush = () => {
+      window.clearTimeout(flushTimer);
+      flushTimer = undefined;
+      if (lines.length > 0) {
+        const batch = lines;
+        lines = [];
+        setChat((prev) => {
+          const next = new Map(prev);
+          for (const { mpId, message } of batch)
+            next.set(mpId, appendLine(next.get(mpId) ?? [], message));
+          return next;
+        });
+      }
+      if (reading) {
+        setLive(reading);
+        reading = null;
+      }
+    };
+    const gather = () => {
+      if (flushTimer === undefined) flushTimer = window.setTimeout(flush, GATHER_MS);
+    };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") flush();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     const off = subscribe((event) => {
       if (event.type === "chat") {
         if (!roomIds.current.has(event.mp_id)) return;
-        setChat((prev) =>
-          new Map(prev).set(event.mp_id, appendLine(prev.get(event.mp_id) ?? [], event.message)),
-        );
+        lines.push({ mpId: event.mp_id, message: event.message });
+        gather();
       } else if (event.type === "room") {
         if (event.match_id !== matchId) return;
         requests.current.readings += 1;
-        setLive(event.room);
+        reading = event.room;
+        gather();
       } else if (
         event.type === "score" ||
         event.type === "match" ||
@@ -139,7 +177,9 @@ export function useMatchFeed<M extends FeedMatch>(matchId: string, feed: Feed<M>
     });
     return () => {
       off();
+      document.removeEventListener("visibilitychange", onVisible);
       window.clearTimeout(timer);
+      window.clearTimeout(flushTimer);
     };
   }, [subscribe, matchId, staff, reload, reloadChat]);
 

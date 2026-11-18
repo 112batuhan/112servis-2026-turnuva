@@ -4,14 +4,14 @@
 //! type in the room, each map started once everyone is ready, the score read from osu!
 //! after every map and the match concluded once a team has won. Players steer it with
 //! `-abort`, `-durdur` (back to manual), `-rapor`, `-warmup-gec` (and `-davet` in a private message, which
-//! the manager answers).
+//! the manager answers). It keeps the room locked, so players stay where the bot put them.
 //!
 //! It is a state machine with no I/O: the manager (manager/auto_referee.rs) feeds it the room's lines,
 //! the players' commands and the clock along with a `Snapshot` of the match, and does the
 //! `Action`s it returns (lines for the room, bans and picks, a forfeit, a conclusion,
 //! notifications). Its state is saved after every change (`match_autoref`), so a restart
 //! or a referee switching the match to manual and back continues where it left off
-//! (`resume`).
+//! (`resume`), going by what the room and the match say happened meanwhile.
 
 mod banchobot;
 mod clock;
@@ -37,8 +37,8 @@ use uuid::Uuid;
 use super::{
     context::MatchTeam,
     names::same_name,
-    room::RoomState,
-    tally::{PoolEntry, RosterPlayer},
+    room::{is_freemod, mod_acronyms, RoomState},
+    tally::{entry_of, PoolEntry, RosterPlayer},
 };
 use crate::{
     db::{
@@ -69,6 +69,10 @@ const PICK_TIME: Duration = Duration::minutes(2);
 const QUALIFIER_READY: i64 = 180;
 const BRACKET_READY: i64 = 120;
 const NF_GRACE: i64 = 30;
+// The mods a team must have one of on an FM map (on one player at least).
+pub const FM_MODS: [&str; 4] = ["HD", "HR", "EZ", "FL"];
+// How often the bot asks Bancho again to lock a room it sees unlocked.
+const LOCK_EVERY: Duration = Duration::seconds(30);
 // !mp settings gets this long to list everyone's mods.
 const MODS_CHECK: Duration = Duration::seconds(3);
 // !mp start's countdown, and how long the bot waits for the map to start before trying
@@ -127,8 +131,8 @@ pub enum Action {
     },
     // The bot can't go on by itself: the match goes to manual and the staff hear why.
     Handover(String),
-    // Look the beatmap's length up; answered with `warmup_length`.
-    WarmupLength(i64),
+    // Look the warmup beatmap up on osu! (its length and set); answered with `warmup_map`.
+    WarmupMap(i64),
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -169,6 +173,9 @@ pub enum Phase {
         until: OffsetDateTime,
         // The players missing NoFail were told.
         nf_warned: bool,
+        // An FM map: the teams with none of HD, HR, EZ, FL were told.
+        #[serde(default)]
+        fm_warned: bool,
         // Waiting for !mp settings to read everyone's mods; `forced` when the timer ran
         // out.
         #[serde(default, with = "time::serde::rfc3339::option")]
@@ -221,9 +228,20 @@ pub struct AutoRef {
     reports: HashMap<i64, OffsetDateTime>,
     #[serde(skip)]
     stops: HashMap<i64, OffsetDateTime>,
-    // Warmup beatmaps' lengths in seconds, as osu! gave them.
+    // Warmup beatmaps as osu! gave them, by beatmap id.
     #[serde(skip)]
-    lengths: HashMap<i64, i32>,
+    warmups: HashMap<i64, WarmupMap>,
+    // When the bot last asked Bancho to lock the room.
+    #[serde(skip)]
+    lock_asked: Option<OffsetDateTime>,
+}
+
+// A warmup beatmap: its length in seconds and its set, to tell a pool map's other
+// difficulties.
+#[derive(Debug, Clone, Copy)]
+pub struct WarmupMap {
+    pub seconds: i32,
+    pub beatmapset_id: i64,
 }
 
 // The match as the auto referee needs it, read by the manager each time it's asked.
@@ -318,6 +336,48 @@ impl Snapshot<'_> {
         latest.then_some(last.team_id)
     }
 
+    // The pool map on in the room, by its beatmap (and, for a beatmap the pool has twice,
+    // the mods it's on with).
+    fn room_entry(&self) -> Option<&PoolEntry> {
+        let mods = self.room.mods.as_deref();
+        let picked: HashSet<Uuid> = self.picks.iter().map(|p| p.map_id).collect();
+        entry_of(
+            self.entries,
+            self.room.beatmap_id,
+            &mod_acronyms(mods.unwrap_or_default()),
+            is_freemod(mods),
+            &picked,
+        )
+    }
+
+    // Whether the beatmap is one of the pool's songs: a pool map, or another difficulty
+    // of one (`set`, when osu! said it).
+    fn in_pool(&self, beatmap: i64, set: Option<i64>) -> bool {
+        self.entries
+            .iter()
+            .any(|e| e.beatmap_id == beatmap || Some(e.beatmapset_id) == set)
+    }
+
+    // Whether the match got past its start without the bot: a map played, a ban, a pick
+    // or a missed turn, or the first turn decided (a roll the referee settled).
+    fn started(&self) -> bool {
+        !self.finished.is_empty()
+            || !self.bans.is_empty()
+            || !self.picks.is_empty()
+            || !self.missed.is_empty()
+            || self.turn.is_some_and(|t| t.team_id.is_some())
+    }
+
+    // The team (0 or 1) of the room's host.
+    fn host_team(&self) -> Option<usize> {
+        let host = self.room.slots.iter().find(|s| s.host)?;
+        let p = self.roster.iter().find(|p| match host.user_id {
+            Some(id) => id == p.osu_id,
+            None => same_name(&host.username, &p.username),
+        })?;
+        self.teams.iter().position(|t| t.id == p.team_id)
+    }
+
     // The latest the players have to join.
     pub fn deadline(&self) -> Option<OffsetDateTime> {
         self.starts_at
@@ -366,6 +426,7 @@ fn command(text: &str) -> Option<(String, &str)> {
 struct ReadyFields {
     until: OffsetDateTime,
     nf_warned: bool,
+    fm_warned: bool,
     check_at: Option<OffsetDateTime>,
     forced: bool,
     starting: Option<OffsetDateTime>,

@@ -9,7 +9,7 @@ import { MapCard } from "../../components/MapCard";
 import { PoolSection } from "../../components/PoolSection";
 import { EmptySlot, Slot } from "../../components/Slot";
 import { StageTabs } from "../../components/StageTabs";
-import { showsHrStats } from "../../lib/bancho";
+import { showsHrStats, slotLabel } from "../../lib/category";
 import { useStoredSet } from "../../lib/useExpandedSet";
 import { createStageCache, useStageCache } from "../../lib/useStageCache";
 import { useLiveBracket } from "../../live/LiveContext";
@@ -153,9 +153,9 @@ function PublicCategory({ category, detail, expanded, onToggle }: PublicCategory
       {slots.map((slot, i) => {
         const map = detail.maps.find((m) => m.slot_id === slot.id);
         return (
-          <Slot key={slot.id} number={i + 1} label={`${category.name}${i + 1}`}>
+          <Slot key={slot.id} number={i + 1} label={slotLabel(category, i, slots.length)}>
             {map ? (
-              <MapCard map={map} showHr={showsHrStats(category.name)} />
+              <MapCard map={map} showHr={showsHrStats(map, category.kind)} />
             ) : (
               <EmptySlot>Daha sonra açıklanacak</EmptySlot>
             )}

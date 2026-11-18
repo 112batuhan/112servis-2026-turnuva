@@ -156,6 +156,12 @@ impl Manager {
                 .copied()
                 .filter(|&id| self.auto_on(id).is_some())
                 .collect();
+            // The others aren't run by it now: whenever one is again, it resumes first.
+            for (id, run) in self.runs.iter_mut() {
+                if !running.contains(id) {
+                    run.auto_live = false;
+                }
+            }
             for id in running {
                 self.drive(id, |auto, s, out| auto.tick(s, out)).await;
             }

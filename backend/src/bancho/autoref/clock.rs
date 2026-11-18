@@ -9,13 +9,14 @@ use crate::bancho::{
 use crate::db::autoref::LogLevel;
 
 use super::{
-    log, send, span, Action, AutoRef, CountdownKind, Phase, Snapshot, GRACE, NO_SHOW_WAIT,
-    START_TIMEOUT, WARMUP_PLAY_MAX,
+    log, send, span, Action, AutoRef, CountdownKind, Phase, Snapshot, GRACE, LOCK_EVERY,
+    NO_SHOW_WAIT, START_TIMEOUT, WARMUP_PLAY_MAX,
 };
 
 impl AutoRef {
     pub fn tick(&mut self, s: &Snapshot, out: &mut Vec<Action>) {
         let now = s.now;
+        self.keep_locked(s, out);
         // The turn changed under it (a referee marked, took back or chose the next team):
         // it asks again, with a new timer, before the old one's reminders.
         if let Phase::Draft { team_id, kind, .. } = self.phase {
@@ -73,6 +74,7 @@ impl AutoRef {
             Phase::Ready {
                 until,
                 nf_warned,
+                fm_warned,
                 check_at,
                 forced,
                 starting,
@@ -91,8 +93,8 @@ impl AutoRef {
                         self.check_mods(s, forced, out);
                     }
                 } else if now >= until {
-                    // After the NoFail grace, check_mods says so itself.
-                    if !nf_warned {
+                    // After the mods grace, check_mods says so itself.
+                    if !nf_warned && !fm_warned {
                         send(out, "Süre doldu, map başlıyor.");
                     }
                     self.try_start(s, true, out);
@@ -114,6 +116,30 @@ impl AutoRef {
             Phase::Next => self.next_step(s, out),
             _ => {}
         }
+    }
+
+    // The room stays locked while the bot runs it, so players can't change their slot or
+    // colour themselves; Bancho is asked again while it says otherwise.
+    fn keep_locked(&mut self, s: &Snapshot, out: &mut Vec<Action>) {
+        if self.phase == Phase::Done || s.room.closed {
+            return;
+        }
+        if s.room.locked == Some(true) {
+            self.lock_asked = None;
+            return;
+        }
+        if self.lock_asked.is_some_and(|t| s.now - t < LOCK_EVERY) {
+            return;
+        }
+        if s.room.locked == Some(false) {
+            log(
+                out,
+                LogLevel::Warn,
+                "Odanın kilidi açılmış, tekrar kilitleniyor.",
+            );
+        }
+        self.lock_asked = Some(s.now);
+        send(out, "!mp lock");
     }
 
     // Before the match: once everyone is in (at its time, or earlier if they're all

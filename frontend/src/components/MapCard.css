@@ -201,6 +201,18 @@
   line-height: 20px;
 }
 
+/* An FM map's mark, before the heads: as tall as the two lines, so it sits between them even
+   when the stats wrap onto more. */
+.map-stats-mark {
+  flex-shrink: 0;
+  margin: 0;
+  line-height: 40px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-primary);
+  white-space: nowrap;
+}
+
 .map-stats-modes {
   display: flex;
   flex-direction: column;
@@ -313,6 +325,10 @@
 
   .map-stats-modes {
     font-size: 11px;
+  }
+
+  .map-stats-mark {
+    font-size: var(--text-xs);
   }
 }
 

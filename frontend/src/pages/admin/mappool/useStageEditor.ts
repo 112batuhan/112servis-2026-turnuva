@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { errorMessage } from "../../../api/client";
 import { useAction } from "../../../lib/useAction";
 import * as api from "../../../api/mappool";
-import type { MapNoteField, Stage, StageDetail } from "../../../api/types";
+import type { CategoryKind, MapNoteField, Stage, StageDetail } from "../../../api/types";
 import { readString, writeString } from "../../../lib/storage";
 import { moveBy, moveToTarget, sortByIds } from "../../../lib/reorder";
 
@@ -91,16 +91,29 @@ export function useStageEditor(userId: string) {
 
   // ---- categories ----
 
-  const createCategory = (name: string) =>
+  const createCategory = (category: api.NewCategory) =>
     run(async () => {
       if (!selectedId) return;
-      await api.createCategory(selectedId, name);
+      await api.createCategory(selectedId, category);
       await reloadDetail();
     });
 
   const renameCategory = (id: string, name: string) =>
     run(async () => {
       await api.renameCategory(id, name);
+      await reloadDetail();
+    });
+
+  /** Its slots' labels change with it, so the stage is read again. */
+  const setCategoryAbbreviation = (id: string, abbreviation: string) =>
+    run(async () => {
+      await api.setCategoryAbbreviation(id, abbreviation);
+      await reloadDetail();
+    });
+
+  const setCategoryKind = (id: string, kind: CategoryKind) =>
+    run(async () => {
+      await api.setCategoryKind(id, kind);
       await reloadDetail();
     });
 
@@ -203,6 +216,8 @@ export function useStageEditor(userId: string) {
       savePackUrl,
       createCategory,
       renameCategory,
+      setCategoryAbbreviation,
+      setCategoryKind,
       deleteCategory,
       previewCategoryColor,
       saveCategoryColor,

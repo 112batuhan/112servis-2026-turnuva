@@ -5,7 +5,7 @@ import { IconButton } from "../../../components/IconButton";
 import { MapCard, type MapCardEditor } from "../../../components/MapCard";
 import { PoolSection } from "../../../components/PoolSection";
 import { EmptySlot, Slot } from "../../../components/Slot";
-import { showsHrStats } from "../../../lib/bancho";
+import { showsHrStats, slotLabel } from "../../../lib/category";
 import { useMapDropZone } from "../../../lib/dragAndDrop";
 import type { StageEditorActions } from "./useStageEditor";
 
@@ -63,7 +63,8 @@ export function CategoryEditor({
         <EditorSlot
           key={slot.id}
           slot={slot}
-          categoryName={category.name}
+          category={category}
+          name={`${slotLabel(category, i, slots.length)} · ${category.name}`}
           number={i + 1}
           map={maps.find((m) => m.slot_id === slot.id)}
           actions={actions}
@@ -76,15 +77,16 @@ export function CategoryEditor({
 
 interface EditorSlotProps {
   slot: SlotData;
-  categoryName: string;
+  category: Category;
+  /** "NM2 · NoMod". */
+  name: string;
   number: number;
   map: PoolMap | undefined;
   actions: StageEditorActions;
   editorFor?: (map: PoolMap) => MapCardEditor;
 }
 
-function EditorSlot({ slot, categoryName, number, map, actions, editorFor }: EditorSlotProps) {
-  const name = `${categoryName} #${number}`;
+function EditorSlot({ slot, category, name, number, map, actions, editorFor }: EditorSlotProps) {
   const { isOver, dropProps } = useMapDropZone((mapId) => actions.moveMap(mapId, slot.id));
 
   function remove() {
@@ -124,7 +126,7 @@ function EditorSlot({ slot, categoryName, number, map, actions, editorFor }: Edi
           map={map}
           editor={editorFor?.(map)}
           viewOnly={!editorFor}
-          showHr={showsHrStats(categoryName)}
+          showHr={showsHrStats(map, category.kind)}
         />
       ) : (
         <EmptySlot>

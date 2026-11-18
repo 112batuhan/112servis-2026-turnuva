@@ -3,16 +3,20 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::stages::Stage;
+use crate::category::CategoryKind;
 
 // ---------- rows ----------
 
-// A category is just a named group now — mods live on the maps, not the category. Its
-// size is the number of slots it has (see Slot). `color` colour-codes it in the pool.
+// A category of a stage's pool: its name, its short name (its slots' labels: "NM1",
+// "TB") and its kind (the rules its maps follow; category.rs). Mods live on the maps.
+// Its size is the number of slots it has (see Slot). `color` colour-codes it in the pool.
 #[derive(Debug, Serialize, sqlx::FromRow)]
 pub struct Category {
     pub id: Uuid,
     pub stage_id: Uuid,
     pub name: String,
+    pub abbreviation: String,
+    pub kind: CategoryKind,
     pub position: i32,
     pub color: String,
 }
@@ -156,43 +160,89 @@ pub struct PublicStageDetail {
 
 pub async fn list_categories(pool: &PgPool, stage_id: Uuid) -> sqlx::Result<Vec<Category>> {
     sqlx::query_as::<_, Category>(
-        "SELECT id, stage_id, name, position, color FROM stage_categories WHERE stage_id = $1 ORDER BY position, created_at",
+        "SELECT id, stage_id, name, abbreviation, kind, position, color FROM stage_categories \
+         WHERE stage_id = $1 ORDER BY position, created_at",
     )
     .bind(stage_id)
     .fetch_all(pool)
     .await
 }
 
-pub async fn create_category(pool: &PgPool, stage_id: Uuid, name: &str) -> sqlx::Result<Category> {
+pub async fn create_category(
+    pool: &PgPool,
+    stage_id: Uuid,
+    name: &str,
+    abbreviation: &str,
+    kind: CategoryKind,
+) -> sqlx::Result<Category> {
     sqlx::query_as::<_, Category>(
         r#"
-        INSERT INTO stage_categories (stage_id, name, position)
-        VALUES ($1, $2, (SELECT COALESCE(MAX(position), -1) + 1 FROM stage_categories WHERE stage_id = $1))
-        RETURNING id, stage_id, name, position, color
+        INSERT INTO stage_categories (stage_id, name, abbreviation, kind, position)
+        VALUES ($1, $2, $3, $4, (SELECT COALESCE(MAX(position), -1) + 1 FROM stage_categories WHERE stage_id = $1))
+        RETURNING id, stage_id, name, abbreviation, kind, position, color
         "#,
     )
     .bind(stage_id)
     .bind(name)
+    .bind(abbreviation)
+    .bind(kind)
     .fetch_one(pool)
     .await
 }
 
-// Updates a category's name and/or colour; each field changes only when Some(..).
+// What a category edit changes; each field only when Some(..).
+pub struct CategoryEdit<'a> {
+    pub name: Option<&'a str>,
+    pub abbreviation: Option<&'a str>,
+    pub kind: Option<CategoryKind>,
+    pub color: Option<&'a str>,
+}
+
 pub async fn update_category(
     pool: &PgPool,
     id: Uuid,
-    name: Option<&str>,
-    color: Option<&str>,
+    edit: &CategoryEdit<'_>,
 ) -> sqlx::Result<Category> {
     sqlx::query_as::<_, Category>(
-        "UPDATE stage_categories SET name = COALESCE($2, name), color = COALESCE($3, color), \
-         updated_at = now() WHERE id = $1 RETURNING id, stage_id, name, position, color",
+        "UPDATE stage_categories SET name = COALESCE($2, name), \
+         abbreviation = COALESCE($3, abbreviation), kind = COALESCE($4, kind), \
+         color = COALESCE($5, color), updated_at = now() WHERE id = $1 \
+         RETURNING id, stage_id, name, abbreviation, kind, position, color",
     )
     .bind(id)
-    .bind(name)
-    .bind(color)
+    .bind(edit.name)
+    .bind(edit.abbreviation)
+    .bind(edit.kind)
+    .bind(edit.color)
     .fetch_one(pool)
     .await
+}
+
+// Whether another category of the stage already has this short name: two would give
+// their slots the same labels.
+pub async fn abbreviation_taken(
+    pool: &PgPool,
+    stage_id: Uuid,
+    abbreviation: &str,
+    except: Option<Uuid>,
+) -> sqlx::Result<bool> {
+    sqlx::query_scalar(
+        "SELECT EXISTS (SELECT 1 FROM stage_categories WHERE stage_id = $1 \
+         AND abbreviation = $2 AND id IS DISTINCT FROM $3)",
+    )
+    .bind(stage_id)
+    .bind(abbreviation)
+    .bind(except)
+    .fetch_one(pool)
+    .await
+}
+
+// The stage a category belongs to.
+pub async fn category_stage(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<Uuid>> {
+    sqlx::query_scalar("SELECT stage_id FROM stage_categories WHERE id = $1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await
 }
 
 // Sets each category's position to its index in `ids` (see reorder_stages).

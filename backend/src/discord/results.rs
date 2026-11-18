@@ -10,7 +10,6 @@ use super::{
     snowflake, Bot, BotResult,
 };
 use crate::{
-    category,
     db::{self, discord::MatchInfo, matches::MatchKind},
     AppState,
 };
@@ -129,7 +128,7 @@ pub async fn results_embed(state: &AppState, info: &MatchInfo) -> BotResult<Embe
             number(t2),
         );
         // On freemod and tiebreaker maps the players chose their mods: each one's, by team.
-        if map.is_some_and(|m| category::is_freemod(&m.label)) {
+        if map.is_some_and(|m| m.freemod) {
             let sides = [(info.team1_id, "🔴"), (info.team2_id, "🔵")]
                 .into_iter()
                 .filter_map(|(team, mark)| {

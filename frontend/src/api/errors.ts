@@ -62,6 +62,9 @@ export const ERROR_TEXT = {
     pack_link_scheme: "Paket linki http:// ya da https:// ile başlamalı.",
     pack_link_too_long: "Paket linki çok uzun.",
     abbreviation_too_long: "Kısaltma en fazla 6 karakter olabilir.",
+    bad_category_abbreviation: "Kategori kısaltması 1-6 harf olmalı (ör. NM, HD, FM).",
+    category_abbreviation_taken: "Bu aşamada bu kısaltmayı kullanan başka bir kategori var.",
+    bad_mods: "Bu modlarla map eklenemez.",
   },
   bracket: {
     bad_match_number: "Maç numaraları 1'den başlar.",

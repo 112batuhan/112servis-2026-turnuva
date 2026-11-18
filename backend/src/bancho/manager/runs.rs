@@ -7,7 +7,7 @@ use tokio::time::Instant;
 use uuid::Uuid;
 
 use crate::bancho::{
-    autoref::{self, GRACE},
+    autoref::GRACE,
     connection::{
         bot::{BotCmd, Priority},
         irc::room_channel,
@@ -96,6 +96,7 @@ impl Manager {
                     tiebreaker_done: None,
                     reposition_at: Some(Instant::now() + REPOSITION_SETTLE),
                     reposition_tries: 0,
+                    last_own: None,
                 },
             );
             // A bot that isn't connected yet joins its rooms once it is.
@@ -218,17 +219,14 @@ impl Manager {
         };
         let was_on = run.ctx.settings.auto_ref;
         let on = ctx.settings.auto_ref;
-        // A run read back after a restart, or a match switched back to auto, picks up
-        // where its auto referee left off.
-        let resume = on
-            && if fresh {
-                !matches!(
-                    run.auto.phase,
-                    autoref::Phase::Waiting | autoref::Phase::Done
-                )
-            } else {
-                !was_on
-            };
+        // The room hears the match switch between the bot and a referee (unless the bot
+        // switched it itself and said why). Switched back, the auto referee resumes the
+        // next time it's driven (`drive`).
+        let switched = !fresh && on != was_on && !ctx.concluded();
+        let told_off = std::mem::take(&mut run.auto_told_off);
+        if switched && on {
+            run.auto_live = false;
+        }
         run.ctx = ctx;
         run.dirty = true;
         match synced_at {
@@ -260,8 +258,20 @@ impl Manager {
             }
         }
         self.count(id);
-        if resume {
-            self.drive(id, |auto, s, out| auto.resume(s, out)).await;
+        if switched && (on || !told_off) {
+            self.auto_send(
+                id,
+                if on {
+                    "Otomatik hakem tekrar devrede: maç otomatik modda, bot kaldığı yerden devam ediyor."
+                } else {
+                    "Maç manuel moda alındı: bundan sonra maçı hakem yönetiyor, otomatik hakem durdu."
+                }
+                .into(),
+            );
+        }
+        if on && self.auto_on(id).is_some() {
+            // Resumes at once rather than on the next tick.
+            self.drive(id, |_, _, _| {}).await;
         }
     }
 
@@ -292,6 +302,8 @@ impl Manager {
             dirty: true,
             auto,
             auto_saved: saved,
+            auto_live: false,
+            auto_told_off: false,
         }
     }
 

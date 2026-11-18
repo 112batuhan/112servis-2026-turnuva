@@ -104,10 +104,16 @@ export interface PublicStage {
   state: StageState;
 }
 
+/** What a pool category is: its maps' rules (backend/src/category.rs, lib/category.ts). */
+export type CategoryKind = "nomod" | "modded" | "freemod" | "tiebreaker";
+
 export interface Category {
   id: string;
   stage_id: string;
   name: string;
+  /** Its slots' labels: "NM" makes NM1, NM2…; what players type to ban and pick. */
+  abbreviation: string;
+  kind: CategoryKind;
   position: number;
   color: string;
 }

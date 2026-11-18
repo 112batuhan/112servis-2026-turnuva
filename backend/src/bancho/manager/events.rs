@@ -203,6 +203,7 @@ impl Manager {
         }
         // A player's line: the auto referee's commands, in the match's latest room.
         if own {
+            room.last_own = Some(Instant::now());
             // One of the bot's own lines, as it went out: a countdown line that went out
             // late moves its end back.
             self.closing_said(mp_id, &text, at);

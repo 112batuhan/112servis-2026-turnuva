@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { Fragment, memo } from "react";
 import { BANCHO_BOT, normalizeName, sameName, type SlotTeam } from "../../lib/bancho";
 import { formatClockSeconds } from "../../lib/format";
 import type { ChatLine } from "../../lib/roomChat";
@@ -32,8 +32,12 @@ interface ChatRowProps {
   referee?: string | null;
 }
 
-/** One chat line, IRC style: the time, who said it in their team's colour, what they said. */
-export function ChatRow({ line, me, colors, referee }: ChatRowProps) {
+/**
+ * One chat line, IRC style: the time, who said it in their team's colour, what they said. Drawn
+ * again only when the line or how it's coloured changes: a match's chat runs to hundreds of lines,
+ * and the page around it changes several times a second while a room is busy.
+ */
+export const ChatRow = memo(function ChatRow({ line, me, colors, referee }: ChatRowProps) {
   const fromMe = me !== null && (sameName(line.from, me) || line.text.startsWith(`[${me}] `));
   const fromReferee = referee != null && normalizeName(line.from) === normalizeName(referee);
   const color = colors.get(normalizeName(line.from));
@@ -57,4 +61,4 @@ export function ChatRow({ line, me, colors, referee }: ChatRowProps) {
       </span>
     </div>
   );
-}
+});

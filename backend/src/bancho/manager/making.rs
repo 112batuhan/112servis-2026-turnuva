@@ -106,6 +106,7 @@ impl Manager {
                 tiebreaker_done: None,
                 reposition_at: None,
                 reposition_tries: 0,
+                last_own: None,
             },
         );
         self.set_up(match_id, mp_id);

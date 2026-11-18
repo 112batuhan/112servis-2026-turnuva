@@ -26,6 +26,7 @@ use crate::{
 };
 
 use super::{run_dirty, Making, Manager, Room, Save, SaveJob, QUEUE_TIMEOUT};
+use crate::bancho::autoref::WarmupMap;
 
 impl Manager {
     pub(super) async fn request(&mut self, request: Request) {
@@ -69,13 +70,18 @@ impl Manager {
                 self.drive(match_id, |auto, s, out| auto.osu_read(s, confirmed, out))
                     .await;
             }
-            Request::AutorefLength {
+            Request::AutorefWarmup {
                 match_id,
                 beatmap_id,
                 seconds,
+                beatmapset_id,
             } => {
+                let map = WarmupMap {
+                    seconds,
+                    beatmapset_id,
+                };
                 self.drive(match_id, |auto, s, out| {
-                    auto.warmup_length(s, beatmap_id, seconds, out)
+                    auto.warmup_described(s, beatmap_id, map, out)
                 })
                 .await;
             }

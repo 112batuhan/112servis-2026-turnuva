@@ -392,8 +392,10 @@ missing AS (
     )
 ),
 categories AS (
-    INSERT INTO stage_categories (stage_id, name, position, color)
-    SELECT m.stage_id, m.category,
+    INSERT INTO stage_categories (stage_id, name, abbreviation, kind, position, color)
+    SELECT m.stage_id, m.category, m.category,
+           (CASE m.category WHEN 'NM' THEN 'nomod' WHEN 'FM' THEN 'freemod'
+                            WHEN 'TB' THEN 'tiebreaker' ELSE 'modded' END)::category_kind,
            COALESCE((SELECT max(c.position) + 1 FROM stage_categories c
                      WHERE c.stage_id = m.stage_id), 0) + m.cat_pos,
            m.color
@@ -411,7 +413,8 @@ slots AS (
 INSERT INTO pool_maps (slot_id, mods, beatmap_id, beatmapset_id, artist, title, version, creator,
                        mode, cover_url, star_rating, ar, od, cs, bpm, total_length,
                        hr_star_rating, hr_cs, hr_ar, hr_od, added_by)
-SELECT s.id, p.mods, p.beatmap_id, p.beatmapset_id, p.artist, p.title, p.version, p.creator,
+SELECT s.id, CASE WHEN p.category IN ('FM', 'TB') THEN p.category ELSE p.mods END,
+       p.beatmap_id, p.beatmapset_id, p.artist, p.title, p.version, p.creator,
        'osu', p.cover_url, p.star_rating, p.ar, p.od, p.cs, p.bpm, p.total_length,
        p.hr_star_rating, p.hr_cs, p.hr_ar, p.hr_od,
        (SELECT id FROM osu_users WHERE osu_id = -2)

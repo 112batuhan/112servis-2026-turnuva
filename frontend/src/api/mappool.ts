@@ -1,6 +1,7 @@
 import { del, get, patch, post, put } from "./client";
 import type {
   Category,
+  CategoryKind,
   MapNoteField,
   PoolMap,
   PublicStage,
@@ -9,6 +10,13 @@ import type {
   Stage,
   StageDetail,
 } from "./types";
+
+/** A category as the editor creates it. */
+export interface NewCategory {
+  name: string;
+  abbreviation: string;
+  kind: CategoryKind;
+}
 
 // ---- stages ----
 export const fetchStages = () => get<Stage[]>("/api/stages");
@@ -38,10 +46,14 @@ export const setStagePackUrl = (stageId: string, url: string | null) =>
   put<void>(`/api/mappool/stages/${stageId}/pack`, { pack_url: url });
 
 // ---- categories ----
-export const createCategory = (stageId: string, name: string) =>
-  post<Category>(`/api/mappool/stages/${stageId}/categories`, { name });
+export const createCategory = (stageId: string, category: NewCategory) =>
+  post<Category>(`/api/mappool/stages/${stageId}/categories`, category);
 export const renameCategory = (id: string, name: string) =>
   patch<Category>(`/api/mappool/categories/${id}`, { name });
+export const setCategoryAbbreviation = (id: string, abbreviation: string) =>
+  patch<Category>(`/api/mappool/categories/${id}`, { abbreviation });
+export const setCategoryKind = (id: string, kind: CategoryKind) =>
+  patch<Category>(`/api/mappool/categories/${id}`, { kind });
 export const setCategoryColor = (id: string, color: string) =>
   patch<Category>(`/api/mappool/categories/${id}`, { color });
 export const reorderCategories = (ids: string[]) =>

@@ -1,8 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
-import type { Category, StageDetail } from "../../../api/types";
+import type { NewCategory } from "../../../api/mappool";
+import type { Category, CategoryKind, StageDetail } from "../../../api/types";
 import { Icon } from "../../../components/Icon";
 import { IconButton } from "../../../components/IconButton";
 import { InlineEdit } from "../../../components/InlineEdit";
+import { CATEGORY_KINDS, cleanAbbreviation, isAbbreviation, kindOf } from "../../../lib/category";
 import { useDragReorder } from "../../../lib/dragAndDrop";
 import type { StageEditorActions } from "./useStageEditor";
 
@@ -121,38 +123,163 @@ function PackUrlForm({
   );
 }
 
+/**
+ * A new category: its short name (its slots' labels, what players type to ban and pick), its name
+ * and its kind. Typing NM, FM or TB picks the kind they mean, until the kind is chosen by hand.
+ */
 function NewCategoryForm({
   busy,
   onCreate,
 }: {
   busy: boolean;
-  onCreate: (name: string) => Promise<boolean>;
+  onCreate: (category: NewCategory) => Promise<boolean>;
 }) {
+  const [abbreviation, setAbbreviation] = useState("");
   const [name, setName] = useState("");
+  const [kind, setKind] = useState<CategoryKind>("modded");
+  const [kindChosen, setKindChosen] = useState(false);
+  const abbr = cleanAbbreviation(abbreviation);
+  const badAbbr = abbr !== "" && !isAbbreviation(abbr);
+  const ready = isAbbreviation(abbr) && name.trim() !== "";
+
+  function typeAbbreviation(value: string) {
+    setAbbreviation(value);
+    const guess = kindOf(value);
+    if (!kindChosen) setKind(guess ?? "modded");
+  }
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const trimmed = name.trim();
-    if (trimmed && (await onCreate(trimmed))) setName("");
+    if (!ready) return;
+    if (await onCreate({ name: name.trim(), abbreviation: abbr, kind })) {
+      setAbbreviation("");
+      setName("");
+      setKind("modded");
+      setKindChosen(false);
+    }
   }
 
   return (
-    <form className="inline-form new-category-form" onSubmit={submit}>
-      <label className="sr-only" htmlFor="new-category-name">
-        Yeni kategori adı
+    <form className="new-category-form" onSubmit={submit}>
+      <label className="new-category-field">
+        <span className="new-category-label">Kısaltma</span>
+        <input
+          className="input category-abbr"
+          value={abbreviation}
+          onChange={(e) => typeAbbreviation(e.target.value)}
+          placeholder="NM"
+          maxLength={6}
+          spellCheck={false}
+          autoComplete="off"
+          aria-invalid={badAbbr}
+          aria-describedby="new-category-hint"
+        />
       </label>
-      <input
-        id="new-category-name"
-        className="input"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder="Kategori adı, ör. DoubleTime"
-      />
-      <button type="submit" className="btn btn-primary" disabled={busy || !name.trim()}>
+      <label className="new-category-field new-category-name">
+        <span className="new-category-label">Ad</span>
+        <input
+          className="input"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="ör. NoMod"
+        />
+      </label>
+      <label className="new-category-field">
+        <span className="new-category-label">Tür</span>
+        <KindSelect
+          value={kind}
+          onChange={(next) => {
+            setKind(next);
+            setKindChosen(true);
+          }}
+        />
+      </label>
+      <button type="submit" className="btn btn-primary" disabled={busy || !ready}>
         <Icon name="plus" />
         Kategori ekle
       </button>
+      <p
+        id="new-category-hint"
+        className={`new-category-hint${badAbbr ? " is-error" : ""}`}
+        aria-live="polite"
+      >
+        {badAbbr
+          ? "Kısaltma yalnızca harf olabilir, en fazla 6 tane."
+          : `Slotlar kısaltmayla anılır (${abbr || "NM"}1, ${abbr || "NM"}2…); oyuncular ban ve pick için bunu yazar.`}
+      </p>
     </form>
+  );
+}
+
+/** A category's kind: the rules its maps follow (lib/category.ts). */
+function KindSelect({
+  value,
+  onChange,
+  label,
+}: {
+  value: CategoryKind;
+  onChange: (kind: CategoryKind) => void;
+  label?: string;
+}) {
+  const hint = CATEGORY_KINDS.find((k) => k.kind === value)?.hint;
+  return (
+    <select
+      className="select category-kind"
+      value={value}
+      aria-label={label}
+      title={hint}
+      onChange={(e) => onChange(e.target.value as CategoryKind)}
+    >
+      {CATEGORY_KINDS.map((k) => (
+        <option key={k.kind} value={k.kind} title={k.hint}>
+          {k.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+/**
+ * A category's short name. Enter or leaving the field saves it; Escape, or leaving it empty, puts
+ * back the saved one.
+ */
+function CategoryAbbreviation({
+  category,
+  onSave,
+}: {
+  category: Category;
+  onSave: (abbreviation: string) => void;
+}) {
+  const saved = category.abbreviation;
+  const [text, setText] = useState(saved);
+  useEffect(() => setText(saved), [saved]);
+
+  function commit() {
+    const next = cleanAbbreviation(text);
+    if (!next) return setText(saved);
+    setText(next);
+    if (next !== saved) onSave(next);
+  }
+
+  return (
+    <input
+      className="input input-sm category-abbr"
+      value={text}
+      maxLength={6}
+      spellCheck={false}
+      autoComplete="off"
+      aria-label={`${category.name}: kısaltma`}
+      title="Slotların etiketi (NM1, NM2…): oyuncular ban ve pick için bunu yazar"
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") e.currentTarget.blur();
+        if (e.key === "Escape") {
+          setText(saved);
+          e.currentTarget.blur();
+        }
+      }}
+    />
   );
 }
 
@@ -169,6 +296,10 @@ function CategoryList({ detail, actions }: { detail: StageDetail; actions: Stage
             <Icon name="grip" />
           </span>
           <CategoryColor category={category} actions={actions} />
+          <CategoryAbbreviation
+            category={category}
+            onSave={(abbr) => actions.setCategoryAbbreviation(category.id, abbr)}
+          />
           <span className="category-name">
             <InlineEdit
               value={category.name}
@@ -176,6 +307,11 @@ function CategoryList({ detail, actions }: { detail: StageDetail; actions: Stage
               onSave={(name) => actions.renameCategory(category.id, name)}
             />
           </span>
+          <KindSelect
+            value={category.kind}
+            label={`${category.name}: tür`}
+            onChange={(kind) => actions.setCategoryKind(category.id, kind)}
+          />
           <span className="category-meta">
             {detail.slots.filter((s) => s.category_id === category.id).length} slot
           </span>

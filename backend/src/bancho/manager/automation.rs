@@ -19,6 +19,20 @@ use crate::{db::user::StaffMember, role::Role};
 
 use super::{Manager, REPOSITION_EVERY, REPOSITION_SETTLE, REPOSITION_TRIES};
 
+// A slot or colour change this soon after the bot said something in the room is its own
+// move's answer.
+const OWN_MOVE_WINDOW: std::time::Duration = std::time::Duration::from_secs(5);
+
+// The player BanchoBot says changed slot ("X moved to slot 3") or colour ("X changed to
+// Red").
+fn moved_player(text: &str) -> Option<&str> {
+    if let Some(at) = text.rfind(" moved to slot ") {
+        return Some(&text[..at]);
+    }
+    let at = text.rfind(" changed to ")?;
+    matches!(&text[at + " changed to ".len()..], "Red" | "Blue").then(|| &text[..at])
+}
+
 impl Manager {
     // Once all of a bracket match's players are in its room, anyone still out of their
     // slot or colour is moved again. Each join's moves are worked out from the room as it
@@ -207,13 +221,21 @@ impl Manager {
                 }
             }
         }
+        // A player who changed their slot or colour themselves (the bot's own moves come
+        // right after its lines): everyone is checked again, as after a join.
+        let now = Instant::now();
+        let moved_self = moved_player(text)
+            .is_some_and(|name| ctx.roster.iter().any(|p| same_name(&p.username, name)))
+            && room
+                .last_own
+                .is_none_or(|t| now.duration_since(t) > OWN_MOVE_WINDOW);
         let Some(room) = self.rooms.get_mut(&mp_id) else {
             return;
         };
         room.unknown = unknown;
         room.refs_asked = refs_asked;
-        if parse_joined(text).is_some() {
-            room.reposition_at = Some(Instant::now() + REPOSITION_SETTLE);
+        if parse_joined(text).is_some() || moved_self {
+            room.reposition_at = Some(now + REPOSITION_SETTLE);
             room.reposition_tries = 0;
         }
         for line in out {

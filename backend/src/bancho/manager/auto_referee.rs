@@ -85,17 +85,27 @@ impl Manager {
     }
 
     // Runs `f` on the match's auto referee with the match as it stands, saves where it
-    // stands, and does what it asked.
+    // stands, and does what it asked. An auto referee that wasn't running the match the
+    // last time (manual mode, its bot away, a restart) and is now resumes first.
     pub(super) async fn drive(
         &mut self,
         id: Uuid,
         f: impl FnOnce(&mut AutoRef, &Snapshot, &mut Vec<Action>),
     ) {
-        let Some(mut auto) = self.runs.get_mut(&id).map(|r| std::mem::take(&mut r.auto)) else {
+        let on = self.auto_on(id).is_some();
+        let Some(run) = self.runs.get_mut(&id) else {
             return;
         };
+        let resume = on && !run.auto_live;
+        run.auto_live = on;
+        let mut auto = std::mem::take(&mut run.auto);
         let mut out = Vec::new();
-        self.with_snapshot(id, |s| f(&mut auto, s, &mut out));
+        self.with_snapshot(id, |s| {
+            if resume {
+                auto.resume(s, &mut out);
+            }
+            f(&mut auto, s, &mut out)
+        });
         let Some(run) = self.runs.get_mut(&id) else {
             return;
         };
@@ -143,8 +153,8 @@ impl Manager {
                     self.fetch_osu(id);
                     Ok(())
                 }
-                Action::WarmupLength(beatmap_id) => {
-                    self.fetch_length(id, beatmap_id);
+                Action::WarmupMap(beatmap_id) => {
+                    self.fetch_warmup(id, beatmap_id);
                     Ok(())
                 }
                 Action::Forfeit(slot) => {
@@ -176,6 +186,10 @@ impl Manager {
                 } => {
                     self.pending.insert(id);
                     let auto = self.runs.get(&id).is_some_and(|r| r.ctx.settings.auto_ref);
+                    // The room heard why already.
+                    if let Some(run) = self.runs.get_mut(&id) {
+                        run.auto_told_off = auto;
+                    }
                     services::autoref::emergency_stop(
                         &self.app,
                         id,
@@ -187,6 +201,9 @@ impl Manager {
                 }
                 Action::Handover(reason) => {
                     self.pending.insert(id);
+                    if let Some(run) = self.runs.get_mut(&id) {
+                        run.auto_told_off = true;
+                    }
                     self.auto_send(
                         id,
                         "Otomatik hakem durdu, maçı bir hakem devralacak.".into(),
@@ -202,7 +219,7 @@ impl Manager {
     }
 
     // A line for the match's latest room, through its bot.
-    fn auto_send(&self, id: Uuid, text: String) {
+    pub(super) fn auto_send(&self, id: Uuid, text: String) {
         let Some(mp_id) = self.latest_room(id) else {
             return;
         };
@@ -253,8 +270,8 @@ impl Manager {
         });
     }
 
-    // A warmup beatmap's length, from osu!.
-    fn fetch_length(&self, id: Uuid, beatmap_id: i64) {
+    // A warmup beatmap's length and set, from osu!.
+    fn fetch_warmup(&self, id: Uuid, beatmap_id: i64) {
         let app = self.app.clone();
         let inbox = self.inbox.clone();
         tokio::spawn(async move {
@@ -273,10 +290,11 @@ impl Manager {
             };
             match osu_api::beatmap::fetch(&app.http_client, &token, beatmap_id).await {
                 Ok(map) => {
-                    let _ = inbox.send(Request::AutorefLength {
+                    let _ = inbox.send(Request::AutorefWarmup {
                         match_id: id,
                         beatmap_id,
                         seconds: map.total_length,
+                        beatmapset_id: map.beatmapset_id,
                     });
                 }
                 Err(err) => {

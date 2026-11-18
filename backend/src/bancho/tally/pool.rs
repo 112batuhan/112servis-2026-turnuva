@@ -14,17 +14,20 @@ use crate::{
 pub struct PoolEntry {
     pub map_id: Uuid,
     pub beatmap_id: i64,
-    // The map's own mods, as acronyms.
+    pub beatmapset_id: i64,
+    // The mods the room plays it with, as acronyms (an FM or TB map's: none).
     pub mods: String,
     pub mode: String,
+    // Its category is freemod or the tiebreaker, or the map was added as FM or TB.
     pub freemod: bool,
     pub tiebreaker: bool,
-    // Its slot as players and the pages name it: "HD1", or just "TB" for a category of
-    // one slot (matchPool.ts's poolEntries).
+    // Its slot as players and the pages name it: its category's short name and its
+    // place, "HD1", or just "TB" for a category of one slot (matchPool.ts's poolEntries).
     pub label: String,
-    // Its category, by name: a team can't pick from the same one twice in a row (NM
-    // aside; see autoref/draft.rs).
+    // Its category's short name: a team can't pick from the same one twice in a row
+    // unless it's `repeatable` (NoMod; see autoref/draft.rs).
     pub category: String,
+    pub repeatable: bool,
 }
 
 // The pool in category and slot order.
@@ -45,19 +48,22 @@ pub fn pool_entries(
             let Some(map) = maps.iter().find(|m| m.slot_id == Some(slot.id)) else {
                 continue;
             };
+            let mark = map.mods.trim().to_uppercase();
             entries.push(PoolEntry {
                 map_id: map.id,
                 beatmap_id: map.beatmap_id,
-                mods: map.mods.clone(),
+                beatmapset_id: map.beatmapset_id,
+                mods: category::playable_mods(&map.mods).to_string(),
                 mode: map.mode.clone(),
-                freemod: category::is_freemod(&category.name),
-                tiebreaker: category::is_tiebreaker(&category.name),
+                freemod: category.kind.freemod() || category::is_kind_mark(&mark),
+                tiebreaker: category.kind.tiebreaker() || mark == category::TIEBREAKER_MAP,
                 label: if several {
-                    format!("{}{}", category.name.trim(), i + 1)
+                    format!("{}{}", category.abbreviation, i + 1)
                 } else {
-                    category.name.trim().to_string()
+                    category.abbreviation.clone()
                 },
-                category: category.name.trim().to_uppercase(),
+                category: category.abbreviation.clone(),
+                repeatable: category.kind.repeatable(),
             });
         }
     }

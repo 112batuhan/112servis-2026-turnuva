@@ -3,11 +3,26 @@ import type { PoolMap } from "../../../api/types";
 import { Icon } from "../../../components/Icon";
 import { MapCard, type MapCardEditor } from "../../../components/MapCard";
 import { PoolSection } from "../../../components/PoolSection";
+import { showsHrStats } from "../../../lib/category";
 import { useMapDropZone } from "../../../lib/dragAndDrop";
 
 export const GENERIC_POOL_ID = "generic-pool";
 
-const MOD_OPTIONS = ["", "HD", "HR", "DT", "HT", "EZ", "FL", "HDHR", "HDDT"];
+// What a map is added with: its mods, or FM / TB for a freemod or tiebreaker slot (played with
+// Freemod, stats without mods; an FM map's card adds them under HR).
+const MOD_OPTIONS: { value: string; label: string }[] = [
+  { value: "", label: "NoMod" },
+  { value: "HD", label: "HD" },
+  { value: "HR", label: "HR" },
+  { value: "DT", label: "DT" },
+  { value: "HT", label: "HT" },
+  { value: "EZ", label: "EZ" },
+  { value: "FL", label: "FL" },
+  { value: "HDHR", label: "HDHR" },
+  { value: "HDDT", label: "HDDT" },
+  { value: "FM", label: "FM · Freemod" },
+  { value: "TB", label: "TB · Tiebreaker" },
+];
 
 interface Props {
   maps: PoolMap[];
@@ -50,7 +65,13 @@ export function GenericPool({
         </p>
       )}
       {maps.map((map) => (
-        <MapCard key={map.id} map={map} editor={editorFor?.(map)} viewOnly={!editorFor} />
+        <MapCard
+          key={map.id}
+          map={map}
+          editor={editorFor?.(map)}
+          viewOnly={!editorFor}
+          showHr={showsHrStats(map)}
+        />
       ))}
     </PoolSection>
   );
@@ -90,8 +111,8 @@ function AddMapForm({ busy, onAddMap }: Pick<Props, "busy" | "onAddMap">) {
         onChange={(e) => setMods(e.target.value)}
       >
         {MOD_OPTIONS.map((m) => (
-          <option key={m} value={m}>
-            {m || "NoMod"}
+          <option key={m.value} value={m.value}>
+            {m.label}
           </option>
         ))}
       </select>

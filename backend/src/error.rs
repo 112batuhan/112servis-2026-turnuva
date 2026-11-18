@@ -375,6 +375,12 @@ pub enum PoolError {
     PackLinkTooLong,
     #[error("a stage's short name is at most 6 characters")]
     AbbreviationTooLong,
+    #[error("a category's short name is 1 to 6 letters")]
+    BadCategoryAbbreviation,
+    #[error("another category of this stage has that short name")]
+    CategoryAbbreviationTaken,
+    #[error("those aren't mods a pool map can have")]
+    BadMods,
 }
 
 impl PoolError {
@@ -389,8 +395,10 @@ impl PoolError {
             | Self::BadPackLink
             | Self::PackLinkScheme
             | Self::PackLinkTooLong
-            | Self::AbbreviationTooLong => StatusCode::BAD_REQUEST,
-            Self::QualifierStageChanged => StatusCode::CONFLICT,
+            | Self::AbbreviationTooLong
+            | Self::BadCategoryAbbreviation
+            | Self::BadMods => StatusCode::BAD_REQUEST,
+            Self::QualifierStageChanged | Self::CategoryAbbreviationTaken => StatusCode::CONFLICT,
         }
     }
 }
