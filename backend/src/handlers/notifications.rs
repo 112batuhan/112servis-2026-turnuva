@@ -79,6 +79,10 @@ pub struct Notification {
     // banned, player_banned: the reason the host gave (empty when none). The banned player
     // and the hosts get it; their teammate's teammate_banned doesn't say why.
     ban_reason: Option<String>,
+    // player_report: what the player wrote; autoref_stopped: why the auto referee stopped.
+    message: Option<String>,
+    // The qualifier lobby it's about, "B".
+    lobby_name: Option<String>,
     // reschedule_proposed: the opponent's proposals for the match still open.
     pending_proposals: i64,
     // A confirm_time that can still be answered.
@@ -113,6 +117,8 @@ impl Notification {
             team_value: row.team_value,
             limit: (row.kind == NotificationKind::RankOverLimit).then_some(team_rank::LIMIT),
             ban_reason: row.ban_reason,
+            message: row.message,
+            lobby_name: row.lobby_index.map(crate::views::lobby_name),
             pending_proposals: row.pending_proposals,
             actionable: row.actionable,
         }

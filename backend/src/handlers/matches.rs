@@ -24,7 +24,7 @@ use crate::{
     error::{AppError, AuthError, GeneralError, LobbyError, MatchError, RoomError, StaffError},
     role::Role,
     services::{
-        bracket,
+        self, bracket,
         matches::{link_room, load_match},
     },
     views::{group_teams, lobby_name, match_rooms, AdminTeamPlayer, MatchRoom, Referee, Team},
@@ -379,17 +379,7 @@ async fn unassign_team(
     Path(team_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, AppError> {
     user.require_role(Role::Host)?;
-    let mut tx = state.db.begin().await?;
-    let (match_id, _) = db::matches::lock_team_lobby(&mut tx, team_id)
-        .await?
-        .ok_or(GeneralError::NotFound)?;
-    db::matches::delete_entry(&mut *tx, team_id).await?;
-    state
-        .discord
-        .enqueue(&mut *tx, &[Job::SyncMatch { match_id }])
-        .await?;
-    tx.commit().await?;
-    state.live.match_changed(match_id);
+    services::matches::remove_lobby_team(&state, team_id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -525,7 +515,7 @@ async fn add_room(
     } else {
         state.bancho.assign_bot().await
     };
-    link_room(&state, id, mp_id, bot, false, m.concluded()).await?;
+    link_room(&state, id, mp_id, bot, false, m.concluded(), None).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -600,22 +590,7 @@ async fn conclude(
         state.live.bracket_changed();
         return Ok(StatusCode::NO_CONTENT);
     }
-    let mut tx = state.db.begin().await?;
-    if !db::matches::conclude(&mut *tx, id).await? {
-        return Err(MatchError::Changed.into());
-    }
-    state
-        .discord
-        .enqueue(
-            &mut *tx,
-            &[
-                Job::SyncMatch { match_id: id },
-                Job::Concluded { match_id: id },
-            ],
-        )
-        .await?;
-    tx.commit().await?;
-    state.live.bracket_changed();
+    services::matches::conclude_lobby(&state, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

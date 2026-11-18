@@ -8,16 +8,17 @@
 //! (bot.rs), and the rooms are spread across them (manager.rs): each account can have
 //! ROOM_LIMIT rooms open, counting the ones it was only made a referee of, so a bot is
 //! never added to another bot's room and the site makes no more rooms than they can
-//! hold. A referee still joins the room with their own IRC account
-//! (relay.rs), to talk in it: the room's bot adds them as one of its referees
-//! while they have the match open, and takes it back a while after they leave.
+//! hold. Referees and hosts don't join the rooms: they run them from the referee page,
+//! and talk in them through the room's bot (RoomCommand::Say). Unless a referee switches
+//! a match to manual, the room's bot also referees it by itself (autoref.rs), opening its
+//! room 10 minutes before its time.
 
+pub mod autoref;
 pub mod bot;
 pub mod commands;
 pub mod context;
 pub mod irc;
 mod manager;
-pub mod relay;
 pub mod room;
 pub mod tally;
 pub mod view;
@@ -35,7 +36,7 @@ use crate::{
     AppState,
 };
 
-use self::{relay::SessionLink, room::SlotTeam, view::LiveRoom};
+use self::{room::SlotTeam, view::LiveRoom};
 
 // How many rooms an osu! account can have open at once on Bancho, counting the ones it
 // was made a referee of.
@@ -94,9 +95,9 @@ pub enum RoomCommand {
     // The bot tries the room's channel again (a room made elsewhere, once its maker
     // added the bot).
     Rejoin,
-    // Hosts only: says something in the room through its bot, since their own accounts
-    // are bots and can't join other bots' rooms. Signed with their name, unless the room's
-    // bot is their own account; an !mp command goes as it is.
+    // Says something in the room through its bot: referees and hosts run the room from
+    // the site and don't join it. Signed with their name, unless the room's bot is their
+    // own account; an !mp command goes as it is.
     Say {
         text: String,
         // Filled in by the handler: who's saying it, by osu! username.
@@ -187,21 +188,21 @@ enum Request {
         // The referee asked for it: saved even if it's the first reading.
         force: bool,
     },
+    // The auto referee's osu! read is done: `confirmed` when it had the latest map.
+    AutorefOsu {
+        match_id: Uuid,
+        confirmed: bool,
+    },
+    // A warmup beatmap's length, for the auto referee.
+    AutorefLength {
+        match_id: Uuid,
+        beatmap_id: i64,
+        seconds: i32,
+    },
     BotsChanged,
     Resync,
     Status {
         reply: oneshot::Sender<Vec<BotStatus>>,
-    },
-    Attend {
-        tab: u64,
-        link: SessionLink,
-        match_id: Option<Uuid>,
-    },
-    TabClosed {
-        tab: u64,
-    },
-    SessionEnded {
-        session: u32,
     },
 }
 
@@ -300,24 +301,6 @@ impl Bancho {
         self.ask(|reply| Request::Status { reply })
             .await
             .unwrap_or_default()
-    }
-
-    // A referee page (relay tab `tab`) has the match open with Bancho connected, or
-    // none.
-    pub fn attend(&self, tab: u64, link: SessionLink, match_id: Option<Uuid>) {
-        self.send(Request::Attend {
-            tab,
-            link,
-            match_id,
-        });
-    }
-
-    pub fn tab_closed(&self, tab: u64) {
-        self.send(Request::TabClosed { tab });
-    }
-
-    pub fn session_ended(&self, session: u32) {
-        self.send(Request::SessionEnded { session });
     }
 }
 

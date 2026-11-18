@@ -7,6 +7,7 @@ use serde::Serialize;
 use uuid::Uuid;
 
 use super::{
+    autoref::AutorefView,
     context::MatchContext,
     room::{MapScore, RoomState},
     tally::{
@@ -90,6 +91,9 @@ pub struct LiveRoom {
     pub next_turn: Option<Turn>,
     // Whether the results come from osu!'s record of the rooms up to its last map.
     pub osu_synced: bool,
+    // Where the auto referee stands (staff pages show it); None when the bots don't run
+    // the match.
+    pub autoref: Option<AutorefView>,
 }
 
 pub struct ViewRoom<'a> {
@@ -218,5 +222,6 @@ pub fn build(
         score_saved,
         next_turn,
         osu_synced: games.is_some(),
+        autoref: None,
     }
 }

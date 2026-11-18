@@ -29,7 +29,7 @@ use crate::{
     role::Role,
     services::{
         self,
-        bracket::{conclude, deletion_jobs, save_score},
+        bracket::{conclude, deletion_jobs, save_score, Mark},
         matches::load_match,
     },
     stats_cache,
@@ -640,13 +640,6 @@ async fn check_unmark(state: &AppState, user: &AuthUser, id: Uuid) -> Result<(),
     require_unconcluded(user, &m)
 }
 
-// What a referee marks on a pool map for one of the match's teams. A map can't be both.
-#[derive(Clone, Copy)]
-enum Mark {
-    Ban,
-    Pick,
-}
-
 // Marks a map as banned or picked by one of the match's teams (or moves the mark to the
 // other team).
 async fn set_mark(
@@ -657,20 +650,8 @@ async fn set_mark(
     mark: Mark,
 ) -> Result<StatusCode, AppError> {
     check_map_team(state, user, id, map_id, team_id).await?;
-    let (marked, taken) = match mark {
-        Mark::Ban => (
-            db::bracket::set_ban(&state.db, id, map_id, team_id).await?,
-            MatchError::MapPicked,
-        ),
-        Mark::Pick => (
-            db::bracket::set_pick(&state.db, id, map_id, team_id).await?,
-            MatchError::MapBanned,
-        ),
-    };
-    if !marked {
-        return Err(taken.into());
-    }
-    marks_changed(state, id).await
+    services::bracket::mark(state, id, map_id, team_id, mark).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // Takes a ban or a pick back.
@@ -688,13 +669,7 @@ async fn remove_mark(
     if !removed {
         return Err(GeneralError::NotFound.into());
     }
-    marks_changed(state, id).await
-}
-
-// The rules say whose pick is next again, and the match's pages reload it.
-async fn marks_changed(state: &AppState, id: Uuid) -> Result<StatusCode, AppError> {
-    db::referee::clear_next_pick(&state.db, id).await?;
-    state.live.match_changed(id);
+    services::bracket::marks_changed(state, id).await?;
     Ok(StatusCode::NO_CONTENT)
 }
 

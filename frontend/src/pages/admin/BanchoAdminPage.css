@@ -26,6 +26,31 @@
   color: var(--color-text);
 }
 
+/* The tournament-wide switch for rooms opening by themselves: a ruled row of its own over the
+   bots, its consequence spelled out beside it. */
+.bancho-auto {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  margin-bottom: var(--space-5);
+  padding: var(--space-3) 0;
+  border-top: var(--rule);
+  border-bottom: var(--rule);
+}
+
+.bancho-auto-text {
+  flex: 1 1 320px;
+  min-width: 0;
+  max-width: 75ch;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.bancho-auto.is-on .bancho-auto-text {
+  color: var(--color-text);
+}
+
 .bancho-empty {
   max-width: 72ch;
   margin: 0 0 var(--space-6);

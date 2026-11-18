@@ -21,6 +21,47 @@ use crate::{
 
 const SCORE_MAX: i32 = 99;
 
+// What a referee (or the auto referee) marks on a pool map for one of the match's teams.
+// A map can't be both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Mark {
+    Ban,
+    Pick,
+}
+
+// Marks a map as banned or picked by one of the match's teams (or moves the mark to the
+// other team). The callers have checked the team and the map belong to the match.
+pub async fn mark(
+    state: &AppState,
+    id: Uuid,
+    map_id: Uuid,
+    team_id: Uuid,
+    mark: Mark,
+) -> Result<(), AppError> {
+    let (marked, taken) = match mark {
+        Mark::Ban => (
+            db::bracket::set_ban(&state.db, id, map_id, team_id).await?,
+            MatchError::MapPicked,
+        ),
+        Mark::Pick => (
+            db::bracket::set_pick(&state.db, id, map_id, team_id).await?,
+            MatchError::MapBanned,
+        ),
+    };
+    if !marked {
+        return Err(taken.into());
+    }
+    marks_changed(state, id).await
+}
+
+// A ban or pick was marked or taken back: the rules say whose pick is next again, and
+// the match's pages reload it.
+pub async fn marks_changed(state: &AppState, id: Uuid) -> Result<(), AppError> {
+    db::referee::clear_next_pick(&state.db, id).await?;
+    state.live.match_changed(id);
+    Ok(())
+}
+
 // What Discord has to hear of a bracket match about to be deleted: its channel goes to
 // the archive, and its public announcement, if it had one, stays and says it was
 // cancelled.

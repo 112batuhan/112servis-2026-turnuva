@@ -30,3 +30,18 @@ pub async fn set_teams_frozen(pool: &PgPool, frozen: bool) -> sqlx::Result<()> {
         .await?;
     Ok(())
 }
+
+// Whether the auto referee opens match rooms by itself (bancho/manager.rs).
+pub async fn auto_rooms(pool: &PgPool) -> sqlx::Result<bool> {
+    sqlx::query_scalar("SELECT auto_rooms FROM app_settings")
+        .fetch_one(pool)
+        .await
+}
+
+pub async fn set_auto_rooms(pool: &PgPool, enabled: bool) -> sqlx::Result<()> {
+    sqlx::query("UPDATE app_settings SET auto_rooms = $1")
+        .bind(enabled)
+        .execute(pool)
+        .await?;
+    Ok(())
+}

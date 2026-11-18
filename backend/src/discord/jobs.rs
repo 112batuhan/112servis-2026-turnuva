@@ -107,6 +107,30 @@ pub enum Job {
     RoomAdded {
         match_id: Uuid,
         mp_id: i64,
+        // The auto referee made it: the bot the players can ask for an invite.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        bot: Option<String>,
+    },
+    // 20 minutes before a match the auto referee runs: the bot invites them in 10.
+    AutorefReminder {
+        match_id: Uuid,
+    },
+    // Something in a room the staff should see at once, in the referee channel.
+    AutorefAlert {
+        match_id: Uuid,
+        alert: Alert,
+        // The player who wrote it.
+        #[serde(default)]
+        user_id: Option<Uuid>,
+        #[serde(default)]
+        text: Option<String>,
+    },
+    // A team didn't show up: its players hear what happened (`forfeit`: the bracket match
+    // was forfeited; otherwise it was taken out of the lobby).
+    NoShow {
+        match_id: Uuid,
+        team_id: Uuid,
+        forfeit: bool,
     },
     Concluded {
         match_id: Uuid,
@@ -161,6 +185,17 @@ pub enum Job {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         status_of: Option<Uuid>,
     },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Alert {
+    // A player's -rapor.
+    Report,
+    // A team's -durdur.
+    Stop,
+    // The auto referee couldn't go on and switched the match to manual.
+    Handover,
 }
 
 impl Job {

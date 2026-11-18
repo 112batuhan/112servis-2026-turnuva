@@ -38,7 +38,10 @@ use serde::Serialize;
 use tokio::sync::broadcast;
 use uuid::Uuid;
 
-use crate::{bancho::view::LiveRoom, db::chat::ChatMessage};
+use crate::{
+    bancho::view::LiveRoom,
+    db::{autoref::LogEntry, chat::ChatMessage},
+};
 
 // How many events a slow tab may fall behind before it's told to reload instead.
 const BUFFER: usize = 256;
@@ -72,6 +75,10 @@ enum ServerMsg<'a> {
     Room {
         match_id: Uuid,
         room: &'a LiveRoom,
+    },
+    AutorefLog {
+        match_id: Uuid,
+        entry: &'a LogEntry,
     },
     Bancho,
     Notifications,
@@ -347,6 +354,18 @@ impl Live {
         self.send(
             &ServerMsg::Room { match_id, room },
             Audience {
+                watching: Some(match_id),
+                ..Audience::default()
+            },
+        );
+    }
+
+    // A line of the match's auto referee log; only staff tabs watching the match get it.
+    pub fn autoref_log(&self, match_id: Uuid, entry: &LogEntry) {
+        self.send(
+            &ServerMsg::AutorefLog { match_id, entry },
+            Audience {
+                staff_only: true,
                 watching: Some(match_id),
                 ..Audience::default()
             },

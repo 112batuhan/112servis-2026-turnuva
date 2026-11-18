@@ -644,6 +644,61 @@ pub async fn take_due_reminders(
     .await
 }
 
+// Matches the auto referee runs that start within `window_secs` and haven't had their
+// "the bot invites you in 10 minutes" reminder for this time, while the bot opens rooms
+// by itself (app_settings.auto_rooms). Marks them sent.
+pub async fn take_due_autoref_reminders(
+    conn: &mut PgConnection,
+    window_secs: i64,
+) -> sqlx::Result<Vec<Uuid>> {
+    sqlx::query_scalar(
+        r#"
+        INSERT INTO match_discord (match_id, autoref_reminded_for)
+        SELECT m.id, m.starts_at FROM matches m
+        LEFT JOIN bracket_matches b ON b.match_id = m.id
+        LEFT JOIN match_discord md ON md.match_id = m.id
+        LEFT JOIN match_room_settings s ON s.match_id = m.id
+        WHERE (SELECT auto_rooms FROM app_settings)
+          AND m.concluded_at IS NULL
+          AND m.starts_at > now() AND m.starts_at <= now() + make_interval(secs => $1)
+          AND md.autoref_reminded_for IS DISTINCT FROM m.starts_at
+          AND COALESCE(s.auto_ref, true)
+          AND NOT EXISTS (SELECT 1 FROM match_rooms r WHERE r.match_id = m.id)
+          AND CASE m.kind
+                  WHEN 'bracket' THEN b.team1_id IS NOT NULL AND b.team2_id IS NOT NULL
+                  WHEN 'qualifier' THEN EXISTS (SELECT 1 FROM qualifier_entries e
+                                                WHERE e.match_id = m.id)
+                  ELSE false
+              END
+        ON CONFLICT (match_id) DO UPDATE SET autoref_reminded_for = EXCLUDED.autoref_reminded_for
+        RETURNING match_id
+        "#,
+    )
+    .bind(window_secs as f64)
+    .fetch_all(conn)
+    .await
+}
+
+// Who an auto referee alert pings in the referee channel: the hosts, and the match's
+// referee, or every referee while it has none. Only accounts in the server.
+pub async fn alert_recipients(pool: &PgPool, match_id: Uuid) -> sqlx::Result<Vec<String>> {
+    sqlx::query_scalar(
+        r#"
+        SELECT DISTINCT d.discord_id FROM osu_users u
+        JOIN discord_accounts d ON d.osu_user_id = u.id
+        JOIN matches m ON m.id = $1
+        WHERE d.in_guild
+          AND ('host' = ANY(u.roles)
+               OR u.id = m.referee_id
+               OR (m.referee_id IS NULL AND 'referee' = ANY(u.roles)))
+        ORDER BY d.discord_id
+        "#,
+    )
+    .bind(match_id)
+    .fetch_all(pool)
+    .await
+}
+
 // Matches with a channel that were concluded at least ARCHIVE_AFTER_SECS ago and whose
 // channel hasn't been archived for that conclusion yet. Marks them archived; the caller
 // queues the sync that moves the channel.

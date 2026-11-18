@@ -23,9 +23,9 @@ use crate::{
         team::{Player, TeamMemberRow},
     },
     draft::DraftOrder,
-    error::{AppError, GeneralError, MatchError},
+    error::{AppError, AuthError, GeneralError, MatchError},
     role::Role,
-    services::matches::load_match,
+    services::{self, matches::load_match},
     views::{
         group_teams, lobby_name, match_rooms, AdminTeamPlayer, MatchRoom, Referee, Streamer, Team,
     },
@@ -47,6 +47,8 @@ pub fn routes() -> Router<AppState> {
         .route("/matches/{id}/osu-sync", post(mark_osu_synced))
         .route("/matches/{id}/next-pick", put(set_next_pick))
         .route("/matches/{id}/ignored-maps", put(set_ignored_map))
+        .route("/matches/{id}/autoref", put(set_autoref))
+        .route("/matches/{id}/autoref/logs", get(get_autoref_logs))
         .route("/public/matches/{id}", get(get_public_match))
         .route("/public/matches/{id}/chat", get(get_public_chat))
 }
@@ -111,6 +113,8 @@ pub struct RefereeRoom {
     discord_channel: bool,
     // The room options, where the results are read from and whose pick is next.
     settings: RoomSettings,
+    // The hosts have the auto referee open rooms by itself (app_settings.auto_rooms).
+    auto_rooms: bool,
     // The finished maps left out of the score, by their key.
     ignored_maps: Vec<String>,
     // The room as its bot reads it, the same on every page; None for a match without a
@@ -272,6 +276,7 @@ async fn get_room(
         discord_channel: state.discord.enabled()
             && db::discord::channel_of(&state.db, id).await?.is_some(),
         settings: db::referee::find_settings(&state.db, id).await?,
+        auto_rooms: db::settings::auto_rooms(&state.db).await?,
         ignored_maps: db::referee::list_ignored(&state.db, id).await?,
         live: live_room(&state, id).await?,
     }))
@@ -505,6 +510,45 @@ async fn set_next_pick(
     // The match page shows whose pick it is.
     state.live.match_changed(id);
     Ok(StatusCode::NO_CONTENT)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AutorefBody {
+    enabled: bool,
+}
+
+// PUT /api/matches/:id/autoref — switches the match between the auto referee
+// (bancho/autoref.rs) and manual control; switched back on, it continues where it left
+// off.
+async fn set_autoref(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(body): Json<AutorefBody>,
+) -> Result<impl IntoResponse, AppError> {
+    check_runs(&state, &user, id).await?;
+    let profile = db::user::find_user(&state.db, user.id)
+        .await?
+        .ok_or(AuthError::Unauthenticated)?;
+    services::autoref::set_enabled(&state, id, body.enabled, &profile.osu.username).await?;
+    Ok(StatusCode::NO_CONTENT)
+}
+
+// How many of the auto referee's latest log lines the referee page loads.
+const AUTOREF_LOG_LIMIT: i64 = 500;
+
+// GET /api/matches/:id/autoref/logs — referees and hosts. What the auto referee did in
+// the match, oldest first; new lines arrive over the live socket (`autoref_log`).
+async fn get_autoref_logs(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path(id): Path<Uuid>,
+) -> Result<impl IntoResponse, AppError> {
+    user.require_role(Role::Referee)?;
+    load_match(&state, id).await?;
+    Ok(Json(
+        db::autoref::list_logs(&state.db, id, AUTOREF_LOG_LIMIT).await?,
+    ))
 }
 
 #[derive(Debug, Deserialize)]

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   addManualResult,
   forfeitMatch,
@@ -16,6 +16,7 @@ import {
   fetchRoomChat,
   roomCommand,
   saveRoomScore,
+  setAutoref as saveAutoref,
   setIgnoredMap,
   setNextPick as saveNextPick,
   setRoomOptions,
@@ -29,8 +30,7 @@ import type {
   RoomCommand,
 } from "../../../api/types";
 import { useSignedInUser } from "../../../auth/AuthContext";
-import { hasRole, holdsRole } from "../../../auth/roles";
-import { conversationKey, useIrc, type ChatLine } from "../../../irc/IrcContext";
+import { hasRole } from "../../../auth/roles";
 import {
   isRoomRef,
   sameName,
@@ -59,10 +59,11 @@ import {
   poolEntries,
   type MatchTeam,
 } from "../../../lib/matchPool";
-import { toChatLine } from "../../../lib/roomChat";
+import { toChatLine, type ChatLine } from "../../../lib/roomChat";
 import { useRoomStaff } from "../../../lib/roomStaff";
 import { useAction } from "../../../lib/useAction";
 import { useMatchFeed } from "../../../lib/useMatchFeed";
+import { useAutorefLog } from "./useAutorefLog";
 
 export interface RoomOptions {
   scoreMode: ScoreMode;
@@ -81,8 +82,6 @@ export interface RoomChatView {
   channel: string;
   url: string;
   lines: ChatLine[];
-  /** Whether the referee's own connection is in its channel, so they can write there. */
-  joined: boolean;
   /** The match's latest room, where it's being played. */
   current: boolean;
   /** The bot that runs it, by osu! username. */
@@ -100,11 +99,10 @@ const DEFAULT_OPTIONS: RoomOptions = {
 /**
  * Owns the referee page's data. The room itself (its slots, map, finished maps, score) is the
  * bots' reading of it, the same on every page and kept up to date over the live socket; every
- * command goes to the room's bot. The referee's own Bancho connection is only for talking.
+ * command, and every line the referee writes in the room, goes to the room's bot.
  */
 export function useRefereeRoom(matchId: string) {
   const user = useSignedInUser();
-  const irc = useIrc();
   const { busy, error, setError, run } = useAction();
 
   // The page follows the match over the live socket: its room as the bots read it and every line
@@ -129,26 +127,12 @@ export function useRefereeRoom(matchId: string) {
     onChatError: setError,
   });
   const rooms = useMemo(() => room?.rooms ?? [], [room]);
-  const roomsKey = rooms.map((r) => r.mp_id).join(",");
 
   const concluded = room !== null && room.concluded_at !== null;
   const current = rooms.length > 0 ? rooms[rooms.length - 1] : null;
   const channel = current ? `#mp_${current.mp_id}` : null;
   // Any referee (or host) can run any match, so one can step in when its own referee can't.
   const canRun = room !== null && hasRole(user, "referee");
-
-  // With Bancho connected, the page asks to be in the room: the room's bot makes the referee one
-  // of its referees and lets their connection into its channel, and takes it back a while after
-  // the page closes. Again when the match gets a new room.
-  const online = irc.status === "online";
-  const { attend } = irc;
-  const attends = online && canRun && !concluded && rooms.length > 0;
-  useEffect(() => {
-    if (!attends) return;
-    attend(matchId);
-    return () => attend(null);
-  }, [attends, matchId, roomsKey, attend]);
-  const inChannel = channel !== null && irc.channels.has(conversationKey(channel));
 
   const badges = live?.rooms;
   const roomChats = useMemo<RoomChatView[]>(
@@ -161,22 +145,18 @@ export function useRefereeRoom(matchId: string) {
           channel,
           url: r.url,
           lines: (chat.get(r.mp_id) ?? []).map(toChatLine),
-          joined: irc.channels.has(conversationKey(channel)),
           current: i === rooms.length - 1,
           bot: badge?.bot ?? null,
           access: badge?.access ?? "no_bot",
         };
       }),
-    [rooms, badges, chat, irc.channels],
+    [rooms, badges, chat],
   );
   const latestChat = roomChats.length > 0 ? roomChats[roomChats.length - 1] : null;
   // Where the latest room's bot stands: only a bot in the room can run it.
   const access: RoomAccess | null = latestChat?.access ?? null;
   const botName = latestChat?.bot ?? null;
   const botReady = canRun && !concluded && access === "in";
-  // Hosts' accounts are the bots, which can't join each other's rooms, so a host writes in the
-  // room through its bot instead of their own connection.
-  const viaBot = holdsRole(user, "host");
 
   // What the room keeps about the match, shared by everyone on it (RoomSettings).
   const settings = room?.settings;
@@ -192,6 +172,16 @@ export function useRefereeRoom(matchId: string) {
         : DEFAULT_OPTIONS,
     [settings],
   );
+  // The room's bot refereeing by itself, and where it stands (null until the bots run the match).
+  const autoEnabled = settings?.auto_ref ?? true;
+  // While the auto referee runs the match, the controls that referee it wait for manual mode, so a
+  // click can't fight the bot. Talking to the players, opening a room and the switch stay open.
+  const autoLock = autoEnabled && !concluded ? AUTO_LOCK : null;
+  const canControl = canRun && autoLock === null;
+  const controlsReady = botReady && autoLock === null;
+  const autoref = live?.autoref ?? null;
+  const autorefLog = useAutorefLog(matchId, rooms.map((r) => r.mp_id).join(","));
+
   const ignoredMaps = room?.ignored_maps;
   const ignored = useMemo(() => new Set(ignoredMaps ?? []), [ignoredMaps]);
 
@@ -273,15 +263,21 @@ export function useRefereeRoom(matchId: string) {
   const actions = {
     reload,
 
-    /** Hosts: says something in the room through its bot; resolves to whether it went out. */
-    sayViaBot: (text: string) =>
-      roomCommand(matchId, { type: "say", text }).then(
+    /** Says something in the room through its bot; resolves to whether it went out. */
+    say: (text: string) => {
+      // Chat stays open in auto mode; an !mp command would referee the match behind the bot.
+      if (autoLock !== null && /^!mp\b/i.test(text.trim())) {
+        setError(`${autoLock}: !mp komutları manuel kontrolde gönderilir.`);
+        return Promise.resolve(false);
+      }
+      return roomCommand(matchId, { type: "say", text }).then(
         () => true,
         (e) => {
           setError(errorMessage(e));
           return false;
         },
-      ),
+      );
+    },
 
     /** Changes the room options for everyone on the page. */
     setOptions: (next: RoomOptions) => {
@@ -295,6 +291,18 @@ export function useRefereeRoom(matchId: string) {
       keep(
         (r) => ({ ...r, settings: { ...r.settings, ...saved } }),
         () => setRoomOptions(room.id, saved),
+      );
+    },
+
+    /**
+     * Switches the match between the auto referee and manual control for everyone on it. The old
+     * controls work either way; back on auto, the bot continues where it left off.
+     */
+    setAutoref: (enabled: boolean) => {
+      if (!room) return;
+      keep(
+        (r) => ({ ...r, settings: { ...r.settings, auto_ref: enabled } }),
+        () => saveAutoref(room.id, enabled),
       );
     },
 
@@ -466,12 +474,12 @@ export function useRefereeRoom(matchId: string) {
     busy,
     canRun,
     channel,
-    online,
-    inChannel,
     access,
     botName,
     botReady,
-    viaBot,
+    canControl,
+    controlsReady,
+    autoLock,
     lobby,
     currentEntry,
     mapStartedAt: lobby.mapStartedAt,
@@ -493,11 +501,27 @@ export function useRefereeRoom(matchId: string) {
     race,
     streamer,
     streamerIsRef,
+    autoEnabled,
+    autoref,
+    autorefLog,
     actions,
   };
 }
 
 export type RefereeRoomState = ReturnType<typeof useRefereeRoom>;
+
+/** Why the controls that referee the match wait: the auto referee runs it. */
+export const AUTO_LOCK = "Otomatik hakem maçı yönetiyor";
+
+/**
+ * Why a control that has the room's bot referee the match can't be used right now: the bot can't
+ * (botBlocker), or the auto referee runs the match. Null when it can.
+ */
+export function controlBlocker(
+  referee: Pick<RefereeRoomState, "room" | "canRun" | "access" | "botName" | "autoLock">,
+): string | null {
+  return botBlocker(referee) ?? referee.autoLock;
+}
 
 /** Why the room's bot can't take a command right now, or null when it can. */
 export function botBlocker(

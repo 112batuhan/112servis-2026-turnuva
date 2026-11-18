@@ -25,7 +25,7 @@ One place where the whole tournament runs, from sign-up to results: team eligibi
 A purpose-built site for this one tournament and its community, not a generic tournament platform. Its distinctive mechanisms:
 
 - **Rank-sum team eligibility**, using the tournament's own formula (`backend/src/team_rank.rs`). Teams are watched for drifting over the limit.
-- **A referee page that speaks Bancho**: an in-browser IRC relay that creates and runs the osu! room, tracks bans, picks and scores against the pool, and saves room chat for moderation.
+- **A referee page that speaks Bancho**: the site's own bots create and run the osu! room, carry what referees and hosts write in it, track bans, picks and scores against the pool, and save room chat for moderation.
 - **A Discord server kept in sync** with the site: roles, per-match channels with a live match card, reminders, announcements, results and staff confirm-time requests.
 
 ## Operating Context

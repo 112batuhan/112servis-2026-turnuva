@@ -1,197 +1,168 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type FormEvent,
-  type ReactNode,
-} from "react";
-import { IconButton } from "../../../components/IconButton";
-import { conversationKey, isChannel, useIrc, type ChatLine } from "../../../irc/IrcContext";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import type { AutorefLogEntry } from "../../../api/types";
+import { useSignedInUser } from "../../../auth/AuthContext";
 import type { SlotTeam } from "../../../lib/bancho";
+import { formatClockSeconds } from "../../../lib/format";
+import type { ChatLine } from "../../../lib/roomChat";
 import type { RoomChatView } from "./useRefereeRoom";
 import { ChatRow } from "../../../components/match/ChatRow";
+import "./ChatPanel.css";
+
+/** The log tab's key among the rooms' channels. */
+const LOG_TAB = "autoref";
+
+const LEVEL_LABELS: Record<AutorefLogEntry["level"], string> = {
+  info: "bilgi",
+  warn: "uyarı",
+  error: "hata",
+};
 
 interface Props {
   /** The match's rooms, oldest first, each with what its bot saved. */
   rooms: RoomChatView[];
   /** Players' team colours by normalizeName(username), to colour their names. */
   colors: Map<string, SlotTeam | null>;
-  /** Shown above the tabs: the referee's Bancho login, or who's connected. */
-  top?: ReactNode;
   /** False while the panel is behind another tab on a phone: lines stay unread until it's back. */
   visible?: boolean;
-  /** Told the unread lines across every conversation, for the phone's tab bar. */
+  /** Told the unread lines across every room, for the phone's tab bar. */
   onUnread?: (count: number) => void;
   /**
-   * Hosts write in the match's current room through its bot (their accounts are the bots, which
-   * can't join each other's rooms): its name, why it can't take a line right now, and the send.
+   * Writing in the match's current room, which goes out through its bot: the bot's name, why it
+   * can't take a line right now, and the send (resolves to whether it went out).
    */
-  viaBot?: { bot: string | null; blocker: string | null; send: (text: string) => Promise<boolean> };
+  say: {
+    bot: string | null;
+    blocker: string | null;
+    /** The auto referee runs the match: messages go out, !mp commands wait for manual mode. */
+    auto: boolean;
+    send: (text: string) => Promise<boolean>;
+  };
+  /** What the auto referee did and why, in a tab of its own after the rooms. */
+  log: AutorefLogEntry[];
 }
 
 /**
  * The match's chat, IRC style: a tab per room of the match, each what its bot saved and saves as it
- * comes (the same for everyone on the match, whether or not they're on Bancho), and the referee's
- * private conversations. What the referee types in a room goes out from their own account, once
- * the room's bot has let them into its channel.
+ * comes (the same for everyone on the match), then the auto referee's log. What the referee types
+ * in the current room goes out through its bot, signed with their name; older rooms and the log
+ * are read-only.
  */
-export function ChatPanel({ rooms, colors, top, visible = true, onUnread, viaBot }: Props) {
-  const irc = useIrc();
+export function ChatPanel({ rooms, colors, visible = true, onUnread, say, log }: Props) {
+  const user = useSignedInUser();
   const latest = rooms.length > 0 ? rooms[rooms.length - 1].channel : null;
   const [active, setActive] = useState<string | null>(latest);
   const [draft, setDraft] = useState("");
-  // The last line seen in each conversation, for the unread counts.
+  const [sending, setSending] = useState(false);
+  // The last line seen in each room, for the unread counts.
   const [seen, setSeen] = useState<Record<string, number>>({});
-  const log = useRef<HTMLDivElement>(null);
+  // The log's warnings and errors count until it's looked at (opening the page counts as looking).
+  const [logSeenAt, setLogSeenAt] = useState(() => Date.now());
+  const scroller = useRef<HTMLDivElement>(null);
   const stuckToBottom = useRef(true);
 
   useEffect(() => setActive(latest), [latest]);
 
-  const dmKeys = Object.keys(irc.conversations).sort((a, b) =>
-    a === "banchobot" ? -1 : b === "banchobot" ? 1 : a.localeCompare(b),
-  );
-
-  // A closed tab falls back to the latest room.
-  const keyOf = (name: string | null) => (name ? conversationKey(name) : null);
-  const tabKeys = [...rooms.map((r) => conversationKey(r.channel)), ...dmKeys];
-  const activeKey = tabKeys.includes(keyOf(active) ?? "") ? keyOf(active) : (tabKeys[0] ?? null);
-  const activeRoom = rooms.find((r) => conversationKey(r.channel) === activeKey);
-  const activeDm = activeRoom ? undefined : activeKey ? irc.conversations[activeKey] : undefined;
-  const lines = activeRoom?.lines ?? activeDm?.lines ?? [];
+  const showingLog = active === LOG_TAB;
+  const activeRoom = showingLog
+    ? undefined
+    : (rooms.find((r) => r.channel === active) ?? rooms[rooms.length - 1]);
+  const activeKey = showingLog ? LOG_TAB : (activeRoom?.channel ?? null);
+  const lines = activeRoom?.lines ?? [];
   // Only lines that arrived while the page was open count as unread; what was loaded with it has
   // negative ids (see roomChat.ts).
   const lastId = lines.reduce((max, l) => Math.max(max, l.id), 0);
 
-  // Viewing a conversation marks it read.
+  // Viewing a room marks it read.
   useEffect(() => {
-    if (visible && activeKey)
+    if (visible && activeKey && !showingLog)
       setSeen((s) => (s[activeKey] === lastId ? s : { ...s, [activeKey]: lastId }));
-  }, [visible, activeKey, lastId]);
+  }, [visible, activeKey, lastId, showingLog]);
+  useEffect(() => {
+    if (visible && showingLog) setLogSeenAt(Date.now());
+  }, [visible, showingLog, log.length]);
+  const logAlerts = log.filter(
+    (l) => l.level !== "info" && new Date(l.created_at).getTime() > logSeenAt,
+  ).length;
 
   // Follows new lines unless the referee has scrolled up to read. A hidden log can't scroll, so
   // coming back into view catches up.
   useLayoutEffect(() => {
-    const el = log.current;
+    const el = scroller.current;
     if (visible && el && stuckToBottom.current) el.scrollTop = el.scrollHeight;
-  }, [visible, lines.length, activeKey]);
+  }, [visible, lines.length, log.length, activeKey]);
 
-  const online = irc.status === "online";
-  // A host's line goes to the current room through its bot.
-  const throughBot = viaBot !== undefined && activeRoom?.current === true;
-  // A room takes what's typed once the referee is in its channel (or, through the bot, once the
-  // bot is in it); a private conversation while online.
-  const target = activeRoom
-    ? throughBot
-      ? viaBot.blocker === null
-        ? activeRoom.channel
-        : null
-      : online && activeRoom.joined
-        ? activeRoom.channel
-        : null
-    : online
-      ? (activeDm?.name ?? null)
-      : null;
-  const [sending, setSending] = useState(false);
   const unread = (key: string, tabLines: ChatLine[]) =>
     tabLines.filter((l) => l.id > (seen[key] ?? 0)).length;
-  const totalUnread =
-    rooms.reduce((n, r) => n + unread(conversationKey(r.channel), r.lines), 0) +
-    dmKeys.reduce((n, key) => n + unread(key, irc.conversations[key].lines), 0);
+  const totalUnread = rooms.reduce((n, r) => n + unread(r.channel, r.lines), 0);
   useEffect(() => onUnread?.(totalUnread), [onUnread, totalUnread]);
+
+  // Only the current room takes a line, once its bot is in it.
+  const writable = !showingLog && activeRoom?.current === true && say.blocker === null;
 
   function submit(e: FormEvent) {
     e.preventDefault();
     const text = draft.trim();
-    if (!text) return;
-    if (throughBot) {
-      if (!target || sending) return;
-      setSending(true);
-      viaBot
-        .send(text)
-        .then((sent) => {
-          if (sent) setDraft("");
-        })
-        .finally(() => setSending(false));
-      stuckToBottom.current = true;
-      return;
-    }
-    if (!online) return;
-    const [command, ...rest] = text.split(" ");
-    if (command.toLowerCase() === "/msg" || command.toLowerCase() === "/query") {
-      if (!rest[0] || isChannel(rest[0])) return;
-      if (rest.length > 1) irc.send(rest[0], rest.slice(1).join(" "));
-      setActive(rest[0]);
-    } else if (target) {
-      irc.send(target, text);
-    } else {
-      return;
-    }
-    setDraft("");
+    if (!text || !writable || sending) return;
+    setSending(true);
+    say
+      .send(text)
+      .then((sent) => {
+        if (sent) setDraft("");
+      })
+      .finally(() => setSending(false));
     stuckToBottom.current = true;
   }
 
-  const tab = (
-    key: string,
-    label: string,
-    title: string,
-    badge: number,
-    onClose: (() => void) | null,
-    name: string,
-  ) => (
-    <span key={key} className={`chat-tab ${key === activeKey ? "is-active" : ""}`}>
-      <button
-        type="button"
-        role="tab"
-        aria-selected={key === activeKey}
-        className="chat-tab-button"
-        title={title}
-        onClick={() => setActive(name)}
-      >
-        {label}
-        {badge > 0 && key !== activeKey && <span className="chat-tab-unread">{badge}</span>}
-      </button>
-      {onClose && (
-        <IconButton
-          icon="close"
-          iconSize={12}
-          className="chat-tab-close"
-          label={`${title} sohbetini kapat`}
-          onClick={onClose}
-        />
-      )}
-    </span>
-  );
-
   let placeholder: string;
-  if (throughBot) {
-    placeholder = viaBot.blocker ?? `${viaBot.bot ?? "Bot"} üzerinden yaz`;
-  } else if (activeRoom) {
-    placeholder = !activeRoom.current
-      ? "Eski oda: kayıtlı sohbet, salt okunur"
-      : !online
-        ? "Yazmak için Bancho'ya bağlan"
-        : !activeRoom.joined
-          ? "Bot seni odanın hakemi yapıyor…"
-          : `${activeRoom.channel}: mesaj veya !mp komutu`;
-  } else {
-    placeholder = !online ? "Bağlı değilsin" : target ? `${target}: mesaj` : "/msg kişi mesaj";
-  }
+  if (showingLog) placeholder = "Otomatik hakemin kaydı: salt okunur";
+  else if (!activeRoom) placeholder = "Önce oda aç";
+  else if (!activeRoom.current) placeholder = "Eski oda: kayıtlı sohbet, salt okunur";
+  else if (say.blocker) placeholder = say.blocker;
+  else if (say.auto)
+    placeholder = `${say.bot ?? "Bot"} üzerinden yaz: mesaj (!mp manuel kontrolde)`;
+  else placeholder = `${say.bot ?? "Bot"} üzerinden yaz: mesaj veya !mp komutu`;
 
   return (
     <section className="chat-panel" aria-label="Bancho sohbeti">
-      {top}
       <div className="chat-tabs" role="tablist">
-        {tabKeys.length === 0 && <span className="chat-tabs-empty muted">Henüz sohbet yok</span>}
-        {rooms.map((r) => {
-          const key = conversationKey(r.channel);
-          const label = rooms.length > 1 ? `${rooms.indexOf(r) + 1}. oda` : r.channel;
-          return tab(key, label, r.channel, unread(key, r.lines), null, r.channel);
+        {rooms.length === 0 && <span className="chat-tabs-empty muted">Henüz sohbet yok</span>}
+        {rooms.map((r, i) => {
+          const isActive = r.channel === activeKey;
+          const badge = unread(r.channel, r.lines);
+          return (
+            <span key={r.channel} className={`chat-tab ${isActive ? "is-active" : ""}`}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                className="chat-tab-button"
+                title={r.channel}
+                onClick={() => setActive(r.channel)}
+              >
+                {rooms.length > 1 ? `${i + 1}. oda` : r.channel}
+                {badge > 0 && !isActive && <span className="chat-tab-unread">{badge}</span>}
+              </button>
+            </span>
+          );
         })}
-        {dmKeys.map((key) => {
-          const c = irc.conversations[key];
-          return tab(key, c.name, c.name, unread(key, c.lines), () => irc.close(c.name), c.name);
-        })}
+        <span className={`chat-tab chat-tab-log ${showingLog ? "is-active" : ""}`}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={showingLog}
+            className="chat-tab-button"
+            title="Otomatik hakemin ne yaptığı ve neden: hata ayıklamak için"
+            onClick={() => setActive(LOG_TAB)}
+          >
+            Otomatik hakem
+            {logAlerts > 0 && !showingLog && (
+              <span className="chat-tab-unread is-alert">
+                {logAlerts}
+                <span className="sr-only"> yeni uyarı</span>
+              </span>
+            )}
+          </button>
+        </span>
       </div>
 
       {activeRoom && !activeRoom.current && (
@@ -202,43 +173,54 @@ export function ChatPanel({ rooms, colors, top, visible = true, onUnread, viaBot
 
       <div
         className="chat-log"
-        ref={log}
+        ref={scroller}
         onScroll={(e) => {
           const el = e.currentTarget;
           stuckToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
         }}
       >
-        {lines.length === 0 && (
-          <p className="chat-empty muted">
-            {activeRoom
-              ? "Bu odada henüz mesaj yok."
-              : online
-                ? "Mesaj yok."
-                : "Özel mesajlar için Bancho'ya bağlan."}
-          </p>
+        {showingLog ? (
+          log.length === 0 ? (
+            <p className="chat-empty muted">
+              Otomatik hakem bu maçta henüz bir şey yapmadı. Oda açınca, oyuncuları beklerken ve her
+              adımda buraya yazar.
+            </p>
+          ) : (
+            log.map((l) => (
+              <div key={l.id} className={`chat-line autoref-line is-${l.level}`}>
+                <time className="chat-time">{formatClockSeconds(l.created_at)}</time>
+                <span className="chat-from">{LEVEL_LABELS[l.level]}</span>
+                <span className="chat-text">{l.message}</span>
+              </div>
+            ))
+          )
+        ) : (
+          <>
+            {lines.length === 0 && (
+              <p className="chat-empty muted">
+                {activeRoom ? "Bu odada henüz mesaj yok." : "Oda açılınca sohbeti burada görünür."}
+              </p>
+            )}
+            {lines.map((line) => (
+              <ChatRow key={line.id} line={line} me={user.username} colors={colors} />
+            ))}
+          </>
         )}
-        {lines.map((line) => (
-          <ChatRow key={line.id} line={line} me={irc.nick} colors={colors} />
-        ))}
       </div>
 
       <form className="chat-input" onSubmit={submit}>
         <input
           className="input"
-          aria-label={target ? `${target} sohbetine yaz` : "Mesaj"}
+          aria-label={activeRoom ? `${activeRoom.channel} sohbetine yaz` : "Mesaj"}
           placeholder={placeholder}
-          disabled={throughBot ? !target : !online || (activeRoom !== undefined && !target)}
+          disabled={!writable}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
         />
         <button
           type="submit"
           className="btn btn-primary"
-          disabled={
-            !draft.trim() ||
-            sending ||
-            (throughBot ? !target : !online || (activeRoom !== undefined && !target))
-          }
+          disabled={!draft.trim() || sending || !writable}
         >
           Gönder
         </button>

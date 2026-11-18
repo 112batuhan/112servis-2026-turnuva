@@ -9,7 +9,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use super::{
-    jobs::{Button, Embed, Job, OutMessage, Target},
+    jobs::{Alert, Button, Embed, Job, OutMessage, Target},
     BotResult,
 };
 use crate::{
@@ -689,6 +689,9 @@ fn match_id_of(job: &Job) -> Option<Uuid> {
         | Job::TimeSet { match_id }
         | Job::ConfirmTime { match_id }
         | Job::RoomAdded { match_id, .. }
+        | Job::AutorefReminder { match_id }
+        | Job::AutorefAlert { match_id, .. }
+        | Job::NoShow { match_id, .. }
         | Job::Concluded { match_id }
         | Job::Reopened { match_id }
         | Job::Reminder { match_id }
@@ -862,6 +865,120 @@ async fn match_event(
         Job::ConfirmTime { .. } => {
             if let Some(at) = info.starts_at {
                 ask_staff(cx, info, &title, at).await?;
+            }
+        }
+        Job::RoomAdded {
+            mp_id,
+            bot: Some(bot),
+            ..
+        } => {
+            let mut p = Pings::default();
+            let all = p.everyone(info, players);
+            cx.post_match(
+                id,
+                format!(
+                    "🎮 Maç odası kuruldu: {}\nOdanızın botu **{bot}**. Eğer davetiye almadıysanız \
+                     oyundan bu bota DM atıp `-davet` yazın.\n{all}",
+                    room_url(*mp_id)
+                ),
+                p,
+            );
+        }
+        Job::AutorefReminder { .. } => {
+            let mut p = Pings::default();
+            let names: Vec<String> = players.iter().map(|pl| p.player(pl)).collect();
+            cx.post_match(
+                id,
+                format!(
+                    "⏰ {}\nMaçınız 20 dakika sonra başlayacak. Bot, oda davetlerini 10 dakika \
+                     sonra yollayacak. Oyundaki özel mesajlarınızın bottan mesaj almaya hazır \
+                     olduğundan emin olun. Eğer bottan davet almazsanız odanızın botuna özelden \
+                     `-davet` yazarak tekrar davet yollamasını sağlayabilirsiniz. Bir sorun \
+                     yaşarsanız hostlardan yardım alın.",
+                    names.join(" ")
+                ),
+                p,
+            );
+        }
+        Job::AutorefAlert {
+            alert,
+            user_id,
+            text,
+            ..
+        } => {
+            let who = players.iter().find(|pl| Some(pl.user_id) == *user_id);
+            let who = who.map_or("Bir oyuncu".to_string(), |pl| {
+                format!(
+                    "{} ({})",
+                    osu_profile(pl.osu_id, &pl.username),
+                    pl.team_name
+                )
+            });
+            let (head, color, body) = match alert {
+                Alert::Report => (
+                    "📣 Oyuncu raporu",
+                    COLOR_WARN,
+                    format!("{who}: {}", text.as_deref().unwrap_or_default()),
+                ),
+                Alert::Stop => (
+                    "🛑 -durdur kullanıldı",
+                    COLOR_BAD,
+                    format!(
+                        "{who} acil durum için -durdur yazdı: maç manuel kontrole geçti, bir \
+                         hakemin bakması gerekiyor."
+                    ),
+                ),
+                Alert::Handover => (
+                    "⚠️ Otomatik hakem durdu",
+                    COLOR_BAD,
+                    format!(
+                        "{}\nMaç manuel kontrole geçti, bir hakemin devralması gerekiyor.",
+                        text.as_deref().unwrap_or_default()
+                    ),
+                ),
+            };
+            let embed = Embed::new(format!("{head}: {title}"), color)
+                .url(site_url(cx.state, &format!("/admin/referee/{id}")))
+                .description(body);
+            let staff = db::discord::alert_recipients(&cx.state.db, id).await?;
+            cx.post_setting_pinging(cx.settings.referee_channel_id, embed, &staff);
+        }
+        Job::NoShow {
+            team_id, forfeit, ..
+        } => {
+            let team = db::discord::team_players(&cx.state.db, *team_id).await?;
+            let Some(team_name) = team.first().map(|pl| pl.team_name.clone()) else {
+                return Ok(());
+            };
+            let embed = if *forfeit {
+                Embed::new("❌ Maç hükmen kaybedildi", COLOR_BAD)
+                    .url(match_url(cx.state, info))
+                    .description(format!(
+                        "Takımın **{title}** maçına 10 dakika içinde tam kadro gelmediği için maç \
+                         hükmen kaybedildi."
+                    ))
+            } else {
+                Embed::new("❌ Eleme lobisinden çıkarıldınız", COLOR_BAD)
+                    .url(site_url(cx.state, "/qualifiers"))
+                    .description(format!(
+                        "Takımın **{title}** lobisine 10 dakika içinde tam kadro gelmediği için \
+                         lobiden çıkarıldı. Başlamamış başka bir eleme lobisine kaydolabilirsiniz: \
+                         {}",
+                        site_url(cx.state, "/qualifiers")
+                    ))
+            };
+            for pl in &team {
+                cx.post_user(
+                    pl.discord_id.as_deref(),
+                    OutMessage::embed(embed.clone(), Vec::new()),
+                );
+            }
+            if !*forfeit {
+                cx.post_match(
+                    id,
+                    format!("ℹ️ **{team_name}** tam kadro gelmediği için lobiden çıkarıldı."),
+                    Pings::default(),
+                );
             }
         }
         Job::RoomAdded { mp_id, .. } => {

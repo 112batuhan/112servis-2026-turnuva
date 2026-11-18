@@ -5,7 +5,7 @@
 //! turns picking from there, each pick going to the team that didn't make the one
 //! before. The referee page and the room's bot read whose turn it is from it.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::error::PoolError;
@@ -17,7 +17,7 @@ pub const DEFAULT_ORDER: &str = "b1-b2-p2-*";
 // The most steps an order may spell out.
 pub const MAX_STEPS: usize = 40;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum StepKind {
     Ban,

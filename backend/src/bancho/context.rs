@@ -32,6 +32,7 @@ pub struct MatchTeam {
 #[derive(Debug, Clone)]
 pub struct MatchContext {
     pub kind: MatchKind,
+    pub starts_at: Option<OffsetDateTime>,
     pub concluded_at: Option<OffsetDateTime>,
     pub forfeit: bool,
     // "W3", "Lobi B": how the bots page names it.
@@ -41,6 +42,9 @@ pub struct MatchContext {
     pub room_name: String,
     // Bracket matches: team 1 (blue) and team 2 (red), once both are known.
     pub sides: Option<[MatchTeam; 2]>,
+    // Every team of the match: a bracket match's two in slot order, a lobby's in signup
+    // order.
+    pub teams: Vec<MatchTeam>,
     pub roster: Vec<RosterPlayer>,
     pub best_of: Option<i32>,
     // The stage's pick and ban order (the default when it has none).
@@ -162,6 +166,7 @@ pub async fn load(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchContext>>
 
     Ok(Some(MatchContext {
         kind: row.kind,
+        starts_at: row.starts_at,
         concluded_at: row.concluded_at,
         forfeit: row.forfeit_slot.is_some(),
         label: if bracket {
@@ -171,6 +176,7 @@ pub async fn load(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchContext>>
         },
         room_name,
         sides,
+        teams: names,
         roster,
         best_of: row.stage_best_of,
         draft_order: DraftOrder::of_stage(row.stage_draft_order.as_deref()),

@@ -1,5 +1,5 @@
-//! What the bots and the referees' relay (relay.rs) share about speaking IRC to
-//! Bancho: splitting lines, keeping what we send clean, logging in, and names.
+//! What the bots share about speaking IRC to Bancho: splitting lines, keeping what
+//! we send clean, logging in, and names.
 
 use std::{collections::VecDeque, time::Duration};
 

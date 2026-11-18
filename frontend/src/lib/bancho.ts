@@ -130,11 +130,6 @@ export function normalizeName(name: string): string {
   return name.trim().replace(/_/g, " ").toLowerCase();
 }
 
-/** The name to log in or address someone with on IRC. */
-export function ircName(username: string): string {
-  return username.trim().replace(/ /g, "_");
-}
-
 /** "HDHR" -> ["HD", "HR"]; "NM" and "" are no mods. */
 export function splitMods(acronyms: string): string[] {
   return (acronyms.toUpperCase().match(/[A-Z0-9]{2}/g) ?? []).filter((m) => m !== "NM");

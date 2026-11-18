@@ -82,8 +82,6 @@ pub struct AppState {
     pub rank_refresh_lock: Arc<tokio::sync::Mutex<()>>,
     // The site's bots on Bancho, which run every multiplayer room.
     pub bancho: bancho::Bancho,
-    // Each referee's own Bancho IRC connection, shared by their tabs, and failed logins.
-    pub irc_users: bancho::relay::IrcUsers,
     // Every open page's live socket: score pushes and referee-page presence.
     pub live: live::Live,
     // The tournament server's bot, when it's configured.
@@ -146,7 +144,6 @@ async fn main() {
         osu_app_token: Arc::new(Mutex::new(None)),
         rank_refresh_lock: Arc::new(tokio::sync::Mutex::new(())),
         bancho,
-        irc_users: bancho::relay::IrcUsers::default(),
         live: live::Live::default(),
         discord: discord::Discord::new(&config.discord_bot),
         stats_cache: stats_cache::StatsCache::stats(),
@@ -195,7 +192,6 @@ async fn main() {
         .merge(handlers::stats::routes())
         .merge(handlers::notifications::routes())
         .merge(handlers::pickem::routes())
-        .merge(handlers::irc::routes())
         .merge(handlers::bancho::routes())
         .merge(handlers::live::routes())
         .merge(handlers::discord::routes())

@@ -12,7 +12,6 @@ pub mod bancho;
 pub mod bracket;
 pub mod dev;
 pub mod discord;
-pub mod irc;
 pub mod live;
 pub mod mappool;
 pub mod matches;
@@ -99,7 +98,6 @@ mod tests {
             .merge(super::stats::routes())
             .merge(super::notifications::routes())
             .merge(super::pickem::routes())
-            .merge(super::irc::routes())
             .merge(super::bancho::routes())
             .merge(super::live::routes())
             .merge(super::discord::routes())

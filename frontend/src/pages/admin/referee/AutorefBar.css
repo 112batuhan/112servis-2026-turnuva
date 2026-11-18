@@ -1,0 +1,103 @@
+/* The auto referee in the match column: the one line under the room bar that says what it's
+   waiting for (its switch is components/Switch). The line's dot speaks the bot badge's language:
+   success running, subtle in manual mode. */
+/* One line, ruled off under the room bar: dot, phase, countdown, then the teams' uses at its end. */
+.autoref-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-3);
+  min-height: 36px;
+  padding: var(--space-2) 0;
+  border-bottom: var(--rule);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.autoref-dot {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-text-subtle);
+}
+
+.autoref-status.is-running .autoref-dot {
+  background: var(--color-success);
+}
+
+.autoref-phase {
+  min-width: 0;
+  color: var(--color-text);
+}
+
+.autoref-phase strong {
+  font-weight: 700;
+}
+
+.autoref-phase .num {
+  font-size: var(--text-md);
+}
+
+.autoref-status.is-manual strong {
+  color: var(--color-text);
+}
+
+.autoref-note {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.autoref-clock {
+  color: var(--color-text);
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+
+.autoref-uses {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin-left: auto;
+  font-size: var(--text-xs);
+}
+
+.autoref-team {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.autoref-team-name {
+  max-width: 14ch;
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.autoref-status .is-team-blue {
+  color: var(--color-team-blue);
+}
+
+.autoref-status .is-team-red {
+  color: var(--color-team-red);
+}
+
+.autoref-use {
+  color: var(--color-text-muted);
+}
+
+.autoref-use .num {
+  color: var(--color-text);
+  font-size: var(--text-md);
+}
+
+.autoref-use.is-spent {
+  color: var(--color-text-subtle);
+  text-decoration: line-through;
+}
+
+.autoref-use.is-spent .num {
+  color: var(--color-text-subtle);
+}

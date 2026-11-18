@@ -205,6 +205,7 @@ const FOOT_LABELS: Record<string, string> = {
   "/team": "Takımım sayfasında gör",
   "/admin/teams": "Takımlar sayfasında gör",
   "/admin/users": "Kullanıcılar sayfasında gör",
+  "/qualifiers": "Eleme lobilerini gör",
 };
 
 interface ItemProps {
@@ -229,15 +230,33 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
       ? "/admin/teams"
       : "/team";
   const isBan = n.kind === "banned" || n.kind === "teammate_banned" || n.kind === "player_banned";
+  // The auto referee's word to the staff, about a match they can open on the referee page.
+  const fromAutoref =
+    n.kind === "player_report" || n.kind === "emergency_stop" || n.kind === "autoref_stopped";
+  const isDanger =
+    isBan ||
+    n.kind === "emergency_stop" ||
+    n.kind === "autoref_stopped" ||
+    n.kind === "no_show_forfeit" ||
+    n.kind === "lobby_no_show";
   // Where the foot link goes: the team's page, or for a host told about a player with no team,
-  // the users admin, where the ban is.
-  const footPath = n.kind === "player_banned" && !n.team_name ? "/admin/users" : teamPath;
+  // the users admin, where the ban is; a team taken out of its lobby picks another.
+  const footPath =
+    n.kind === "player_banned" && !n.team_name
+      ? "/admin/users"
+      : n.kind === "lobby_no_show"
+        ? "/qualifiers"
+        : teamPath;
   const forPlayers =
     n.kind === "reschedule_proposed" ||
     n.kind === "reschedule_accepted" ||
     n.kind === "rank_over_limit" ||
     n.kind === "discord_left" ||
+    n.kind === "no_show_forfeit" ||
+    n.kind === "lobby_no_show" ||
     isBan;
+  const who = n.team_name ? `${actor} (${n.team_name})` : actor;
+  const lobby = n.lobby_name ? `Lobi ${n.lobby_name}` : "eleme lobisi";
   // banned, player_banned: why, on a line of its own: before what the ban stops for the player,
   // after who it was for the hosts.
   let reason: string | null = null;
@@ -297,17 +316,56 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
       title = "Takım arkadaşın banlandı";
       body = `${actor} turnuvadan banlandı. Takımınız şimdilik duruyor; ne olacağına hostlar karar verecek.`;
       break;
+    case "player_report":
+      title = "Oyuncu raporu";
+      reason = n.message;
+      body = `${who} odadan -rapor ile hakemlere ve hostlara yazdı.`;
+      break;
+    case "emergency_stop":
+      title = "Acil durdurma";
+      body = `${who} -durdur yazdı: maç manuel kontrole geçti, bir hakemin bakması gerekiyor.`;
+      break;
+    case "autoref_stopped":
+      title = "Otomatik hakem durdu";
+      reason = n.message;
+      body = "Maç manuel kontrole geçti, bir hakemin devralması gerekiyor.";
+      break;
+    case "no_show_forfeit":
+      title = "Maç hükmen bitti";
+      body = `${n.team_name ?? "Bir takım"} maç saatinden sonraki 10 dakika içinde tam kadro gelmedi, maç hükmen sonuçlandı.`;
+      break;
+    case "lobby_no_show":
+      title = "Eleme lobisinden çıkarıldınız";
+      body = `Takımın ${lobby} için 10 dakika içinde tam kadro gelmediğinden lobiden çıkarıldı. Başlamamış başka bir lobiye kaydolabilirsin.`;
+      break;
   }
 
   return (
     <li className={classes}>
       <div className="notif-head">
-        <span className={isBan ? "notif-item-title is-danger" : "notif-item-title"}>{title}</span>
+        <span className={isDanger ? "notif-item-title is-danger" : "notif-item-title"}>
+          {title}
+        </span>
         <span className="notif-when" title={formatDateTime(n.created_at)}>
           {formatShortMatchTime(n.created_at)}
         </span>
       </div>
-      {n.match_id && n.side && n.number !== null ? (
+      {fromAutoref && n.match_id ? (
+        <Link to={`/admin/referee/${n.match_id}`} className="notif-match">
+          {n.side && n.number !== null ? (
+            <>
+              <span className={`notif-code is-${n.side}`}>
+                {matchCode({ side: n.side, number: n.number })}
+              </span>
+              <span className="notif-teams">
+                {n.team1_name ?? "?"} <span className="muted">vs</span> {n.team2_name ?? "?"}
+              </span>
+            </>
+          ) : (
+            <span className="notif-teams">{lobby}</span>
+          )}
+        </Link>
+      ) : n.match_id && n.side && n.number !== null ? (
         <Link
           to={forPlayers ? teamPath : bracketMatchPath(n.bracket_match_id ?? n.match_id, true)}
           className="notif-match"
@@ -337,8 +395,10 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
         </p>
       )}
       {reason && n.kind === "banned" && <p className="notif-reason">Sebep: {reason}</p>}
+      {reason && n.kind === "player_report" && <p className="notif-reason">“{reason}”</p>}
       <p className="notif-body">{body}</p>
       {reason && n.kind === "player_banned" && <p className="notif-reason">Sebep: {reason}</p>}
+      {reason && n.kind === "autoref_stopped" && <p className="notif-reason">Neden: {reason}</p>}
 
       {forPlayers && (
         <Link to={footPath} className="notif-link">

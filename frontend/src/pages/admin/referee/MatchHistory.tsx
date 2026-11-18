@@ -19,6 +19,7 @@ import { ScoreSheet } from "../../../components/match/ScoreSheet";
  */
 export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
   const { room, finished, roster, ignored, actions, canRun, busy, tally, teams, race } = referee;
+  const { autoLock } = referee;
   if (!room) return null;
   const concluded = room.concluded_at !== null;
   const editable = teams.length === 2 && tally !== null && canRun && !concluded;
@@ -32,7 +33,7 @@ export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
       roster={roster}
       status={<ScoreStatus referee={referee} />}
       raceAction={(r) => <RaceAction referee={referee} race={r} />}
-      ignore={{ ignored, disabled: concluded, toggle: actions.toggleIgnored }}
+      ignore={{ ignored, disabled: concluded || autoLock !== null, toggle: actions.toggleIgnored }}
       renderManualAction={
         editable
           ? (manual, label) => (
@@ -40,7 +41,8 @@ export function MatchHistory({ referee }: { referee: RefereeRoomState }) {
                 icon="undo"
                 className="sheet-toggle"
                 label={`${label}: hakem kararını geri al`}
-                disabled={busy}
+                disabled={busy || autoLock !== null}
+                {...(autoLock !== null && { title: autoLock })}
                 onClick={() => actions.removeManualResult(manual.id)}
               />
             )
@@ -75,7 +77,7 @@ function RaceAction({ referee, race }: { referee: RefereeRoomState; race: Race }
  * over a score a host entered by hand, which stays until a map changes it or the referee saves.
  */
 function ScoreStatus({ referee }: { referee: RefereeRoomState }) {
-  const { room, teams, live, scoreSaved, canRun, busy, actions } = referee;
+  const { room, teams, live, scoreSaved, canRun, busy, autoLock, actions } = referee;
   if (!room) return null;
   if (room.forfeit_slot) return <>Hükmen: {teams[room.forfeit_slot - 1]?.name} çekildi</>;
   if (room.concluded_at !== null) return <>Maç bitti</>;
@@ -91,7 +93,8 @@ function ScoreStatus({ referee }: { referee: RefereeRoomState }) {
         <button
           type="button"
           className="btn btn-secondary btn-sm"
-          disabled={busy}
+          disabled={busy || autoLock !== null}
+          title={autoLock ?? undefined}
           onClick={actions.saveScore}
         >
           Skoru kaydet
@@ -110,10 +113,10 @@ function ScoreStatus({ referee }: { referee: RefereeRoomState }) {
  * referee asks. A concluded match shows what was saved with its score.
  */
 function ResultSource({ referee }: { referee: RefereeRoomState }) {
-  const { room, source, osuSyncedAt, syncing, busy, canRun, actions } = referee;
+  const { room, source, osuSyncedAt, syncing, busy, canRun, autoLock, actions } = referee;
   if (source === "saved") return <span className="sheet-source">Skorla kaydedilen sonuçlar</span>;
   // Shared by everyone on the page, so only those who run the match change it.
-  const locked = !canRun || room?.concluded_at != null;
+  const locked = !canRun || room?.concluded_at != null || autoLock !== null;
   const at = osuSyncedAt ? formatClock(osuSyncedAt) : null;
   return (
     <span className="sheet-source">
@@ -124,7 +127,10 @@ function ResultSource({ referee }: { referee: RefereeRoomState }) {
         type="button"
         className="btn btn-secondary btn-sm"
         disabled={syncing || busy || locked}
-        title="Sonuçları osu!'nun maç kaydından (mp linki) alıp sohbetten okunanların yerine koyar ve skoru kaydeder. Bot bir map'i kaçırdıysa ya da yanlış okuduysa düzeltir."
+        title={
+          autoLock ??
+          "Sonuçları osu!'nun maç kaydından (mp linki) alıp sohbetten okunanların yerine koyar ve skoru kaydeder. Bot bir map'i kaçırdıysa ya da yanlış okuduysa düzeltir."
+        }
         onClick={actions.syncFromOsu}
       >
         <Icon name="refresh" size={14} />
@@ -140,12 +146,13 @@ function ResultSource({ referee }: { referee: RefereeRoomState }) {
  * matches. Behind a confirmation, since reopening it takes a host.
  */
 function ConcludeControl({ referee }: { referee: RefereeRoomState }) {
-  const { room, teams, tally, busy, actions, race, bestOf } = referee;
+  const { room, teams, tally, busy, actions, race, bestOf, autoLock } = referee;
   if (!room) return null;
   const label = roomLabel(room);
-  let blocker: string | null = null;
+  // In auto mode the bot concludes the match once it's decided.
+  let blocker: string | null = autoLock;
   let detail = "";
-  if (room.kind === "bracket") {
+  if (blocker === null && room.kind === "bracket") {
     if (teams.length !== 2 || !tally) blocker = "İki takım da belli olmalı";
     else if (tally.team1 === tally.team2) blocker = "Skor berabere: önce kazanan belli olmalı";
     else {
@@ -187,7 +194,7 @@ function ConcludeControl({ referee }: { referee: RefereeRoomState }) {
  * Bancho never reported), or a point without a map. It counts with the room's results.
  */
 function ManualResultForm({ referee, teams }: { referee: RefereeRoomState; teams: MatchTeam[] }) {
-  const { room, busy, actions } = referee;
+  const { room, busy, autoLock, actions } = referee;
   const [open, setOpen] = useState(false);
   const [mapId, setMapId] = useState("");
   const [note, setNote] = useState("");
@@ -197,7 +204,13 @@ function ManualResultForm({ referee, teams }: { referee: RefereeRoomState; teams
 
   if (!open) {
     return (
-      <button type="button" className="btn btn-secondary btn-sm" onClick={() => setOpen(true)}>
+      <button
+        type="button"
+        className="btn btn-secondary btn-sm"
+        disabled={autoLock !== null}
+        title={autoLock ?? undefined}
+        onClick={() => setOpen(true)}
+      >
         <Icon name="plus" size={14} />
         Hakem kararıyla map ver
       </button>
@@ -256,7 +269,7 @@ function ManualResultForm({ referee, teams }: { referee: RefereeRoomState; teams
             key={team.id}
             type="button"
             className={`btn btn-secondary btn-sm sheet-manual-team is-team-${team.color}`}
-            disabled={busy}
+            disabled={busy || autoLock !== null}
             onClick={() => award(team.id)}
           >
             {team.name} alsın
@@ -273,7 +286,7 @@ function ManualResultForm({ referee, teams }: { referee: RefereeRoomState; teams
  * undone without a host.
  */
 function ForfeitControl({ referee, teams }: { referee: RefereeRoomState; teams: MatchTeam[] }) {
-  const { busy, actions } = referee;
+  const { busy, autoLock, actions } = referee;
   return (
     <details className="sheet-forfeit">
       <summary>Hükmen bitir…</summary>
@@ -290,7 +303,8 @@ function ForfeitControl({ referee, teams }: { referee: RefereeRoomState; teams: 
               key={team.id}
               type="button"
               className="btn btn-danger btn-sm"
-              disabled={busy}
+              disabled={busy || autoLock !== null}
+              title={autoLock ?? undefined}
               onClick={() => {
                 if (
                   window.confirm(

@@ -1,5 +1,6 @@
 //! Messages tied to the clock: a reminder in a match's channel an hour before it
-//! starts, and the public announcement 15 minutes before a bracket match. A match moved
+//! starts (and 20 minutes before, when the auto referee runs it), and the public
+//! announcement 15 minutes before a bracket match. A match moved
 //! after either went out gets it again for its new time. Also archives the channel of
 //! a match an hour after it was concluded.
 
@@ -11,6 +12,8 @@ use crate::{db, AppState};
 const CHECK_EVERY: Duration = Duration::from_secs(30);
 const REMIND_BEFORE_SECS: i64 = 60 * 60;
 const ANNOUNCE_BEFORE_SECS: i64 = 15 * 60;
+// The auto referee's reminder: it opens the room 10 minutes before (bancho/manager.rs).
+const AUTOREF_REMIND_BEFORE_SECS: i64 = 20 * 60;
 
 pub async fn run(state: AppState) {
     let mut interval = tokio::time::interval(CHECK_EVERY);
@@ -41,6 +44,12 @@ async fn tick(state: &AppState) -> sqlx::Result<()> {
             .await?
             .into_iter()
             .map(|match_id| Job::Announce { match_id }),
+    );
+    jobs.extend(
+        db::discord::take_due_autoref_reminders(&mut tx, AUTOREF_REMIND_BEFORE_SECS)
+            .await?
+            .into_iter()
+            .map(|match_id| Job::AutorefReminder { match_id }),
     );
     jobs.extend(Job::sync_matches(
         db::discord::take_due_archives(&mut tx).await?,

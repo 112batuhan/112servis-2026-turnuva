@@ -5,7 +5,7 @@ import type { AdminTeamPlayer } from "../../../api/types";
 import { DiscordMention } from "../../../components/DiscordMention";
 import { IconButton } from "../../../components/IconButton";
 import { staffRole } from "../../../lib/roomStaff";
-import { botBlocker, type RefereeRoomState } from "./useRefereeRoom";
+import { controlBlocker, type RefereeRoomState } from "./useRefereeRoom";
 import { PlayersView } from "../../../components/match/PlayersView";
 
 /**
@@ -14,11 +14,13 @@ import { PlayersView } from "../../../components/match/PlayersView";
  * not in the room yet.
  */
 export function RoomPlayers({ referee }: { referee: RefereeRoomState }) {
-  const { room, roster, lobby, findRoster, actions, botReady, canRun } = referee;
+  const { room, roster, lobby, findRoster, actions, controlsReady, canRun } = referee;
   if (!room) return null;
   const concluded = room.concluded_at !== null;
-  const ready = botReady && !lobby.closed;
-  const why = botBlocker(referee) ?? "Oda kapandı";
+  // Invites, kicks and moves are the bot's in auto mode (it places and invites by itself); the
+  // Discord ping stays open.
+  const ready = controlsReady && !lobby.closed;
+  const why = controlBlocker(referee) ?? "Oda kapandı";
   return (
     <PlayersView
       kind={room.kind}

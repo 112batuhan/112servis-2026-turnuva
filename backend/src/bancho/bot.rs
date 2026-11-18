@@ -20,7 +20,7 @@ use super::irc::{
     self, clean_text, parse, privmsg_text, room_id, valid_name, Pacer, LINE_MAX, LOGIN_TIMEOUT,
 };
 
-// Stricter than a referee's own connection (relay.rs): at most SEND_LIMIT lines
+// The pace a bot keeps, below what Bancho allows: at most SEND_LIMIT lines
 // in any SEND_WINDOW, never two closer than SEND_GAP.
 pub const SEND_LIMIT: usize = 6;
 pub const SEND_WINDOW: Duration = Duration::from_secs(5);

@@ -55,12 +55,6 @@
   cursor: pointer;
 }
 
-.chat-tab .chat-tab-close {
-  margin-left: calc(-1 * var(--space-2));
-  width: 24px;
-  height: 24px;
-}
-
 .chat-tab-unread {
   min-width: 18px;
   padding: 0 5px;

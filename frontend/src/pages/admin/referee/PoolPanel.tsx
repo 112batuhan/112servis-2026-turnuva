@@ -1,6 +1,6 @@
 import { IconButton } from "../../../components/IconButton";
 import { matchTeams, type MatchTeam, type PoolEntry } from "../../../lib/matchPool";
-import { botBlocker, type RefereeRoomState } from "./useRefereeRoom";
+import { controlBlocker, type RefereeRoomState } from "./useRefereeRoom";
 import { PoolView, draftPhase } from "../../../components/match/PoolView";
 
 /**
@@ -10,14 +10,18 @@ import { PoolView, draftPhase } from "../../../components/match/PoolView";
  * pick sets the map too. Banned maps can't be picked.
  */
 export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
-  const { room, currentEntry, finished, botReady, canRun, busy, actions, race, draft, turn } =
-    referee;
+  const { room, currentEntry, finished, controlsReady, canRun, autoLock, busy, actions } = referee;
+  const { race, draft, turn } = referee;
   if (!room) return null;
   // The server tells apart a beatmap that's in the pool twice by the mods it was played with.
   const played = new Set<string | undefined>(finished.map((f) => f.mapId ?? undefined));
-  const blocker = botBlocker(referee);
+  const blocker = controlBlocker(referee);
   const teams = matchTeams(room);
+  // In auto mode the bot marks them: the buttons stay, disabled with why.
   const canMark = teams.length === 2 && canRun && room.concluded_at === null;
+  const marking = busy || autoLock !== null;
+  // The button's own label stays its tooltip unless it's locked.
+  const lockTitle = autoLock !== null ? { title: autoLock } : {};
   // Once the order has run out (or at the tiebreaker) only picks are left to record.
   const banning = turn?.kind === "ban";
   // The team whose turn it is leads; the other's button stays, quieter, for a roll the order didn't foresee.
@@ -36,7 +40,8 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
         <IconButton
           icon="undo"
           label={`${label} yasağını kaldır`}
-          disabled={busy}
+          disabled={marking}
+          {...lockTitle}
           onClick={() => actions.unban(map.id)}
         />
       );
@@ -46,7 +51,8 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
         <IconButton
           icon="undo"
           label={`${label} seçimini kaldır`}
-          disabled={busy}
+          disabled={marking}
+          {...lockTitle}
           onClick={() => actions.unpick(map.id)}
         />
       );
@@ -58,7 +64,8 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
           icon="ban"
           className={`pool-mark-button is-team-${team.color}${offTurn(team)}`}
           label={`${label}: ${team.name} yasakladı`}
-          disabled={busy || played.has(map.id)}
+          disabled={marking || played.has(map.id)}
+          {...lockTitle}
           onClick={() => actions.ban(map.id, team.id)}
         />
       ));
@@ -71,7 +78,8 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
         icon="target"
         className={`pool-mark-button is-team-${team.color}${offTurn(team)}`}
         label={`${label}: ${team.name} seçti`}
-        disabled={busy}
+        disabled={marking}
+        {...lockTitle}
         onClick={() => actions.pick(map, team.id)}
       />
     ));
@@ -85,11 +93,11 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
       draft={draft}
       phase={canMark ? draftPhase(turn, race) : null}
       pick={{
-        disabled: (_entry, banned) => !botReady || banned !== undefined,
+        disabled: (_entry, banned) => !controlsReady || banned !== undefined,
         title: (entry, banned) =>
           banned
             ? `${entry.label}: ${banned.name} yasakladı`
-            : botReady
+            : controlsReady
               ? `${entry.label} seç: !mp map ${entry.map.beatmap_id}, ${entry.freemod ? "Freemod" : entry.map.mods || "NM"}`
               : (blocker ?? ""),
         onPick: (entry) => actions.pickMap(entry.map),

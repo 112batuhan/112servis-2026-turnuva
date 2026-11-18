@@ -1,7 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { fetchPublicChat, fetchPublicMatch } from "../api/matches";
 import type { Player } from "../api/types";
-import type { ChatLine } from "../irc/IrcContext";
 import { sameName, type RoomSlot } from "./bancho";
 import { raceOf, type Race } from "./bestOf";
 import {
@@ -15,7 +14,7 @@ import {
   type Tally,
 } from "./liveRoom";
 import { draftTurn, matchDraft, matchTeams, poolEntries, type MatchTeam } from "./matchPool";
-import { toChatLine } from "./roomChat";
+import { toChatLine, type ChatLine } from "./roomChat";
 import { useMatchFeed } from "./useMatchFeed";
 import { useLive } from "../live/LiveContext";
 

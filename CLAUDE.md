@@ -41,7 +41,7 @@ The first host has to be set by hand in SQL: `UPDATE osu_users SET roles = '{hos
 - `config.rs`: clap `Config` from env vars (each also a CLI flag). Empty variables count as unset (compose passes unset ones as empty). Whether cookies are `Secure` comes from the scheme of `FRONTEND_URL`.
 - `handlers/<area>.rs` expose `routes()` and are HTTP only: who's asking and what was sent (shared checks: `check_origin`, `require_runs`, `require_unconcluded` in `handlers/mod.rs`). What more than the routes does to the data is in `services/`, called by handlers, the room bots and the Discord bot alike. Nothing outside `handlers/` imports from it. Shared response shapes are in `views.rs`. `db/<area>.rs` hold the queries.
 - `error.rs`: handlers return `Result<_, AppError>`. Every client error is a variant of a grouped enum (`TeamError`, `MatchError`, `LobbyError`…, gathered in `ErrorCode`): the variant carries its English message (`#[error]`) and its group's `status()` gives its HTTP status; `?`/`.into()` make it an `AppError` (`return Err(LobbyError::Full.into())`, `.ok_or(GeneralError::NotFound)?`). It's sent as `{ "group": "lobby", "code": "full", "message": "…" }`. AppError's other variants hold internal causes (database, osu!/Discord requests) and answer with a general code; 5xx causes go to the log only.
-- `live.rs` (the WebSocket hub), `stats_cache.rs` (single-flight response cache for the statistics and the public bracket), `supervise.rs` (restarts background tasks that panic), `secret.rs` (bot password encryption), `bancho/` (bots and the referees' relay), `discord/` (the Discord bot).
+- `live.rs` (the WebSocket hub), `stats_cache.rs` (single-flight response cache for the statistics and the public bracket), `supervise.rs` (restarts background tasks that panic), `secret.rs` (bot password encryption), `bancho/` (the room bots), `discord/` (the Discord bot).
 
 ## Rules
 
@@ -54,7 +54,7 @@ The first host has to be set by hand in SQL: `UPDATE osu_users SET roles = '{hos
 - **Live updates**: after committing a bracket change call `state.live.bracket_changed()` (or `score`); a change to one match the bracket doesn't show calls `match_changed(id)`; one only the referee page shows calls `referee_changed(id)`. A write to `notifications` returns its recipients; pass them to `state.live.notifications_changed(...)` after the commit, so their bells update.
 - **Potential matches**: every transaction that changes the bracket's teams takes `db::potential::lock` (before any row lock) and runs `db::potential::sync`.
 - **Background tasks** that must keep running go through `supervise::spawn`; a channel they read is a `supervise::SharedReceiver`, so a restarted task reads on.
-- **Bot passwords** are only stored encrypted (`BOT_SECRET_KEY`); never log or return them. Referees' own IRC credentials stay in memory only.
+- **Bot passwords** are only stored encrypted (`BOT_SECRET_KEY`); never log or return them.
 - **API types**: `frontend/src/api/types.ts` mirrors the Rust response structs by hand; update it whenever a serialized struct changes.
 - **Frontend conventions**: each component keeps its CSS next to it; colours, spacing and font sizes come from `styles/tokens.css`. Icon-only buttons use `<IconButton label="…">`, new icons go in `ICONS` (`components/Icon.tsx`). Anything done by dragging also needs a button/select alternative. A page's changes go through `lib/useAction.ts`.
 - **Bans**: every action a player takes part with (teams, lobbies, reschedules, pick'em, anything new like them) calls `user.require_not_banned()`; backing out of something stays open to banned users.
@@ -69,10 +69,12 @@ The first host has to be set by hand in SQL: `UPDATE osu_users SET roles = '{hos
 - `pickem.md`: windows, scoring, privacy, the ballot.
 - `statistics.md`: Z-scores, saved map results, accuracy from osu!, the response cache.
 - `match-page.md`: the public match page.
-- `referee-page.md`: the referee cockpit, the IRC relay, bans and picks, the score sheet.
-- `bancho-bots.md`: the room bots, the manager, load balancing, pacing, password encryption, supervision.
+- `referee-page.md`: the referee cockpit, talking through the room's bot, bans and picks, the score sheet.
+- `bancho-bots.md`: the room bots, the manager, load balancing, pacing, password encryption, supervision, the auto referee.
 - `discord-bot.md`: the job queue, match channels, cards, announcements, slash commands.
 - `arg.md`: the hidden `/kupa` puzzle.
 - `overlay.md`: the OBS overlay and its control dock.
 - `frontend.md`: the frontend's structure, error handling, lazy pages, the bracket views.
 - `dev-seed.md`: `DEV_LOGIN` and what the dummy seed contains.
+
+`docs/AUTO_REFEREE.md` is the guide to the auto referee for the tournament committee, hosts, referees and players (procedure, commands, switches, a manual test checklist, and every message in Turkish with its English translation); keep it in step with `bancho/autoref.rs` and the messages it sends.

@@ -1,7 +1,7 @@
 import { Icon } from "../../../components/Icon";
 import { stepLabel } from "../../../lib/draftOrder";
 import { scoreMessage } from "../../../lib/matchPool";
-import { botBlocker, type RefereeRoomState } from "./useRefereeRoom";
+import { controlBlocker, type RefereeRoomState } from "./useRefereeRoom";
 import "./MatchScore.css";
 
 /**
@@ -10,7 +10,7 @@ import "./MatchScore.css";
  * other team.
  */
 export function AnnounceScore({ referee }: { referee: RefereeRoomState }) {
-  const { room, teams, tally, turn, botReady, canRun, actions } = referee;
+  const { room, teams, tally, turn, controlsReady, canControl, autoLock, actions } = referee;
   if (!room || !tally || teams.length !== 2) return null;
   const message = scoreMessage(teams, [tally.team1, tally.team2], turn);
   return (
@@ -28,7 +28,8 @@ export function AnnounceScore({ referee }: { referee: RefereeRoomState }) {
                 type="button"
                 className={`announce-team is-team-${team.color}`}
                 aria-pressed={turn.team?.id === team.id}
-                disabled={!canRun || room.concluded_at !== null}
+                disabled={!canControl || room.concluded_at !== null}
+                title={autoLock ?? undefined}
                 onClick={() => actions.setNextPick(team.id)}
               >
                 {team.name}
@@ -40,8 +41,10 @@ export function AnnounceScore({ referee }: { referee: RefereeRoomState }) {
       <button
         type="button"
         className="btn btn-secondary announce-send"
-        disabled={!botReady}
-        title={botReady ? `Bot odaya yazacak: ${message}` : (botBlocker(referee) ?? undefined)}
+        disabled={!controlsReady}
+        title={
+          controlsReady ? `Bot odaya yazacak: ${message}` : (controlBlocker(referee) ?? undefined)
+        }
         aria-description={message}
         onClick={actions.announceScore}
       >

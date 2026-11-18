@@ -14,6 +14,8 @@ pub struct RoomSettings {
     #[serde(with = "time::serde::rfc3339::option")]
     pub osu_synced_at: Option<OffsetDateTime>,
     pub next_pick_team_id: Option<Uuid>,
+    // The auto referee runs the match (bancho/autoref.rs); false: manual control.
+    pub auto_ref: bool,
 }
 
 impl Default for RoomSettings {
@@ -25,6 +27,7 @@ impl Default for RoomSettings {
             auto_kick: true,
             osu_synced_at: None,
             next_pick_team_id: None,
+            auto_ref: true,
         }
     }
 }
@@ -32,7 +35,8 @@ impl Default for RoomSettings {
 pub async fn find_settings(pool: &PgPool, match_id: Uuid) -> sqlx::Result<RoomSettings> {
     Ok(sqlx::query_as::<_, RoomSettings>(
         r#"
-        SELECT score_mode, no_fail, auto_place, auto_kick, osu_synced_at, next_pick_team_id
+        SELECT score_mode, no_fail, auto_place, auto_kick, osu_synced_at, next_pick_team_id,
+               auto_ref
         FROM match_room_settings
         WHERE match_id = $1
         "#,

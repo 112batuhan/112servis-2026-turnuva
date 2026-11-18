@@ -10,8 +10,9 @@ import { MatchHistory } from "./MatchHistory";
 import { AnnounceScore } from "./MatchScore";
 import { RoomPlayers } from "./RoomPlayers";
 import { REF_ROLES } from "../../../lib/roomStaff";
-import { botBlocker, type RefereeRoomState } from "./useRefereeRoom";
+import { botBlocker, controlBlocker, type RefereeRoomState } from "./useRefereeRoom";
 import { MapClock } from "../../../components/match/MapClock";
+import { AutorefStatus, AutorefSwitch } from "./AutorefBar";
 
 /**
  * The match column, the middle of the referee's cockpit, read top to bottom as the match goes:
@@ -55,6 +56,7 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
           {lobby.closed && <span className="badge badge-danger">Kapandı</span>}
           {channel && !concluded && <BotBadge bot={referee.botName} access={access} />}
           <span className="lobby-bar-actions">
+            {!concluded && <AutorefSwitch referee={referee} />}
             {channel && !concluded && (
               <button
                 type="button"
@@ -88,6 +90,7 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
             )}
           </span>
         </div>
+        <AutorefStatus referee={referee} />
       </header>
 
       <div className="lobby-body">
@@ -107,8 +110,8 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
               <button
                 type="button"
                 className="btn btn-danger btn-sm"
-                disabled={!botReady || lobby.closed}
-                title={botBlocker(referee) ?? "!mp close: odayı osu!'da kapatır"}
+                disabled={!referee.controlsReady || lobby.closed}
+                title={controlBlocker(referee) ?? "!mp close: odayı osu!'da kapatır"}
                 onClick={() => {
                   if (window.confirm("Oda kapatılsın mı (!mp close)? Bu geri alınamaz."))
                     actions.close();
@@ -123,8 +126,10 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
           <div className="lobby-create">
             <p className="lobby-create-text">
               Oda, en az meşgul botla açılır: {bracket ? "Team Vs" : "Head to Head"} olarak kurulur,
-              kilitlenir ve oyuncular davet edilir. Bancho'ya bağlanman gerekmez; bağlanırsan bot
-              seni odanın hakemi yapar.
+              kilitlenir ve oyuncular davet edilir. Odaya girmen gerekmez: sohbete de bot üzerinden
+              yazarsın.
+              {referee.autoEnabled &&
+                " Otomatik hakem açıkken bot odayı maç saatinden 10 dakika önce kendisi açar."}
             </p>
             <RoomOptions referee={referee} />
             <button
@@ -158,7 +163,11 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
             lobby={referee.lobby}
             currentEntry={referee.currentEntry}
             mapStartedAt={referee.mapStartedAt}
-            emptyText="Odada henüz map yok. Soldaki havuzdan bir map'e tıkla."
+            emptyText={
+              referee.autoLock !== null
+                ? "Odada henüz map yok. Otomatik hakem sırası gelince açacak."
+                : "Odada henüz map yok. Soldaki havuzdan bir map'e tıkla."
+            }
           />
         )}
         <RoomPlayers referee={referee} />
@@ -171,18 +180,35 @@ export function LobbyPanel({ referee }: { referee: RefereeRoomState }) {
 
 /** The match and room commands under the players, with the line that tells the room the score. The room's bot sends them. */
 function Commands({ referee }: { referee: RefereeRoomState }) {
-  const { room, lobby, botReady, access, actions } = referee;
+  const { room, lobby, botReady, controlsReady, autoLock, canRun, access, actions } = referee;
   const [timer, setTimer] = useState(90);
   const [countdown, setCountdown] = useState(5);
-  const ready = botReady;
+  // In auto mode the bot runs the room: the commands stay in view, disabled, under one line that
+  // says so with the way back to manual.
+  const ready = controlsReady;
   const bracket = room?.kind === "bracket";
-  const blocker = botBlocker(referee);
 
   return (
     <div className="lobby-commands" role="group" aria-label="Komutlar">
       {/* A bot that can't get in says why above the column; one on its way in, here. */}
-      {!ready && access === "joining" && (
-        <p className="lobby-commands-hint">{blocker} Komutlar o girince açılır.</p>
+      {!botReady && access === "joining" && (
+        <p className="lobby-commands-hint">{botBlocker(referee)} Komutlar o girince açılır.</p>
+      )}
+      {botReady && autoLock !== null && (
+        <div className="lobby-commands-auto">
+          <p>
+            <strong>{autoLock}.</strong> Komutlar, havuz ve skor araçları manuel kontrolde açılır;
+            sohbet açık.
+          </p>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            disabled={!canRun}
+            onClick={() => actions.setAutoref(false)}
+          >
+            Manuel kontrole geç
+          </button>
+        </div>
       )}
       <div className="lobby-command-row" role="group" aria-label="Maç komutları">
         <div className="lobby-command-group">
@@ -286,7 +312,8 @@ function Commands({ referee }: { referee: RefereeRoomState }) {
         >
           Kurulumu tekrarla
         </button>
-        <StreamerRef referee={referee} ready={ready} blocker={blocker} />
+        {/* Putting the streamer on the room's referees doesn't referee the match: open in auto mode. */}
+        <StreamerRef referee={referee} ready={botReady} blocker={botBlocker(referee)} />
       </div>
     </div>
   );

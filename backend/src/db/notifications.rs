@@ -23,6 +23,11 @@ pub enum NotificationKind {
     Banned,
     TeammateBanned,
     PlayerBanned,
+    PlayerReport,
+    EmergencyStop,
+    AutorefStopped,
+    NoShowForfeit,
+    LobbyNoShow,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
@@ -70,6 +75,10 @@ pub struct NotificationRow {
     pub team_value: Option<f64>,
     // banned, player_banned: the reason the host gave (empty when none).
     pub ban_reason: Option<String>,
+    // player_report: what the player wrote; autoref_stopped: why it stopped.
+    pub message: Option<String>,
+    // A qualifier lobby's letter index (lobby_no_show and the auto referee's).
+    pub lobby_index: Option<i32>,
     // reschedule_proposed: how many of the opponent's proposals are still open.
     pub pending_proposals: i64,
     pub actionable: bool,
@@ -88,7 +97,7 @@ pub async fn list(pool: &PgPool, user_id: Uuid, limit: i64) -> sqlx::Result<Vec<
                COALESCE('host' = ANY(a.roles), false) AS actor_is_host, n.staff_role, n.old_starts_at, n.new_starts_at, n.response, n.responded_at,
                n.read_at, n.created_at,
                n.team_id, tn.name AS team_name, n.old_rank, n.new_rank, n.team_value,
-               n.ban_reason,
+               n.ban_reason, n.message, m.lobby_index,
                (SELECT count(*) FROM match_reschedules r
                 WHERE r.match_id = n.match_id AND r.team_id <> n.team_id
                   AND n.team_id IN (b.team1_id, b.team2_id)
@@ -506,6 +515,61 @@ pub async fn notify_banned(
     .bind(user_id)
     .bind(banned_by)
     .bind(reason)
+    .fetch_all(conn)
+    .await
+}
+
+// Something the staff running matches should see at once (a player's -rapor or -durdur,
+// the auto referee handing a match over): to every host and referee. `actor` is the
+// player who wrote it, `team` their team.
+pub async fn notify_match_staff(
+    conn: &mut PgConnection,
+    kind: NotificationKind,
+    match_id: Uuid,
+    team_id: Option<Uuid>,
+    actor_id: Option<Uuid>,
+    message: Option<&str>,
+) -> sqlx::Result<Vec<Uuid>> {
+    sqlx::query_scalar(
+        r#"
+        INSERT INTO notifications (user_id, kind, match_id, team_id, actor_id, message)
+        SELECT u.id, $2, $1, $3, $4, $5
+        FROM osu_users u
+        WHERE 'host' = ANY(u.roles) OR 'referee' = ANY(u.roles)
+        RETURNING user_id
+        "#,
+    )
+    .bind(match_id)
+    .bind(kind)
+    .bind(team_id)
+    .bind(actor_id)
+    .bind(message)
+    .fetch_all(conn)
+    .await
+}
+
+// A team didn't show up: to the players of `teams`, about the team `team_id` (the one
+// that forfeited, or the one taken out of the lobby).
+pub async fn notify_no_show(
+    conn: &mut PgConnection,
+    kind: NotificationKind,
+    match_id: Uuid,
+    team_id: Uuid,
+    teams: &[Uuid],
+) -> sqlx::Result<Vec<Uuid>> {
+    sqlx::query_scalar(
+        r#"
+        INSERT INTO notifications (user_id, kind, match_id, team_id)
+        SELECT tm.user_id, $2, $1, $3
+        FROM team_members tm
+        WHERE tm.team_id = ANY($4)
+        RETURNING user_id
+        "#,
+    )
+    .bind(match_id)
+    .bind(kind)
+    .bind(team_id)
+    .bind(teams)
     .fetch_all(conn)
     .await
 }

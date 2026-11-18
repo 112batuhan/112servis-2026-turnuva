@@ -1,5 +1,5 @@
-import { API_URL, get, post, put } from "./client";
-import type { RefereeRoom, RoomChat, RoomCommand } from "./types";
+import { get, post, put } from "./client";
+import type { AutorefLogEntry, RefereeRoom, RoomChat, RoomCommand } from "./types";
 
 // Referees and up.
 export const fetchRefereeRoom = (matchId: string) =>
@@ -18,6 +18,12 @@ export const syncFromOsu = (matchId: string) =>
 /** Whose pick is next, until the next ban or pick; null goes back to the rules. */
 export const setNextPick = (matchId: string, teamId: string | null) =>
   put<void>(`/api/matches/${matchId}/next-pick`, { team_id: teamId });
+/** Switches the match between the auto referee and manual control; back on, it continues where it left off. */
+export const setAutoref = (matchId: string, enabled: boolean) =>
+  put<void>(`/api/matches/${matchId}/autoref`, { enabled });
+/** What the auto referee did in the match, oldest first. */
+export const fetchAutorefLogs = (matchId: string) =>
+  get<AutorefLogEntry[]>(`/api/matches/${matchId}/autoref/logs`);
 /** Leaves a finished map out of the score ("Sayma"), or counts it again. */
 export const setIgnoredMap = (matchId: string, key: string, ignored: boolean) =>
   put<void>(`/api/matches/${matchId}/ignored-maps`, { key, ignored });
@@ -31,9 +37,3 @@ export const roomCommand = (matchId: string, command: RoomCommand) =>
 /** Saves the score as the bots count it, now. */
 export const saveRoomScore = (matchId: string) =>
   post<void>(`/api/matches/${matchId}/room/save-score`);
-
-/** The referee's own Bancho IRC relay's WebSocket (backend/src/handlers/irc.rs). */
-export function ircSocketUrl(): string {
-  const base = API_URL || window.location.origin;
-  return `${base.replace(/^http/, "ws")}/api/irc`;
-}

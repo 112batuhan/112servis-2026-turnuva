@@ -1,7 +1,7 @@
 import { Fragment } from "react";
-import type { ChatLine } from "../../irc/IrcContext";
-import { BANCHO_BOT, normalizeName, type SlotTeam } from "../../lib/bancho";
+import { BANCHO_BOT, normalizeName, sameName, type SlotTeam } from "../../lib/bancho";
 import { formatClockSeconds } from "../../lib/format";
+import type { ChatLine } from "../../lib/roomChat";
 import "./ChatRow.css";
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
@@ -25,7 +25,7 @@ export function Linkified({ text }: { text: string }) {
 
 interface ChatRowProps {
   line: ChatLine;
-  /** Our nick, whose lines stand out. */
+  /** Our osu! username, whose lines stand out: our own, or the bot's signed with our name. */
   me: string | null;
   colors: Map<string, SlotTeam | null>;
   /** The match's referee, whose lines stand out on the public page. */
@@ -34,7 +34,7 @@ interface ChatRowProps {
 
 /** One chat line, IRC style: the time, who said it in their team's colour, what they said. */
 export function ChatRow({ line, me, colors, referee }: ChatRowProps) {
-  const fromMe = me !== null && line.from.toLowerCase() === me.toLowerCase();
+  const fromMe = me !== null && (sameName(line.from, me) || line.text.startsWith(`[${me}] `));
   const fromReferee = referee != null && normalizeName(line.from) === normalizeName(referee);
   const color = colors.get(normalizeName(line.from));
   const classes = [

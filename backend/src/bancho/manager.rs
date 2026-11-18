@@ -13,14 +13,14 @@ use tokio::{
 use uuid::Uuid;
 
 use super::{
+    autoref::{self, Action, AutoRef, Snapshot},
     bot::{self, BotCmd, BotConn, BotEvent, Priority},
     commands::{
         add_ref_command, kick_command, map_command, match_slots, mods_command, move_commands,
         place_commands, player_ref, remove_ref_command, Placement, HEAD_TO_HEAD, TEAM_VS,
     },
     context::{self, MatchContext},
-    irc::{normalize_name, room_channel, room_id, same_name, BANCHO_BOT},
-    relay::{SessionLink, SessionRequest},
+    irc::{normalize_name, room_channel, room_id, same_name, valid_name, BANCHO_BOT},
     room::{
         parse_created, parse_joined, parse_left, read_lobby, RoomSlot, RoomState, MATCH_STARTED,
     },
@@ -29,13 +29,18 @@ use super::{
     BotRoom, BotState, BotStatus, Request, RoomCommand, ROOM_LIMIT,
 };
 use crate::{
-    db::{self, bancho::BotLogin, matches::MatchKind, stats::QualifierMapRow, user::StaffMember},
+    db::{
+        self, autoref::LogLevel, bancho::BotLogin, matches::MatchKind, stats::QualifierMapRow,
+        user::StaffMember,
+    },
+    discord::jobs::Alert,
     error::{AppError, BanchoError, GeneralError, MatchError, RoomError},
     live::Change,
     osu_api,
     osu_api::matches::MatchGame,
     role::Role,
-    room_scores, services,
+    room_scores,
+    services::{self, bracket::Mark},
     supervise::{self, SharedReceiver},
     AppState,
 };
@@ -48,15 +53,23 @@ const RESYNC_EVERY: Duration = Duration::from_secs(60);
 const MAKE_TIMEOUT: Duration = Duration::from_secs(20);
 // How long a bot that Bancho says is full is left out of new rooms.
 const FULL_BACKOFF: Duration = Duration::from_secs(15 * 60);
-// A referee who left the match (or whose connection dropped) stays one of the room's
-// referees this long, so a reconnect keeps it.
-const REF_GRACE: Duration = Duration::from_secs(120);
 // A concluded match's room is closed this long after, so the last lines (a result, a
 // "gg") still reach it and a conclusion clicked by mistake can be undone; it then stops
 // counting against its bot. The players keep talking in the match's Discord channel.
 const CLOSE_AFTER_CONCLUDED: TimeDuration = TimeDuration::seconds(30);
 // A room replaced by a newer one is closed this long after, while players move over.
 const CLOSE_AFTER_REPLACED: TimeDuration = TimeDuration::minutes(15);
+// The auto referee opens a match's room this long before its time (and not for a match
+// whose time passed longer ago than OPEN_LATE), checking every OPEN_CHECK; a room it
+// couldn't make is tried again after OPEN_RETRY.
+const OPEN_BEFORE: i64 = 10 * 60;
+const OPEN_LATE: i64 = 30 * 60;
+const OPEN_CHECK: Duration = Duration::from_secs(15);
+const OPEN_RETRY: Duration = Duration::from_secs(60);
+// How often the auto referee's clock is checked.
+const AUTOREF_TICK: Duration = Duration::from_secs(1);
+// A player can ask for an invite (-davet) this often.
+const INVITE_EVERY: Duration = Duration::from_secs(20);
 
 struct Bot {
     login: BotLogin,
@@ -81,6 +94,8 @@ struct Making {
     deadline: Instant,
     // Bots already tried for this room.
     tried: Vec<Uuid>,
+    // The auto referee asked for it: Discord names the bot to the players.
+    auto: bool,
 }
 
 struct Room {
@@ -105,12 +120,6 @@ struct Room {
     tiebreaker_done: Option<String>,
 }
 
-struct Attendee {
-    nick: String,
-    // By relay tab.
-    links: HashMap<u64, SessionLink>,
-}
-
 struct Run {
     ctx: MatchContext,
     // osu!'s record of the rooms as of the last sync, by room.
@@ -120,12 +129,9 @@ struct Run {
     last_key: Option<String>,
     force_save: bool,
     dirty: bool,
-    // Referees with the match open and Bancho connected, by normalize_name.
-    attendees: HashMap<String, Attendee>,
-    // Those the bot made referees of the room because they had it open.
-    site_refs: HashSet<String>,
-    // When a referee who left stops being one of the room's referees.
-    removals: HashMap<String, Instant>,
+    // The auto referee's state, and as it was last saved.
+    auto: AutoRef,
+    auto_saved: Option<serde_json::Value>,
 }
 
 struct Manager {
@@ -139,14 +145,25 @@ struct Manager {
     runs: HashMap<Uuid, Run>,
     staff: Vec<StaffMember>,
     staff_loaded: bool,
-    // Relay tab -> (match, attendee).
-    tabs: HashMap<u64, (Uuid, String)>,
     // Changes to read again on the next tick.
     pending: HashSet<Uuid>,
     pending_all: bool,
     status_changed: bool,
     chat: mpsc::UnboundedSender<ChatWrite>,
     saver: mpsc::UnboundedSender<SaveJob>,
+    autoref: mpsc::UnboundedSender<AutoWrite>,
+    // Matches the auto referee tried to open a room for, and when.
+    open_tried: HashMap<Uuid, Instant>,
+    last_open_check: Option<Instant>,
+    last_autoref_tick: Option<Instant>,
+    // When each player last asked for an invite, by osu! id.
+    invited: HashMap<i64, Instant>,
+}
+
+// The auto referee's state and log lines, written in order.
+enum AutoWrite {
+    State(Uuid, serde_json::Value),
+    Log(Uuid, LogLevel, String),
 }
 
 struct ChatWrite {
@@ -191,12 +208,16 @@ pub(super) async fn run(app: AppState, inbox: SharedReceiver<Request>) {
         runs: HashMap::new(),
         staff: Vec::new(),
         staff_loaded: false,
-        tabs: HashMap::new(),
         pending: HashSet::new(),
         pending_all: false,
         status_changed: false,
         chat: spawn_chat_writer(app.clone()),
         saver: spawn_saver(app.clone()),
+        autoref: spawn_autoref_writer(app.clone()),
+        open_tried: HashMap::new(),
+        last_open_check: None,
+        last_autoref_tick: None,
+        invited: HashMap::new(),
         app,
     };
     manager.reload_bots().await;
@@ -248,6 +269,37 @@ async fn write_chat(app: AppState, rx: SharedReceiver<ChatWrite>) {
             Err(err) => {
                 tracing::error!(error = ?err, mp_id = w.mp_id, "could not save a chat line")
             }
+        }
+    }
+}
+
+// Saves the auto referee's state and log lines in order; each log line is sent to the
+// referee pages once saved.
+fn spawn_autoref_writer(app: AppState) -> mpsc::UnboundedSender<AutoWrite> {
+    let (tx, rx) = mpsc::unbounded_channel::<AutoWrite>();
+    let rx = supervise::shared(rx);
+    supervise::spawn("autoref writer", move || {
+        write_autoref(app.clone(), rx.clone())
+    });
+    tx
+}
+
+// Ends once the manager that feeds it is gone.
+async fn write_autoref(app: AppState, rx: SharedReceiver<AutoWrite>) {
+    let mut rx = rx.lock().await;
+    while let Some(w) = rx.recv().await {
+        let result = match &w {
+            AutoWrite::State(id, state) => db::autoref::save_state(&app.db, *id, state)
+                .await
+                .map_err(AppError::from),
+            AutoWrite::Log(id, level, message) => {
+                services::autoref::log(&app, *id, *level, message)
+                    .await
+                    .map(|_| ())
+            }
+        };
+        if let Err(err) = result {
+            tracing::error!(error = ?err, "could not save the auto referee's state or log");
         }
     }
 }
@@ -683,22 +735,7 @@ impl Manager {
 
     // The match is over or gone: nothing is run for it any more.
     fn end_run(&mut self, id: Uuid) {
-        let Some(run) = self.runs.remove(&id) else {
-            return;
-        };
-        let channels: Vec<String> = self
-            .match_rooms(id)
-            .iter()
-            .map(|r| room_channel(r.mp_id))
-            .collect();
-        for attendee in run.attendees.values() {
-            for link in attendee.links.values() {
-                for channel in &channels {
-                    link.send(SessionRequest::Part(channel.clone()));
-                }
-            }
-        }
-        self.tabs.retain(|_, (m, _)| *m != id);
+        self.runs.remove(&id);
     }
 
     // Reads the match from the database again, and counts it anew.
@@ -716,17 +753,27 @@ impl Manager {
             return;
         }
         let synced_at = ctx.settings.osu_synced_at;
-        let run = self.runs.entry(id).or_insert_with(|| Run {
-            ctx: ctx.clone(),
-            osu: None,
-            osu_loading: None,
-            last_key: None,
-            force_save: false,
-            dirty: true,
-            attendees: HashMap::new(),
-            site_refs: HashSet::new(),
-            removals: HashMap::new(),
-        });
+        let fresh = !self.runs.contains_key(&id);
+        if fresh {
+            let run = self.new_run(id, ctx.clone()).await;
+            self.runs.insert(id, run);
+        }
+        let Some(run) = self.runs.get_mut(&id) else {
+            return;
+        };
+        let was_on = run.ctx.settings.auto_ref;
+        let on = ctx.settings.auto_ref;
+        // A run read back after a restart, or a match switched back to auto, picks up
+        // where its auto referee left off.
+        let resume = on
+            && if fresh {
+                !matches!(
+                    run.auto.phase,
+                    autoref::Phase::Waiting | autoref::Phase::Done
+                )
+            } else {
+                !was_on
+            };
         run.ctx = ctx;
         run.dirty = true;
         match synced_at {
@@ -758,6 +805,39 @@ impl Manager {
             }
         }
         self.count(id);
+        if resume {
+            self.drive(id, |auto, s, out| auto.resume(s, out)).await;
+        }
+    }
+
+    // A match the bots start running, with where its auto referee stood.
+    async fn new_run(&self, id: Uuid, ctx: MatchContext) -> Run {
+        let saved = db::autoref::find_state(&self.app.db, id)
+            .await
+            .unwrap_or_else(|err| {
+                tracing::error!(error = ?err, match_id = %id, "could not read the auto referee's state");
+                None
+            });
+        let auto = saved
+            .clone()
+            .and_then(|v| {
+                serde_json::from_value(v)
+                    .map_err(|err| {
+                        tracing::warn!(error = %err, match_id = %id, "the auto referee's saved state is unreadable, starting over")
+                    })
+                    .ok()
+            })
+            .unwrap_or_default();
+        Run {
+            ctx,
+            osu: None,
+            osu_loading: None,
+            last_key: None,
+            force_save: false,
+            dirty: true,
+            auto,
+            auto_saved: saved,
+        }
     }
 
     // The match's rooms, oldest first.
@@ -792,7 +872,16 @@ impl Manager {
             .map(|b| b.login.username.clone())
     }
 
+    // The match's room with where its auto referee stands.
     fn view_of(&self, id: Uuid) -> Option<LiveRoom> {
+        let mut view = self.base_view(id)?;
+        let run = self.runs.get(&id)?;
+        let enabled = run.ctx.settings.auto_ref;
+        view.autoref = self.with_snapshot(id, |s| run.auto.view(s, enabled));
+        Some(view)
+    }
+
+    fn base_view(&self, id: Uuid) -> Option<LiveRoom> {
         let run = self.runs.get(&id)?;
         let rooms: Vec<ViewRoom> = self
             .match_rooms(id)
@@ -889,7 +978,8 @@ impl Manager {
                 reply: None,
             });
         }
-        if let Some(cue) = tiebreaker {
+        // The auto referee opens the tiebreaker itself, when it's due.
+        if let Some(cue) = tiebreaker.filter(|_| self.auto_on(id).is_none()) {
             self.cue_tiebreaker(id, cue);
         }
     }
@@ -1033,7 +1123,6 @@ impl Manager {
                         if let Some(run) = self.runs.get_mut(&match_id) {
                             run.dirty = true;
                         }
-                        self.ensure_refs(match_id);
                     }
                     // Not ours to be in.
                     Some(_) => self.bot_raw(bot_id, BotCmd::Part(channel)),
@@ -1095,6 +1184,8 @@ impl Manager {
                     self.room_line(bot_id, from, target, text, action, at).await;
                 } else if is_bancho_bot(&from) {
                     self.bancho_reply(bot_id, &text).await;
+                } else if !action && !self.is_bot_name(&from) {
+                    self.private_message(bot_id, &from, &text);
                 }
             }
         }
@@ -1144,21 +1235,29 @@ impl Manager {
             bot: bot_id,
             at,
         });
-        if !is_bancho_bot(&from) || action {
+        let match_id = room.match_id;
+        if action {
+            return;
+        }
+        // A player's line: the auto referee's commands, in the match's latest room.
+        if !is_bancho_bot(&from) {
+            if self.runs.contains_key(&match_id)
+                && !self.is_bot_name(&from)
+                && self.latest_room(match_id) == Some(mp_id)
+            {
+                let enabled = self.auto_on(match_id).is_some();
+                self.drive(match_id, |auto, s, out| {
+                    auto.player(s, &from, &text, enabled, out)
+                })
+                .await;
+            }
             return;
         }
         let results = room.state.results.len();
         room.state.apply(&text, at);
         let finished = room.state.results.len() != results;
-        let match_id = room.match_id;
         if text == "Closed the match" {
             self.room_closed(mp_id);
-        }
-        if let Some(name) = text
-            .strip_prefix("Added ")
-            .and_then(|t| t.strip_suffix(" to the match referees"))
-        {
-            self.ref_added(match_id, mp_id, name);
         }
         if self.runs.contains_key(&match_id) {
             self.automate(match_id, mp_id, &text);
@@ -1166,6 +1265,10 @@ impl Manager {
                 self.count(match_id);
             } else {
                 run_dirty(&mut self.runs, match_id);
+            }
+            if self.auto_on(match_id) == Some(mp_id) {
+                self.drive(match_id, |auto, s, out| auto.bancho(s, &text, out))
+                    .await;
             }
         }
     }
@@ -1177,7 +1280,9 @@ impl Manager {
                 return;
             };
             self.status_changed = true;
-            let result = self.room_made(bot_id, mp_id, making.match_id).await;
+            let result = self
+                .room_made(bot_id, mp_id, making.match_id, making.auto)
+                .await;
             let _ = making.reply.send(result.map(|()| mp_id));
         } else if text.to_lowercase().contains("cannot create") {
             let Some(bot) = self.bots.get_mut(&bot_id) else {
@@ -1228,12 +1333,12 @@ impl Manager {
         bot_id: Uuid,
         mp_id: i64,
         match_id: Uuid,
+        auto: bool,
     ) -> Result<(), AppError> {
         let joined = self
             .bots
             .get_mut(&bot_id)
             .is_some_and(|b| b.joined_unknown.remove(&mp_id));
-        let previous = self.latest_room(match_id);
         self.rooms.insert(
             mp_id,
             Room {
@@ -1253,20 +1358,28 @@ impl Manager {
             },
         );
         self.set_up(match_id, mp_id);
-        // Referees on the match leave the old room for the new one.
-        if let Some(old) = previous {
-            if let Some(run) = self.runs.get(&match_id) {
-                for attendee in run.attendees.values() {
-                    for link in attendee.links.values() {
-                        link.send(SessionRequest::Part(room_channel(old)));
-                    }
-                }
-            }
-        }
-        self.ensure_refs(match_id);
         let concluded = self.runs.get(&match_id).is_none_or(|r| r.ctx.concluded());
-        services::matches::link_room(&self.app, match_id, mp_id, Some(bot_id), true, concluded)
-            .await
+        let bot_name = self.bot_name(Some(bot_id));
+        if auto {
+            self.auto_log(
+                match_id,
+                LogLevel::Info,
+                format!(
+                    "Oda açıldı: #mp_{mp_id} ({}), oyuncular davet edildi.",
+                    bot_name.as_deref().unwrap_or("?")
+                ),
+            );
+        }
+        services::matches::link_room(
+            &self.app,
+            match_id,
+            mp_id,
+            Some(bot_id),
+            true,
+            concluded,
+            bot_name.filter(|_| auto),
+        )
+        .await
     }
 
     // Team mode, score mode and size; locks the slots, then invites everyone.
@@ -1481,116 +1594,405 @@ impl Manager {
         Some(vec![add_ref_command(&slot.username)])
     }
 
-    // ---------- referees on the site ----------
+    // ---------- the auto referee ----------
 
-    fn attend(&mut self, tab: u64, link: SessionLink, match_id: Option<Uuid>) {
-        self.leave_tab(tab, true);
-        let Some(match_id) = match_id else { return };
-        let nick = normalize_name(&link.nick);
-        if self.is_bot_name(&nick) {
-            return;
-        }
-        let Some(run) = self.runs.get_mut(&match_id) else {
-            return;
-        };
-        run.removals.remove(&nick);
-        run.attendees
-            .entry(nick.clone())
-            .or_insert_with(|| Attendee {
-                nick: link.nick.clone(),
-                links: HashMap::new(),
-            })
-            .links
-            .insert(tab, link);
-        self.tabs.insert(tab, (match_id, nick));
-        self.ensure_refs(match_id);
+    fn auto_log(&self, id: Uuid, level: LogLevel, message: String) {
+        let _ = self.autoref.send(AutoWrite::Log(id, level, message));
     }
 
-    // A tab stopped attending: once none of that referee's tabs do, they leave the
-    // room's channel, and stop being one of its referees a while later.
-    fn leave_tab(&mut self, tab: u64, part: bool) {
-        let Some((match_id, nick)) = self.tabs.remove(&tab) else {
-            return;
-        };
-        let latest = self.latest_room(match_id);
-        let Some(run) = self.runs.get_mut(&match_id) else {
-            return;
-        };
-        let Some(attendee) = run.attendees.get_mut(&nick) else {
-            return;
-        };
-        let Some(link) = attendee.links.remove(&tab) else {
-            return;
-        };
-        if !attendee.links.is_empty() {
-            return;
+    // The latest room, when the auto referee runs the match now: it's in auto mode, not
+    // over, and the room's bot is in the room.
+    fn auto_on(&self, id: Uuid) -> Option<i64> {
+        let run = self.runs.get(&id)?;
+        let ctx = &run.ctx;
+        if !ctx.settings.auto_ref || ctx.concluded() || (ctx.is_bracket() && ctx.sides.is_none()) {
+            return None;
         }
-        run.attendees.remove(&nick);
-        if part {
-            if let Some(mp_id) = latest {
-                link.send(SessionRequest::Part(room_channel(mp_id)));
+        let mp_id = self.latest_room(id)?;
+        let room = self.rooms.get(&mp_id)?;
+        (room.joined && !room.closed && self.bot_online(room.bot)).then_some(mp_id)
+    }
+
+    // The match as its auto referee reads it, for `f`. None without a room.
+    fn with_snapshot<R>(&self, id: Uuid, f: impl FnOnce(&Snapshot) -> R) -> Option<R> {
+        let run = self.runs.get(&id)?;
+        let view = self.base_view(id)?;
+        let room = *self.match_rooms(id).last()?;
+        let ctx = &run.ctx;
+        let played: HashSet<Uuid> = view
+            .finished
+            .iter()
+            .filter(|f| f.counted)
+            .filter_map(|f| f.map_id)
+            .collect();
+        let snapshot = Snapshot {
+            now: OffsetDateTime::now_utc(),
+            bracket: ctx.is_bracket(),
+            starts_at: ctx.starts_at,
+            room_added_at: room.added_at,
+            teams: &ctx.teams,
+            roster: &ctx.roster,
+            entries: &ctx.entries,
+            bans: &ctx.bans,
+            picks: &ctx.picks,
+            turn: view.next_turn,
+            score: view.tally.as_ref().map(|t| (t.team1, t.team2)),
+            best_of: ctx.best_of,
+            played: &played,
+            room: &room.state,
+            no_fail: ctx.settings.no_fail,
+            first_step_team: ctx.draft_order.steps.first().map_or(1, |s| s.team),
+        };
+        Some(f(&snapshot))
+    }
+
+    // Runs `f` on the match's auto referee with the match as it stands, saves where it
+    // stands, and does what it asked.
+    async fn drive(&mut self, id: Uuid, f: impl FnOnce(&mut AutoRef, &Snapshot, &mut Vec<Action>)) {
+        let Some(mut auto) = self.runs.get_mut(&id).map(|r| std::mem::take(&mut r.auto)) else {
+            return;
+        };
+        let mut out = Vec::new();
+        self.with_snapshot(id, |s| f(&mut auto, s, &mut out));
+        let Some(run) = self.runs.get_mut(&id) else {
+            return;
+        };
+        run.auto = auto;
+        if let Ok(value) = serde_json::to_value(&run.auto) {
+            if run.auto_saved.as_ref() != Some(&value) {
+                run.auto_saved = Some(value.clone());
+                run.dirty = true;
+                let _ = self.autoref.send(AutoWrite::State(id, value));
             }
         }
-        if run.site_refs.contains(&nick) {
-            run.removals.insert(nick, Instant::now() + REF_GRACE);
-        }
+        self.act(id, out).await;
     }
 
-    // Every referee with the match open is one of the latest room's referees and in its
-    // channel: the bot adds them, and lets them in once Bancho says so.
-    fn ensure_refs(&mut self, match_id: Uuid) {
-        let Some(mp_id) = self.latest_room(match_id) else {
-            return;
-        };
-        let Some(room) = self.rooms.get(&mp_id).filter(|r| r.joined && !r.closed) else {
-            return;
-        };
-        let Some(bot) = room.bot.filter(|&b| self.bot_online(Some(b))) else {
-            return;
-        };
-        let Some(run) = self.runs.get(&match_id) else {
-            return;
-        };
-        let mut ask = Vec::new();
-        for (nick, attendee) in &run.attendees {
-            if room.state.is_ref(&attendee.nick) {
-                for link in attendee.links.values() {
-                    link.send(SessionRequest::Join(room_channel(mp_id)));
+    // Does what the auto referee asked, in order. A change to the match is read back on
+    // the next tick.
+    async fn act(&mut self, id: Uuid, actions: Vec<Action>) {
+        for action in actions {
+            let result: Result<(), AppError> = match action {
+                Action::Send(text) => {
+                    self.auto_send(id, text);
+                    Ok(())
                 }
-            } else if !room.refs_asked.contains(nick) {
-                ask.push((nick.clone(), attendee.nick.clone()));
+                Action::Log(level, message) => {
+                    self.auto_log(id, level, message);
+                    Ok(())
+                }
+                Action::Ban { map_id, team_id } => {
+                    self.pending.insert(id);
+                    services::bracket::mark(&self.app, id, map_id, team_id, Mark::Ban).await
+                }
+                Action::Pick { map_id, team_id } => {
+                    self.pending.insert(id);
+                    services::bracket::mark(&self.app, id, map_id, team_id, Mark::Pick).await
+                }
+                Action::FirstTurn(team_id) => {
+                    self.pending.insert(id);
+                    let saved = db::referee::set_next_pick(&self.app.db, id, Some(team_id)).await;
+                    self.app.live.referee_changed(id);
+                    saved.map_err(AppError::from)
+                }
+                Action::FetchOsu => {
+                    self.fetch_osu(id);
+                    Ok(())
+                }
+                Action::WarmupLength(beatmap_id) => {
+                    self.fetch_length(id, beatmap_id);
+                    Ok(())
+                }
+                Action::Forfeit(slot) => {
+                    services::autoref::forfeit_no_show(&self.app, id, slot).await
+                }
+                Action::RemoveTeams(teams) => {
+                    self.pending.insert(id);
+                    services::autoref::lobby_no_show(&self.app, id, &teams).await
+                }
+                Action::Conclude => self.auto_conclude(id).await,
+                Action::Report {
+                    user_id,
+                    team_id,
+                    text,
+                } => {
+                    services::autoref::alert(
+                        &self.app,
+                        id,
+                        Alert::Report,
+                        Some((user_id, team_id)),
+                        Some(&text),
+                    )
+                    .await
+                }
+                Action::Stop {
+                    user_id,
+                    team_id,
+                    username,
+                } => {
+                    self.pending.insert(id);
+                    let auto = self.runs.get(&id).is_some_and(|r| r.ctx.settings.auto_ref);
+                    services::autoref::emergency_stop(
+                        &self.app,
+                        id,
+                        (user_id, team_id),
+                        &username,
+                        auto,
+                    )
+                    .await
+                }
+                Action::Handover(reason) => {
+                    self.pending.insert(id);
+                    self.auto_send(
+                        id,
+                        "Otomatik hakem durdu, maçı bir hakem devralacak.".into(),
+                    );
+                    services::autoref::handover(&self.app, id, &reason).await
+                }
+            };
+            if let Err(err) = result {
+                tracing::error!(error = ?err, match_id = %id, "the auto referee's action failed");
+                self.auto_log(id, LogLevel::Error, format!("İşlem başarısız: {err}"));
             }
         }
-        for (nick, name) in ask {
-            if let Some(room) = self.rooms.get_mut(&mp_id) {
-                room.refs_asked.insert(nick.clone());
-            }
-            if let Some(run) = self.runs.get_mut(&match_id) {
-                run.site_refs.insert(nick);
-            }
+    }
+
+    // A line for the match's latest room, through its bot.
+    fn auto_send(&self, id: Uuid, text: String) {
+        let Some(mp_id) = self.latest_room(id) else {
+            return;
+        };
+        if let Some(bot) = self.rooms.get(&mp_id).and_then(|r| r.bot) {
             self.bot_send(
                 bot,
                 room_channel(mp_id),
-                add_ref_command(&name),
+                text,
                 Some(mp_id),
-                Priority::High,
+                Priority::Normal,
             );
         }
     }
 
-    fn ref_added(&mut self, match_id: Uuid, mp_id: i64, name: &str) {
-        if self.latest_room(match_id) != Some(mp_id) {
-            return;
-        }
-        let Some(attendee) = self
-            .runs
-            .get(&match_id)
-            .and_then(|r| r.attendees.get(&normalize_name(name)))
-        else {
+    // osu!'s record of the rooms, read for the map that just finished; it takes the place
+    // of the chat's maps like a referee's sync does.
+    fn fetch_osu(&self, id: Uuid) {
+        let rooms: Vec<i64> = self.match_rooms(id).iter().map(|r| r.mp_id).collect();
+        let Some(&latest) = rooms.last() else {
             return;
         };
-        for link in attendee.links.values() {
-            link.send(SessionRequest::Join(room_channel(mp_id)));
+        let expected = self.rooms.get(&latest).map_or(0, |r| r.state.results.len());
+        let app = self.app.clone();
+        let inbox = self.inbox.clone();
+        tokio::spawn(async move {
+            let confirmed = match read_osu_games(&app, &rooms).await {
+                // osu! has no record of the room (yet): the chat's maps stand.
+                Ok(games) if !games.contains_key(&latest) => false,
+                Ok(games) => {
+                    let has_it = games
+                        .get(&latest)
+                        .is_some_and(|g| crate::bancho::tally::osu_results(g).len() >= expected);
+                    match db::referee::mark_osu_synced(&app.db, id).await {
+                        Ok(at) => {
+                            let _ = inbox.send(Request::OsuGames {
+                                match_id: id,
+                                at,
+                                games,
+                                force: true,
+                            });
+                            app.live.referee_changed(id);
+                        }
+                        Err(err) => {
+                            tracing::error!(error = ?err, match_id = %id, "could not mark the osu! sync")
+                        }
+                    }
+                    has_it
+                }
+                Err(err) => {
+                    tracing::warn!(error = ?err, match_id = %id, "could not read osu!'s record for the auto referee");
+                    false
+                }
+            };
+            let _ = inbox.send(Request::AutorefOsu {
+                match_id: id,
+                confirmed,
+            });
+        });
+    }
+
+    // A warmup beatmap's length, from osu!.
+    fn fetch_length(&self, id: Uuid, beatmap_id: i64) {
+        let app = self.app.clone();
+        let inbox = self.inbox.clone();
+        tokio::spawn(async move {
+            let token = match osu_api::token::app_token(
+                &app.osu_client,
+                &app.oauth_http,
+                &app.osu_app_token,
+            )
+            .await
+            {
+                Ok(token) => token,
+                Err(err) => {
+                    tracing::warn!(error = ?err, "no osu! token for a warmup's length");
+                    return;
+                }
+            };
+            match osu_api::beatmap::fetch(&app.http_client, &token, beatmap_id).await {
+                Ok(map) => {
+                    let _ = inbox.send(Request::AutorefLength {
+                        match_id: id,
+                        beatmap_id,
+                        seconds: map.total_length,
+                    });
+                }
+                Err(err) => {
+                    tracing::warn!(error = ?err, beatmap_id, "could not read a warmup's length")
+                }
+            }
+        });
+    }
+
+    // The match is over: a bracket match's score is saved as counted, then it's
+    // concluded (the room closes CLOSE_AFTER_CONCLUDED later).
+    async fn auto_conclude(&mut self, id: Uuid) -> Result<(), AppError> {
+        let Some(run) = self.runs.get(&id) else {
+            return Ok(());
+        };
+        if run.ctx.kind == MatchKind::Qualifier {
+            return services::matches::conclude_lobby(&self.app, id).await;
+        }
+        let Some((team1, team2, maps)) = self.counted(id) else {
+            return Err(MatchError::NeedsBothTeams.into());
+        };
+        services::bracket::save_score(&self.app, id, Some(team1), Some(team2), Some(&maps)).await?;
+        services::bracket::conclude(&self.app, id, None).await?;
+        self.app.live.bracket_changed();
+        Ok(())
+    }
+
+    // A bracket match's score as the rooms count it, with the maps it's counted from.
+    fn counted(&self, id: Uuid) -> Option<(i32, i32, Vec<db::bracket::MapResultRow>)> {
+        let run = self.runs.get(&id)?;
+        let [a, b] = run.ctx.sides.clone()?;
+        let rooms: Vec<ViewRoom> = self
+            .match_rooms(id)
+            .into_iter()
+            .map(|r| ViewRoom {
+                mp_id: r.mp_id,
+                state: &r.state,
+                bot: None,
+                access: RoomAccess::In,
+            })
+            .collect();
+        let finished = finished_of(&rooms, run.osu.as_ref().map(|(_, g)| g));
+        let t = tally(&TallyInput {
+            finished: &finished,
+            entries: &run.ctx.entries,
+            picks: &run.ctx.picks,
+            roster: &run.ctx.roster,
+            ignored: &run.ctx.ignored,
+            manual: &run.ctx.manual,
+            team1_id: a.id,
+            team2_id: b.id,
+        });
+        Some((t.team1, t.team2, t.maps))
+    }
+
+    // A player wrote to one of the bots: "-davet" invites them again to their match's
+    // room, if that bot runs it.
+    fn private_message(&mut self, bot_id: Uuid, from: &str, text: &str) {
+        if !text.trim().eq_ignore_ascii_case("-davet") || !valid_name(from) {
+            return;
+        }
+        let found = self.runs.iter().find_map(|(id, run)| {
+            let mp_id = self.latest_room(*id)?;
+            let room = self.rooms.get(&mp_id)?;
+            if room.bot != Some(bot_id) || room.closed || !room.joined || run.ctx.concluded() {
+                return None;
+            }
+            let p = run
+                .ctx
+                .roster
+                .iter()
+                .find(|p| same_name(&p.username, from))?;
+            Some((*id, mp_id, p.osu_id, p.username.clone()))
+        });
+        let Some((match_id, mp_id, osu_id, username)) = found else {
+            self.bot_send(
+                bot_id,
+                from.to_string(),
+                "Şu an seni bekleyen, bu botun yönettiği bir maç odası yok.".into(),
+                None,
+                Priority::Normal,
+            );
+            return;
+        };
+        let now = Instant::now();
+        if self
+            .invited
+            .get(&osu_id)
+            .is_some_and(|&t| now.duration_since(t) < INVITE_EVERY)
+        {
+            return;
+        }
+        self.invited.insert(osu_id, now);
+        self.bot_send(
+            bot_id,
+            room_channel(mp_id),
+            format!("!mp invite {}", player_ref(osu_id)),
+            Some(mp_id),
+            Priority::High,
+        );
+        self.bot_send(
+            bot_id,
+            from.to_string(),
+            format!("Davet gönderildi: #mp_{mp_id}"),
+            None,
+            Priority::Normal,
+        );
+        self.auto_log(
+            match_id,
+            LogLevel::Info,
+            format!("{username} -davet ile tekrar davet edildi."),
+        );
+    }
+
+    // Opens the rooms of the matches in auto mode starting within OPEN_BEFORE.
+    async fn open_due_rooms(&mut self) {
+        let due = match db::autoref::due_rooms(&self.app.db, OPEN_BEFORE, OPEN_LATE).await {
+            Ok(due) => due,
+            Err(err) => {
+                tracing::error!(error = ?err, "could not read the matches due a room");
+                return;
+            }
+        };
+        let now = Instant::now();
+        self.open_tried
+            .retain(|_, t| now.duration_since(*t) < OPEN_RETRY);
+        for match_id in due {
+            let making = self
+                .bots
+                .values()
+                .any(|b| b.making.as_ref().is_some_and(|m| m.match_id == match_id));
+            if making || self.open_tried.contains_key(&match_id) {
+                continue;
+            }
+            self.open_tried.insert(match_id, now);
+            let (reply, answer) = oneshot::channel();
+            let app = self.app.clone();
+            tokio::spawn(async move {
+                if let Ok(Err(err)) = answer.await {
+                    tracing::warn!(error = ?err, match_id = %match_id, "the auto referee could not open a room");
+                    let _ = services::autoref::log(
+                        &app,
+                        match_id,
+                        LogLevel::Error,
+                        &format!("Oda açılamadı, 1 dakika sonra tekrar denenecek: {err}"),
+                    )
+                    .await;
+                }
+            });
+            self.create_room(match_id, reply, true).await;
         }
     }
 
@@ -1618,49 +2020,6 @@ impl Manager {
                     .reply
                     .send(Err(BanchoError::BanchobotNoAnswer.into()));
                 self.status_changed = true;
-            }
-        }
-
-        // Referees who left a while ago stop being the room's referees.
-        let mut removals = Vec::new();
-        for (&match_id, run) in self.runs.iter_mut() {
-            let due: Vec<String> = run
-                .removals
-                .iter()
-                .filter(|(_, &at)| at <= now)
-                .map(|(n, _)| n.clone())
-                .collect();
-            for nick in due {
-                run.removals.remove(&nick);
-                if !run.attendees.contains_key(&nick) && run.site_refs.remove(&nick) {
-                    removals.push((match_id, nick));
-                }
-            }
-        }
-        for (match_id, nick) in removals {
-            let Some(mp_id) = self.latest_room(match_id) else {
-                continue;
-            };
-            let Some(room) = self.rooms.get_mut(&mp_id).filter(|r| r.joined && !r.closed) else {
-                continue;
-            };
-            room.refs_asked.remove(&nick);
-            let name = room
-                .state
-                .refs
-                .iter()
-                .find(|r| **r == nick)
-                .cloned()
-                .unwrap_or(nick);
-            let bot = room.bot;
-            if let Some(bot) = bot {
-                self.bot_send(
-                    bot,
-                    room_channel(mp_id),
-                    remove_ref_command(&name),
-                    Some(mp_id),
-                    Priority::Low,
-                );
             }
         }
 
@@ -1695,6 +2054,30 @@ impl Manager {
             }
         }
 
+        // The auto referee's clock, and the rooms it opens before their matches.
+        if self
+            .last_autoref_tick
+            .is_none_or(|t| now.duration_since(t) >= AUTOREF_TICK)
+        {
+            self.last_autoref_tick = Some(now);
+            let running: Vec<Uuid> = self
+                .runs
+                .keys()
+                .copied()
+                .filter(|&id| self.auto_on(id).is_some())
+                .collect();
+            for id in running {
+                self.drive(id, |auto, s, out| auto.tick(s, out)).await;
+            }
+        }
+        if self
+            .last_open_check
+            .is_none_or(|t| now.duration_since(t) >= OPEN_CHECK)
+        {
+            self.last_open_check = Some(now);
+            self.open_due_rooms().await;
+        }
+
         // The pages see every change at most a tick late.
         let dirty: Vec<Uuid> = self
             .runs
@@ -1718,7 +2101,9 @@ impl Manager {
             Request::View { match_id, reply } => {
                 let _ = reply.send(self.view_of(match_id));
             }
-            Request::CreateRoom { match_id, reply } => self.create_room(match_id, reply).await,
+            Request::CreateRoom { match_id, reply } => {
+                self.create_room(match_id, reply, false).await
+            }
             Request::AssignBot { reply } => {
                 let _ = reply.send(self.pick_bot(&[], false).ok());
             }
@@ -1745,59 +2130,42 @@ impl Manager {
                     self.count(match_id);
                 }
             }
+            Request::AutorefOsu {
+                match_id,
+                confirmed,
+            } => {
+                self.drive(match_id, |auto, s, out| auto.osu_read(s, confirmed, out))
+                    .await;
+            }
+            Request::AutorefLength {
+                match_id,
+                beatmap_id,
+                seconds,
+            } => {
+                self.drive(match_id, |auto, s, out| {
+                    auto.warmup_length(s, beatmap_id, seconds, out)
+                })
+                .await;
+            }
             Request::BotsChanged => self.reload_bots().await,
             Request::Resync => self.pending_all = true,
             Request::Status { reply } => {
                 let _ = reply.send(self.status());
             }
-            Request::Attend {
-                tab,
-                link,
-                match_id,
-            } => self.attend(tab, link, match_id),
-            Request::TabClosed { tab } => self.leave_tab(tab, true),
-            Request::SessionEnded { session } => {
-                let tabs: Vec<u64> = self
-                    .tabs
-                    .keys()
-                    .copied()
-                    .filter(|tab| self.link_of(*tab).is_some_and(|l| l.id == session))
-                    .collect();
-                for tab in tabs {
-                    self.leave_tab(tab, false);
-                }
-            }
         }
     }
 
-    fn link_of(&self, tab: u64) -> Option<&SessionLink> {
-        let (match_id, nick) = self.tabs.get(&tab)?;
-        self.runs
-            .get(match_id)?
-            .attendees
-            .get(nick)?
-            .links
-            .get(&tab)
-    }
-
-    async fn create_room(&mut self, match_id: Uuid, reply: oneshot::Sender<Result<i64, AppError>>) {
+    async fn create_room(
+        &mut self,
+        match_id: Uuid,
+        reply: oneshot::Sender<Result<i64, AppError>>,
+        auto: bool,
+    ) {
         if !self.runs.contains_key(&match_id) {
             match context::load(&self.app.db, match_id).await {
                 Ok(Some(ctx)) if !ctx.concluded() => {
-                    self.runs.insert(
-                        match_id,
-                        Run {
-                            ctx,
-                            osu: None,
-                            osu_loading: None,
-                            last_key: None,
-                            force_save: false,
-                            dirty: true,
-                            attendees: HashMap::new(),
-                            site_refs: HashSet::new(),
-                            removals: HashMap::new(),
-                        },
-                    );
+                    let run = self.new_run(match_id, ctx).await;
+                    self.runs.insert(match_id, run);
                 }
                 Ok(Some(_)) => {
                     let _ = reply.send(Err(MatchError::Concluded.into()));
@@ -1821,6 +2189,7 @@ impl Manager {
                     reply,
                     deadline: Instant::now(),
                     tried: Vec::new(),
+                    auto,
                 },
             ),
             Err(err) => {
@@ -2022,9 +2391,6 @@ impl Manager {
                     return Err(RoomError::NotReferee.into());
                 }
                 let nick = normalize_name(&username);
-                if let Some(run) = self.runs.get_mut(&match_id) {
-                    run.site_refs.remove(&nick);
-                }
                 if let Some(room) = self.rooms.get_mut(&mp_id) {
                     room.refs_asked.remove(&nick);
                 }

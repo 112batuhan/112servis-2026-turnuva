@@ -29,6 +29,7 @@ pub fn routes() -> Router<AppState> {
             axum::routing::get(list_bots).post(create_bot),
         )
         .route("/bancho/bots/{id}", patch(update_bot).delete(delete_bot))
+        .route("/bancho/auto-rooms", axum::routing::put(set_auto_rooms))
         .route("/matches/{id}/room/create", post(create_room))
         .route("/matches/{id}/room/command", post(command))
         .route("/matches/{id}/room/save-score", post(save_score))
@@ -46,6 +47,8 @@ pub struct BotView {
 pub struct BotsView {
     bots: Vec<BotView>,
     limits: BotLimits,
+    // The auto referee opens match rooms by itself, 10 minutes before each match.
+    auto_rooms: bool,
 }
 
 // GET /api/bancho/bots — host-only. Every bot account, how it's doing and its rooms.
@@ -68,7 +71,26 @@ async fn list_bots(
             })
             .collect(),
         limits: LIMITS,
+        auto_rooms: db::settings::auto_rooms(&state.db).await?,
     }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AutoRoomsBody {
+    enabled: bool,
+}
+
+// PUT /api/bancho/auto-rooms — host-only. Whether the auto referee opens match rooms by
+// itself (and sends the 20-minute reminder that promises it); the bots page hears it.
+async fn set_auto_rooms(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Json(body): Json<AutoRoomsBody>,
+) -> Result<impl IntoResponse, AppError> {
+    user.require_role(Role::Host)?;
+    db::settings::set_auto_rooms(&state.db, body.enabled).await?;
+    state.live.bancho_changed();
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // osu! usernames: 2-15 letters, digits, spaces and -_[].
@@ -214,8 +236,8 @@ async fn create_room(
 }
 
 // POST /api/matches/:id/room/command — the room's bot sends a command to the match's
-// latest room. Saying something through it (`say`) is for hosts, who referee from the
-// site: their accounts are the bots.
+// latest room. Saying something in the room (`say`) goes through it too: referees and
+// hosts run the room from the site and don't join it.
 async fn command(
     State(state): State<AppState>,
     user: AuthUser,
@@ -224,9 +246,6 @@ async fn command(
 ) -> Result<impl IntoResponse, AppError> {
     check_runs(&state, &user, id).await?;
     if let RoomCommand::Say { text, by } = &mut command {
-        if !user.roles.has(Role::Host) {
-            return Err(AuthError::Forbidden.into());
-        }
         if text.trim().is_empty() {
             return Err(RoomError::EmptyMessage.into());
         }

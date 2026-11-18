@@ -3,12 +3,10 @@ import { Link, useParams } from "react-router-dom";
 import type { RefereeViewer } from "../../../api/types";
 import { useSignedInUser } from "../../../auth/AuthContext";
 import { ErrorAlert } from "../../../components/ErrorAlert";
-import { useIrc } from "../../../irc/IrcContext";
 import { useLive } from "../../../live/LiveContext";
 import { normalizeName, type SlotTeam } from "../../../lib/bancho";
 import { formatMatchTime } from "../../../lib/format";
 import { ChatPanel } from "./ChatPanel";
-import { IrcLogin } from "./IrcLogin";
 import { LobbyPanel } from "./LobbyPanel";
 import { poolEntries } from "../../../lib/matchPool";
 import { PoolPanel } from "./PoolPanel";
@@ -19,7 +17,7 @@ import { CockpitTabs, TABS, panelProps, useCockpit } from "../../../components/m
 
 /**
  * /admin/referee/:matchId — runs a match's osu! room. The site's bot makes and runs the room; the
- * referee drives it from here and talks in it with their own Bancho account.
+ * referee drives it from here and talks in it through the bot.
  */
 export function RefereeRoomPage() {
   const { matchId = "" } = useParams();
@@ -107,7 +105,7 @@ function RefereeRoom({ matchId }: { matchId: string }) {
           status={{
             pool: <PoolStatus referee={referee} />,
             room: <RoomStatus referee={referee} />,
-            chat: <ChatStatus unread={chatUnread} viaBot={referee.viaBot && referee.botReady} />,
+            chat: <ChatStatus unread={chatUnread} ready={referee.botReady} />,
           }}
         />
         <ErrorAlert message={error} />
@@ -123,18 +121,15 @@ function RefereeRoom({ matchId }: { matchId: string }) {
               <ChatPanel
                 rooms={roomChats}
                 colors={colors}
-                top={<IrcLogin viaBot={referee.viaBot ? (referee.botName ?? "") : null} />}
-                viaBot={
-                  referee.viaBot
-                    ? {
-                        bot: referee.botName,
-                        blocker: botBlocker(referee),
-                        send: referee.actions.sayViaBot,
-                      }
-                    : undefined
-                }
+                say={{
+                  bot: referee.botName,
+                  blocker: botBlocker(referee),
+                  auto: referee.autoLock !== null,
+                  send: referee.actions.say,
+                }}
                 visible={!compact || tab === "chat"}
                 onUnread={setChatUnread}
+                log={referee.autorefLog}
               />
             )}
           </div>
@@ -196,13 +191,11 @@ function RoomStatus({ referee }: { referee: RefereeRoomState }) {
   );
 }
 
-/** New lines waiting, or else whether the referee can write in the room (a host through its bot). */
-function ChatStatus({ unread, viaBot }: { unread: number; viaBot: boolean }) {
-  const { status } = useIrc();
+/** New lines waiting, or else whether the room's bot takes what the referee writes. */
+function ChatStatus({ unread, ready }: { unread: number; ready: boolean }) {
   if (unread > 0) return <span className="referee-tab-unread num">{unread} yeni</span>;
-  if (viaBot) return <span className="referee-tab-online">Bot ile</span>;
-  if (status === "online") return <span className="referee-tab-online">Bağlı</span>;
-  return <span>{status === "connecting" ? "Bağlanıyor…" : "Okunuyor"}</span>;
+  if (ready) return <span className="referee-tab-online">Bot ile</span>;
+  return <span>Okunuyor</span>;
 }
 
 /**

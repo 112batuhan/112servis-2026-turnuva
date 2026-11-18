@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
-import { createBot, deleteBot, fetchBots, updateBot } from "../../api/bancho";
+import { createBot, deleteBot, fetchBots, setAutoRooms, updateBot } from "../../api/bancho";
 import { errorMessage } from "../../api/client";
 import type { BanchoBot, BotState, BotsView } from "../../api/types";
 import { ErrorAlert } from "../../components/ErrorAlert";
 import { Icon } from "../../components/Icon";
 import { IconButton } from "../../components/IconButton";
+import { Switch } from "../../components/Switch";
 import { formatClock } from "../../lib/format";
 import { useLive } from "../../live/LiveContext";
 import "./BanchoAdminPage.css";
@@ -111,6 +112,17 @@ export function BanchoAdminPage() {
             açılmaz. Her bot <span className="num">{view.limits.window_secs}</span> saniyede en
             fazla <span className="num">{view.limits.lines}</span> satır gönderir.
           </p>
+
+          <AutoRooms
+            enabled={view.auto_rooms}
+            onChange={(enabled) => {
+              setView((v) => v && { ...v, auto_rooms: enabled });
+              setAutoRooms(enabled).catch((e) => {
+                setError(errorMessage(e));
+                load();
+              });
+            }}
+          />
 
           {bots.length === 0 ? (
             <p className="bancho-empty">
@@ -392,5 +404,43 @@ function AddBot({ onAdded, onError }: { onAdded: () => void; onError: (message: 
         </button>
       </div>
     </form>
+  );
+}
+
+/**
+ * The tournament-wide switch for rooms opening by themselves: on, the auto referee opens every
+ * match's room 10 minutes before its time and Discord reminds the players 20 minutes before; off,
+ * referees open the rooms, and the auto referee still runs the ones they open.
+ */
+function AutoRooms({
+  enabled,
+  onChange,
+}: {
+  enabled: boolean;
+  onChange: (enabled: boolean) => void;
+}) {
+  return (
+    <div className={`bancho-auto${enabled ? " is-on" : ""}`}>
+      <Switch
+        checked={enabled}
+        onChange={(next) => {
+          if (
+            next &&
+            !window.confirm(
+              "Otomatik hakemdeki her maçın odası, maç saatinden 10 dakika önce botlarla açılacak ve oyunculara davet gidecek. Açılsın mı?",
+            )
+          )
+            return;
+          onChange(next);
+        }}
+      >
+        Odaları otomatik aç
+      </Switch>
+      <p className="bancho-auto-text">
+        {enabled
+          ? "Açık: otomatik hakemdeki her maçın odası maç saatinden 10 dakika önce açılır, oyuncular davet edilir; 20 dakika önce Discord'dan hatırlatılır."
+          : "Kapalı: odaları hakemler açar. Açılan odalarda otomatik hakem maçı yine yönetir."}
+      </p>
+    </div>
   );
 }

@@ -1,0 +1,31 @@
+/* The referee chat's own pieces on top of the shared chat panel (components/match/ChatRow.css):
+   the auto referee's log tab, set apart at the end of the room tabs, and its lines, whose level
+   takes the place of the sender. */
+.chat-tab-log {
+  margin-left: auto;
+}
+
+.chat-tab-unread.is-alert {
+  background: var(--color-warning);
+  color: var(--color-on-primary);
+}
+
+.autoref-line .chat-from {
+  min-width: 4.5ch;
+  color: var(--color-text-subtle);
+  font-weight: 600;
+}
+
+.autoref-line .chat-text {
+  color: var(--color-text-muted);
+}
+
+.autoref-line.is-warn .chat-from,
+.autoref-line.is-warn .chat-text {
+  color: var(--color-warning);
+}
+
+.autoref-line.is-error .chat-from,
+.autoref-line.is-error .chat-text {
+  color: var(--color-danger);
+}

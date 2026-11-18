@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { liveSocketUrl } from "../api/live";
-import type { LiveRoom, RefereeViewer, RoomChatMessage } from "../api/types";
+import type { AutorefLogEntry, LiveRoom, RefereeViewer, RoomChatMessage } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 
 // One WebSocket per tab to the server's live hub (handlers/live.rs): score changes as
@@ -32,6 +32,8 @@ export type LiveEvent =
   | { type: "chat"; mp_id: number; message: RoomChatMessage }
   /** The watched match's room as its bot reads it now. */
   | { type: "room"; match_id: string; room: LiveRoom }
+  /** Staff: a line of the watched match's auto referee log. */
+  | { type: "autoref_log"; match_id: string; entry: AutorefLogEntry }
   /** Staff: a bot connected, dropped, or took or left a room. */
   | { type: "bancho" }
   /** The signed-in user's notifications changed (one arrived, was read or answered, or was replaced). */

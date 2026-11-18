@@ -1,15 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { CLOSE_REASON_TEXT } from "../irc/IrcContext";
 import { ApiError, DISCORD_LINK_ERROR_TEXT, ERROR_TEXT, LOGIN_ERROR_TEXT } from "./errors";
 
 // The codes here mirror the backend's enums; these check they still list the same variants.
 
 const SOURCES: Record<string, string> = import.meta.glob(
-  [
-    "../../../backend/src/error.rs",
-    "../../../backend/src/bancho/relay.rs",
-    "../../../backend/src/handlers/auth.rs",
-  ],
+  ["../../../backend/src/error.rs", "../../../backend/src/handlers/auth.rs"],
   { query: "?raw", import: "default", eager: true },
 );
 
@@ -70,14 +65,6 @@ describe("callback errors", () => {
       ...Object.keys(DISCORD_LINK_ERROR_TEXT),
     ]);
     expect([...shown].sort()).toEqual(variants("handlers/auth.rs", "CallbackError").sort());
-  });
-});
-
-describe("relay close reasons", () => {
-  it("are CloseReason's variants", () => {
-    expect(Object.keys(CLOSE_REASON_TEXT).sort()).toEqual(
-      variants("bancho/relay.rs", "CloseReason").sort(),
-    );
   });
 });
 

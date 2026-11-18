@@ -475,7 +475,12 @@ export type NotificationKind =
   | "reschedule_accepted"
   | "banned"
   | "teammate_banned"
-  | "player_banned";
+  | "player_banned"
+  | "player_report"
+  | "emergency_stop"
+  | "autoref_stopped"
+  | "no_show_forfeit"
+  | "lobby_no_show";
 export type MatchStaffRole = "referee" | "streamer";
 
 /**
@@ -491,6 +496,11 @@ export type MatchStaffRole = "referee" | "streamer";
  * match or team); teammate_banned says they banned the recipient's teammate (the actor; no reason).
  * For the hosts but the one who did it, player_banned says a player (the actor) was banned, with the
  * reason and their team if they're in one.
+ * From the auto referee, to every host and referee: player_report is a player's -rapor (the actor,
+ * their team, what they wrote), emergency_stop a player's -durdur (the match went to manual), autoref_stopped that it handed the
+ * match over to the staff (why, in `message`). To players: no_show_forfeit says a bracket match was
+ * forfeited for the team that didn't show up (`team_id`; to both teams), lobby_no_show that their
+ * team was taken out of its qualifier lobby for not showing up.
  */
 export interface AppNotification {
   id: string;
@@ -533,6 +543,10 @@ export interface AppNotification {
   limit: number | null;
   /** banned, player_banned: the reason the host gave (empty when none); null for every other kind. */
   ban_reason: string | null;
+  /** player_report: what the player wrote; autoref_stopped: why the auto referee stopped. */
+  message: string | null;
+  /** The qualifier lobby it's about, "B". */
+  lobby_name: string | null;
   /** reschedule_proposed: the opponent's proposals for the match that are still open. */
   pending_proposals: number;
   /** A confirm_time that can still be answered. */
@@ -602,6 +616,8 @@ export interface RefereeRoom {
   discord_channel: boolean;
   /** What the room keeps about the match, the same for every referee and host on it. */
   settings: RoomSettings;
+  /** The hosts have the auto referee open rooms by itself (Bancho bots page). */
+  auto_rooms: boolean;
   /** The finished maps left out of the score ("Sayma"), by LiveFinished.key. */
   ignored_maps: string[];
   /** The room as its bot reads it, the same on every page; null for a match without a room. */
@@ -619,6 +635,8 @@ export interface RoomSettings {
   osu_synced_at: string | null;
   /** The team the referee said goes next, overriding the order until the next ban or pick. */
   next_pick_team_id: string | null;
+  /** The room's bot referees the match by itself (backend/src/bancho/autoref.rs); false: manual. */
+  auto_ref: boolean;
 }
 
 /** The stage a match is played in, which sets its map pool. */
@@ -777,6 +795,39 @@ export interface LiveRoom {
   score_saved: boolean;
   /** The results come from osu!'s record of the rooms, up to its last map. */
   osu_synced: boolean;
+  /** Where the auto referee stands; null when the bots don't run the match. */
+  autoref: AutorefView | null;
+}
+
+/**
+ * The auto referee's phase: before the match (waiting), a bracket match's warmups, roll and
+ * bans/picks (draft), a map on and waiting for ready (ready), being played, its scores read from
+ * osu! (scoring), between maps (next), over (done).
+ */
+export type AutorefPhase =
+  "waiting" | "warmup" | "roll" | "draft" | "ready" | "playing" | "scoring" | "next" | "done";
+
+export interface AutorefView {
+  /** The match is in auto mode. */
+  enabled: boolean;
+  phase: AutorefPhase;
+  /** Warmup: the team with the host; draft: the team to ban or pick. */
+  team_id: string | null;
+  step: "ban" | "pick" | null;
+  /** Ready, playing, scoring: the pool map on. */
+  map_id: string | null;
+  /** When the phase's timer runs out (waiting: the match's time, then the no-show cutoff). */
+  deadline: string | null;
+  /** Each team's -abort uses left. */
+  teams: { team_id: string; aborts_left: number }[];
+}
+
+/** A line of the auto referee's log. */
+export interface AutorefLogEntry {
+  id: number;
+  level: "info" | "warn" | "error";
+  message: string;
+  created_at: string;
 }
 
 /** A command for the room's bot (POST /api/matches/:id/room/command). */
@@ -800,7 +851,7 @@ export type RoomCommand =
   | { type: "add_ref"; username: string }
   | { type: "remove_ref"; username: string }
   | { type: "rejoin" }
-  /** Hosts only: says something in the room through its bot. */
+  /** Says something in the room through its bot, signed with the sender's name. */
   | { type: "say"; text: string };
 
 /** How a bot account is doing. */
@@ -837,6 +888,8 @@ export interface BanchoBot {
 export interface BotsView {
   bots: BanchoBot[];
   limits: { rooms: number; lines: number; window_secs: number };
+  /** The auto referee opens match rooms by itself, 10 minutes before each match (app_settings). */
+  auto_rooms: boolean;
 }
 
 /** Someone who has a match's referee page open (sent live to staff). */

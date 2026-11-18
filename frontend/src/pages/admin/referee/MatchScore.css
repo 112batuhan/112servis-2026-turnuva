@@ -53,6 +53,19 @@
   color: var(--color-text);
 }
 
+/* Locked (auto mode, or not this referee's to change): quieter, while a pressed team keeps its
+   colour so whose turn it is still reads. */
+.announce-team:disabled {
+  border-color: var(--color-border);
+  color: var(--color-text-subtle);
+  cursor: not-allowed;
+}
+
+.announce-team:disabled:hover {
+  background: transparent;
+  color: var(--color-text-subtle);
+}
+
 .announce-team:focus-visible {
   position: relative;
   z-index: 1;

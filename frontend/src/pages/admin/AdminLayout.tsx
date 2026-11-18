@@ -3,7 +3,6 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import type { User } from "../../api/types";
 import { useSignedInUser } from "../../auth/AuthContext";
 import { canAccess, hasRole } from "../../auth/roles";
-import { IrcProvider } from "../../irc/IrcContext";
 import { readString, writeString } from "../../lib/storage";
 import { ADMIN_TABS } from "../../lib/adminTabs";
 
@@ -33,13 +32,10 @@ export function AdminLayout() {
   // The tabs are in the top bar (`NavBar`).
   return (
     <div className="page admin-page">
-      {/* Here rather than on the referee page, so the Bancho connection outlives tab switches. */}
-      <IrcProvider>
-        {/* Admin pages load when first opened; the tabs stay meanwhile. */}
-        <Suspense fallback={<p className="status page-loading">Yükleniyor…</p>}>
-          <Outlet />
-        </Suspense>
-      </IrcProvider>
+      {/* Admin pages load when first opened; the tabs stay meanwhile. */}
+      <Suspense fallback={<p className="status page-loading">Yükleniyor…</p>}>
+        <Outlet />
+      </Suspense>
     </div>
   );
 }

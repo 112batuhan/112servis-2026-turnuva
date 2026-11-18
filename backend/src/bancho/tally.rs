@@ -32,6 +32,12 @@ pub struct PoolEntry {
     pub mode: String,
     pub freemod: bool,
     pub tiebreaker: bool,
+    // Its slot as players and the pages name it: "HD1", or just "TB" for a category of
+    // one slot (matchPool.ts's poolEntries).
+    pub label: String,
+    // Its category, by name: a team can't pick from the same one twice in a row (NM
+    // aside; see autoref.rs).
+    pub category: String,
 }
 
 // The pool in category and slot order.
@@ -47,7 +53,8 @@ pub fn pool_entries(
             .filter(|s| s.category_id == category.id)
             .collect();
         own.sort_by_key(|s| s.position);
-        for slot in own {
+        let several = own.len() > 1;
+        for (i, slot) in own.into_iter().enumerate() {
             let Some(map) = maps.iter().find(|m| m.slot_id == Some(slot.id)) else {
                 continue;
             };
@@ -58,6 +65,12 @@ pub fn pool_entries(
                 mode: map.mode.clone(),
                 freemod: is_freemod_category(&category.name),
                 tiebreaker: is_tiebreaker_category(&category.name),
+                label: if several {
+                    format!("{}{}", category.name.trim(), i + 1)
+                } else {
+                    category.name.trim().to_string()
+                },
+                category: category.name.trim().to_uppercase(),
             });
         }
     }
@@ -517,6 +530,8 @@ mod tests {
             mode: "osu".into(),
             freemod,
             tiebreaker: false,
+            label: format!("M{id}"),
+            category: "M".into(),
         }
     }
 
