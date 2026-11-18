@@ -131,6 +131,20 @@
   outline-offset: 1px;
 }
 
+/* Ran out on the auto referee's clock: a timer where the map would be, dashed in the team's colour. */
+.pool-draft-step.is-done.is-missed {
+  background: transparent;
+  box-shadow: none;
+  border-style: dashed;
+  border-color: currentColor;
+}
+
+.pool-draft-undo {
+  width: 18px;
+  height: 18px;
+  margin-right: calc(-1 * var(--space-1));
+}
+
 .pool-draft-step.is-next {
   border-color: var(--color-primary);
   background: var(--color-primary-soft);

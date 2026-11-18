@@ -21,6 +21,7 @@ export type MatchData = Pick<
   | "concluded_at"
   | "bans"
   | "picks"
+  | "missed"
   | "manual_results"
   | "map_results"
   | "rooms"
@@ -94,7 +95,15 @@ export function matchDraft(room: MatchData, chosen: string | null, open: boolean
   const teams = matchTeams(room);
   if (teams.length !== 2) return null;
   const order = stageDraftOrder(room.stage?.draft_order);
-  return draftOf(order, room.bans, room.picks, [teams[0].id, teams[1].id], chosen, open);
+  return draftOf(
+    order,
+    room.bans,
+    room.picks,
+    room.missed,
+    [teams[0].id, teams[1].id],
+    chosen,
+    open,
+  );
 }
 
 /** The draft's next ban or pick with its team, for the pages that name it. */

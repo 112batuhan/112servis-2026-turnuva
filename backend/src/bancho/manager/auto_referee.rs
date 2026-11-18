@@ -71,6 +71,7 @@ impl Manager {
             entries: &ctx.entries,
             bans: &ctx.bans,
             picks: &ctx.picks,
+            missed: &ctx.missed,
             turn: view.next_turn,
             score: view.tally.as_ref().map(|t| (t.team1, t.team2)),
             best_of: ctx.best_of,
@@ -133,6 +134,10 @@ impl Manager {
                 Action::FirstTurn(team_id) => {
                     self.pending.insert(id);
                     services::referee::set_next_pick(&self.app, id, Some(team_id)).await
+                }
+                Action::Missed { team_id, kind } => {
+                    self.pending.insert(id);
+                    services::bracket::miss(&self.app, id, team_id, kind).await
                 }
                 Action::FetchOsu => {
                     self.fetch_osu(id);

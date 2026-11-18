@@ -174,6 +174,7 @@ pub fn build(
                 &ctx.draft_order,
                 &ctx.bans,
                 &ctx.picks,
+                &ctx.missed,
                 [a.id, b.id],
                 ctx.settings.next_pick_team_id,
             )

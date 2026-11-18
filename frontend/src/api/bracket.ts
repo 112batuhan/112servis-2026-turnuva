@@ -67,6 +67,10 @@ export const setMapPick = (id: string, mapId: string, teamId: string) =>
 export const removeMapPick = (id: string, mapId: string) =>
   del(`/api/bracket/${id}/picks/${mapId}`);
 
+/** Takes back a ban or pick the auto referee recorded as run out: the team has its turn again. */
+export const removeMissedTurn = (id: string, missedId: string) =>
+  del(`/api/bracket/${id}/missed/${missedId}`);
+
 /** A streamer passes their own id to take a match or null to give it up; hosts can pick anyone. */
 export const setStreamer = (id: string, streamerId: string | null) =>
   put<void>(`/api/bracket/${id}/streamer`, { streamer_id: streamerId });

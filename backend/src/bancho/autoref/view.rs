@@ -24,7 +24,12 @@ impl AutoRef {
                 (s.teams.get(*team).map(|t| t.id), None, None, Some(*until))
             }
             Phase::Roll { until, .. } => (None, None, None, Some(*until)),
-            Phase::Draft { team_id, kind, .. } => (Some(*team_id), Some(*kind), None, None),
+            Phase::Draft {
+                team_id,
+                kind,
+                until,
+                ..
+            } => (Some(*team_id), Some(*kind), None, Some(*until)),
             Phase::Ready { map_id, until, .. } => (None, None, Some(*map_id), Some(*until)),
             Phase::Playing { map_id, .. } | Phase::Scoring { map_id, .. } => {
                 (None, None, Some(*map_id), None)

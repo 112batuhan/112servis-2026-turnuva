@@ -32,6 +32,7 @@ function next(o: DraftOrder, done: string[], chosen: string | null = null) {
     o,
     marks.filter((m) => m.kind === "ban"),
     marks.filter((m) => m.kind === "pick"),
+    [],
     [A, B],
     chosen,
     true,
@@ -96,6 +97,7 @@ describe("draftOf", () => {
       o,
       [],
       [{ map_id: "m", team_id: B, created_at: new Date(0).toISOString() }],
+      [],
       [A, B],
       null,
       false,
@@ -109,10 +111,65 @@ describe("draftOf", () => {
       o,
       [{ map_id: "m", team_id: B, created_at: new Date(0).toISOString() }],
       [],
+      [],
       [A, B],
       null,
       true,
     );
     expect(off.steps[0]).toMatchObject({ kind: "ban", offOrder: true, state: "done" });
+  });
+
+  describe("turns that ran out", () => {
+    const at = (i: number) => new Date(i * 1000).toISOString();
+    const missedPick = { id: "x", team_id: A, kind: "pick" as const, created_at: at(0) };
+
+    it("passes a missed pick to the other team, A staying 1", () => {
+      const passed = draftOf(o, [], [], [missedPick], [A, B], null, true);
+      expect(passed.next).toEqual({ kind: "pick", teamId: B });
+      expect(passed.steps[0]).toMatchObject({ kind: "pick", teamId: A, missedId: "x" });
+      expect(passed.steps[1]).toMatchObject({ number: 1, state: "next", teamId: B });
+      // The referee's say still stands in for it.
+      expect(draftOf(o, [], [], [missedPick], [A, B], A, true).next?.teamId).toBe(A);
+      // B picks it; the order goes on with A as 1: p2 is B's.
+      const picked = draftOf(
+        o,
+        [],
+        [{ map_id: "m", team_id: B, created_at: at(1) }],
+        [missedPick],
+        [A, B],
+        null,
+        true,
+      );
+      expect(picked.next).toEqual({ kind: "pick", teamId: B });
+    });
+
+    it("has a missed ban take its step", () => {
+      const missedBan = { id: "y", team_id: B, kind: "ban" as const, created_at: at(3) };
+      const picks = [
+        { map_id: "m1", team_id: A, created_at: at(1) },
+        { map_id: "m2", team_id: B, created_at: at(2) },
+      ];
+      const d = draftOf(o, [], picks, [missedBan], [A, B], null, true);
+      expect(d.next).toEqual({ kind: "ban", teamId: A });
+      expect(d.steps[2]).toMatchObject({
+        kind: "ban",
+        mapId: null,
+        missedId: "y",
+        offOrder: false,
+      });
+    });
+
+    it("leaves the next turn to the team that missed, once picks take turns", () => {
+      const short = order("p1-*");
+      const passed = { id: "z", team_id: B, kind: "pick" as const, created_at: at(1) };
+      const picks = [
+        { map_id: "m1", team_id: A, created_at: at(0) },
+        { map_id: "m2", team_id: A, created_at: at(2) },
+      ];
+      expect(draftOf(short, [], picks, [passed], [A, B], null, true).next).toEqual({
+        kind: "pick",
+        teamId: B,
+      });
+    });
   });
 });

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Icon } from "../Icon";
+import { IconButton } from "../IconButton";
 import { stageLabel, type Standing } from "../../lib/bestOf";
 import { stepLabel, type Draft, type DraftStep } from "../../lib/draftOrder";
 import { formatLength } from "../../lib/format";
@@ -56,6 +57,8 @@ interface PoolViewProps {
     title: (entry: PoolEntry, banned: MatchTeam | undefined) => string;
     onPick: (entry: PoolEntry) => void;
   };
+  /** The referee's button that takes back a ban or pick that ran out (the referee page). */
+  takeBack?: { disabled: boolean; title?: string; onTakeBack: (missedId: string) => void };
   /** The referee's ban and pick buttons at the end of each map. */
   renderActions?: (
     entry: PoolEntry,
@@ -76,6 +79,7 @@ export function PoolView({
   draft,
   phase,
   pick,
+  takeBack,
   renderActions,
 }: PoolViewProps) {
   const entries = poolEntries(room);
@@ -106,7 +110,7 @@ export function PoolView({
       )}
 
       {draft && draft.steps.length > 0 && entries.length > 0 && (
-        <DraftStrip draft={draft} teamOf={teamOf} labelOf={labelOf} />
+        <DraftStrip draft={draft} teamOf={teamOf} labelOf={labelOf} takeBack={takeBack} />
       )}
 
       <ul className="pool-panel-list">
@@ -203,22 +207,29 @@ export function PoolView({
 /**
  * The draft as the stage's order lays it out, one chip per step: the bans and picks made (their
  * pool label in the colour of the team that made it, bans struck through), the one whose turn it
- * is ringed, and the ones to come, coloured once the first mark has said who 1 is. A closing
- * "sırayla" says picks take turns from there.
+ * is ringed, and the ones to come, coloured once the first mark has said who 1 is. A turn that ran
+ * out on the auto referee's clock shows a timer in place of its map, with the referee's button to
+ * take it back. A closing "sırayla" says picks take turns from there.
  */
 function DraftStrip({
   draft,
   teamOf,
   labelOf,
+  takeBack,
 }: {
   draft: Draft;
   teamOf: (id: string) => MatchTeam | undefined;
   labelOf: Map<string, string>;
+  takeBack: PoolViewProps["takeBack"];
 }) {
   const open = draft.next !== null;
   const describe = (step: DraftStep, team: MatchTeam | undefined) => {
     const who = team?.name ?? (step.number ? `${step.number}. takım` : "sıradaki takım");
     const kind = stepLabel(step.kind);
+    if (step.missedId) {
+      const then = step.kind === "ban" ? "ban hakkı yandı" : "pick rakibe geçti";
+      return `${kind}: ${who}, süre doldu, ${then}`;
+    }
     if (step.state === "done") {
       const map = (step.mapId && labelOf.get(step.mapId)) ?? "?";
       const off = step.offOrder ? " (sırada bu adım yoktu)" : "";
@@ -229,6 +240,7 @@ function DraftStrip({
   // A step made shows its map; the next one its team (or what it is, before the roll is known); one
   // to come only its icon in its team's colour, or the order's figure until the colours are known.
   const content = (step: DraftStep, team: MatchTeam | undefined) => {
+    if (step.missedId) return null;
     if (step.state === "done") return (step.mapId && labelOf.get(step.mapId)) ?? "?";
     if (step.state === "next") return team?.name ?? stepLabel(step.kind);
     return team ? null : step.number;
@@ -248,6 +260,7 @@ function DraftStrip({
                 `is-${step.kind}`,
                 `is-team-${team?.color ?? "none"}`,
                 step.offOrder && "is-off-order",
+                step.missedId && "is-missed",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -260,7 +273,19 @@ function DraftStrip({
                 className="pool-draft-icon"
               />
               {content(step, team) && <span aria-hidden="true">{content(step, team)}</span>}
+              {step.missedId && <Icon name="timer" size={12} className="pool-draft-icon" />}
               <span className="sr-only">{text}</span>
+              {step.missedId && takeBack && (
+                <IconButton
+                  icon="undo"
+                  iconSize={12}
+                  className="pool-draft-undo"
+                  label={`Geri al: ${stepLabel(step.kind).toLowerCase()} yeniden ${team?.name ?? "takımın"} sırası olsun`}
+                  disabled={takeBack.disabled}
+                  {...(takeBack.title ? { title: takeBack.title } : {})}
+                  onClick={() => takeBack.onTakeBack(step.missedId as string)}
+                />
+              )}
             </li>
           );
         })}

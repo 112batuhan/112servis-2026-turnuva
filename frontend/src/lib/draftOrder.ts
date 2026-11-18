@@ -1,7 +1,9 @@
 // A stage's pick and ban order (Stage.draft_order), as hosts write it: "p1-p2-b2-b1-p1-*". `p` is
 // a map picked and played, `b` a ban; 1 is the team that marks the first ban or pick on the
 // referee page (the roll decides it), 2 the other; a closing `*` has the teams take turns picking
-// from there. The server's rules are backend/src/draft.rs; this mirrors them to show the draft.
+// from there. A turn can also run out on the auto referee's clock: a missed ban takes its step with
+// no map banned, a missed pick passes that step to the other team. The server's rules are
+// backend/src/draft.rs; this mirrors them to show the draft.
 
 export type StepKind = "ban" | "pick";
 
@@ -67,6 +69,13 @@ interface Mark {
   created_at: string;
 }
 
+interface Missed {
+  id: string;
+  team_id: string;
+  kind: StepKind;
+  created_at: string;
+}
+
 /** One step of a match's draft: a ban or pick made, the one whose turn it is, or one to come. */
 export interface DraftStep {
   kind: StepKind;
@@ -74,8 +83,11 @@ export interface DraftStep {
   number: 1 | 2 | null;
   /** Who made it, or whose it is by the order (known once the first ban or pick says who 1 is). */
   teamId: string | null;
-  /** The pool map, once made. */
+  /** The pool map, once made (none for a turn that ran out). */
   mapId: string | null;
+  /** A turn that ran out on the auto referee's clock (its MissedTurn id, to take it back): a ban
+   * lost, or a pick passed to the other team, which then has the same step. */
+  missedId: string | null;
   state: "done" | "next" | "later";
   /** Made as a ban where the order has a pick, or the other way round. */
   offOrder: boolean;
@@ -90,59 +102,72 @@ export interface Draft {
 }
 
 /**
- * A match's draft: its bans and picks in the order they were marked, then what the order has
- * still to come. `chosen` is the team the referee said goes next, which stands in for the order
- * until the next mark. Closed (the tiebreaker, a decided match), only what was made is listed.
+ * A match's draft: its bans and picks and the turns that ran out, in the order they came, then what
+ * the order has still to come. `chosen` is the team the referee said goes next, which stands in for
+ * the order until the next mark. Closed (the tiebreaker, a decided match), only what was made is
+ * listed.
  */
 export function draftOf(
   order: DraftOrder,
   bans: Mark[],
   picks: Mark[],
+  missed: Missed[],
   teams: [string, string],
   chosen: string | null,
   open: boolean,
 ): Draft {
-  const marks = [
-    ...bans.map((m) => ({ ...m, kind: "ban" as const })),
-    ...picks.map((m) => ({ ...m, kind: "pick" as const })),
+  const turns = [
+    ...bans.map((m) => ({ ...m, kind: "ban" as const, missedId: null })),
+    ...picks.map((m) => ({ ...m, kind: "pick" as const, missedId: null })),
+    ...missed.map((m) => ({ ...m, map_id: null, missedId: m.id })),
   ].sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at));
   const other = (id: string) => (id === teams[0] ? teams[1] : teams[0]);
-  // The first mark was made by the first step's team.
-  const first = marks[0]?.team_id ?? null;
+  // The first turn, made or missed, was the first step's team's.
+  const first = turns[0]?.team_id ?? null;
   const one = first === null ? null : order.steps[0].team === 1 ? first : other(first);
   const teamOf = (n: 1 | 2) => (one === null ? null : n === 1 ? one : other(one));
+  const passes = (t: (typeof turns)[number]) => t.missedId !== null && t.kind === "pick";
 
-  const steps: DraftStep[] = marks.map((m, i) => {
-    const step = order.steps[i];
+  // The order's step the next turn is on: a passed pick leaves it to the other team.
+  let at = 0;
+  let lastMade: string | null = null;
+  const steps: DraftStep[] = turns.map((t) => {
+    const step = order.steps[at];
+    if (!passes(t)) {
+      at += 1;
+      lastMade = t.team_id;
+    }
     return {
-      kind: m.kind,
+      kind: t.kind,
       number: step?.team ?? null,
-      teamId: m.team_id,
-      mapId: m.map_id,
+      teamId: t.team_id,
+      mapId: t.map_id,
+      missedId: t.missedId,
       state: "done",
-      offOrder: step !== undefined && step.kind !== m.kind,
+      offOrder: step !== undefined && step.kind !== t.kind,
     };
   });
 
   let next: Draft["next"] = null;
   if (open) {
-    order.steps.slice(marks.length).forEach((step, i) => {
+    order.steps.slice(at).forEach((step, i) => {
       steps.push({
         kind: step.kind,
         number: step.team,
         teamId: teamOf(step.team),
         mapId: null,
+        missedId: null,
         state: i === 0 ? "next" : "later",
         offOrder: false,
       });
     });
-    if (marks.length >= order.steps.length && order.alternate) {
-      const last = marks[marks.length - 1]?.team_id;
+    if (at >= order.steps.length && order.alternate) {
       steps.push({
         kind: "pick",
         number: null,
-        teamId: last ? other(last) : null,
+        teamId: lastMade ? other(lastMade) : null,
         mapId: null,
+        missedId: null,
         state: "next",
         offOrder: false,
       });
@@ -150,7 +175,9 @@ export function draftOf(
     const upcoming = steps.find((s) => s.state === "next");
     if (upcoming) {
       const override = chosen !== null && teams.includes(chosen) ? chosen : null;
-      upcoming.teamId = override ?? upcoming.teamId;
+      const last = turns[turns.length - 1];
+      const passed = last && passes(last) ? other(last.team_id) : null;
+      upcoming.teamId = override ?? passed ?? upcoming.teamId;
       next = { kind: upcoming.kind, teamId: upcoming.teamId };
     }
   }

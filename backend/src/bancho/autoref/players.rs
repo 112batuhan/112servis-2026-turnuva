@@ -173,6 +173,7 @@ impl AutoRef {
             team_id,
             kind,
             candidate,
+            until,
         } = self.phase.clone()
         else {
             return;
@@ -203,6 +204,7 @@ impl AutoRef {
                 team_id,
                 kind,
                 candidate: Some(entry.map_id),
+                until,
             };
             return;
         }

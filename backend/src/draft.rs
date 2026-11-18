@@ -4,6 +4,10 @@
 //! referee page (the roll decides it), 2 the other. A closing `*` has the teams take
 //! turns picking from there, each pick going to the team that didn't make the one
 //! before. The referee page and the room's bot read whose turn it is from it.
+//!
+//! A turn can also run out on the auto referee's clock (`match_missed_turns`): a missed
+//! ban takes its step with no map banned, and a missed pick passes that step to the
+//! other team.
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -17,7 +21,8 @@ pub const DEFAULT_ORDER: &str = "b1-b2-p2-*";
 // The most steps an order may spell out.
 pub const MAX_STEPS: usize = 40;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "draft_step_kind", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum StepKind {
     Ban,
@@ -116,27 +121,48 @@ pub struct Turn {
     pub team_id: Option<Uuid>,
 }
 
-// What comes next after the bans and picks so far, given as the team that made each
-// in the order they were marked:
-// the step at that count, its team read from who made the first one. `chosen` is the
-// team the referee said goes next, which stands in for the rules until the next mark.
-// None once the order has run out.
+// A turn the draft has had so far: the team whose it was, and whether it was a pick
+// that ran out and so passed to the other team. That takes no step of the order; a ban
+// that ran out takes its step like one made.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Taken {
+    pub team_id: Uuid,
+    pub passed: bool,
+}
+
+impl Taken {
+    pub fn made(team_id: Uuid) -> Self {
+        Self {
+            team_id,
+            passed: false,
+        }
+    }
+}
+
+// What comes next after the turns so far, in the order they were taken: the step at the
+// count of those that took one, its team read from whose the first turn was. A pick that
+// just passed goes to the other team. `chosen` is the team the referee said goes next,
+// which stands in for the rules until the next mark. None once the order has run out.
 pub fn next_turn(
     order: &DraftOrder,
-    marks: &[Uuid],
+    taken: &[Taken],
     teams: [Uuid; 2],
     chosen: Option<Uuid>,
 ) -> Option<Turn> {
     let other = |id: Uuid| teams.into_iter().find(|&t| t != id);
-    let n = marks.len();
-    let (kind, by_rule) = match order.steps.get(n) {
+    let made: Vec<Uuid> = taken
+        .iter()
+        .filter(|t| !t.passed)
+        .map(|t| t.team_id)
+        .collect();
+    let (kind, by_rule) = match order.steps.get(made.len()) {
         Some(step) => {
-            let team = marks.first().and_then(|&first| {
-                // The first mark was made by the first step's team.
+            let team = taken.first().and_then(|first| {
+                // The first turn was the first step's team's.
                 let one = if order.steps[0].team == 1 {
-                    Some(first)
+                    Some(first.team_id)
                 } else {
-                    other(first)
+                    other(first.team_id)
                 };
                 if step.team == 1 {
                     one
@@ -146,10 +172,14 @@ pub fn next_turn(
             });
             (step.kind, team)
         }
-        None if order.alternate => (StepKind::Pick, marks.last().and_then(|&last| other(last))),
+        None if order.alternate => (StepKind::Pick, made.last().and_then(|&last| other(last))),
         None => return None,
     };
-    let team_id = chosen.filter(|c| teams.contains(c)).or(by_rule);
+    let passed = taken
+        .last()
+        .filter(|t| t.passed)
+        .and_then(|t| other(t.team_id));
+    let team_id = chosen.filter(|c| teams.contains(c)).or(passed).or(by_rule);
     Some(Turn { kind, team_id })
 }
 
@@ -159,6 +189,17 @@ mod tests {
 
     const A: Uuid = Uuid::from_u128(1);
     const B: Uuid = Uuid::from_u128(2);
+
+    // The next turn after these bans and picks, none of them missed.
+    fn turn_after(
+        order: &DraftOrder,
+        done: &[Uuid],
+        teams: [Uuid; 2],
+        chosen: Option<Uuid>,
+    ) -> Option<Turn> {
+        let taken: Vec<Taken> = done.iter().map(|&t| Taken::made(t)).collect();
+        next_turn(order, &taken, teams, chosen)
+    }
 
     #[test]
     fn parses_and_formats() {
@@ -180,7 +221,7 @@ mod tests {
         let teams = [A, B];
         // Nobody has marked anything, so the roll hasn't said who 1 is.
         assert_eq!(
-            next_turn(&order, &[], teams, None),
+            turn_after(&order, &[], teams, None),
             Some(Turn {
                 kind: Pick,
                 team_id: None
@@ -188,7 +229,7 @@ mod tests {
         );
         // Red (B) won the roll and picked first: it's 1.
         let mut done = vec![B];
-        let next = |done: &[Uuid]| next_turn(&order, done, teams, None).unwrap();
+        let next = |done: &[Uuid]| turn_after(&order, done, teams, None).unwrap();
         assert_eq!(
             next(&done),
             Turn {
@@ -239,7 +280,7 @@ mod tests {
         );
         // The referee's say stands in for the rules.
         assert_eq!(
-            next_turn(&order, &done, teams, Some(B)),
+            turn_after(&order, &done, teams, Some(B)),
             Some(Turn {
                 kind: Pick,
                 team_id: Some(B)
@@ -249,13 +290,13 @@ mod tests {
         let short = DraftOrder::parse("b2-p1").unwrap();
         let done = [A];
         assert_eq!(
-            next_turn(&short, &done, teams, None),
+            turn_after(&short, &done, teams, None),
             Some(Turn {
                 kind: Pick,
                 team_id: Some(B)
             })
         );
-        assert_eq!(next_turn(&short, &[A, B], teams, None), None);
+        assert_eq!(turn_after(&short, &[A, B], teams, None), None);
     }
 
     #[test]
@@ -263,10 +304,80 @@ mod tests {
         let order = DraftOrder::default();
         let done = [A, B];
         assert_eq!(
-            next_turn(&order, &done, [A, B], None),
+            turn_after(&order, &done, [A, B], None),
             Some(Turn {
                 kind: StepKind::Pick,
                 team_id: Some(B)
+            })
+        );
+    }
+
+    #[test]
+    fn missed_turns() {
+        use StepKind::{Ban, Pick};
+        let order = DraftOrder::parse("p1-p2-b2-b1-p1-*").unwrap();
+        let teams = [A, B];
+        let missed = Taken {
+            team_id: A,
+            passed: true,
+        };
+        // A won the roll and let its first pick run out: B picks it instead, and A is
+        // still 1.
+        assert_eq!(
+            next_turn(&order, &[missed], teams, None),
+            Some(Turn {
+                kind: Pick,
+                team_id: Some(B)
+            })
+        );
+        // The referee's say still stands in for the pass.
+        assert_eq!(
+            next_turn(&order, &[missed], teams, Some(A))
+                .unwrap()
+                .team_id,
+            Some(A)
+        );
+        let taken = [missed, Taken::made(B)];
+        assert_eq!(
+            next_turn(&order, &taken, teams, None),
+            Some(Turn {
+                kind: Pick,
+                team_id: Some(B)
+            })
+        );
+        // A ban that ran out takes its step.
+        let taken = [missed, Taken::made(B), Taken::made(B), Taken::made(B)];
+        assert_eq!(
+            next_turn(&order, &taken, teams, None),
+            Some(Turn {
+                kind: Ban,
+                team_id: Some(A)
+            })
+        );
+        // Taking turns, a pick passed to B leaves the next one to A.
+        let order = DraftOrder::parse("p1-*").unwrap();
+        let taken = [
+            Taken::made(A),
+            Taken {
+                team_id: B,
+                passed: true,
+            },
+            Taken::made(A),
+        ];
+        assert_eq!(
+            next_turn(&order, &taken, teams, None),
+            Some(Turn {
+                kind: Pick,
+                team_id: Some(B)
+            })
+        );
+        // The first turn missed, a ban: it was 1's all the same.
+        let order = DraftOrder::parse("b1-b2-p2-*").unwrap();
+        assert_eq!(
+            next_turn(&order, &[Taken::made(B)], teams, None),
+            Some(Turn {
+                kind: Ban,
+                team_id: Some(A)
             })
         );
     }

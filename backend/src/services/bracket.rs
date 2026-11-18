@@ -15,6 +15,7 @@ use crate::{
         potential::Before,
     },
     discord::jobs::Job,
+    draft::StepKind,
     error::{AppError, GeneralError, MatchError},
     AppState,
 };
@@ -54,7 +55,31 @@ pub async fn mark(
     marks_changed(state, id).await
 }
 
-// A ban or pick was marked or taken back: the rules say whose pick is next again, and
+// A team let its ban or pick run out on the auto referee's clock: a ban is lost, a pick
+// passes to the other team (draft.rs).
+pub async fn miss(
+    state: &AppState,
+    id: Uuid,
+    team_id: Uuid,
+    kind: StepKind,
+) -> Result<(), AppError> {
+    db::bracket::add_missed(&state.db, id, team_id, kind).await?;
+    marks_changed(state, id).await
+}
+
+// Takes back a ban or pick that ran out: the team has the next turn again, as the
+// referee's say until the next mark. When it was the match's first turn that also keeps
+// the roll's winner, which nothing else would say once no turn is left.
+pub async fn take_back_miss(state: &AppState, id: Uuid, missed_id: Uuid) -> Result<(), AppError> {
+    let team_id = db::bracket::delete_missed(&state.db, id, missed_id)
+        .await?
+        .ok_or(GeneralError::NotFound)?;
+    db::referee::set_next_pick(&state.db, id, Some(team_id)).await?;
+    state.live.match_changed(id);
+    Ok(())
+}
+
+// A ban or pick was marked, missed or taken back: the rules say whose pick is next again, and
 // the match's pages reload it.
 pub async fn marks_changed(state: &AppState, id: Uuid) -> Result<(), AppError> {
     db::referee::clear_next_pick(&state.db, id).await?;

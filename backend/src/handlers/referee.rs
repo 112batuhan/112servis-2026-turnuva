@@ -15,7 +15,7 @@ use crate::{
     bancho::view::LiveRoom,
     db::{
         self,
-        bracket::{BanRow, ManualResultRow, MapResultRow, PickRow, Side},
+        bracket::{BanRow, ManualResultRow, MapResultRow, MissedRow, PickRow, Side},
         chat::ChatMessage,
         mappool::{Category, PublicPoolMap, PublicSlot},
         matches::{MatchKind, RoomRow},
@@ -103,6 +103,9 @@ pub struct RefereeRoom {
     // they were made.
     bans: Vec<BanRow>,
     picks: Vec<PickRow>,
+    // Bracket matches only: the bans and picks that ran out on the auto referee's
+    // clock, in the order they did.
+    missed: Vec<MissedRow>,
     // Bracket matches only: map wins the referee awarded by hand, oldest first.
     manual_results: Vec<ManualResultRow>,
     // Bracket matches only: the pool maps the saved score was counted from, as the
@@ -187,6 +190,7 @@ impl RoomPool {
 struct RoomMarks {
     bans: Vec<BanRow>,
     picks: Vec<PickRow>,
+    missed: Vec<MissedRow>,
     manual_results: Vec<ManualResultRow>,
     map_results: Vec<MapResultRow>,
 }
@@ -197,12 +201,14 @@ impl RoomMarks {
             MatchKind::Bracket => RoomMarks {
                 bans: db::bracket::list_bans(&state.db, row.id).await?,
                 picks: db::bracket::list_picks(&state.db, row.id).await?,
+                missed: db::bracket::list_missed(&state.db, row.id).await?,
                 manual_results: db::bracket::list_manual_results(&state.db, row.id).await?,
                 map_results: db::bracket::list_map_results(&state.db, row.id).await?,
             },
             MatchKind::Qualifier | MatchKind::Potential => RoomMarks {
                 bans: Vec::new(),
                 picks: Vec::new(),
+                missed: Vec::new(),
                 manual_results: Vec::new(),
                 map_results: Vec::new(),
             },
@@ -271,6 +277,7 @@ async fn get_room(
         maps: pool.maps,
         bans: marks.bans,
         picks: marks.picks,
+        missed: marks.missed,
         manual_results: marks.manual_results,
         map_results: marks.map_results,
         discord_channel: state.discord.enabled()
@@ -312,6 +319,7 @@ pub struct PublicMatch {
     maps: Vec<PublicPoolMap>,
     bans: Vec<BanRow>,
     picks: Vec<PickRow>,
+    missed: Vec<MissedRow>,
     manual_results: Vec<ManualResultRow>,
     map_results: Vec<MapResultRow>,
     // The team the referee said picks next, overriding the rules until the next ban
@@ -366,6 +374,7 @@ async fn get_public_match(
         maps: pool.maps,
         bans: marks.bans,
         picks: marks.picks,
+        missed: marks.missed,
         manual_results: marks.manual_results,
         map_results: marks.map_results,
         next_pick_team_id: db::referee::find_settings(&state.db, id)

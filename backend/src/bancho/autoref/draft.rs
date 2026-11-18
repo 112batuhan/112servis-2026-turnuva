@@ -12,7 +12,10 @@ use crate::{
     draft::{StepKind, Turn},
 };
 
-use super::{kind_word, log, send, Action, AutoRef, Phase, Snapshot, CLOSING};
+use super::{
+    kind_word, log, send, span, Action, AutoRef, CountdownKind, Phase, Snapshot, BAN_TIME, CLOSING,
+    PICK_TIME,
+};
 
 impl AutoRef {
     pub(super) fn next_step(&mut self, s: &Snapshot, out: &mut Vec<Action>) {
@@ -96,25 +99,95 @@ impl AutoRef {
         }
     }
 
+    // Asks the team for its ban or pick, on the clock: a ban that runs out is lost, a
+    // pick passes to the other team (or, already passed, goes to a referee).
     fn ask(&mut self, s: &Snapshot, team_id: Uuid, kind: StepKind, out: &mut Vec<Action>) {
         let name = s.team_name(team_id);
-        send(
-            out,
-            format!(
-                "{name} takımı {} sırası, seçtiğiniz mapin slotunu söyleyin.",
-                kind_word(kind)
-            ),
-        );
         log(
             out,
             LogLevel::Info,
             format!("{name} takımının {} seçimi bekleniyor.", kind_word(kind)),
         );
+        let time = match kind {
+            StepKind::Ban => BAN_TIME,
+            StepKind::Pick => PICK_TIME,
+        };
+        let secs = time.whole_seconds();
+        let passed = s.passed_from().is_some_and(|t| t != team_id);
+        let then = match kind {
+            StepKind::Ban => ", süre dolarsa ban hakkınız yanar",
+            StepKind::Pick if passed => "",
+            StepKind::Pick => ", süre dolarsa pick sırası rakibe geçer",
+        };
         self.phase = Phase::Draft {
             team_id,
             kind,
             candidate: None,
+            until: s.now + time,
         };
+        self.start_countdown(
+            s,
+            CountdownKind::Draft,
+            secs,
+            format!(
+                "{name} takımı {} sırası, seçtiğiniz mapin slotunu söyleyin. {} süreniz var{then}.",
+                kind_word(kind),
+                span(secs)
+            ),
+            out,
+        );
+    }
+
+    // The team let its ban or pick run out.
+    pub(super) fn missed(
+        &mut self,
+        s: &Snapshot,
+        team_id: Uuid,
+        kind: StepKind,
+        out: &mut Vec<Action>,
+    ) {
+        let name = s.team_name(team_id);
+        match kind {
+            StepKind::Ban => {
+                send(
+                    out,
+                    format!("{name} takımının ban süresi doldu, ban hakkı yandı."),
+                );
+                log(
+                    out,
+                    LogLevel::Info,
+                    format!("{name} ban süresini kaçırdı, ban hakkı yandı."),
+                );
+            }
+            StepKind::Pick if s.passed_from().is_some_and(|t| t != team_id) => {
+                send(out, format!("{name} takımının pick süresi doldu."));
+                out.push(Action::Handover(
+                    "Pick süresi iki takımda da doldu: ilk takımın pick'i rakibe geçti, o da seçmedi."
+                        .into(),
+                ));
+                return;
+            }
+            StepKind::Pick => {
+                let other = s
+                    .teams
+                    .iter()
+                    .find(|t| t.id != team_id)
+                    .map_or("?", |t| t.name.as_str());
+                send(
+                    out,
+                    format!(
+                        "{name} takımının pick süresi doldu, pick sırası {other} takımına geçti."
+                    ),
+                );
+                log(
+                    out,
+                    LogLevel::Info,
+                    format!("{name} pick süresini kaçırdı, pick {other} takımına geçti."),
+                );
+            }
+        }
+        out.push(Action::Missed { team_id, kind });
+        self.phase = Phase::Next;
     }
 
     fn finish(&mut self, s: &Snapshot, winner: Option<&MatchTeam>, out: &mut Vec<Action>) {

@@ -15,7 +15,7 @@ use super::{
 use crate::{
     db::{
         self,
-        bracket::{BanRow, ManualResultRow, MapResultRow, PickRow, Side},
+        bracket::{BanRow, ManualResultRow, MapResultRow, MissedRow, PickRow, Side},
         matches::MatchKind,
         referee::RoomSettings,
     },
@@ -73,6 +73,8 @@ pub struct MatchContext {
     pub entries: Vec<PoolEntry>,
     pub bans: Vec<BanRow>,
     pub picks: Vec<PickRow>,
+    // The bans and picks that ran out on the auto referee's clock.
+    pub missed: Vec<MissedRow>,
     pub manual: Vec<ManualResultRow>,
     pub ignored: HashSet<String>,
     pub settings: RoomSettings,
@@ -169,15 +171,17 @@ pub async fn load(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchContext>>
         ),
         None => Vec::new(),
     };
-    let (bans, picks, manual, map_results) = if bracket {
+    let (bans, picks, missed, manual, map_results) = if bracket {
         (
             db::bracket::list_bans(pool, id).await?,
             db::bracket::list_picks(pool, id).await?,
+            db::bracket::list_missed(pool, id).await?,
             db::bracket::list_manual_results(pool, id).await?,
             db::bracket::list_map_results(pool, id).await?,
         )
     } else {
         (
+            Vec::new(),
             Vec::new(),
             Vec::new(),
             Vec::new(),
@@ -204,6 +208,7 @@ pub async fn load(pool: &PgPool, id: Uuid) -> sqlx::Result<Option<MatchContext>>
         entries,
         bans,
         picks,
+        missed,
         manual,
         ignored: db::referee::list_ignored(pool, id)
             .await?

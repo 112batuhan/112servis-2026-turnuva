@@ -5,6 +5,7 @@ import {
   removeManualResult,
   removeMapBan,
   removeMapPick,
+  removeMissedTurn,
   setMapBan,
   setMapPick,
 } from "../../../api/bracket";
@@ -363,6 +364,13 @@ export function useRefereeRoom(matchId: string) {
     unpick: (mapId: string) =>
       run(async () => {
         await removeMapPick(matchId, mapId);
+        await reload();
+      }),
+
+    /** Takes back a ban or pick that ran out on the auto referee's clock. */
+    unmiss: (missedId: string) =>
+      run(async () => {
+        await removeMissedTurn(matchId, missedId);
         await reload();
       }),
 

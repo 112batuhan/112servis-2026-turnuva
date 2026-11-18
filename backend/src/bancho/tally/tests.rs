@@ -277,7 +277,7 @@ fn races_and_picks() {
         created_at: at(20),
     }];
     assert_eq!(
-        turn_of(&order, &bans, &picks, [a, b], None),
+        turn_of(&order, &bans, &picks, &[], [a, b], None),
         Some(Turn {
             kind: StepKind::Ban,
             team_id: Some(b)

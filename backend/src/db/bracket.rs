@@ -4,6 +4,7 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 
 use super::{matches::RefereeColumns, team::Player};
+use crate::draft::StepKind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "bracket_side", rename_all = "snake_case")]
@@ -502,6 +503,58 @@ pub async fn delete_pick(pool: &PgPool, match_id: Uuid, map_id: Uuid) -> sqlx::R
         .execute(pool)
         .await?;
     Ok(result.rows_affected() > 0)
+}
+
+// A ban or pick a team let run out on the auto referee's clock: a missed ban takes its
+// step with no map banned, a missed pick passes the step to the other team (draft.rs).
+#[derive(Debug, Clone, Serialize, sqlx::FromRow)]
+pub struct MissedRow {
+    pub id: Uuid,
+    pub team_id: Uuid,
+    pub kind: StepKind,
+    #[serde(with = "time::serde::rfc3339")]
+    pub created_at: OffsetDateTime,
+}
+
+// A match's missed turns, in the order they ran out.
+pub async fn list_missed(pool: &PgPool, match_id: Uuid) -> sqlx::Result<Vec<MissedRow>> {
+    sqlx::query_as::<_, MissedRow>(
+        r#"
+        SELECT id, team_id, kind, created_at
+        FROM match_missed_turns
+        WHERE match_id = $1
+        ORDER BY created_at, id
+        "#,
+    )
+    .bind(match_id)
+    .fetch_all(pool)
+    .await
+}
+
+pub async fn add_missed(
+    pool: &PgPool,
+    match_id: Uuid,
+    team_id: Uuid,
+    kind: StepKind,
+) -> sqlx::Result<()> {
+    sqlx::query("INSERT INTO match_missed_turns (match_id, team_id, kind) VALUES ($1, $2, $3)")
+        .bind(match_id)
+        .bind(team_id)
+        .bind(kind)
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+// Takes a missed turn back: the team whose it was, or None if there's no such turn.
+pub async fn delete_missed(pool: &PgPool, match_id: Uuid, id: Uuid) -> sqlx::Result<Option<Uuid>> {
+    sqlx::query_scalar(
+        "DELETE FROM match_missed_turns WHERE match_id = $1 AND id = $2 RETURNING team_id",
+    )
+    .bind(match_id)
+    .bind(id)
+    .fetch_optional(pool)
+    .await
 }
 
 // A map win the referee awarded by hand.

@@ -1,5 +1,5 @@
-//! The bot's own countdowns: the no-show wait, a team's warmup turn, the roll and a map's
-//! ready timer (Bancho's !mp timer isn't used). The room is told how long it has when the
+//! The bot's own countdowns: the no-show wait, a team's warmup turn, the roll, a team's
+//! ban or pick and a map's ready timer (Bancho's !mp timer isn't used). The room is told how long it has when the
 //! wait starts, then at every whole minute left, at 30 and at 10 seconds, and when it's
 //! over.
 //!
@@ -11,7 +11,7 @@
 use serde::{Deserialize, Serialize};
 use time::{Duration, OffsetDateTime};
 
-use super::{send, Action, AutoRef, Phase, Snapshot};
+use super::{kind_word, send, Action, AutoRef, Phase, Snapshot};
 
 // How long after the end the room was told the bot waits before it acts.
 pub const GRACE: Duration = Duration::seconds(10);
@@ -27,6 +27,8 @@ pub enum CountdownKind {
     // A team's turn to open a warmup.
     Warmup,
     Roll,
+    // A team's turn to name its ban or pick.
+    Draft,
     // A map's ready timer, and the NoFail grace after it.
     Ready,
 }
@@ -111,6 +113,7 @@ impl AutoRef {
             (CountdownKind::NoShow, Phase::Waiting)
                 | (CountdownKind::Warmup, Phase::Warmup { .. })
                 | (CountdownKind::Roll, Phase::Roll { .. })
+                | (CountdownKind::Draft, Phase::Draft { .. })
                 | (CountdownKind::Ready, Phase::Ready { .. })
         );
         if !matches {
@@ -164,6 +167,13 @@ impl AutoRef {
                 format!("{name}: warmup açmak için {left} kaldı.")
             }
             CountdownKind::Roll => format!("!roll için {left} kaldı."),
+            CountdownKind::Draft => {
+                let Phase::Draft { team_id, kind, .. } = &self.phase else {
+                    return None;
+                };
+                let name = s.team_name(*team_id);
+                format!("{name}: {} için {left} kaldı.", kind_word(*kind))
+            }
             CountdownKind::Ready => format!("Map {left} sonra başlayacak."),
         })
     }
@@ -193,6 +203,7 @@ impl AutoRef {
         match &mut self.phase {
             Phase::Warmup { until, .. }
             | Phase::Roll { until, .. }
+            | Phase::Draft { until, .. }
             | Phase::Ready { until, .. } => *until = deadline,
             _ => {}
         }

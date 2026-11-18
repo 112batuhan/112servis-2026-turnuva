@@ -30,7 +30,7 @@ This guide is for the tournament committee, hosts, referees and players.
 - It never bans or edits a player, a team, a stage or a map pool.
 - It never deletes a match or a result.
 - It never acts on a match a referee has switched to manual (except answering `-rapor`, `-durdur` and `-davet`).
-- It never decides a case it isn't sure about: if neither side is complete, if the stage has no best of, if the pick order runs out, if the score is impossible, it stops and calls the staff (see [When the bot stops by itself](#when-the-bot-stops-by-itself)).
+- It never decides a case it isn't sure about: if neither side is complete, if the stage has no best of, if the pick order runs out, if both teams let the same pick run out, if the score is impossible, it stops and calls the staff (see [When the bot stops by itself](#when-the-bot-stops-by-itself)).
 
 ### Safeguards
 
@@ -59,6 +59,8 @@ Each line is one scenario to run on a test match (a test server with dummy accou
 | 8 | Both teams `!roll`. | Only each team's first roll counts; the higher one is asked to ban or pick first per the stage's order. |
 | 9 | The team types a slot (`hd1`), then again. | Asked to confirm, then the pick is recorded and the map opens with its mods. |
 | 10 | Try a banned map, an already played map, TB, or the same mod twice in a row (not NM). | Each is refused with a reason. |
+| 10a | On a ban, wait 3 minutes without naming a slot. | Reminders at every minute, 30 s and 10 s; then "ban süresi doldu", the ban is lost (a timer chip in the draft strip) and the next turn is asked. |
+| 10b | On a pick, wait 2 minutes; then let the other team wait 2 minutes too. | The pick passes to the other team; when it runs out again the match goes to manual. Taking the missed turn back (undo on its chip, in manual mode) gives the team its turn again. |
 | 11 | On an FM map, one player without NoFail readies. | The bot names them and asks for NF before starting. |
 | 12 | `-abort` within 30 s; then again after 30 s; then a third time. | First aborts ("1 hakkınız kaldı" *(1 left)*); the late one is refused; once 2 are used, refused. |
 | 13 | A player drops in the first 30 s. | The map is aborted on their team's account. |
@@ -148,11 +150,16 @@ If a referee opened the room late, the 10 minutes count from when the room was o
 
 **Bans and picks**
 
-1. The bot asks the team whose turn it is: "<takım> takımı pick sırası, seçtiğiniz mapin slotunu söyleyin." *(<team>'s turn to pick: say the slot of the map you choose.)*
+1. The bot asks the team whose turn it is: "<takım> takımı pick sırası, seçtiğiniz mapin slotunu söyleyin. 2 dakika süreniz var, süre dolarsa pick sırası rakibe geçer." *(<team>'s turn to pick: say the slot of the map you choose. You have 2 minutes; if time runs out, the pick passes to your opponent.)*
 2. Either player of that team types the slot, e.g. `hd1` (case and spaces don't matter).
 3. The bot asks them to confirm: "Pick için HD1 seçtiğinizi doğrulamak için tekrar yazın." *(Type it again to confirm HD1 as your pick.)* Typing the same slot again confirms it.
 4. A ban is recorded. A pick is recorded and the map opens with its mods.
-5. The bot **refuses**:
+5. **Time limits.** A team has **3 minutes for a ban** and **2 minutes for a pick**, counted down like every other wait. Naming a slot once without confirming doesn't stop the clock.
+   - A **ban** that runs out is **lost**: no map is banned for it, and the draft goes on to the next step.
+   - A **pick** that runs out **passes to the other team**, which picks in its place. The stage's order then goes on as before, and the team that missed keeps its later turns.
+   - If the other team also lets the passed pick run out, the bot stops and a referee takes over.
+   - A missed ban or pick shows as a timer chip in the draft strip, on the referee page and the match page. A referee can take it back (manual mode) to give the team its turn again.
+6. The bot **refuses**:
    - the tiebreaker
    - a map already banned
    - a map already picked or played
@@ -211,6 +218,8 @@ Typed in the **match room**, unless the table says otherwise.
 | Wait for no-shows | 10 min after match time (or after the room opened, if later) |
 | Warmup | 3 min to open one, maps up to 4 min |
 | Roll | 2 min |
+| Ban | 3 min; lost when it runs out |
+| Pick | 2 min; passes to the other team when it runs out |
 | Map ready time | 3 min (qualifier), 2 min (bracket) |
 | NoFail grace | 30 s extra, once |
 | Start countdown | 10 s |
@@ -223,7 +232,7 @@ All of these waits are counted by the bot itself; it doesn't use Bancho's `!mp t
 
 ### Countdowns
 
-Every wait the room is told about (the no-show wait, a team's warmup turn, the roll, a map's ready time and the NoFail grace, the room closing) is counted down by the bot in the chat:
+Every wait the room is told about (the no-show wait, a team's warmup turn, the roll, a team's ban or pick, a map's ready time and the NoFail grace, the room closing) is counted down by the bot in the chat:
 
 - When the wait starts, the bot says how long it is.
 - Then a reminder at **every whole minute** left, at **30 seconds** and at **10 seconds**.
@@ -244,6 +253,7 @@ When the bot can't continue safely, it **switches the match to manual**. It says
 | "10 dakika beklendi ama hiçbir takım tam kadro gelmedi." | *Waited 10 minutes, but no team arrived with a full roster.* | Decide with the hosts: forfeit, reschedule, or wait longer. |
 | "Stage'in best of değeri yok, maçın ne zaman bittiği bilinmiyor." | *The stage has no best of, so it's unknown when the match ends.* | Set the stage's best of on `/admin/stages`, then switch back to auto. |
 | "Stage'in pick sırası bitti ama maç bitmedi." | *The stage's pick order ran out, but the match isn't over.* | The draft order has no closing `*`. Fix the order, or finish the match by hand. |
+| "Pick süresi iki takımda da doldu: ilk takımın pick'i rakibe geçti, o da seçmedi." | *Both teams let the pick run out: the first team's pick passed to its opponent, which didn't pick either.* | Ping the teams; mark the pick by hand in manual mode, or take a missed pick back (undo on its timer chip) to give a team the turn again, then switch back to auto. |
 | "Sıradaki ban/pick'in takımı belirlenemedi." | *Couldn't determine which team has the next ban/pick.* | Choose the team under "Sıradaki pick" *(Next pick)* in manual mode, then switch back to auto. |
 | "Skor (a - b) BoN'u aşıyor." | *The score (a - b) exceeds BoN.* | The score is wrong. Fix it ("Sayma" *(don't count)*, a referee's award, or "Maç linkinden eşitle" *(sync from the match link)*). |
 | "Skor tiebreaker'a geldi ama havuzda tiebreaker yok." | *The score reached the tiebreaker, but the pool has no tiebreaker.* | Add a TB map, or open a map by hand. |
@@ -261,7 +271,7 @@ A player's `-durdur` also puts the match in manual (see above).
 **Room bar.** The "Otomatik hakem" *(Auto referee)* switch flips between auto and manual. Switching it back on continues from the same step: the bot restarts that step's timer and catches up with anything a referee did meanwhile, such as bans or picks marked by hand: a pick marked by hand that hasn't been played yet is opened before the next turn.
 
 **Status line** (under the room bar). One line shows:
-- what the bot is waiting for, with a countdown: match time, the no-show cutoff, the warmup, the roll, the map timer
+- what the bot is waiting for, with a countdown: match time, the no-show cutoff, the warmup, the roll, the ban or pick, the map timer
 - whose ban or pick it is
 - each team's remaining `abort` uses (crossed out when spent)
 - before the room exists: when the bot will open it, or that automatic room opening is off
@@ -272,7 +282,7 @@ A player's `-durdur` also puts the match in manual (see above).
 | Locked in auto mode | Still open in auto mode |
 |---|---|
 | Room commands: "Başlat" *(Start)*, "İptal et" *(Abort)*, "Zamanlayıcı" *(Timer)*, "Durdur" *(Stop timer)*, "Odayı yenile" *(Refresh room)*, "Hepsini davet et" *(Invite all)*, "Yerleri düzelt" *(Fix slots)*, "Kilitle" *(Lock)*, "Kurulumu tekrarla" *(Redo setup)* | The "Otomatik hakem" *(Auto referee)* switch |
-| Clicking pool maps, ban/pick buttons and taking them back | Chat (plain messages; `!mp` lines wait for manual mode) |
+| Clicking pool maps, ban/pick buttons and taking them back (missed ones too) | Chat (plain messages; `!mp` lines wait for manual mode) |
 | "Sıradaki pick" *(Next pick)* team choice, "Skoru odaya yaz" *(Post score to room)* | Pinging a player on Discord |
 | Invites, kicks, moving players between slots | Adding the streamer as a room referee |
 | "Sayma" *(Don't count)*, "Hakem kararıyla map ver" *(Award a map by referee decision)*, "Maç linkinden eşitle" *(Sync from the match link)*, "Skoru kaydet" *(Save score)* | Opening a room: "Oda oluştur" *(Create room)*, "Yeni oda aç" *(Open new room)*, adding a link |
@@ -317,7 +327,9 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 
 **A team picked the wrong map. How do I undo it?** Switch to manual, take the pick back in the pool (or fix the room), then switch back to auto. The bot reads the current bans and picks and asks for the right turn.
 
-**The bot is waiting for a pick but nobody answers.** Picks have no timer. Ping the team on Discord, or go to manual and mark the pick yourself.
+**The bot is waiting for a pick but nobody answers.** Picks have a 2-minute timer, bans a 3-minute one. When a pick runs out it passes to the other team; when a ban runs out it's lost. If you'd rather wait for the team (a disconnect, say), go to manual and mark the pick yourself, or switch back to auto later: the timer starts over.
+
+**A team's ban or pick ran out but they deserve it back.** Switch to manual and click the undo button on the timer chip in the draft strip. The team has the turn again, and switching back to auto asks them with a fresh timer.
 
 **A player's game crashed after the 30 seconds.** That's not an auto-abort. Use manual mode: abort, then switch back. The bot reopens the same map.
 
@@ -374,8 +386,9 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 
 | Turkish | English | When |
 |---|---|---|
-| <takım> takımı pick sırası, seçtiğiniz mapin slotunu söyleyin. | <team>'s turn to pick: say the slot of the map you choose. | Asking for a pick |
-| <takım> takımı ban sırası, seçtiğiniz mapin slotunu söyleyin. | <team>'s turn to ban: say the slot of the map you choose. | Asking for a ban |
+| <takım> takımı pick sırası, seçtiğiniz mapin slotunu söyleyin. 2 dakika süreniz var, süre dolarsa pick sırası rakibe geçer. | <team>'s turn to pick: say the slot of the map you choose. You have 2 minutes; if time runs out, the pick passes to your opponent. | Asking for a pick |
+| <takım> takımı pick sırası, seçtiğiniz mapin slotunu söyleyin. 2 dakika süreniz var. | <team>'s turn to pick: say the slot of the map you choose. You have 2 minutes. | Asking for a pick passed from the other team |
+| <takım> takımı ban sırası, seçtiğiniz mapin slotunu söyleyin. 3 dakika süreniz var, süre dolarsa ban hakkınız yanar. | <team>'s turn to ban: say the slot of the map you choose. You have 3 minutes; if time runs out, you lose the ban. | Asking for a ban |
 | Pick için <slot> seçtiğinizi doğrulamak için tekrar yazın. | Type it again to confirm <slot> as your pick. | First answer |
 | Ban için <slot> seçtiğinizi doğrulamak için tekrar yazın. | Type it again to confirm <slot> as your ban. | First answer |
 | <takım> takımı <slot> mapini seçti. | <team> picked <slot>. | Pick confirmed |
@@ -384,6 +397,9 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 | <slot> banlandı, başka bir map seçin. | <slot> is banned; choose another map. | A banned map named |
 | <slot> zaten oynandı, başka bir map seçin. | <slot> has already been played; choose another map. | A picked or played map named |
 | Aynı moddan (<mod>) arka arkaya pick yapamazsınız (NM hariç), başka bir mod seçin. | You can't pick the same mod (<mod>) twice in a row (except NM); choose another mod. | Same category twice |
+| <takım> takımının ban süresi doldu, ban hakkı yandı. | <team>'s time to ban ran out; the ban is lost. | Ban time over |
+| <takım> takımının pick süresi doldu, pick sırası <takım> takımına geçti. | <team>'s time to pick ran out; the pick passes to <team>. | Pick time over |
+| <takım> takımının pick süresi doldu. | <team>'s time to pick ran out. | A passed pick's time over (then the bot stops) |
 
 **Maps**
 
@@ -418,6 +434,7 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 | <takım>: warmup açmak için N kaldı. | <team>: N left to open a warmup. | Warmup turn |
 | !roll için N kaldı. | N left to !roll. | Roll |
 | !roll süresi doldu. | Time's up for !roll. | Roll over (then the result) |
+| <takım>: ban için N kaldı. / pick için N kaldı. | <team>: N left to ban. / to pick. | Ban or pick turn |
 | Map N sonra başlayacak. | The map starts in N. | Map ready time, NoFail grace |
 | Süre doldu, map başlıyor. | Time's up; the map is starting. | Map ready time over |
 
@@ -477,6 +494,8 @@ Embeds (the referee channel alerts and the DMs) are shown as *title — text*. `
 | Warmup: <takım> hostta | Warmup: <team> has host |
 | !roll bekleniyor | Waiting for !roll |
 | <takım> pick/ban sırası, slotu yazmaları bekleniyor | <team>'s pick/ban: waiting for them to type the slot |
+| Ban: <takım>, süre doldu, ban hakkı yandı / Pick: <takım>, süre doldu, pick rakibe geçti | Ban: <team>, time ran out, the ban is lost / Pick: <team>, time ran out, the pick passed to the opponent (a missed turn's chip in the draft strip) |
+| Geri al: ban / pick yeniden <takım> sırası olsun | Take back: make the ban / pick <team>'s turn again (the undo button on that chip) |
 | <slot> açık, herkesin hazır olması bekleniyor | <slot> is on; waiting for everyone to be ready |
 | <slot> oynanıyor | <slot> is being played |
 | <slot> skorları osu!'dan okunuyor | Reading <slot>'s scores from osu! |
@@ -517,6 +536,9 @@ Embeds (the referee channel alerts and the DMs) are shown as *title — text*. `
 | bilgi | Roll: <takım> kazandı (…). | Roll: <team> won (…). |
 | bilgi | <takım> takımının pick/ban seçimi bekleniyor. | Waiting for <team>'s pick/ban. |
 | bilgi | <takım> <slot> seçti / banladı (<oyuncu> onayladı). | <team> picked / banned <slot> (confirmed by <player>). |
+| bilgi | <takım> ban süresini kaçırdı, ban hakkı yandı. | <team> missed its ban time; the ban is lost. |
+| bilgi | <takım> pick süresini kaçırdı, pick <takım> takımına geçti. | <team> missed its pick time; the pick passed to <team>. |
+| bilgi | Ban/pick sırası değişti, yeniden soruluyor. | The ban/pick turn changed; asking again. |
 | bilgi | <slot> açıldı. | <slot> opened. |
 | bilgi | NF uyarısı: <oyuncular> | NF warning: <players> |
 | uyarı | NF açmadan başladı: <oyuncular> | Started without NF: <players> |

@@ -3,8 +3,8 @@
 use uuid::Uuid;
 
 use crate::{
-    db::bracket::{BanRow, PickRow},
-    draft::{next_turn, DraftOrder, StepKind, Turn},
+    db::bracket::{BanRow, MissedRow, PickRow},
+    draft::{next_turn, DraftOrder, StepKind, Taken, Turn},
 };
 
 // Where a bracket match stands against its best of.
@@ -37,22 +37,30 @@ pub fn standing_of(best_of: i32, team1: i32, team2: i32) -> Standing {
 }
 
 // Whose turn it is to ban or pick, and which: the stage's order read against the bans
-// and picks so far, in the order they were marked (draft::next_turn).
+// and picks so far and the turns that ran out, in the order they came (draft::next_turn).
 pub fn turn_of(
     order: &DraftOrder,
     bans: &[BanRow],
     picks: &[PickRow],
+    missed: &[MissedRow],
     teams: [Uuid; 2],
     chosen: Option<Uuid>,
 ) -> Option<Turn> {
-    let mut marks: Vec<_> = bans
+    let mut taken: Vec<_> = bans
         .iter()
-        .map(|b| (b.created_at, b.team_id))
-        .chain(picks.iter().map(|p| (p.created_at, p.team_id)))
+        .map(|b| (b.created_at, Taken::made(b.team_id)))
+        .chain(picks.iter().map(|p| (p.created_at, Taken::made(p.team_id))))
+        .chain(missed.iter().map(|m| {
+            let taken = Taken {
+                team_id: m.team_id,
+                passed: m.kind == StepKind::Pick,
+            };
+            (m.created_at, taken)
+        }))
         .collect();
-    marks.sort_by_key(|m| m.0);
-    let marks: Vec<Uuid> = marks.into_iter().map(|(_, team)| team).collect();
-    next_turn(order, &marks, teams, chosen)
+    taken.sort_by_key(|t| t.0);
+    let taken: Vec<Taken> = taken.into_iter().map(|(_, t)| t).collect();
+    next_turn(order, &taken, teams, chosen)
 }
 
 // The line sent to the room: "Skor: Team A 2 - 1 Team B | Sıradaki pick: Team B" (or

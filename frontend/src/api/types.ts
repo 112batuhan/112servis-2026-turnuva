@@ -619,6 +619,8 @@ export interface RefereeRoom {
   /** Bracket matches only: the pool maps each team banned and picked, in the order they were made. */
   bans: MapBan[];
   picks: MapPick[];
+  /** Bracket matches only: the bans and picks that ran out on the auto referee's clock, in order. */
+  missed: MissedTurn[];
   /** Bracket matches only: map wins the referee awarded by hand, oldest first. */
   manual_results: ManualResult[];
   /** Bracket matches only: the pool maps the saved score was counted from, in the order played. */
@@ -692,6 +694,7 @@ export interface PublicMatch {
   maps: PublicPoolMap[];
   bans: MapBan[];
   picks: MapPick[];
+  missed: MissedTurn[];
   manual_results: ManualResult[];
   map_results: MapResultRow[];
   /** The team the referee said goes next, overriding the order until the next ban or pick. */
@@ -951,6 +954,17 @@ export interface MapPick {
   map_id: string;
   team_id: string;
   /** When the referee marked it. */
+  created_at: string;
+}
+
+/**
+ * A ban or pick a team let run out on the auto referee's clock: a missed ban takes its step of the
+ * order with no map banned, a missed pick passes the step to the other team (lib/draftOrder.ts).
+ */
+export interface MissedTurn {
+  id: string;
+  team_id: string;
+  kind: "ban" | "pick";
   created_at: string;
 }
 

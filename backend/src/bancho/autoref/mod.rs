@@ -43,7 +43,7 @@ use super::{
 use crate::{
     db::{
         autoref::LogLevel,
-        bracket::{BanRow, PickRow},
+        bracket::{BanRow, MissedRow, PickRow},
     },
     draft::{StepKind, Turn},
 };
@@ -60,6 +60,10 @@ const WARMUP_MAX_SECS: i32 = 4 * 60;
 // A warmup played past this long is aborted, whatever its length said.
 const WARMUP_PLAY_MAX: Duration = Duration::seconds(4 * 60 + 30);
 const ROLL_TIME: Duration = Duration::minutes(2);
+// The time a team has to name its ban or pick. A ban that runs out is lost, so it gets
+// longer; a pick that runs out passes to the other team.
+const BAN_TIME: Duration = Duration::minutes(3);
+const PICK_TIME: Duration = Duration::minutes(2);
 // The ready timer of a map, in seconds: a qualifier's, a bracket pick's, and the grace a
 // player missing NoFail gets once it ran out.
 const QUALIFIER_READY: i64 = 180;
@@ -98,6 +102,11 @@ pub enum Action {
     },
     // The roll's result: the team that bans or picks first.
     FirstTurn(Uuid),
+    // The team let its ban or pick run out.
+    Missed {
+        team_id: Uuid,
+        kind: StepKind,
+    },
     // Read osu!'s record of the rooms; answered with `osu_read`.
     FetchOsu,
     // The team in this slot (1 or 2) didn't show up.
@@ -144,12 +153,14 @@ pub enum Phase {
         until: OffsetDateTime,
         rolls: [Option<i32>; 2],
     },
-    // Bracket: a team is to name its ban or pick; `candidate` waits for them to say it
-    // again.
+    // Bracket: a team is to name its ban or pick by `until`; `candidate` waits for them
+    // to say it again.
     Draft {
         team_id: Uuid,
         kind: StepKind,
         candidate: Option<Uuid>,
+        #[serde(default = "OffsetDateTime::now_utc", with = "time::serde::rfc3339")]
+        until: OffsetDateTime,
     },
     // A map is on, waiting for everyone to be ready or its timer.
     Ready {
@@ -229,6 +240,8 @@ pub struct Snapshot<'a> {
     pub entries: &'a [PoolEntry],
     pub bans: &'a [BanRow],
     pub picks: &'a [PickRow],
+    // Bracket: the bans and picks that ran out, in the order they did.
+    pub missed: &'a [MissedRow],
     // Bracket: the next ban or pick.
     pub turn: Option<Turn>,
     // Bracket: the map wins so far.
@@ -294,6 +307,15 @@ impl Snapshot<'_> {
         self.entries
             .iter()
             .find(|e| e.label.to_uppercase().replace(' ', "") == typed)
+    }
+
+    // The team whose pick just ran out and passed to the other team: the latest turn
+    // taken was that missed pick.
+    fn passed_from(&self) -> Option<Uuid> {
+        let last = self.missed.last().filter(|m| m.kind == StepKind::Pick)?;
+        let latest = self.bans.iter().all(|b| b.created_at < last.created_at)
+            && self.picks.iter().all(|p| p.created_at < last.created_at);
+        latest.then_some(last.team_id)
     }
 
     // The latest the players have to join.

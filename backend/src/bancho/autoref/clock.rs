@@ -16,6 +16,20 @@ use super::{
 impl AutoRef {
     pub fn tick(&mut self, s: &Snapshot, out: &mut Vec<Action>) {
         let now = s.now;
+        // The turn changed under it (a referee marked, took back or chose the next team):
+        // it asks again, with a new timer, before the old one's reminders.
+        if let Phase::Draft { team_id, kind, .. } = self.phase {
+            if s.turn
+                .is_some_and(|t| t.team_id != Some(team_id) || t.kind != kind)
+            {
+                log(
+                    out,
+                    LogLevel::Info,
+                    "Ban/pick sırası değişti, yeniden soruluyor.",
+                );
+                self.next_step(s, out);
+            }
+        }
         self.remind(s, out);
         match self.phase.clone() {
             Phase::Waiting => self.waiting(s, out),
@@ -50,6 +64,12 @@ impl AutoRef {
                 send(out, "!roll süresi doldu.");
                 self.resolve_roll(s, out);
             }
+            Phase::Draft {
+                team_id,
+                kind,
+                until,
+                ..
+            } if now >= until => self.missed(s, team_id, kind, out),
             Phase::Ready {
                 until,
                 nf_warned,

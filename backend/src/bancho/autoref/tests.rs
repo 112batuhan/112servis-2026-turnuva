@@ -51,6 +51,7 @@ struct World {
     entries: Vec<PoolEntry>,
     bans: Vec<BanRow>,
     picks: Vec<PickRow>,
+    missed: Vec<MissedRow>,
     played: HashSet<Uuid>,
     room: RoomState,
     turn: Option<Turn>,
@@ -87,6 +88,7 @@ impl World {
             ],
             bans: Vec::new(),
             picks: Vec::new(),
+            missed: Vec::new(),
             played: HashSet::new(),
             room: RoomState::default(),
             turn: None,
@@ -115,6 +117,7 @@ impl World {
             entries: &self.entries,
             bans: &self.bans,
             picks: &self.picks,
+            missed: &self.missed,
             turn: self.turn,
             score: self.score,
             best_of: Some(5),
@@ -317,6 +320,7 @@ fn a_pick_marked_by_hand_is_played_on_resuming() {
             kind: StepKind::Pick,
             team_id: B,
             candidate: None,
+            until: at(100),
         },
         ..AutoRef::default()
     };
@@ -388,6 +392,123 @@ fn a_pick_is_confirmed_checked_and_started() {
     ar.bancho(&w.snap(at(20)), "All players are ready", &mut out);
     ar.tick(&w.snap(at(24)), &mut out);
     assert!(sent(&out).contains(&"!mp start 10"));
+}
+
+#[test]
+fn a_ban_that_runs_out_is_lost() {
+    let mut w = World::bracket();
+    w.everyone_in(SlotStatus::NotReady);
+    w.turn = Some(Turn {
+        kind: StepKind::Ban,
+        team_id: Some(A),
+    });
+    let mut ar = AutoRef {
+        phase: Phase::Next,
+        ..AutoRef::default()
+    };
+    let mut out = Vec::new();
+    ar.tick(&w.snap(at(0)), &mut out);
+    assert_eq!(
+        sent(&out),
+        [
+            "Alfa takımı ban sırası, seçtiğiniz mapin slotunu söyleyin. 3 dakika süreniz var, \
+          süre dolarsa ban hakkınız yanar."
+        ]
+    );
+    assert_eq!(ar.view(&w.snap(at(0)), true).deadline, Some(at(190)));
+    // The slot named once doesn't stop the clock.
+    out.clear();
+    ar.player(&w.snap(at(100)), "a1", "hd1", true, &mut out);
+    for t in 1..190 {
+        ar.tick(&w.snap(at(t)), &mut out);
+    }
+    assert!(sent(&out).contains(&"Alfa: ban için 1 dakika kaldı."));
+    assert!(!out.iter().any(|a| matches!(a, Action::Missed { .. })));
+    ar.tick(&w.snap(at(190)), &mut out);
+    assert!(sent(&out).contains(&"Alfa takımının ban süresi doldu, ban hakkı yandı."));
+    assert!(out.contains(&Action::Missed {
+        team_id: A,
+        kind: StepKind::Ban
+    }));
+    assert_eq!(ar.phase, Phase::Next);
+}
+
+#[test]
+fn a_pick_that_runs_out_passes_then_goes_to_a_referee() {
+    let mut w = World::bracket();
+    w.everyone_in(SlotStatus::NotReady);
+    w.turn = Some(Turn {
+        kind: StepKind::Pick,
+        team_id: Some(A),
+    });
+    let mut ar = AutoRef {
+        phase: Phase::Next,
+        ..AutoRef::default()
+    };
+    let mut out = Vec::new();
+    ar.tick(&w.snap(at(0)), &mut out);
+    assert!(sent(&out)[0].ends_with("2 dakika süreniz var, süre dolarsa pick sırası rakibe geçer."));
+    out.clear();
+    for t in 1..=130 {
+        ar.tick(&w.snap(at(t)), &mut out);
+    }
+    assert!(
+        sent(&out).contains(&"Alfa takımının pick süresi doldu, pick sırası Beta takımına geçti.")
+    );
+    assert!(out.contains(&Action::Missed {
+        team_id: A,
+        kind: StepKind::Pick
+    }));
+    // The site records it, and the pick is Beta's: no second pass.
+    w.missed.push(MissedRow {
+        id: Uuid::from_u128(500),
+        team_id: A,
+        kind: StepKind::Pick,
+        created_at: at(130),
+    });
+    w.turn = Some(Turn {
+        kind: StepKind::Pick,
+        team_id: Some(B),
+    });
+    out.clear();
+    ar.tick(&w.snap(at(131)), &mut out);
+    assert!(matches!(ar.phase, Phase::Draft { team_id: B, .. }));
+    assert_eq!(
+        sent(&out),
+        ["Beta takımı pick sırası, seçtiğiniz mapin slotunu söyleyin. 2 dakika süreniz var."]
+    );
+    out.clear();
+    for t in 132..=261 {
+        ar.tick(&w.snap(at(t)), &mut out);
+    }
+    assert!(!out.iter().any(|a| matches!(a, Action::Missed { .. })));
+    assert!(out.iter().any(|a| matches!(a, Action::Handover(_))));
+}
+
+#[test]
+fn a_turn_changed_by_a_referee_is_asked_again() {
+    let mut w = World::bracket();
+    w.everyone_in(SlotStatus::NotReady);
+    w.turn = Some(Turn {
+        kind: StepKind::Pick,
+        team_id: Some(B),
+    });
+    let mut ar = AutoRef {
+        phase: Phase::Next,
+        ..AutoRef::default()
+    };
+    let mut out = Vec::new();
+    ar.tick(&w.snap(at(0)), &mut out);
+    assert!(matches!(ar.phase, Phase::Draft { team_id: B, .. }));
+    // A referee took back A's missed pick: it's A's turn again, on a new clock.
+    w.turn = Some(Turn {
+        kind: StepKind::Pick,
+        team_id: Some(A),
+    });
+    out.clear();
+    ar.tick(&w.snap(at(100)), &mut out);
+    assert!(matches!(ar.phase, Phase::Draft { team_id: A, until, .. } if until == at(230)));
+    assert!(sent(&out)[0].starts_with("Alfa takımı pick sırası"));
 }
 
 #[test]

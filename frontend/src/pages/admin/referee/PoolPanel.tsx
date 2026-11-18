@@ -102,6 +102,11 @@ export function PoolPanel({ referee }: { referee: RefereeRoomState }) {
               : (blocker ?? ""),
         onPick: (entry) => actions.pickMap(entry.map),
       }}
+      takeBack={
+        canMark
+          ? { disabled: marking, title: lockTitle.title, onTakeBack: actions.unmiss }
+          : undefined
+      }
       renderActions={canMark ? markActions : undefined}
     />
   );

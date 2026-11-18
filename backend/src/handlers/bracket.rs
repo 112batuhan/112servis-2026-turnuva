@@ -63,6 +63,7 @@ pub fn routes() -> Router<AppState> {
             "/bracket/{id}/picks/{map_id}",
             put(set_pick).delete(remove_pick),
         )
+        .route("/bracket/{id}/missed/{missed_id}", delete(remove_missed))
         .route("/bracket/{id}/streamer", put(set_streamer))
         .route("/streamers", get(list_streamers))
 }
@@ -691,6 +692,18 @@ async fn remove_ban(
     Path(ids): Path<(Uuid, Uuid)>,
 ) -> Result<impl IntoResponse, AppError> {
     remove_mark(&state, &user, ids, Mark::Ban).await
+}
+
+// DELETE /api/bracket/:id/missed/:missed_id — takes back a ban or pick the auto referee
+// recorded as run out, so the team gets its turn again.
+async fn remove_missed(
+    State(state): State<AppState>,
+    user: AuthUser,
+    Path((id, missed_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, AppError> {
+    check_unmark(&state, &user, id).await?;
+    services::bracket::take_back_miss(&state, id, missed_id).await?;
+    Ok(StatusCode::NO_CONTENT)
 }
 
 // PUT /api/bracket/:id/picks/:map_id — marks a map as picked by one of the match's
