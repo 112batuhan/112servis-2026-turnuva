@@ -1,5 +1,12 @@
 import { del, get, patch, post, put } from "./client";
-import type { Player, PublicMatch, PublicQualifiers, RoomChat, StaffQualifiers } from "./types";
+import type {
+  Player,
+  PlayerAction,
+  PublicMatch,
+  PublicQualifiers,
+  RoomChat,
+  StaffQualifiers,
+} from "./types";
 
 export const fetchPublicQualifiers = () => get<PublicQualifiers>("/api/public/qualifiers");
 /** Signs the caller's team up for a lobby, or moves it there. */
@@ -42,3 +49,8 @@ export const fetchPublicMatch = (matchId: string) =>
 /** The saved chat of each of the match's rooms; new lines arrive over the live socket. */
 export const fetchPublicChat = (matchId: string) =>
   get<RoomChat[]>(`/api/public/matches/${matchId}/chat`);
+
+// The match's players: their room page (pages/public/match/room).
+/** A ban or pick, a warmup, an abort, a report or the emergency stop; the room's bot says no if it isn't theirs to do now. */
+export const playerAction = (matchId: string, action: PlayerAction) =>
+  post<void>(`/api/matches/${matchId}/player`, action);

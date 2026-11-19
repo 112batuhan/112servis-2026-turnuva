@@ -37,6 +37,8 @@ export interface User {
   discord: DiscordAccount | null;
   /** Set when the hosts banned them from taking part; they can still sign in and look. */
   ban: UserBan | null;
+  /** The team they play in: their matches open on the room page ("Maç odası"). */
+  team_id: string | null;
 }
 
 export interface UserBan {
@@ -831,16 +833,36 @@ export interface AutorefView {
   /** The match is in auto mode. */
   enabled: boolean;
   phase: AutorefPhase;
-  /** Warmup: the team with the host; draft: the team to ban or pick. */
+  /** Warmup: the team choosing its warmup; draft: the team to ban or pick. */
   team_id: string | null;
   step: "ban" | "pick" | null;
   /** Ready, playing, scoring: the pool map on. */
   map_id: string | null;
-  /** When the phase's timer runs out (waiting: the match's time, then the no-show cutoff). */
+  /**
+   * When the phase's timer runs out (waiting: the match's time, then the no-show cutoff). The bot
+   * acts AUTOREF_GRACE_MS after the end it told the room.
+   */
   deadline: string | null;
+  /** Warmup: the beatmap the team chose on the room page (the bot put it on). */
+  warmup_beatmap_id: number | null;
+  /** Warmup: it's being played. */
+  warmup_playing: boolean;
+  /** Warmup: the teams that said they'd skip theirs before their turn. */
+  warmup_skipped: string[];
+  /** Roll: each team's first !roll so far. */
+  rolls: { team_id: string; roll: number }[];
   /** Each team's -abort uses left. */
   teams: { team_id: string; aborts_left: number }[];
 }
+
+/** POST /api/matches/:id/player: what a match's player does on its room page. */
+export type PlayerAction =
+  | { type: "draft"; map_id: string }
+  | { type: "warmup"; beatmap_id: number }
+  | { type: "skip_warmup" }
+  | { type: "abort" }
+  | { type: "stop" }
+  | { type: "report"; text: string };
 
 /** A line of the auto referee's log. */
 export interface AutorefLogEntry {

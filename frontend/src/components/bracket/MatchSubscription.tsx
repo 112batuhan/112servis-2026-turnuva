@@ -126,7 +126,13 @@ export function SelectedMatchBar({
         {name(match.team2_id)}
       </span>
       {hasMatchPage(match) && (
-        <MatchPageLink matchId={match.id} live={isLive(match)} variant="text" />
+        <MatchPageLink
+          matchId={match.id}
+          live={isLive(match)}
+          variant="text"
+          teamIds={[match.team1_id, match.team2_id]}
+          concluded={match.concluded_at !== null}
+        />
       )}
       {subs.linked ? (
         <button

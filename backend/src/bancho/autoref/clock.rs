@@ -10,7 +10,7 @@ use crate::db::autoref::LogLevel;
 
 use super::{
     log, send, span, Action, AutoRef, CountdownKind, Phase, Snapshot, GRACE, LOCK_EVERY,
-    NO_SHOW_WAIT, START_TIMEOUT, WARMUP_PLAY_MAX,
+    NO_SHOW_WAIT, START_COUNTDOWN, START_TIMEOUT, WARMUP_PLAY_MAX,
 };
 
 impl AutoRef {
@@ -38,6 +38,8 @@ impl AutoRef {
                 team,
                 until,
                 played,
+                beatmap,
+                starting,
                 ..
             } => {
                 let started = s.room.map_started_at;
@@ -52,13 +54,34 @@ impl AutoRef {
                     self.next_warmup(s, team, out);
                 } else if !played && !s.room.playing && now >= until {
                     let name = s.teams.get(team).map_or("?", |t| t.name.as_str());
-                    send(out, format!("{name} takımının warmup süresi doldu."));
-                    log(
-                        out,
-                        LogLevel::Info,
-                        format!("{name} warmup açmadı, süre doldu."),
-                    );
-                    self.next_warmup(s, team, out);
+                    if beatmap.is_some() && !starting {
+                        // The chosen warmup is on: it starts whoever is ready.
+                        send(out, "Süre doldu, warmup başlıyor.");
+                        send(out, format!("!mp start {START_COUNTDOWN}"));
+                        log(out, LogLevel::Info, "Warmup süresi doldu, başlatıldı.");
+                        if let Phase::Warmup {
+                            until, starting, ..
+                        } = &mut self.phase
+                        {
+                            *until = now + START_TIMEOUT;
+                            *starting = true;
+                        }
+                    } else if starting {
+                        log(
+                            out,
+                            LogLevel::Warn,
+                            "Warmup başlamadı, sıradaki adıma geçiliyor.",
+                        );
+                        self.next_warmup(s, team, out);
+                    } else {
+                        send(out, format!("{name} takımının warmup süresi doldu."));
+                        log(
+                            out,
+                            LogLevel::Info,
+                            format!("{name} warmup seçmedi, süre doldu."),
+                        );
+                        self.next_warmup(s, team, out);
+                    }
                 }
             }
             Phase::Roll { until, .. } if now >= until => {

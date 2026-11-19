@@ -15,7 +15,7 @@ import {
 } from "../../api/teams";
 import { fetchPublicQualifiers } from "../../api/matches";
 import type { Invite, PlayerResult, PublicQualifiers, Team, TeamStatus } from "../../api/types";
-import { useSignedInUser } from "../../auth/AuthContext";
+import { useAuth, useSignedInUser } from "../../auth/AuthContext";
 import { canPlay } from "../../auth/roles";
 import { Countdown } from "../../components/Countdown";
 import { DiscordMark } from "../../components/DiscordMark";
@@ -64,6 +64,7 @@ function LeftDiscordNotice({ team, left, myId }: { team: Team; left: string[]; m
 
 export function TeamPage() {
   const user = useSignedInUser();
+  const { refresh } = useAuth();
   const isStaff = !canPlay(user);
   const [status, setStatus] = useState<TeamStatus | null>(null);
   // A change, then the team and the search results again either way.
@@ -82,6 +83,13 @@ export function TeamPage() {
     setStatus(next);
     return next;
   }, []);
+
+  // The signed-in user carries their team, so their matches open on the room page: read again once
+  // they form, join or leave one.
+  const statusTeamId = status ? (status.team?.id ?? null) : undefined;
+  useEffect(() => {
+    if (statusTeamId !== undefined && statusTeamId !== user.team_id) refresh();
+  }, [statusTeamId, user.team_id, refresh]);
 
   useEffect(() => {
     reload()
@@ -444,7 +452,13 @@ function QualifierInfo({ teamId, canJoin, onError }: QualifierInfoProps) {
         </span>
       </div>
       <div className="team-qualifier-links">
-        <MatchPageLink matchId={lobby.id} live={isLobbyLive(lobby)} variant="text" />
+        <MatchPageLink
+          matchId={lobby.id}
+          live={isLobbyLive(lobby)}
+          variant="text"
+          teamIds={[teamId]}
+          concluded={lobby.concluded_at !== null}
+        />
         <RoomLinks rooms={lobby.rooms} />
       </div>
       {lobby.open ? (

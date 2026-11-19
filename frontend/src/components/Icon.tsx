@@ -76,6 +76,10 @@ const ICONS = {
     </g>
   ),
   list: <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />,
+  // An open door: a match's room page, for its own players.
+  door: (
+    <path d="M13 4h3a2 2 0 0 1 2 2v14M2 20h3M13 20h9M10 12v.01M13 4.56v16.16a1 1 0 0 1-1.24.97L5 20V5.56a2 2 0 0 1 1.52-1.94l4-1A2 2 0 0 1 13 4.56z" />
+  ),
   // A metronome, for a map's BPM.
   metronome: <path d="M9.5 3h5l4.5 18h-14zM12 15l5-9M7 17h10" />,
   minus: <path d="M5 12h14" />,

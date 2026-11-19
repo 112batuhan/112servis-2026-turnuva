@@ -15,6 +15,24 @@ export function matchPagePath(matchId: string): string {
   return `/match/${matchId}`;
 }
 
+/** The match's room page, where its own players choose their warmups, bans and picks. */
+export function roomPagePath(matchId: string): string {
+  return `/match/${matchId}/oda`;
+}
+
+/**
+ * Whether the viewer plays in the match and it isn't over: its links lead to the room page
+ * ("Maç odası") rather than the spectators' page. `teamIds` are the match's teams (a lobby's
+ * every team).
+ */
+export function isOwnMatch(
+  viewerTeamId: string | null | undefined,
+  teamIds: readonly (string | null | undefined)[],
+  concluded: boolean,
+): boolean {
+  return !concluded && !!viewerTeamId && teamIds.includes(viewerTeamId);
+}
+
 /**
  * Whether a bracket match is linked to its public page: once both its teams are known. A potential match
  * has none until it's decided.

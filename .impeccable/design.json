@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-15T16:47:10.267178+00:00",
+  "generatedAt": "2026-11-19T00:00:00+00:00",
   "title": "Design System: 112servis 2026 Turnuva",
   "extensions": {
     "paletteStatus": "from the designers' test banner (design/bannertest.png); every colour is consumed by role, so the final banner is a value swap in frontend/src/styles/tokens.css plus an asset re-export per frontend/src/assets/README.md",
@@ -287,14 +287,14 @@
       },
       "osu-red": {
         "role": "secondary",
-        "displayName": "osu! Red (referee page)",
+        "displayName": "osu! Red (referee and room pages)",
         "canonical": "#f06c74",
         "cssVar": "--color-osu-red",
         "oklch": "oklch(69.3% 0.163 19)"
       },
       "osu-blue": {
         "role": "secondary",
-        "displayName": "osu! Blue (referee page)",
+        "displayName": "osu! Blue (referee and room pages)",
         "canonical": "#62acff",
         "cssVar": "--color-osu-blue",
         "oklch": "oklch(73.2% 0.142 253)"
@@ -785,7 +785,7 @@
       },
       {
         "name": "The Sides Rule",
-        "body": "Any time two teams face each other, team 1 is red and team 2 is blue, and both colours appear. A head-to-head without its side colours is incomplete.",
+        "body": "Any time two teams face each other, team 1 is blue and team 2 is red (the room's slots 1-2 and 3-4; green and purple on the public site, osu!'s own blue and red on the referee page and the players' room page), and both colours appear. A head-to-head without its side colours is incomplete.",
         "section": "colors"
       },
       {

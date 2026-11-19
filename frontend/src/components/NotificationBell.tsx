@@ -319,11 +319,11 @@ function NotificationItem({ n, isHost, busy, onConfirm, onDecline }: ItemProps) 
     case "player_report":
       title = "Oyuncu raporu";
       reason = n.message;
-      body = `${who} odadan -rapor ile hakemlere ve hostlara yazdı.`;
+      body = `${who} maç odasından hakemlere ve hostlara rapor gönderdi.`;
       break;
     case "emergency_stop":
       title = "Acil durdurma";
-      body = `${who} -durdur yazdı: maç manuel kontrole geçti, bir hakemin bakması gerekiyor.`;
+      body = `${who} maçı acil durumda durdurdu: maç manuel kontrole geçti, bir hakemin bakması gerekiyor.`;
       break;
     case "autoref_stopped":
       title = "Otomatik hakem durdu";

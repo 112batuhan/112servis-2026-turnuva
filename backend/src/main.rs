@@ -193,6 +193,7 @@ async fn main() {
         .merge(handlers::stats::routes())
         .merge(handlers::notifications::routes())
         .merge(handlers::pickem::routes())
+        .merge(handlers::player::routes())
         .merge(handlers::bancho::routes())
         .merge(handlers::live::routes())
         .merge(handlers::discord::routes())

@@ -101,7 +101,15 @@ export function BracketMatchCard({
           </span>
         )}
         <RefereeWatchers viewers={watchers} />
-        {hasMatchPage(match) && <MatchPageLink matchId={match.id} live={live} variant="card" />}
+        {hasMatchPage(match) && (
+          <MatchPageLink
+            matchId={match.id}
+            live={live}
+            variant="card"
+            teamIds={[match.team1_id, match.team2_id]}
+            concluded={match.concluded_at !== null}
+          />
+        )}
         {showRefereeRoom && <RefereeRoomLink matchId={match.id} variant="card" />}
       </div>
       {slots.map((slot, i) => {

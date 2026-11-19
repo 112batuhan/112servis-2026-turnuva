@@ -48,6 +48,10 @@ const StagesAdminPage = page(() => import("./pages/admin/StagesAdminPage"), "Sta
 const TeamsAdminPage = page(() => import("./pages/admin/TeamsAdminPage"), "TeamsAdminPage");
 const UsersPage = page(() => import("./pages/admin/UsersPage"), "UsersPage");
 const MatchPage = page(() => import("./pages/public/match/MatchPage"), "MatchPage");
+const PlayerRoomPage = page(
+  () => import("./pages/public/match/room/PlayerRoomPage"),
+  "PlayerRoomPage",
+);
 const PickemPage = page(() => import("./pages/public/pickem/PickemPage"), "PickemPage");
 const StatsPage = page(() => import("./pages/public/stats/StatsPage"), "StatsPage");
 
@@ -112,6 +116,14 @@ export function App() {
               <Route path="/qualifiers" element={<QualifiersPage />} />
               <Route path="/bracket" element={<BracketPage />} />
               <Route path="/match/:matchId" element={<MatchPage />} />
+              <Route
+                path="/match/:matchId/oda"
+                element={
+                  <RequireAuth>
+                    <PlayerRoomPage />
+                  </RequireAuth>
+                }
+              />
               <Route path="/stats" element={<StatsPage />} />
               <Route path="/pickem" element={<PickemPage />} />
               <Route path="/staff" element={<StaffPage />} />

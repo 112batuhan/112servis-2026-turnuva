@@ -36,6 +36,38 @@ impl AutoRef {
             }
             Phase::Next | Phase::Done => (None, None, None, None),
         };
+        let (warmup_beatmap_id, warmup_playing, warmup_skipped) = match &self.phase {
+            Phase::Warmup {
+                beatmap,
+                played,
+                skipped,
+                ..
+            } => (
+                *beatmap,
+                *played || s.room.playing,
+                s.teams
+                    .iter()
+                    .zip(skipped)
+                    .filter(|(_, &skip)| skip)
+                    .map(|(t, _)| t.id)
+                    .collect(),
+            ),
+            _ => (None, false, Vec::new()),
+        };
+        let rolls = match &self.phase {
+            Phase::Roll { rolls, .. } => s
+                .teams
+                .iter()
+                .zip(rolls)
+                .filter_map(|(t, r)| {
+                    r.map(|roll| RollView {
+                        team_id: t.id,
+                        roll,
+                    })
+                })
+                .collect(),
+            _ => Vec::new(),
+        };
         AutorefView {
             enabled,
             phase: phase_key(&self.phase),
@@ -43,6 +75,10 @@ impl AutoRef {
             step,
             map_id,
             deadline,
+            warmup_beatmap_id,
+            warmup_playing,
+            warmup_skipped,
+            rolls,
             teams: s
                 .teams
                 .iter()
@@ -89,7 +125,7 @@ pub struct AutorefView {
     // The match is in auto mode.
     pub enabled: bool,
     pub phase: &'static str,
-    // Warmup: the team with the host; draft: the team to ban or pick.
+    // Warmup: the team choosing its warmup; draft: the team to ban or pick.
     pub team_id: Option<Uuid>,
     pub step: Option<StepKind>,
     // Ready, playing, scoring: the pool map on.
@@ -98,7 +134,20 @@ pub struct AutorefView {
     // cutoff).
     #[serde(with = "time::serde::rfc3339::option")]
     pub deadline: Option<OffsetDateTime>,
+    // Warmup: the beatmap the team chose on the room page (the bot put it on), whether
+    // it's being played, and the teams that said they'd skip theirs ahead of their turn.
+    pub warmup_beatmap_id: Option<i64>,
+    pub warmup_playing: bool,
+    pub warmup_skipped: Vec<Uuid>,
+    // Roll: each team's first !roll so far.
+    pub rolls: Vec<RollView>,
     pub teams: Vec<TeamUsesView>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RollView {
+    pub team_id: Uuid,
+    pub roll: i32,
 }
 
 #[derive(Debug, Clone, Serialize)]

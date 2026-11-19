@@ -17,6 +17,7 @@ pub mod mappool;
 pub mod matches;
 pub mod notifications;
 pub mod pickem;
+pub mod player;
 pub mod referee;
 pub mod reschedule;
 pub mod rules;
@@ -98,6 +99,7 @@ mod tests {
             .merge(super::stats::routes())
             .merge(super::notifications::routes())
             .merge(super::pickem::routes())
+            .merge(super::player::routes())
             .merge(super::bancho::routes())
             .merge(super::live::routes())
             .merge(super::discord::routes())

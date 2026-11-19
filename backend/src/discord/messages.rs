@@ -922,10 +922,10 @@ async fn match_event(
                     format!("{who}: {}", text.as_deref().unwrap_or_default()),
                 ),
                 Alert::Stop => (
-                    "🛑 -durdur kullanıldı",
+                    "🛑 Maç durduruldu",
                     COLOR_BAD,
                     format!(
-                        "{who} acil durum için -durdur yazdı: maç manuel kontrole geçti, bir \
+                        "{who} maçı acil durumda durdurdu: maç manuel kontrole geçti, bir \
                          hakemin bakması gerekiyor."
                     ),
                 ),

@@ -2,6 +2,8 @@
 
 The site's Bancho bots can referee a match on their own. A bot opens the osu! room, invites the players and waits for them. For a bracket match it then runs the warmups, the roll, the bans and the picks. It starts each map, reads the scores from osu!, and concludes the match when it's over. Referees watch from the referee page and can take over at any moment.
 
+The players run their side of it from the match's **room page** ("Maç odası" *(Match room)*, `/match/<match>/oda`): they choose their warmup and their bans and picks there, see whose turn it is with its countdown, and can abort, report or stop the match. Bans, picks and warmups are taken **only** on that page, not in the osu! chat. See [The room page](#the-room-page-players).
+
 This guide is for the tournament committee, hosts, referees and players.
 
 **How to read it.** The site and the bot speak Turkish. Every Turkish text appears in quotes with its English translation after it in italics, like this: "Otomatik hakem" *(Auto referee)*. [Appendix A](#appendix-a-every-message-in-turkish-and-english) lists every message the system sends, in both languages.
@@ -55,21 +57,21 @@ Each line is one scenario to run on a test match (a test server with dummy accou
 | 4 | Let the match time pass with one player missing. | The bot re-invites them and announces the 10-minute wait. |
 | 5 | Keep a bracket team incomplete for 10 more minutes. | The incomplete team forfeits; both teams get a notification, the absent one a DM. |
 | 6 | Same in a qualifier lobby. | The incomplete team is kicked and removed from the lobby; its players get a notification and a DM; the lobby goes on. |
-| 7 | Bracket: everyone joins. | Team 1 gets the host for a warmup; a pool map (or another difficulty of one) or a map over 4 minutes is refused; `-warmup-gec` skips. |
-| 7a | The host opens a warmup and all four ready up without starting it. | The bot says "Herkes hazır, warmup başlıyor." and starts it with a 10-second countdown. |
+| 7 | Bracket: everyone joins. | Team 1's warmup turn is announced with the room page's link; nobody gets the host. On the room page a pool map (or another difficulty of one), a map over 4 minutes or a non-standard map is refused; "Warmup oynamayacağız" skips (the other team's "Sıramız gelince geç" skips ahead). |
+| 7a | Paste a warmup link on the room page; all four ready up. | The bot puts it on with Freemod and says "… warmup mapini seçti…"; once all four are ready it says "Herkes hazır, warmup başlıyor." and starts it with a 10-second countdown. Nobody ready: it starts when the turn's time runs out (at least a minute after it was chosen). |
 | 7b | `!mp unlock` the room from the referee page in manual mode, switch back to auto. | Within 30 s the bot locks it again. A player who changes slot or colour by themselves is moved back. |
 | 8 | Both teams `!roll`. | Only each team's first roll counts; the higher one is asked to ban or pick first per the stage's order. |
-| 9 | The team types a slot (`hd1`), then again. | Asked to confirm, then the pick is recorded and the map opens with its mods. |
-| 10 | Try a banned map, an already played map, TB, or the same mod twice in a row (not NM). | Each is refused with a reason. |
-| 10a | On a ban, wait 3 minutes without naming a slot. | Reminders at every minute, 30 s and 10 s; then "ban süresi doldu", the ban is lost (a timer chip in the draft strip) and the next turn is asked. |
+| 9 | On the room page, hold a map for 3 seconds on the team's turn (let go after 2 seconds once first). | Let go early, nothing happens; held through, the pick is recorded and the map opens with its mods. Typing `hd1` in the osu! chat does nothing. |
+| 10 | Try a banned map, an already played map, TB, or the same mod twice in a row (not NM). | The room page doesn't offer them (each tile says why); the other team's tiles can't be held. |
+| 10a | On a ban, wait 3 minutes without choosing. | Reminders at every minute, 30 s and 10 s; then "ban süresi doldu", the ban is lost (a timer chip in the draft strip) and the next turn is asked. |
 | 10b | On a pick, wait 2 minutes; then let the other team wait 2 minutes too. | The pick passes to the other team; when it runs out again the match goes to manual. Taking the missed turn back (undo on its chip, in manual mode) gives the team its turn again. |
 | 11 | On an FM map, one player without NoFail readies. | The bot names them and asks for NF before starting. |
 | 11a | On an FM map, a team where nobody picks HD, HR, EZ or FL readies. | The bot names the team and asks for a mod. Still none when the time and the 30-second grace run out: the match stops, goes to manual and the referees are pinged. |
-| 12 | `-abort` within 30 s; then again after 30 s; then a third time. | First aborts ("1 hakkınız kaldı" *(1 left)*); the late one is refused; once 2 are used, refused. |
+| 12 | `-abort` within 30 s; then again after 30 s; then a third time. Then the room page's "Abort" button. | First aborts ("1 hakkınız kaldı" *(1 left)*); the late one is refused; once 2 are used, refused. The page's button is lit only in the first 30 s, with the seconds and the team's aborts left. |
 | 13 | A player drops in the first 30 s. | The map is aborted on their team's account. |
 | 14 | Finish a map. | 3 s later the score is confirmed from osu! and posted; the next turn is asked. |
-| 15 | `-rapor <text>`. | Every host and referee gets a notification with the text and a ping in the Discord referee channel. |
-| 16 | `-durdur`. | The match goes to manual; staff are notified and pinged. Switching back to auto resumes at the same step. |
+| 15 | `-rapor <text>`, and "Rapor" on the room page. | Every host and referee gets a notification with the text and a ping in the Discord referee channel. |
+| 16 | `-durdur`, and "Durdur" → "Maçı durdur" on the room page. | The match goes to manual; staff are notified and pinged; the room page says a referee runs the match. Switching back to auto resumes at the same step. |
 | 17 | Switch the match to manual on the referee page, act by hand, switch back. | The room hears both switches. The bot does nothing while manual, then resumes from the current state. |
 | 17a | In manual mode, start a pool map yourself, then switch to auto while it plays. | The bot follows the map (no countdown, no other map opened) and goes on from the next step once it finishes. |
 | 17b | Stop the bot during a team's pick, put a pool map on by clicking it, switch back. | The map counts as that team's pick, and it's played. |
@@ -138,14 +140,15 @@ If a referee opened the room late, the 10 minutes count from when the room was o
 
 ### 3b. Bracket match
 
-**Warmups**
+**Warmups** (chosen on the room page; nobody gets the room's host)
 
-1. Team 1 (blue) gets the host first: its first player is made the room's host. The bot says "<takım> takımına warmup açmaları için host yetkisi verildi…" *(<team> has been given host to open a warmup…)* and gives it **3 minutes** to open a warmup, counted down in the room.
-2. The team picks a map and starts it themselves. Once **all four players are ready** on it, the bot starts it for them: "Herkes hazır, warmup başlıyor." *(Everyone is ready, the warmup is starting.)*, then a 10-second countdown.
-   - A map **from the pool**, or **another difficulty of a pool map's song**, is refused (not started when everyone readies), and aborted if started.
-   - A map **longer than 4 minutes** (by osu!'s record) is refused, and aborted if started.
-3. When the warmup finishes, or the 3 minutes run out without one, the host passes to team 2.
-4. A team can type `-warmup-gec` *(skip warmup)* to skip its warmup, even before its turn.
+1. Team 1 (blue) goes first. The bot says "<takım> takımının warmup sırası, mapinizi maç odası sayfasından seçin: <link> 3 dakika süreniz var…" *(<team>'s warmup turn, choose your map on the match room page: <link>. You have 3 minutes…)*, counted down in the room and on the page.
+2. Either player of the team pastes the beatmap's osu! link (or its id) on the room page and presses "Odaya koy" *(Put it in the room)*. osu! describes the map, and the bot puts it on with Freemod: "<takım> warmup mapini seçti…" *(<team> chose its warmup…)*. Chosen again before it starts, the new one replaces it.
+   - A map **from the pool**, or **another difficulty of a pool map's song**, is refused on the page (and aborted if someone starts it anyway).
+   - A map **longer than 4 minutes** (by osu!'s record), or not an osu!standard map, is refused on the page.
+3. Once **all four players are ready** on it, the bot starts it: "Herkes hazır, warmup başlıyor." *(Everyone is ready, the warmup is starting.)*, then a 10-second countdown. If the turn's time runs out first, it starts anyway ("Süre doldu, warmup başlıyor."); a warmup chosen with less than a minute left gets a minute.
+4. When the warmup finishes, or the 3 minutes run out with nothing chosen, it's team 2's turn.
+5. A team can press "Warmup oynamayacağız" *(We won't play a warmup)* on its turn to skip it, or "Sıramız gelince geç" *(Skip when our turn comes)* before its turn.
 
 **Roll**
 
@@ -156,22 +159,21 @@ If a referee opened the room late, the 10 minutes count from when the room was o
 
 **Bans and picks**
 
-1. The bot asks the team whose turn it is: "<takım> takımı pick sırası, seçtiğiniz mapin slotunu söyleyin. 2 dakika süreniz var, süre dolarsa pick sırası rakibe geçer." *(<team>'s turn to pick: say the slot of the map you choose. You have 2 minutes; if time runs out, the pick passes to your opponent.)*
-2. Either player of that team types the slot, e.g. `hd1` (case and spaces don't matter).
-3. The bot asks them to confirm: "Pick için HD1 seçtiğinizi doğrulamak için tekrar yazın." *(Type it again to confirm HD1 as your pick.)* Typing the same slot again confirms it.
-4. A ban is recorded. A pick is recorded and the map opens with its mods.
-5. **Time limits.** A team has **3 minutes for a ban** and **2 minutes for a pick**, counted down like every other wait. Naming a slot once without confirming doesn't stop the clock.
+1. The bot asks the team whose turn it is: "<takım> takımı pick sırası, mapinizi maç odası sayfasından seçin: <link> 2 dakika süreniz var, süre dolarsa pick sırası rakibe geçer." *(<team>'s turn to pick, choose your map on the match room page: <link>. You have 2 minutes; if time runs out, the pick passes to your opponent.)*
+2. Either player of that team **holds the map's tile for 3 seconds** on the room page (the tile fills as it's held; letting go early cancels). On a keyboard, holding Space or Enter on the focused tile does the same. Typing a slot in the osu! chat does nothing.
+3. A ban is recorded. A pick is recorded and the map opens with its mods. The room hears "<takım> takımı <slot> mapini seçti." / "…banladı."
+4. **Time limits.** A team has **3 minutes for a ban** and **2 minutes for a pick**, counted down like every other wait.
    - A **ban** that runs out is **lost**: no map is banned for it, and the draft goes on to the next step.
    - A **pick** that runs out **passes to the other team**, which picks in its place. The stage's order then goes on as before, and the team that missed keeps its later turns.
    - If the other team also lets the passed pick run out, the bot stops and a referee takes over.
    - A missed ban or pick shows as a timer chip in the draft strip, on the referee page and the match page. A referee can take it back (manual mode) to give the team its turn again.
-6. The bot **refuses**:
+5. The bot **refuses** (the room page doesn't offer them, and each tile says why):
    - the tiebreaker
    - a map already banned
    - a map already picked or played
    - a pick in the **same category as the team's previous pick** (a NoMod category is the exception)
 
-   The slots are named by their category's **short name** (set in the map pool editor: NM, HD, FM…) and their place: `hd1`, `nm3`, `tb`. The category's **kind** (NoMod, modded, Freemod, Tiebreaker) decides the rules, not its name.
+   The slots are named by their category's **short name** (set in the map pool editor: NM, HD, FM…) and their place: HD1, NM3, TB. The category's **kind** (NoMod, modded, Freemod, Tiebreaker) decides the rules, not its name.
 
 **Each map**
 
@@ -201,18 +203,27 @@ If a referee opened the room late, the 10 minutes count from when the room was o
 
 ---
 
+## The room page (players)
+
+Every match has a room page for its own players: `/match/<match>/oda`. Wherever the site links a player to their own match it says "Maç odası" *(Match room)* instead of "Canlı takip et" *(Watch live)* or "Maç sayfası" *(Match page)*: in the bracket, the fixture lists, the lobby cards, the spectators' page and "Takımım" *(My team)*, whose next match has a "Maç odası" button under it. The bot's announcements in the room carry its link too. Anyone else opening it is sent to the spectators' page.
+
+- **At the top**, what the match waits for and its countdown, all the time: the match time, the missing players (and the -davet hint for a player who isn't in), the warmup turn (with the link field on the team's own turn), the roll (each team's first roll as it comes), whose ban or pick it is, the map opened with how many are ready, the map being played with its time left. It's lit when it's the viewer's team's turn.
+- **On the left, the pool**: every map over its cover, by category, with what became of it (banned, picked, who won it, on in the room). On the team's ban or pick, the maps it may take are held for 3 seconds; the others say why not.
+- **On the right, the score** (the score sheet of the match page), with **Abort** (lit only in a map's first 30 seconds, with the seconds and the team's aborts left), **Rapor** (a message of up to 300 characters to the hosts and referees) and **Durdur** (the emergency stop, confirmed first).
+- **At the bottom, the room's chat**, read only.
+
+On a phone the countdown stays at the top and the pool, the score and the chat are tabs. When a referee runs the match (manual mode) the page says so; bans, picks and warmups then go through the referee, and Rapor and Durdur still work. A refusal (not the team's turn, too late to abort, a report within the minute…) shows on the page, not in the room.
+
 ## Player commands
 
-Typed in the **match room**, unless the table says otherwise.
+Typed in the **match room**, unless the table says otherwise. Abort, report and stop also work from the room page; bans, picks and warmups work **only** there.
 
 | Command | Meaning | What it does | Limits | Works in manual mode |
 |---|---|---|---|---|
 | `-davet` | *invite* | **In a DM to the room's bot:** sends a new room invite. | Once every 20 s | Yes |
-| `-abort` | *abort* | Aborts the map being played. The bot says "Abort kullanıldı. N hakkınız kaldı." *(Abort used. You have N left.)* | **2 per team** per match, and only in the **first 30 seconds** of a map. Later: "Maç başladıktan 30 saniye sonra abort kullanılamaz" *(Abort can't be used 30 seconds after the map has started)* | No |
+| `-abort` | *abort* | Aborts the map being played. The bot says "<oyuncu> abort kullandı. N hakkınız kaldı." *(<player> used an abort. You have N left.)* | **2 per team** per match, and only in the **first 30 seconds** of a map. Later: "Maç başladıktan 30 saniye sonra abort kullanılamaz" *(Abort can't be used 30 seconds after the map has started)* | No |
 | `-rapor <mesaj>` | *report <message>* | Sends the message to every host and referee: a site notification, plus a ping in the Discord referee channel. | Once a minute per player, 300 characters | Yes |
 | `-durdur` | *stop* | **Emergency stop.** The match switches to **manual mode**, and every host and referee is notified and pinged in Discord. A referee switches it back to auto when it's sorted, and the bot continues where it stopped. | No use limit. Once a minute per player, so it can't be spammed. | Yes (it just alerts, since the match is already manual) |
-| `-warmup-gec` | *skip warmup* | Skips the team's warmup. | Bracket warmups only | No |
-| `hd1`, `nm2`, `fm1`… | *a pool slot* | Names the ban or pick when it's the team's turn. Typed twice to confirm. | Only the team whose turn it is | No |
 | `!roll` | *osu!'s roll* | The team's first roll decides the pick/ban order. | 1–100 only | n/a |
 
 **Disconnects:** a player who drops in the first 30 seconds of a map gets it aborted. That uses one of their team's 2 aborts. In a qualifier this only applies to the first map.
@@ -323,8 +334,8 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 
 | Notification | Who gets it | Means |
 |---|---|---|
-| "Oyuncu raporu" *(Player report)* | Hosts, referees | A player's `-rapor`, with their message. Links to the referee page. |
-| "Acil durdurma" *(Emergency stop)* | Hosts, referees | A player typed `-durdur`; the match is now manual. |
+| "Oyuncu raporu" *(Player report)* | Hosts, referees | A player's `-rapor` (or the room page's report), with their message. Links to the referee page. |
+| "Acil durdurma" *(Emergency stop)* | Hosts, referees | A player stopped the match (`-durdur` or the room page); the match is now manual. |
 | "Otomatik hakem durdu" *(Auto referee stopped)* | Hosts, referees | The bot handed the match over, with the reason. |
 | "Maç hükmen bitti" *(Match ended by forfeit)* | Both teams' players | A bracket match was forfeited for a team that didn't show up. |
 | "Eleme lobisinden çıkarıldınız" *(You were removed from the qualifier lobby)* | The removed team's players | Their team was taken out of its lobby for not showing up, so they can join another. |
@@ -381,13 +392,16 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 
 | Turkish | English | When |
 |---|---|---|
-| <takım> takımına warmup açmaları için host yetkisi verildi, 3 dakika süreleri var. Warmup mapleri 4 dakikayı geçmemelidir. Eğer warmup oynamak istemiyorlarsa -warmup-gec yazabilirler. | <team> has been given host to open a warmup; they have 3 minutes. Warmup maps must not exceed 4 minutes. If they don't want to play a warmup, they can type -warmup-gec. | A team's warmup turn |
-| <takım> warmupı geçti. | <team> skipped their warmup. | `-warmup-gec` on their turn |
-| <takım> sırası gelince warmupı geçecek. | <team> will skip their warmup when their turn comes. | `-warmup-gec` before their turn |
-| <takım> takımının warmup süresi doldu. | <team>'s warmup time ran out. | 3 minutes without a warmup |
-| Havuzdaki mapler (ve diğer zorlukları) warmup olarak oynanamaz, başka bir map seçin. | Pool maps (and their other difficulties) can't be played as a warmup; choose another map. | A pool song is chosen, readied on or started |
-| Bu map M:SS uzunluğunda, warmup 4 dakikayı geçmemeli. Başka bir map seçin. | This map is M:SS long; a warmup must not exceed 4 minutes. Choose another map. | A long map is chosen, readied on or started (and aborted) |
-| Herkes hazır, warmup başlıyor. | Everyone is ready, the warmup is starting. | All four ready on an allowed warmup |
+| <takım> takımının warmup sırası, mapinizi maç odası sayfasından seçin: <link> 3 dakika süreniz var. Warmup mapleri 4 dakikayı geçmemelidir; oynamak istemiyorsanız sayfadan geçebilirsiniz. | <team>'s warmup turn, choose your map on the match room page: <link>. You have 3 minutes. Warmup maps must not exceed 4 minutes; if you don't want to play one, you can skip it on the page. | A team's warmup turn |
+| <takım> warmup mapini seçti. Herkes hazır olduğunda ya da süre dolunca başlayacak. | <team> chose its warmup. It starts when everyone is ready or when the time runs out. | A warmup chosen on the room page |
+| <takım> warmup mapini seçti. Herkes hazır olduğunda ya da 1 dakika sonra başlayacak. | <team> chose its warmup. It starts when everyone is ready or in 1 minute. | Chosen with under a minute left |
+| <takım> warmupı geçti. | <team> skipped their warmup. | Skipped on the room page on their turn |
+| <takım> sırası gelince warmupı geçecek. | <team> will skip their warmup when their turn comes. | Skipped on the room page before their turn |
+| <takım> takımının warmup süresi doldu. | <team>'s warmup time ran out. | 3 minutes without a warmup chosen |
+| Süre doldu, warmup başlıyor. | Time's up; the warmup is starting. | The turn ran out with a warmup on |
+| Havuzdaki mapler (ve diğer zorlukları) warmup olarak oynanamaz, başka bir map seçin. | Pool maps (and their other difficulties) can't be played as a warmup; choose another map. | A referee put a pool song on, or it was started |
+| Bu map M:SS uzunluğunda, warmup 4 dakikayı geçmemeli. Başka bir map seçin. | This map is M:SS long; a warmup must not exceed 4 minutes. Choose another map. | A referee put a long map on, or it was started (and aborted) |
+| Herkes hazır, warmup başlıyor. | Everyone is ready, the warmup is starting. | All four ready on the chosen warmup |
 | Warmup 4 dakikayı geçti, sonlandırıldı. | The warmup went past 4 minutes and was ended. | A warmup runs too long |
 
 **Roll**
@@ -406,17 +420,11 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 
 | Turkish | English | When |
 |---|---|---|
-| <takım> takımı pick sırası, seçtiğiniz mapin slotunu söyleyin. 2 dakika süreniz var, süre dolarsa pick sırası rakibe geçer. | <team>'s turn to pick: say the slot of the map you choose. You have 2 minutes; if time runs out, the pick passes to your opponent. | Asking for a pick |
-| <takım> takımı pick sırası, seçtiğiniz mapin slotunu söyleyin. 2 dakika süreniz var. | <team>'s turn to pick: say the slot of the map you choose. You have 2 minutes. | Asking for a pick passed from the other team |
-| <takım> takımı ban sırası, seçtiğiniz mapin slotunu söyleyin. 3 dakika süreniz var, süre dolarsa ban hakkınız yanar. | <team>'s turn to ban: say the slot of the map you choose. You have 3 minutes; if time runs out, you lose the ban. | Asking for a ban |
-| Pick için <slot> seçtiğinizi doğrulamak için tekrar yazın. | Type it again to confirm <slot> as your pick. | First answer |
-| Ban için <slot> seçtiğinizi doğrulamak için tekrar yazın. | Type it again to confirm <slot> as your ban. | First answer |
-| <takım> takımı <slot> mapini seçti. | <team> picked <slot>. | Pick confirmed |
-| <takım> takımı <slot> mapini banladı. | <team> banned <slot>. | Ban confirmed |
-| <slot> tiebreaker, picklenemez. / banlanamaz. | <slot> is the tiebreaker; it can't be picked. / banned. | TB named |
-| <slot> banlandı, başka bir map seçin. | <slot> is banned; choose another map. | A banned map named |
-| <slot> zaten oynandı, başka bir map seçin. | <slot> has already been played; choose another map. | A picked or played map named |
-| Aynı moddan (<mod>) arka arkaya pick yapamazsınız (NM hariç), başka bir mod seçin. | You can't pick the same mod (<mod>) twice in a row (except NM); choose another mod. | Same category twice |
+| <takım> takımı pick sırası, mapinizi maç odası sayfasından seçin: <link> 2 dakika süreniz var, süre dolarsa pick sırası rakibe geçer. | <team>'s turn to pick, choose your map on the match room page: <link>. You have 2 minutes; if time runs out, the pick passes to your opponent. | Asking for a pick |
+| <takım> takımı pick sırası, mapinizi maç odası sayfasından seçin: <link> 2 dakika süreniz var. | <team>'s turn to pick, choose your map on the match room page: <link>. You have 2 minutes. | Asking for a pick passed from the other team |
+| <takım> takımı ban sırası, mapinizi maç odası sayfasından seçin: <link> 3 dakika süreniz var, süre dolarsa ban hakkınız yanar. | <team>'s turn to ban, choose your map on the match room page: <link>. You have 3 minutes; if time runs out, you lose the ban. | Asking for a ban |
+| <takım> takımı <slot> mapini seçti. | <team> picked <slot>. | Pick held on the room page |
+| <takım> takımı <slot> mapini banladı. | <team> banned <slot>. | Ban held on the room page |
 | <takım> takımının ban süresi doldu, ban hakkı yandı. | <team>'s time to ban ran out; the ban is lost. | Ban time over |
 | <takım> takımının pick süresi doldu, pick sırası <takım> takımına geçti. | <team>'s time to pick ran out; the pick passes to <team>. | Pick time over |
 | <takım> takımının pick süresi doldu. | <team>'s time to pick ran out. | A passed pick's time over (then the bot stops) |
@@ -431,7 +439,7 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 | Süre doldu, map NoFail'siz oyuncularla başlıyor. | Time's up; the map starts with players who don't have NoFail. | NF still missing after the grace |
 | <takımlar>: FM mapinde takımdan en az bir oyuncu HD, HR, EZ veya FL seçmeli. Seçmezseniz maç durdurulup hakem çağrılacak. | <teams>: on an FM map at least one player of the team must pick HD, HR, EZ or FL. If you don't, the match will be stopped and a referee called. | FM, a team without a mod |
 | <takımlar>: FM mapinde takımdan en az bir oyuncu HD, HR, EZ veya FL seçmeli. Seçilmediği için maç durduruldu, hakemler çağrıldı. | <teams>: on an FM map at least one player of the team must pick HD, HR, EZ or FL. Since none was picked, the match was stopped and the referees were called. | FM mod still missing when time runs out (then the bot stops) |
-| Abort kullanıldı. N hakkınız kaldı. | Abort used. You have N left. | `-abort` accepted |
+| <oyuncu> abort kullandı. N hakkınız kaldı. | <player> used an abort. You have N left. | `-abort` or the room page's Abort accepted |
 | <oyuncu> oyundan düştü. Abort kullanıldı. N hakkınız kaldı. | <player> disconnected. Abort used. You have N left. | Early disconnect |
 | Maç başladıktan 30 saniye sonra abort kullanılamaz. | Abort can't be used 30 seconds after the map has started. | Late `-abort` |
 | <oyuncu>: takımınızın abort hakkı kalmadı. | <player>: your team has no aborts left. | `-abort` with none left |
@@ -454,7 +462,8 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 | Turkish | English | When |
 |---|---|---|
 | Eksik oyuncular için N kaldı. | N left for the missing players. | No-show wait |
-| <takım>: warmup açmak için N kaldı. | <team>: N left to open a warmup. | Warmup turn |
+| <takım>: warmup seçmek için N kaldı. | <team>: N left to choose a warmup. | Warmup turn |
+| Warmup N sonra başlayacak. | The warmup starts in N. | A warmup chosen, waiting to start |
 | !roll için N kaldı. | N left to !roll. | Roll |
 | !roll süresi doldu. | Time's up for !roll. | Roll over (then the result) |
 | <takım>: ban için N kaldı. / pick için N kaldı. | <team>: N left to ban. / to pick. | Ban or pick turn |
@@ -465,10 +474,10 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 
 | Turkish | English | When |
 |---|---|---|
-| <oyuncu>: raporun hostlara ve hakemlere iletildi. | <player>: your report was passed on to the hosts and referees. | `-rapor` accepted |
+| <oyuncu>: raporun hostlara ve hakemlere iletildi. | <player>: your report was passed on to the hosts and referees. | `-rapor` or the room page's report accepted |
 | <oyuncu>: kullanım: -rapor <mesajınız> | <player>: usage: -rapor <your message> | `-rapor` with no text |
 | <oyuncu>: bir dakikada bir rapor gönderebilirsiniz. | <player>: you can send one report per minute. | `-rapor` too often |
-| Durdur komutu kullanıldı. Bu komut sadece acil durumlarda kullanılmalıdır. Hostlar bilgilendirildi, eğer bu komut kötü niyetle kullanıldıysa -rapor komutuyla bildiriniz. | The stop command was used. This command should only be used in emergencies. The hosts have been informed; if it was used in bad faith, report it with the -rapor command. | `-durdur` |
+| Durdur komutu kullanıldı. Bu komut sadece acil durumlarda kullanılmalıdır. Hostlar bilgilendirildi, eğer bu komut kötü niyetle kullanıldıysa -rapor komutuyla bildiriniz. | The stop command was used. This command should only be used in emergencies. The hosts have been informed; if it was used in bad faith, report it with the -rapor command. | `-durdur`, or "Maçı durdur" on the room page |
 | Otomatik hakem durdu, maçı bir hakem devralacak. | The auto referee stopped; a referee will take over the match. | The bot hands over |
 | Maç manuel moda alındı: bundan sonra maçı hakem yönetiyor, otomatik hakem durdu. | The match was put in manual mode: a referee runs the match from now on; the auto referee stopped. | A referee switches the match to manual |
 | Otomatik hakem tekrar devrede: maç otomatik modda, bot kaldığı yerden devam ediyor. | The auto referee is back on: the match is in auto mode, and the bot continues from where it stands. | A referee switches the match back to auto |
@@ -489,7 +498,7 @@ Embeds (the referee channel alerts and the DMs) are shown as *title — text*. `
 | ⏰ <oyuncular> Maçınız 20 dakika sonra başlayacak. Bot, oda davetlerini 10 dakika sonra yollayacak. Oyundaki özel mesajlarınızın bottan mesaj almaya hazır olduğundan emin olun. Eğer bottan davet almazsanız odanızın botuna özelden `-davet` yazarak tekrar davet yollamasını sağlayabilirsiniz. Bir sorun yaşarsanız hostlardan yardım alın. | ⏰ <players> Your match starts in 20 minutes. The bot will send the room invites in 10 minutes. Make sure your in-game private messages can receive messages from the bot. If you don't get an invite, DM your room's bot `-davet` to have it send one again. If you have a problem, ask the hosts for help. | Match channel |
 | 🎮 Maç odası kuruldu: <link> Odanızın botu **<bot>**. Eğer davetiye almadıysanız oyundan bu bota DM atıp `-davet` yazın. | 🎮 The match room is set up: <link> Your room's bot is **<bot>**. If you didn't get an invite, DM this bot in game and type `-davet`. | Match channel |
 | 📣 Oyuncu raporu: <maç> — <oyuncu> (<takım>): <mesaj> | 📣 Player report: <match> — <player> (<team>): <message> | Referee channel |
-| 🛑 -durdur kullanıldı: <maç> — <oyuncu> (<takım>) acil durum için -durdur yazdı: maç manuel kontrole geçti, bir hakemin bakması gerekiyor. | 🛑 -durdur used: <match> — <player> (<team>) typed -durdur for an emergency: the match went to manual control and needs a referee to look at it. | Referee channel |
+| 🛑 Maç durduruldu: <maç> — <oyuncu> (<takım>) maçı acil durumda durdurdu: maç manuel kontrole geçti, bir hakemin bakması gerekiyor. | 🛑 Match stopped: <match> — <player> (<team>) stopped the match in an emergency: the match went to manual control and needs a referee to look at it. | Referee channel |
 | ⚠️ Otomatik hakem durdu: <maç> — <neden> Maç manuel kontrole geçti, bir hakemin devralması gerekiyor. | ⚠️ Auto referee stopped: <match> — <reason> The match went to manual control; a referee needs to take over. | Referee channel |
 | ❌ Maç hükmen kaybedildi — Takımın **<maç>** maçına 10 dakika içinde tam kadro gelmediği için maç hükmen kaybedildi. | ❌ Match lost by forfeit — Your team didn't arrive at **<match>** with a full roster within 10 minutes, so the match was lost by forfeit. | DM, absent team |
 | ❌ Eleme lobisinden çıkarıldınız — Takımın **<lobi>** lobisine 10 dakika içinde tam kadro gelmediği için lobiden çıkarıldı. Başlamamış başka bir eleme lobisine kaydolabilirsiniz: <link> | ❌ You were removed from the qualifier lobby — Your team didn't arrive at **<lobby>** with a full roster within 10 minutes, so it was removed from the lobby. You can sign up for another qualifier lobby that hasn't started: <link> | DM, removed team |
@@ -499,8 +508,8 @@ Embeds (the referee channel alerts and the DMs) are shown as *title — text*. `
 
 | Turkish title | English title | Turkish text | English text |
 |---|---|---|---|
-| Oyuncu raporu | Player report | "<mesaj>" — <oyuncu> (<takım>) odadan -rapor ile hakemlere ve hostlara yazdı. | "<message>" — <player> (<team>) wrote to the referees and hosts from the room with -rapor. |
-| Acil durdurma | Emergency stop | <oyuncu> (<takım>) -durdur yazdı: maç manuel kontrole geçti, bir hakemin bakması gerekiyor. | <player> (<team>) typed -durdur: the match went to manual control and needs a referee to look at it. |
+| Oyuncu raporu | Player report | "<mesaj>" — <oyuncu> (<takım>) maç odasından hakemlere ve hostlara rapor gönderdi. | "<message>" — <player> (<team>) sent a report to the referees and hosts from the match room. |
+| Acil durdurma | Emergency stop | <oyuncu> (<takım>) maçı acil durumda durdurdu: maç manuel kontrole geçti, bir hakemin bakması gerekiyor. | <player> (<team>) stopped the match in an emergency: the match went to manual control and needs a referee to look at it. |
 | Otomatik hakem durdu | Auto referee stopped | Maç manuel kontrole geçti, bir hakemin devralması gerekiyor. Neden: <neden> | The match went to manual control; a referee needs to take over. Reason: <reason> |
 | Maç hükmen bitti | Match ended by forfeit | <takım> maç saatinden sonraki 10 dakika içinde tam kadro gelmedi, maç hükmen sonuçlandı. | <team> didn't arrive with a full roster within 10 minutes of the match time; the match was decided by forfeit. |
 | Eleme lobisinden çıkarıldınız | You were removed from the qualifier lobby | Takımın <lobi> için 10 dakika içinde tam kadro gelmediğinden lobiden çıkarıldı. Başlamamış başka bir lobiye kaydolabilirsin. | Your team didn't arrive at <lobby> with a full roster within 10 minutes, so it was removed from the lobby. You can sign up for another lobby that hasn't started. |
@@ -516,9 +525,9 @@ Embeds (the referee channel alerts and the DMs) are shown as *title — text*. `
 | Otomatik oda açma kapalı (Bancho botları sayfası): odayı bir hakem açınca otomatik hakem maçı yönetir. | Automatic room opening is off (Bancho bots page): once a referee opens the room, the auto referee runs the match. |
 | Maç saati bekleniyor, herkes hazırsa erken başlar | Waiting for the match time; starts early if everyone is ready |
 | Oyuncular bekleniyor; gelmeyen takım elenir | Waiting for the players; a team that doesn't come is out |
-| Warmup: <takım> hostta | Warmup: <team> has host |
+| Warmup: <takım> maç odası sayfasından seçiyor / seçti, hazır olunca başlar / oynuyor | Warmup: <team> is choosing on the match room page / chose one, it starts once everyone is ready / is playing it |
 | !roll bekleniyor | Waiting for !roll |
-| <takım> pick/ban sırası, slotu yazmaları bekleniyor | <team>'s pick/ban: waiting for them to type the slot |
+| <takım> pick/ban sırası, maç odası sayfasından seçmeleri bekleniyor | <team>'s pick/ban: waiting for them to choose on the match room page |
 | Ban: <takım>, süre doldu, ban hakkı yandı / Pick: <takım>, süre doldu, pick rakibe geçti | Ban: <team>, time ran out, the ban is lost / Pick: <team>, time ran out, the pick passed to the opponent (a missed turn's chip in the draft strip) |
 | Geri al: ban / pick yeniden <takım> sırası olsun | Take back: make the ban / pick <team>'s turn again (the undo button on that chip) |
 | <slot> açık, herkesin hazır olması bekleniyor | <slot> is on; waiting for everyone to be ready |
@@ -551,9 +560,12 @@ Embeds (the referee channel alerts and the DMs) are shown as *title — text*. `
 | uyarı | <takım> gelmedi: hükmen <takım> kazandı. | <team> didn't show: <team> wins by forfeit. |
 | uyarı | Tam kadro gelmeyen takımlar lobiden çıkarıldı: <takımlar> | Teams without a full roster were removed from the lobby: <teams> |
 | bilgi | Herkes odada, maç başlıyor. | Everyone's in the room; the match is starting. |
-| bilgi | Warmup: host <oyuncu> (<takım>). | Warmup: host <player> (<team>). |
-| bilgi | <takım> warmupı geçti. / <takım> -warmup-gec yazdı. | <team> skipped their warmup. / <team> typed -warmup-gec. |
-| bilgi | <takım> warmup açmadı, süre doldu. | <team> didn't open a warmup; time ran out. |
+| bilgi | Warmup sırası: <takım>. | Warmup turn: <team>. |
+| bilgi | <takım> warmup seçti: <beatmap> (<oyuncu>). | <team> chose its warmup: <beatmap> (<player>). |
+| bilgi | <takım> warmupı geçti (<oyuncu>). / <takım> warmupı geçti. | <team> skipped their warmup (<player>). / <team> skipped their warmup (said ahead of its turn). |
+| bilgi | <takım> warmup seçmedi, süre doldu. | <team> didn't choose a warmup; time ran out. |
+| bilgi | Warmup süresi doldu, başlatıldı. | The warmup's time ran out; it was started. |
+| uyarı | Warmup başlamadı, sıradaki adıma geçiliyor. | The warmup didn't start; going on to the next step. |
 | uyarı | Warmup 4,5 dakikayı geçtiği için iptal edildi. | The warmup was aborted for going past 4.5 minutes. |
 | uyarı | Kurallara uymayan warmup iptal edildi. | A warmup breaking the rules was aborted. |
 | bilgi | Herkes hazır, warmup başlatıldı. | Everyone was ready; the warmup was started. |
@@ -562,7 +574,7 @@ Embeds (the referee channel alerts and the DMs) are shown as *title — text*. `
 | bilgi | <oyuncu> (<takım>) N attı. | <player> (<team>) rolled N. |
 | bilgi | Roll: <takım> kazandı (…). | Roll: <team> won (…). |
 | bilgi | <takım> takımının pick/ban seçimi bekleniyor. | Waiting for <team>'s pick/ban. |
-| bilgi | <takım> <slot> seçti / banladı (<oyuncu> onayladı). | <team> picked / banned <slot> (confirmed by <player>). |
+| bilgi | <takım> <slot> seçti / banladı (<oyuncu>). | <team> picked / banned <slot> (<player>, on the room page). |
 | bilgi | <takım> ban süresini kaçırdı, ban hakkı yandı. | <team> missed its ban time; the ban is lost. |
 | bilgi | <takım> pick süresini kaçırdı, pick <takım> takımına geçti. | <team> missed its pick time; the pick passed to <team>. |
 | bilgi | Ban/pick sırası değişti, yeniden soruluyor. | The ban/pick turn changed; asking again. |
@@ -573,7 +585,7 @@ Embeds (the referee channel alerts and the DMs) are shown as *title — text*. `
 | uyarı | FM modu seçilmedi, maç durduruldu: <takımlar> | No FM mod picked, the match was stopped: <teams> |
 | uyarı | <slot> bot dışında başlatıldı, bot onu takip ediyor. | <slot> was started by someone else; the bot follows it. |
 | uyarı | Map başlamadı, tekrar deneniyor. | The map didn't start; trying again. |
-| bilgi | <oyuncu> -abort kullandı (N hakkı kaldı). | <player> used -abort (N left). |
+| bilgi | <oyuncu> abort kullandı (N hakkı kaldı). | <player> used an abort (N left). |
 | bilgi | <oyuncu> düştüğü için map iptal edildi (N hakkı kaldı). | The map was aborted because <player> disconnected (N left). |
 | bilgi | <oyuncu> düştü ama takımının abort hakkı kalmadı. | <player> disconnected, but their team has no aborts left. |
 | bilgi | <oyuncu> düştü, maç onsuz devam ediyor. | <player> disconnected; the match continues without them. |
@@ -583,8 +595,8 @@ Embeds (the referee channel alerts and the DMs) are shown as *title — text*. `
 | bilgi | Skor eşit, tiebreaker açılıyor. | The score is tied; opening the tiebreaker. |
 | bilgi | <takım> kazandı (a - b). / Bütün mapler oynandı. | <team> won (a - b). / All maps have been played. |
 | uyarı | Rapor (<oyuncu>): <mesaj> | Report (<player>): <message> |
-| uyarı | <oyuncu> -durdur yazdı: manuel kontrole geçildi. | <player> typed -durdur: switched to manual control. |
-| uyarı | <oyuncu> -durdur yazdı (maç zaten manuel kontrolde). | <player> typed -durdur (the match was already in manual control). |
+| uyarı | <oyuncu> maçı durdurdu: manuel kontrole geçildi. | <player> stopped the match: switched to manual control. |
+| uyarı | <oyuncu> maçı durdurdu (maç zaten manuel kontrolde). | <player> stopped the match (it was already in manual control). |
 | bilgi | <kişi> otomatik hakemi açtı. | <person> turned the auto referee on. |
 | bilgi | <kişi> manuel kontrole geçti, otomatik hakem durdu. | <person> switched to manual control; the auto referee stopped. |
 | bilgi | Kaldığı yerden devam ediyor: <adım>. | Continuing where it left off: <step>. |

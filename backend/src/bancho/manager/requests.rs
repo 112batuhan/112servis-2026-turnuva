@@ -48,6 +48,22 @@ impl Manager {
                 let _ = reply.send(self.command(match_id, command));
             }
             Request::SaveScore { match_id, reply } => self.save_now(match_id, reply),
+            Request::Player {
+                match_id,
+                user_id,
+                action,
+                reply,
+            } => self.player_action(match_id, user_id, action, reply).await,
+            Request::PlayerWarmup {
+                match_id,
+                user_id,
+                beatmap_id,
+                map,
+                reply,
+            } => {
+                self.player_warmup(match_id, user_id, beatmap_id, map, reply)
+                    .await
+            }
             Request::OsuGames {
                 match_id,
                 at,

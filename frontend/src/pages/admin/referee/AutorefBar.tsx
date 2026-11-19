@@ -164,9 +164,15 @@ function phaseText(
           };
     case "warmup":
       return {
-        node: <>Warmup: {team} hostta</>,
+        node: view.warmup_playing ? (
+          <>Warmup: {team} oynuyor</>
+        ) : view.warmup_beatmap_id !== null ? (
+          <>Warmup: {team} seçti, hazır olunca başlar</>
+        ) : (
+          <>Warmup: {team} maç odası sayfasından seçiyor</>
+        ),
         plain: `${name} warmup'ı`,
-        clockTitle: "Warmup açma süresi",
+        clockTitle: "Warmup süresi",
       };
     case "roll":
       return { node: <>!roll bekleniyor</>, plain: "roll", clockTitle: "Roll süresi" };
@@ -175,7 +181,7 @@ function phaseText(
       return {
         node: (
           <>
-            {team} {step} sırası, slotu yazmaları bekleniyor
+            {team} {step} sırası, maç odası sayfasından seçmeleri bekleniyor
           </>
         ),
         plain: `${name} ${step} sırası`,

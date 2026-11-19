@@ -211,7 +211,7 @@ export function PoolView({
  * out on the auto referee's clock shows a timer in place of its map, with the referee's button to
  * take it back. A closing "sırayla" says picks take turns from there.
  */
-function DraftStrip({
+export function DraftStrip({
   draft,
   teamOf,
   labelOf,

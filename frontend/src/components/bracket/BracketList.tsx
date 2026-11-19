@@ -338,7 +338,13 @@ export function BracketList<M extends BracketMatch>({
                           {renderPageLink
                             ? !potential && renderPageLink(m)
                             : hasMatchPage(m) && (
-                                <MatchPageLink matchId={m.id} live={isLive(m)} variant="text" />
+                                <MatchPageLink
+                                  matchId={m.id}
+                                  live={isLive(m)}
+                                  variant="text"
+                                  teamIds={[m.team1_id, m.team2_id]}
+                                  concluded={m.concluded_at !== null}
+                                />
                               )}
                           <RoomLinks rooms={m.rooms} />
                           {!potential && <RefereeWatchers viewers={presence?.get(m.id)} />}

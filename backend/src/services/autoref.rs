@@ -99,9 +99,9 @@ pub async fn emergency_stop(
 ) -> Result<(), AppError> {
     let message = if auto {
         db::autoref::set_enabled(&state.db, match_id, false).await?;
-        format!("{username} -durdur yazdı: manuel kontrole geçildi.")
+        format!("{username} maçı durdurdu: manuel kontrole geçildi.")
     } else {
-        format!("{username} -durdur yazdı (maç zaten manuel kontrolde).")
+        format!("{username} maçı durdurdu (maç zaten manuel kontrolde).")
     };
     log(state, match_id, LogLevel::Warn, &message).await?;
     state.live.referee_changed(match_id);

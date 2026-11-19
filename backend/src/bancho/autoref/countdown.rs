@@ -24,7 +24,7 @@ const LATE: Duration = Duration::seconds(1);
 pub enum CountdownKind {
     // The missing players' ten minutes, from the match's time.
     NoShow,
-    // A team's turn to open a warmup.
+    // A team's turn to choose a warmup, and once it has, the wait for it to start.
     Warmup,
     Roll,
     // A team's turn to name its ban or pick.
@@ -123,7 +123,9 @@ impl AutoRef {
         // Held while there's nothing to count down to: a warmup being played, a map
         // starting or its mods being read.
         let counting = match &self.phase {
-            Phase::Warmup { played, .. } => !played && !s.room.playing,
+            Phase::Warmup {
+                played, starting, ..
+            } => !played && !starting && !s.room.playing,
             Phase::Ready {
                 starting, check_at, ..
             } => starting.is_none() && check_at.is_none(),
@@ -160,11 +162,14 @@ impl AutoRef {
         Some(match kind {
             CountdownKind::NoShow => format!("Eksik oyuncular için {left} kaldı."),
             CountdownKind::Warmup => {
-                let Phase::Warmup { team, .. } = &self.phase else {
+                let Phase::Warmup { team, beatmap, .. } = &self.phase else {
                     return None;
                 };
+                if beatmap.is_some() {
+                    return Some(format!("Warmup {left} sonra başlayacak."));
+                }
                 let name = s.teams.get(*team).map_or("?", |t| t.name.as_str());
-                format!("{name}: warmup açmak için {left} kaldı.")
+                format!("{name}: warmup seçmek için {left} kaldı.")
             }
             CountdownKind::Roll => format!("!roll için {left} kaldı."),
             CountdownKind::Draft => {

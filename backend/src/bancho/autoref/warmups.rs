@@ -1,6 +1,5 @@
 //! The warmups and the roll.
 
-use crate::bancho::room::commands::player_ref;
 use crate::db::autoref::LogLevel;
 
 use super::{
@@ -16,7 +15,6 @@ impl AutoRef {
         out: &mut Vec<Action>,
     ) {
         if team >= 2 || team >= s.teams.len() {
-            send(out, "!mp clearhost");
             return self.enter_roll(s, out);
         }
         let t = &s.teams[team];
@@ -24,25 +22,17 @@ impl AutoRef {
             log(out, LogLevel::Info, format!("{} warmupı geçti.", t.name));
             return self.enter_warmup(s, team + 1, skipped, out);
         }
-        // The team's first player, or whichever of them is in the room.
-        let host = s
-            .members(t.id)
-            .find(|p| s.present(p))
-            .or_else(|| s.members(t.id).next());
-        let Some(host) = host else {
+        if s.members(t.id).next().is_none() {
             return self.enter_warmup(s, team + 1, skipped, out);
-        };
-        send(out, format!("!mp host {}", player_ref(host.osu_id)));
-        log(
-            out,
-            LogLevel::Info,
-            format!("Warmup: host {} ({}).", host.username, t.name),
-        );
+        }
+        log(out, LogLevel::Info, format!("Warmup sırası: {}.", t.name));
         self.phase = Phase::Warmup {
             team,
             until: s.now + WARMUP_TIME,
             played: false,
             skipped,
+            beatmap: None,
+            starting: false,
         };
         let secs = WARMUP_TIME.whole_seconds();
         self.start_countdown(
@@ -50,10 +40,11 @@ impl AutoRef {
             CountdownKind::Warmup,
             secs,
             format!(
-                "{} takımına warmup açmaları için host yetkisi verildi, {} süreleri var. Warmup \
-                 mapleri 4 dakikayı geçmemelidir. Eğer warmup oynamak istemiyorlarsa -warmup-gec \
-                 yazabilirler.",
+                "{} takımının warmup sırası, mapinizi maç odası sayfasından seçin: {} {} \
+                 süreniz var. Warmup mapleri 4 dakikayı geçmemelidir; oynamak istemiyorsanız \
+                 sayfadan geçebilirsiniz.",
                 t.name,
+                s.page,
                 span(secs)
             ),
             out,

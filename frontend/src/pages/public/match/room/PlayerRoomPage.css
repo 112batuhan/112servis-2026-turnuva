@@ -1,0 +1,193 @@
+/* The players' room page: the turn bar over the pool on the left (the page's main surface), the
+   score with the match's controls on the right, the room's chat along the bottom. It wears the
+   cockpit's header and phone tabs (components/match/Cockpit.css, ../MatchPage.css). */
+.player-room-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 440px);
+  grid-template-rows: auto minmax(0, 1fr) clamp(140px, 18svh, 220px);
+  grid-template-areas:
+    "turn side"
+    "pool side"
+    "chat chat";
+  gap: var(--space-3) var(--space-5);
+  /* The screen under the header (--room-top, measured), less the page's own foot. */
+  height: max(560px, calc(100svh - var(--room-top, 150px) - var(--space-4)));
+}
+
+.page.player-room {
+  padding-bottom: var(--space-4);
+}
+
+.player-room-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  white-space: nowrap;
+}
+
+.player-room-grid > * {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.player-room-turn {
+  grid-area: turn;
+}
+
+.player-room-pool {
+  grid-area: pool;
+}
+
+.player-room-side {
+  grid-area: side;
+  gap: var(--space-3);
+}
+
+.player-room-chat {
+  grid-area: chat;
+}
+
+.player-room-chat > * {
+  flex: 1;
+}
+
+/* The score sheet in its panel, scrolling on its own above the controls. */
+.player-room-sheet {
+  flex: 1;
+  min-height: 0;
+  padding: var(--space-4);
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  scrollbar-gutter: stable;
+}
+
+/* The score sheet in a third of the screen: the teams' names may take two lines rather than both
+   cutting to the same first words, and the note before the first map spans the sheet. */
+.player-room-sheet .sheet-team-name {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.2;
+  text-align: center;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.player-room-sheet .sheet-row.is-empty > :nth-child(n + 3) {
+  display: none;
+}
+
+.player-room-sheet .sheet-row.is-empty .sheet-empty {
+  grid-column: 2 / -1;
+}
+
+/* The teams in the heading in their sides' colours (osu!'s blue and red on this page, from
+   .osu-team-colors); "vs" stays muted between them, the viewer's own team marked "(siz)". */
+.player-room-side-name.is-team-blue {
+  color: var(--color-team-blue);
+}
+
+.player-room-side-name.is-team-red {
+  color: var(--color-team-red);
+}
+
+.player-room-own {
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-stretch: normal;
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.player-room-onair {
+  padding: 0 var(--space-4);
+}
+
+.player-room-tab-yours {
+  color: var(--color-primary);
+}
+
+.player-room-outsider .btn {
+  margin-top: var(--space-4);
+}
+
+/* Narrower: the pool takes the whole width at its own height, the score and the chat side by side
+   under it. */
+@container referee-page (max-width: 1080px) {
+  .player-room-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto minmax(480px, 70svh);
+    grid-template-areas:
+      "turn turn"
+      "pool pool"
+      "side chat";
+    height: auto;
+  }
+
+  .player-room-pool .room-pool-scroll {
+    overflow: visible;
+  }
+}
+
+/* A phone: the turn bar stays over whichever panel the tabs show, and the panel fills the rest of
+   the screen. */
+@container referee-page (max-width: 760px) {
+  /* A phone's header stays a line or two: the code and the names on one line, cut short. */
+  .player-room .match-header-lead {
+    min-width: 0;
+  }
+
+  .player-room .referee-title {
+    min-width: 0;
+    font-size: var(--text-xl);
+  }
+
+  /* Each team on a line of its own, in its colour, cut short if it must ("vs" goes: the colours
+     say it). */
+  .player-room-versus {
+    display: block;
+    font-size: 0;
+  }
+
+  .player-room-side-name {
+    display: block;
+    overflow: hidden;
+    font-size: var(--text-lg);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .player-room-grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "turn"
+      "panel";
+    gap: var(--space-3);
+    height: max(
+      460px,
+      calc(100svh - var(--nav-height, 0px) - var(--referee-bar-height, 60px) - var(--space-3))
+    );
+  }
+
+  .player-room-pool,
+  .player-room-side,
+  .player-room-chat {
+    grid-area: panel;
+  }
+
+  .player-room-pool .room-pool-scroll {
+    overflow-y: auto;
+  }
+
+  .player-room-grid[data-tab="pool"] > :is(.player-room-side, .player-room-chat),
+  .player-room-grid[data-tab="room"] > :is(.player-room-pool, .player-room-chat),
+  .player-room-grid[data-tab="chat"] > :is(.player-room-pool, .player-room-side) {
+    display: none;
+  }
+}

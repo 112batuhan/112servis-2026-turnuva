@@ -217,7 +217,15 @@ export function BracketCalendar({
           {potential && <span className="cal-match-potential">olası</span>}
           {isLive(m) && <LiveMark compact />}
           {m.stage && <span className="cal-match-stage">{stageLabel(m.stage)}</span>}
-          {hasMatchPage(m) && <MatchPageLink matchId={m.id} live={isLive(m)} variant="card" />}
+          {hasMatchPage(m) && (
+            <MatchPageLink
+              matchId={m.id}
+              live={isLive(m)}
+              variant="card"
+              teamIds={[m.team1_id, m.team2_id]}
+              concluded={m.concluded_at !== null}
+            />
+          )}
           {showRefereeRoom && !potential && <RefereeRoomLink matchId={m.id} variant="card" />}
         </span>
         {slots.map((slot, i) => {

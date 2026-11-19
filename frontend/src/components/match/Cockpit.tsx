@@ -23,10 +23,10 @@ export const TABS: { id: CockpitTab; label: string }[] = [
 /**
  * The cockpit's layout: on a phone one panel at a time under a tab bar; wider, every panel shows
  * and the bar is hidden. The CSS decides which, so this reads it back from the bar. Shared by the
- * referee page and the public match page.
+ * referee page, the public match page and the players' room page (which opens on the pool).
  */
-export function useCockpit(loaded: boolean) {
-  const [tab, setTab] = useState<CockpitTab>("room");
+export function useCockpit(loaded: boolean, initial: CockpitTab = "room") {
+  const [tab, setTab] = useState<CockpitTab>(initial);
   const [compact, setCompact] = useState(false);
   const pageRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);

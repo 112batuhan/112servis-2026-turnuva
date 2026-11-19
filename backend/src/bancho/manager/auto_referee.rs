@@ -8,7 +8,7 @@ use tokio::time::Instant;
 use uuid::Uuid;
 
 use crate::bancho::{
-    autoref::{Action, AutoRef, Snapshot},
+    autoref::{Action, AutoRef, Snapshot, WarmupMap, Web},
     connection::{
         bot::Priority,
         irc::{room_channel, valid_name},
@@ -17,18 +17,27 @@ use crate::bancho::{
     room::commands::player_ref,
     tally::{osu_results, tally, TallyInput},
     view::{finished_of, RoomAccess, ViewRoom},
-    Request,
+    PlayerAction, Request,
 };
 use crate::{
     db::{self, autoref::LogLevel, matches::MatchKind},
     discord::jobs::Alert,
-    error::{AppError, MatchError},
+    error::{AppError, GeneralError, MatchError, PlayerError},
     osu_api,
     services::{self, bracket::Mark},
 };
 
 use super::read_osu_games;
 use super::{AutoWrite, Manager, INVITE_EVERY};
+
+// The match's room page, where its players choose their warmups, bans and picks
+// (frontend/src/pages/public/match/room/).
+pub fn room_page_url(frontend_url: &str, id: Uuid) -> String {
+    format!("{}/match/{id}/oda", frontend_url.trim_end_matches('/'))
+}
+
+// A player's answer: what the room page hears back.
+type Reply = tokio::sync::oneshot::Sender<Result<(), AppError>>;
 
 impl Manager {
     pub(super) fn auto_log(&self, id: Uuid, level: LogLevel, message: String) {
@@ -61,6 +70,7 @@ impl Manager {
             .filter_map(|f| f.map_id)
             .collect();
         let finished: HashSet<Uuid> = view.finished.iter().filter_map(|f| f.map_id).collect();
+        let page = room_page_url(&self.app.config.frontend_url, id);
         let snapshot = Snapshot {
             now: OffsetDateTime::now_utc(),
             bracket: ctx.is_bracket(),
@@ -80,6 +90,7 @@ impl Manager {
             room: &room.state,
             no_fail: ctx.settings.no_fail,
             first_step_team: ctx.draft_order.steps.first().map_or(1, |s| s.team),
+            page: &page,
         };
         Some(f(&snapshot))
     }
@@ -216,6 +227,117 @@ impl Manager {
                 self.auto_log(id, LogLevel::Error, format!("İşlem başarısız: {err}"));
             }
         }
+    }
+
+    // What a player did on the match's room page. A warmup's beatmap is checked against
+    // the turn first, then described by osu! (off the manager's loop), then chosen
+    // (`player_warmup`).
+    pub(super) async fn player_action(
+        &mut self,
+        id: Uuid,
+        user_id: Uuid,
+        action: PlayerAction,
+        reply: Reply,
+    ) {
+        if !self.runs.contains_key(&id) || self.latest_room(id).is_none() {
+            let _ = reply.send(Err(PlayerError::NotRunning.into()));
+            return;
+        }
+        let web = match action {
+            PlayerAction::Draft { map_id } => Web::Draft(map_id),
+            PlayerAction::SkipWarmup => Web::SkipWarmup,
+            PlayerAction::Abort => Web::Abort,
+            PlayerAction::Stop => Web::Stop,
+            PlayerAction::Report { text } => Web::Report(text),
+            PlayerAction::Warmup { beatmap_id } => {
+                if self.auto_on(id).is_none() {
+                    let _ = reply.send(Err(PlayerError::Manual.into()));
+                    return;
+                }
+                let Some(run) = self.runs.get(&id) else {
+                    return;
+                };
+                let auto = &run.auto;
+                let checked = self
+                    .with_snapshot(id, |s| auto.check_warmup(s, user_id))
+                    .unwrap_or(Err(PlayerError::NotRunning));
+                if let Err(err) = checked {
+                    let _ = reply.send(Err(err.into()));
+                    return;
+                }
+                match auto.warmup_known(beatmap_id) {
+                    Some(map) => Web::Warmup(beatmap_id, map),
+                    None => return self.describe_warmup(id, user_id, beatmap_id, reply),
+                }
+            }
+        };
+        let result = self.web(id, user_id, web).await;
+        let _ = reply.send(result);
+    }
+
+    // The warmup osu! described, chosen now (its turn is checked again).
+    pub(super) async fn player_warmup(
+        &mut self,
+        id: Uuid,
+        user_id: Uuid,
+        beatmap_id: i64,
+        map: WarmupMap,
+        reply: Reply,
+    ) {
+        let result = self.web(id, user_id, Web::Warmup(beatmap_id, map)).await;
+        let _ = reply.send(result);
+    }
+
+    async fn web(&mut self, id: Uuid, user_id: Uuid, web: Web) -> Result<(), AppError> {
+        let enabled = self.auto_on(id).is_some();
+        let mut result = Err(PlayerError::NotRunning);
+        self.drive(id, |auto, s, out| {
+            result = auto.web(s, user_id, web, enabled, out)
+        })
+        .await;
+        result.map_err(Into::into)
+    }
+
+    // Asks osu! for a warmup beatmap's length, set and mode, then hands it back to the
+    // manager to be chosen; a beatmap osu! doesn't have, or not osu!standard, is refused
+    // here.
+    fn describe_warmup(&self, id: Uuid, user_id: Uuid, beatmap_id: i64, reply: Reply) {
+        let app = self.app.clone();
+        let inbox = self.inbox.clone();
+        tokio::spawn(async move {
+            let described = async {
+                // The page hears osu! couldn't be reached, not why the app's token failed.
+                let token =
+                    osu_api::token::app_token(&app.osu_client, &app.oauth_http, &app.osu_app_token)
+                        .await
+                        .map_err(|err| {
+                            tracing::warn!(error = ?err, "no osu! token for a player's warmup");
+                            AppError::from(GeneralError::OsuApiUnreachable)
+                        })?;
+                osu_api::beatmap::fetch(&app.http_client, &token, beatmap_id).await
+            }
+            .await;
+            match described {
+                Ok(map) if map.mode != "osu" => {
+                    let _ = reply.send(Err(PlayerError::WarmupNotStandard.into()));
+                }
+                Ok(map) => {
+                    let _ = inbox.send(Request::PlayerWarmup {
+                        match_id: id,
+                        user_id,
+                        beatmap_id,
+                        map: WarmupMap {
+                            seconds: map.total_length,
+                            beatmapset_id: map.beatmapset_id,
+                        },
+                        reply,
+                    });
+                }
+                Err(err) => {
+                    let _ = reply.send(Err(err));
+                }
+            }
+        });
     }
 
     // A line for the match's latest room, through its bot.

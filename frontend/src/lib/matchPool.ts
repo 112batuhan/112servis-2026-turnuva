@@ -39,6 +39,8 @@ export interface PoolEntry {
   freemod: boolean;
   /** A tiebreaker: nobody picks it. */
   tiebreaker: boolean;
+  /** A team may pick from its category twice in a row (NoMod only; backend `CategoryKind::repeatable`). */
+  repeatable: boolean;
   map: PublicPoolMap;
 }
 
@@ -70,6 +72,7 @@ export function poolEntries(room: Pick<MatchData, "categories" | "slots" | "maps
         color: category.color,
         freemod: playsFreemod(map, category.kind),
         tiebreaker: isTiebreaker(map, category.kind),
+        repeatable: category.kind === "nomod",
         map,
       });
     });

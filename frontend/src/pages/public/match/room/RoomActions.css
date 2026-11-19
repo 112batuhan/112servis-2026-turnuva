@@ -1,0 +1,141 @@
+/* The match's controls under the score (RoomActions.tsx): abort, rapor and durdur side by side,
+   each a word over what it does now; the report's form and the stop's confirmation open under
+   them. Abort turns warning while its window is open; durdur is danger throughout. */
+.room-actions {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.room-actions-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.room-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 58px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+
+.room-action:hover:not(:disabled),
+.room-action[aria-expanded="true"] {
+  background: var(--color-surface-raised);
+}
+
+.room-action:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+.room-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.room-action-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.room-action-note {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  line-height: 1.3;
+}
+
+.room-action-note .num {
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: 700;
+}
+
+.room-action.is-abort:not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-warning) 60%, transparent);
+  color: var(--color-warning);
+}
+
+.room-action.is-stop {
+  border-color: color-mix(in srgb, var(--color-danger) 45%, transparent);
+  color: var(--color-danger);
+}
+
+.room-action.is-stop:hover:not(:disabled),
+.room-action.is-stop[aria-expanded="true"] {
+  background: var(--color-danger-soft);
+}
+
+.room-actions-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.room-actions-panel.is-stop {
+  border-color: color-mix(in srgb, var(--color-danger) 45%, transparent);
+  background: var(--color-danger-soft);
+}
+
+.room-actions-label,
+.room-actions-warning {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.room-actions-warning {
+  color: var(--color-text);
+}
+
+.room-actions-text {
+  height: auto;
+  padding: var(--space-2) var(--space-3);
+  resize: vertical;
+}
+
+.room-actions-buttons {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.room-actions-count {
+  margin-right: auto;
+  color: var(--color-text-subtle);
+  font-size: var(--text-sm);
+}
+
+.room-actions-done {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-success);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}

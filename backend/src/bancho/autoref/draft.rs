@@ -9,6 +9,7 @@ use crate::bancho::{
 use crate::{
     db::autoref::LogLevel,
     draft::{StepKind, Turn},
+    error::PlayerError,
 };
 
 use super::{
@@ -98,8 +99,9 @@ impl AutoRef {
         }
     }
 
-    // Asks the team for its ban or pick, on the clock: a ban that runs out is lost, a
-    // pick passes to the other team (or, already passed, goes to a referee).
+    // Asks the team for its ban or pick, on the clock, chosen on the room page: a ban that
+    // runs out is lost, a pick passes to the other team (or, already passed, goes to a
+    // referee).
     fn ask(&mut self, s: &Snapshot, team_id: Uuid, kind: StepKind, out: &mut Vec<Action>) {
         let name = s.team_name(team_id);
         log(
@@ -121,7 +123,6 @@ impl AutoRef {
         self.phase = Phase::Draft {
             team_id,
             kind,
-            candidate: None,
             until: s.now + time,
         };
         self.start_countdown(
@@ -129,8 +130,10 @@ impl AutoRef {
             CountdownKind::Draft,
             secs,
             format!(
-                "{name} takımı {} sırası, seçtiğiniz mapin slotunu söyleyin. {} süreniz var{then}.",
+                "{name} takımı {} sırası, mapinizi maç odası sayfasından seçin: {} {} süreniz \
+                 var{then}.",
                 kind_word(kind),
+                s.page,
                 span(secs)
             ),
             out,
@@ -218,26 +221,21 @@ impl AutoRef {
     }
 }
 
-// Why a team can't ban or pick this map, in the words the room hears.
+// Why a team can't ban or pick this map.
 pub(super) fn refusal(
     s: &Snapshot,
     entry: &PoolEntry,
     kind: StepKind,
     team_id: Uuid,
-) -> Option<String> {
-    let label = &entry.label;
+) -> Option<PlayerError> {
     if entry.tiebreaker {
-        let verb = match kind {
-            StepKind::Pick => "picklenemez",
-            StepKind::Ban => "banlanamaz",
-        };
-        return Some(format!("{label} tiebreaker, {verb}."));
+        return Some(PlayerError::Tiebreaker);
     }
     if s.bans.iter().any(|b| b.map_id == entry.map_id) {
-        return Some(format!("{label} banlandı, başka bir map seçin."));
+        return Some(PlayerError::MapBanned);
     }
     if s.picks.iter().any(|p| p.map_id == entry.map_id) || s.played.contains(&entry.map_id) {
-        return Some(format!("{label} zaten oynandı, başka bir map seçin."));
+        return Some(PlayerError::MapTaken);
     }
     if kind == StepKind::Pick && !entry.repeatable {
         let last = s
@@ -247,10 +245,7 @@ pub(super) fn refusal(
             .max_by_key(|p| p.created_at)
             .and_then(|p| s.entry(p.map_id));
         if last.is_some_and(|l| l.category == entry.category) {
-            return Some(format!(
-                "Aynı moddan ({}) arka arkaya pick yapamazsınız (NM hariç), başka bir mod seçin.",
-                entry.category
-            ));
+            return Some(PlayerError::SameCategory);
         }
     }
     None

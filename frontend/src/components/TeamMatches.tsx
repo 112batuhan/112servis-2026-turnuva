@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
 import { fetchPublicBracket } from "../api/bracket";
 import { errorMessage } from "../api/client";
 import type { BracketMatch, PublicBracket } from "../api/types";
@@ -7,6 +8,9 @@ import {
   bracketMatchPath,
   compareByTime,
   fixturePath,
+  hasMatchPage,
+  isOwnMatch,
+  roomPagePath,
   incomingSources,
   rowMatchId,
   withPotentials,
@@ -15,6 +19,7 @@ import {
 import { useLiveBracket } from "../live/LiveContext";
 import { isAdminPath } from "../lib/adminTabs";
 import { FixtureRow } from "./FixtureRow";
+import { Icon } from "./Icon";
 import "./TeamMatches.css";
 
 /**
@@ -26,6 +31,7 @@ export function TeamMatches({ teamId }: { teamId: string }) {
   const [data, setData] = useState<PublicBracket | null>(null);
   const [error, setError] = useState<string | null>(null);
   const admin = isAdminPath(useLocation().pathname);
+  const { user } = useAuth();
 
   useEffect(() => {
     fetchPublicBracket()
@@ -74,7 +80,24 @@ export function TeamMatches({ teamId }: { teamId: string }) {
       <section>
         <h3 className="team-matches-heading">Sıradaki maç</h3>
         {next ? (
-          <div className="fixture-list">{row(next)}</div>
+          <>
+            <div className="fixture-list">{row(next)}</div>
+            {!admin &&
+              next.potential_of === undefined &&
+              hasMatchPage(next) &&
+              isOwnMatch(user?.team_id, [next.team1_id, next.team2_id], false) && (
+                <p className="team-matches-room">
+                  <Link
+                    to={roomPagePath(next.id)}
+                    className={`btn btn-secondary btn-sm match-page-link is-text is-live`}
+                  >
+                    <Icon name="door" size={14} />
+                    Maç odası
+                  </Link>
+                  <span>Warmup, ban ve pick'lerinizi maç sırasında buradan seçersiniz.</span>
+                </p>
+              )}
+          </>
         ) : (
           <p className="team-matches-empty">Planlanmış maç yok.</p>
         )}

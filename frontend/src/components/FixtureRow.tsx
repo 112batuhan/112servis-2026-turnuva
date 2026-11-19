@@ -1,9 +1,14 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
+import { isAdminPath } from "../lib/adminTabs";
 import type { BracketMatch, Team } from "../api/types";
 import { stageLabel } from "../lib/bestOf";
 import {
+  hasMatchPage,
   isLive,
+  isOwnMatch,
   matchCode,
+  roomPagePath,
   scoreHalves,
   sourceLabel,
   winningSlot,
@@ -35,6 +40,8 @@ interface Props {
  * and the score's fill given way to a dashed outline.
  */
 export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Props) {
+  const { user } = useAuth();
+  const admin = isAdminPath(useLocation().pathname);
   const winner = winningSlot(match);
   const started = match.starts_at !== null && new Date(match.starts_at).getTime() <= Date.now();
   const live = isLive(match);
@@ -52,6 +59,12 @@ export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Prop
       : null;
   const ahead = winner ?? leading;
   const potential = match.potential_of !== undefined;
+  // The viewer's own match leads to their room page, and says so where the stage would be.
+  const room =
+    !admin &&
+    !potential &&
+    hasMatchPage(match) &&
+    isOwnMatch(user?.team_id, [match.team1_id, match.team2_id], match.concluded_at !== null);
 
   const side = (slot: 1 | 2) => {
     const team = slot === 1 ? team1 : team2;
@@ -76,7 +89,7 @@ export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Prop
 
   return (
     <Link
-      to={to}
+      to={room ? roomPagePath(match.id) : to}
       className={["fixture-row", live && "is-live", potential && "is-potential"]
         .filter(Boolean)
         .join(" ")}
@@ -134,7 +147,12 @@ export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Prop
           {potential && <span className="fixture-potential">olası</span>}
           <span className={`fixture-code is-${match.side}`}>{matchCode(match)}</span>
         </span>
-        {live ? (
+        {room ? (
+          <span className="fixture-watch is-room">
+            <Icon name="door" size={13} />
+            Maç odası
+          </span>
+        ) : live ? (
           // A live row opens the match's page: say so where the stage would be.
           <span className="fixture-watch">
             <Icon name="monitor" size={13} />

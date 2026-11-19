@@ -105,6 +105,23 @@ pub enum RoomCommand {
     },
 }
 
+// What a player of the match does on its room page (POST /api/matches/:id/player). Bans,
+// picks and warmups are only taken there; -abort, -durdur and -rapor also in the room.
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum PlayerAction {
+    // The team's ban or pick, whichever its turn is.
+    Draft { map_id: Uuid },
+    // The team's warmup, by beatmap id.
+    Warmup { beatmap_id: i64 },
+    // The team won't play a warmup (now, or when its turn comes).
+    SkipWarmup,
+    Abort,
+    // -durdur: the match goes to manual and the staff hear it.
+    Stop,
+    Report { text: String },
+}
+
 // A bot as the bots page shows it, beside its account.
 #[derive(Debug, Clone, Serialize)]
 pub struct BotStatus {
@@ -178,6 +195,20 @@ enum Request {
     },
     SaveScore {
         match_id: Uuid,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    Player {
+        match_id: Uuid,
+        user_id: Uuid,
+        action: PlayerAction,
+        reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    // A player's warmup as osu! describes it, to be chosen now.
+    PlayerWarmup {
+        match_id: Uuid,
+        user_id: Uuid,
+        beatmap_id: i64,
+        map: autoref::WarmupMap,
         reply: oneshot::Sender<Result<(), AppError>>,
     },
     OsuGames {
@@ -258,6 +289,24 @@ impl Bancho {
         self.ask(|reply| Request::Command {
             match_id,
             command,
+            reply,
+        })
+        .await
+        .unwrap_or(Err(GONE.into()))
+    }
+
+    // What a player of the match did on its room page; the refusal, if any, is theirs to
+    // read.
+    pub async fn player(
+        &self,
+        match_id: Uuid,
+        user_id: Uuid,
+        action: PlayerAction,
+    ) -> Result<(), AppError> {
+        self.ask(|reply| Request::Player {
+            match_id,
+            user_id,
+            action,
             reply,
         })
         .await

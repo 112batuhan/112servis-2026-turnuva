@@ -1,5 +1,6 @@
 use super::*;
 use crate::bancho::room::{RoomSlot, SlotStatus, SlotTeam, MATCH_STARTED};
+use crate::error::PlayerError;
 
 const A: Uuid = Uuid::from_u128(1);
 const B: Uuid = Uuid::from_u128(2);
@@ -8,9 +9,16 @@ fn at(secs: i64) -> OffsetDateTime {
     OffsetDateTime::UNIX_EPOCH + Duration::hours(1000) + Duration::seconds(secs)
 }
 
+// The site's id of the player with this osu! id.
+fn uid(osu_id: i64) -> Uuid {
+    Uuid::from_u128(osu_id as u128 + 100)
+}
+
+const PAGE: &str = "https://site/match/m/oda";
+
 fn player(name: &str, osu_id: i64, team: Uuid) -> RosterPlayer {
     RosterPlayer {
-        user_id: Uuid::from_u128(osu_id as u128 + 100),
+        user_id: uid(osu_id),
         osu_id,
         username: name.into(),
         team_id: team,
@@ -132,6 +140,7 @@ impl World {
             room: &self.room,
             no_fail: true,
             first_step_team: 1,
+            page: PAGE,
         }
     }
 }
@@ -235,7 +244,11 @@ fn early_start_when_everyone_is_ready() {
     let mut ar = AutoRef::default();
     let mut out = Vec::new();
     ar.tick(&w.snap(at(-120)), &mut out);
-    assert!(sent(&out).contains(&"!mp host #1"));
+    // Nobody gets the host: the team chooses its warmup on the room page.
+    assert!(!sent(&out).iter().any(|t| t.starts_with("!mp host")));
+    assert!(sent(&out)
+        .iter()
+        .any(|t| t.starts_with("Alfa takımının warmup sırası") && t.contains(PAGE)));
     assert!(matches!(ar.phase, Phase::Warmup { team: 0, .. }));
 }
 
@@ -246,8 +259,27 @@ fn warmups_then_roll_then_first_turn() {
     let mut ar = AutoRef::default();
     let mut out = Vec::new();
     ar.tick(&w.snap(at(0)), &mut out);
-    // The second team skips ahead of its turn; the first plays one.
-    ar.player(&w.snap(at(5)), "b2", "-warmup-gec", true, &mut out);
+    // The second team skips ahead of its turn; the first chooses one and plays it.
+    let skip = ar.web(&w.snap(at(5)), uid(4), Web::SkipWarmup, true, &mut out);
+    assert_eq!(skip, Ok(()));
+    assert_eq!(ar.view(&w.snap(at(5)), true).warmup_skipped, vec![B]);
+    // Typed in the room, it does nothing now.
+    out.clear();
+    ar.player(&w.snap(at(6)), "a1", "-warmup-gec", true, &mut out);
+    assert!(out.is_empty());
+    let map = WarmupMap {
+        seconds: 120,
+        beatmapset_id: 9,
+    };
+    let chose = ar.web(
+        &w.snap(at(8)),
+        uid(1),
+        Web::Warmup(555, map),
+        true,
+        &mut out,
+    );
+    assert_eq!(chose, Ok(()));
+    assert!(sent(&out).contains(&"!mp map 555 0"));
     w.room.beatmap_id = Some(555);
     w.room.playing = true;
     w.room.map_started_at = Some(at(10));
@@ -256,7 +288,6 @@ fn warmups_then_roll_then_first_turn() {
     out.clear();
     ar.bancho(&w.snap(at(100)), "The match has finished!", &mut out);
     assert!(matches!(ar.phase, Phase::Roll { .. }));
-    assert!(sent(&out).contains(&"!mp clearhost"));
     // A roll over 100 doesn't count; the first fair ones decide.
     ar.bancho(&w.snap(at(101)), "a1 rolls 1000 point(s)", &mut out);
     ar.bancho(&w.snap(at(102)), "a1 rolls 20 point(s)", &mut out);
@@ -325,7 +356,6 @@ fn a_pick_marked_by_hand_is_played_on_resuming() {
         phase: Phase::Draft {
             kind: StepKind::Pick,
             team_id: B,
-            candidate: None,
             until: at(100),
         },
         ..AutoRef::default()
@@ -369,15 +399,32 @@ fn a_pick_is_confirmed_checked_and_started() {
     let mut out = Vec::new();
     ar.tick(&w.snap(at(0)), &mut out);
     assert!(matches!(ar.phase, Phase::Draft { team_id: A, .. }));
-    // The other team can't answer; the same mod twice in a row is refused.
+    // The other team can't answer; the same mod twice in a row is refused; typed in the
+    // room, a slot isn't taken.
     out.clear();
-    ar.player(&w.snap(at(1)), "b1", "fm1", true, &mut out);
-    assert!(out.is_empty());
-    ar.player(&w.snap(at(2)), "a1", "hd2", true, &mut out);
-    assert!(sent(&out)[0].starts_with("Aynı moddan"));
-    out.clear();
+    let fm1 = Uuid::from_u128(30);
+    let hd2 = Uuid::from_u128(21);
+    assert_eq!(
+        ar.web(&w.snap(at(1)), uid(3), Web::Draft(fm1), true, &mut out),
+        Err(PlayerError::NotYourTurn)
+    );
+    assert_eq!(
+        ar.web(&w.snap(at(2)), uid(1), Web::Draft(hd2), true, &mut out),
+        Err(PlayerError::SameCategory)
+    );
     ar.player(&w.snap(at(3)), "a1", "FM1", true, &mut out);
-    ar.player(&w.snap(at(4)), "a2", "fm 1", true, &mut out);
+    ar.player(&w.snap(at(3)), "a1", "FM1", true, &mut out);
+    assert!(out.is_empty());
+    // In manual mode the page's pick isn't taken either.
+    assert_eq!(
+        ar.web(&w.snap(at(3)), uid(2), Web::Draft(fm1), false, &mut out),
+        Err(PlayerError::Manual)
+    );
+    // Held on the page, it's taken at once.
+    assert_eq!(
+        ar.web(&w.snap(at(4)), uid(2), Web::Draft(fm1), true, &mut out),
+        Ok(())
+    );
     assert!(out.contains(&Action::Pick {
         map_id: Uuid::from_u128(30),
         team_id: A
@@ -420,14 +467,15 @@ fn a_ban_that_runs_out_is_lost() {
     assert_eq!(
         sent(&out),
         [
-            "Alfa takımı ban sırası, seçtiğiniz mapin slotunu söyleyin. 3 dakika süreniz var, \
-          süre dolarsa ban hakkınız yanar."
+            "Alfa takımı ban sırası, mapinizi maç odası sayfasından seçin: \
+             https://site/match/m/oda 3 dakika süreniz var, süre dolarsa ban hakkınız yanar."
         ]
     );
     assert_eq!(ar.view(&w.snap(at(0)), true).deadline, Some(at(190)));
-    // The slot named once doesn't stop the clock.
+    // A slot typed in the room doesn't stop the clock.
     out.clear();
     ar.player(&w.snap(at(100)), "a1", "hd1", true, &mut out);
+    ar.player(&w.snap(at(101)), "a1", "hd1", true, &mut out);
     for t in 1..190 {
         ar.tick(&w.snap(at(t)), &mut out);
     }
@@ -484,7 +532,10 @@ fn a_pick_that_runs_out_passes_then_goes_to_a_referee() {
     assert!(matches!(ar.phase, Phase::Draft { team_id: B, .. }));
     assert_eq!(
         sent(&out),
-        ["Beta takımı pick sırası, seçtiğiniz mapin slotunu söyleyin. 2 dakika süreniz var."]
+        [
+            "Beta takımı pick sırası, mapinizi maç odası sayfasından seçin: \
+             https://site/match/m/oda 2 dakika süreniz var."
+        ]
     );
     out.clear();
     for t in 132..=261 {
@@ -537,7 +588,7 @@ fn abort_rules() {
     ar.player(&w.snap(at(10)), "a1", "-abort", true, &mut out);
     assert_eq!(
         sent(&out),
-        ["!mp abort", "Abort kullanıldı. 1 hakkınız kaldı."]
+        ["!mp abort", "a1 abort kullandı. 1 hakkınız kaldı."]
     );
     out.clear();
     ar.player(&w.snap(at(40)), "a1", "-abort", true, &mut out);
@@ -552,6 +603,18 @@ fn abort_rules() {
     out.clear();
     ar.player(&w.snap(at(6)), "a1", "-abort", true, &mut out);
     assert!(sent(&out)[0].contains("hakkı kalmadı"));
+    // From the page, the same refusal comes back to it instead.
+    out.clear();
+    assert_eq!(
+        ar.web(&w.snap(at(6)), uid(1), Web::Abort, true, &mut out),
+        Err(PlayerError::NoAbortsLeft)
+    );
+    assert!(out.is_empty());
+    assert_eq!(
+        ar.web(&w.snap(at(7)), uid(3), Web::Abort, true, &mut out),
+        Ok(())
+    );
+    assert_eq!(ar.aborts_left(B), 1);
 }
 
 #[test]
@@ -577,6 +640,21 @@ fn stop_goes_to_manual_any_number_of_times() {
     assert!(out.is_empty());
     ar.player(&w.snap(at(70)), "b2", "-durdur", false, &mut out);
     assert!(out.iter().any(|a| matches!(a, Action::Stop { .. })));
+    // From the page it's the same, and the page hears it's too soon.
+    out.clear();
+    assert_eq!(
+        ar.web(&w.snap(at(71)), uid(4), Web::Stop, false, &mut out),
+        Err(PlayerError::TooSoon)
+    );
+    assert_eq!(
+        ar.web(&w.snap(at(71)), uid(1), Web::Stop, true, &mut out),
+        Ok(())
+    );
+    // Someone who isn't playing in the match can't.
+    assert_eq!(
+        ar.web(&w.snap(at(72)), uid(99), Web::Stop, true, &mut out),
+        Err(PlayerError::NotInMatch)
+    );
 }
 
 #[test]
@@ -600,6 +678,26 @@ fn reports_work_in_manual_mode_too() {
     out.clear();
     ar.player(&w.snap(at(10)), "a1", "-abort", false, &mut out);
     assert!(out.is_empty());
+    assert_eq!(
+        ar.web(
+            &w.snap(at(11)),
+            uid(1),
+            Web::Report("x".into()),
+            false,
+            &mut out
+        ),
+        Err(PlayerError::TooSoon)
+    );
+    assert_eq!(
+        ar.web(
+            &w.snap(at(11)),
+            uid(3),
+            Web::Report("  ".into()),
+            false,
+            &mut out
+        ),
+        Err(PlayerError::ReportEmpty)
+    );
 }
 
 #[test]
@@ -730,6 +828,8 @@ fn in_warmup(w: &mut World) -> AutoRef {
             until: at(180),
             played: false,
             skipped: [false, false],
+            beatmap: None,
+            starting: false,
         },
         ..AutoRef::default()
     }
@@ -740,24 +840,45 @@ fn a_warmup_starts_once_everyone_is_ready() {
     let mut w = World::bracket();
     let mut ar = in_warmup(&mut w);
     let mut out = Vec::new();
-    w.room.beatmap_id = Some(555);
-    ar.bancho(
-        &w.snap(at(5)),
-        "Beatmap changed to: Song [Hard] (https://osu.ppy.sh/b/555)",
-        &mut out,
-    );
-    assert_eq!(out, [Action::WarmupMap(555)]);
-    let map = WarmupMap {
-        seconds: 120,
-        beatmapset_id: 9,
-    };
-    out.clear();
-    ar.warmup_described(&w.snap(at(6)), 555, map, &mut out);
-    assert!(out.is_empty());
+    // Ready before the team chose one: nothing starts.
     w.room
         .slots
         .iter_mut()
         .for_each(|s| s.status = SlotStatus::Ready);
+    w.room.beatmap_id = Some(444);
+    ar.bancho(&w.snap(at(2)), "All players are ready", &mut out);
+    assert!(out.is_empty());
+    // Only the team whose turn it is chooses.
+    assert_eq!(
+        ar.check_warmup(&w.snap(at(3)), uid(3)),
+        Err(PlayerError::NotYourWarmup)
+    );
+    assert_eq!(ar.check_warmup(&w.snap(at(3)), uid(2)), Ok(()));
+    let map = WarmupMap {
+        seconds: 120,
+        beatmapset_id: 9,
+    };
+    assert_eq!(
+        ar.web(
+            &w.snap(at(5)),
+            uid(2),
+            Web::Warmup(555, map),
+            true,
+            &mut out
+        ),
+        Ok(())
+    );
+    assert_eq!(
+        sent(&out),
+        [
+            "!mp map 555 0",
+            "!mp mods Freemod",
+            "Alfa warmup mapini seçti. Herkes hazır olduğunda ya da süre dolunca başlayacak."
+        ]
+    );
+    assert_eq!(ar.view(&w.snap(at(5)), true).warmup_beatmap_id, Some(555));
+    w.room.beatmap_id = Some(555);
+    out.clear();
     ar.bancho(&w.snap(at(10)), "All players are ready", &mut out);
     assert_eq!(
         sent(&out),
@@ -766,45 +887,84 @@ fn a_warmup_starts_once_everyone_is_ready() {
 }
 
 #[test]
+fn a_warmup_chosen_starts_when_its_turn_runs_out() {
+    let mut w = World::bracket();
+    let mut ar = in_warmup(&mut w);
+    let mut out = Vec::new();
+    let map = WarmupMap {
+        seconds: 200,
+        beatmapset_id: 9,
+    };
+    // Chosen with 20 seconds left: everyone gets a minute.
+    assert_eq!(
+        ar.web(
+            &w.snap(at(160)),
+            uid(1),
+            Web::Warmup(555, map),
+            true,
+            &mut out
+        ),
+        Ok(())
+    );
+    assert!(sent(&out)
+        .iter()
+        .any(|t| t.ends_with("ya da 1 dakika sonra başlayacak.")));
+    w.room.beatmap_id = Some(555);
+    out.clear();
+    let mut started = None;
+    for t in 161..300 {
+        ar.tick(&w.snap(at(t)), &mut out);
+        if started.is_none() && sent(&out).contains(&"!mp start 10") {
+            started = Some(t);
+        }
+    }
+    // Started once the minute (and the grace) ran out, not before.
+    assert!(started.is_some_and(|t| t >= 230));
+    assert!(sent(&out).contains(&"Warmup 30 saniye sonra başlayacak."));
+    // It never started: the next team's turn came.
+    assert!(matches!(ar.phase, Phase::Warmup { team: 1, .. }));
+}
+
+#[test]
 fn a_pool_song_is_no_warmup_in_any_difficulty() {
     let mut w = World::bracket();
     let mut ar = in_warmup(&mut w);
     let mut out = Vec::new();
-    // Another difficulty of HD1's set (1020).
-    w.room.beatmap_id = Some(777);
-    ar.bancho(
-        &w.snap(at(5)),
-        "Beatmap changed to: Song [Easy] (https://osu.ppy.sh/b/777)",
-        &mut out,
-    );
-    assert_eq!(out, [Action::WarmupMap(777)]);
-    out.clear();
-    let map = WarmupMap {
+    // Another difficulty of HD1's set (1020), or too long: refused, nothing put on.
+    let other_diff = WarmupMap {
         seconds: 90,
         beatmapset_id: 1020,
     };
-    ar.warmup_described(&w.snap(at(6)), 777, map, &mut out);
-    assert!(sent(&out)[0].starts_with("Havuzdaki mapler"));
-    // Everyone ready: it isn't started; started anyway, it's aborted.
-    out.clear();
-    w.room
-        .slots
-        .iter_mut()
-        .for_each(|s| s.status = SlotStatus::Ready);
-    ar.bancho(&w.snap(at(10)), "All players are ready", &mut out);
-    assert!(!sent(&out).contains(&"!mp start 10"));
-    out.clear();
+    assert_eq!(
+        ar.web(
+            &w.snap(at(5)),
+            uid(1),
+            Web::Warmup(777, other_diff),
+            true,
+            &mut out
+        ),
+        Err(PlayerError::WarmupInPool)
+    );
+    let long = WarmupMap {
+        seconds: 300,
+        beatmapset_id: 5,
+    };
+    assert_eq!(
+        ar.web(
+            &w.snap(at(5)),
+            uid(1),
+            Web::Warmup(778, long),
+            true,
+            &mut out
+        ),
+        Err(PlayerError::WarmupTooLong)
+    );
+    assert!(out.is_empty());
+    // A referee putting it on anyway: started, it's aborted.
+    w.room.beatmap_id = Some(777);
+    w.room.playing = true;
     ar.bancho(&w.snap(at(12)), MATCH_STARTED, &mut out);
     assert_eq!(sent(&out)[0], "!mp abort");
-    // The pool map itself is refused as soon as it's on.
-    out.clear();
-    w.room.beatmap_id = Some(20);
-    ar.bancho(
-        &w.snap(at(20)),
-        "Changed beatmap to https://osu.ppy.sh/b/20 Song",
-        &mut out,
-    );
-    assert!(sent(&out)[0].starts_with("Havuzdaki mapler"));
 }
 
 #[test]
@@ -865,7 +1025,6 @@ fn a_map_the_referee_put_on_for_a_pick_is_that_pick() {
         phase: Phase::Draft {
             kind: StepKind::Pick,
             team_id: B,
-            candidate: None,
             until: at(10),
         },
         ..AutoRef::default()
@@ -889,7 +1048,6 @@ fn a_map_the_referee_put_on_for_a_pick_is_that_pick() {
         phase: Phase::Draft {
             kind: StepKind::Pick,
             team_id: B,
-            candidate: None,
             until: at(10),
         },
         ..AutoRef::default()

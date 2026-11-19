@@ -180,10 +180,16 @@ impl AutoRef {
         }
     }
 
-    // Everyone is ready on the warmup the host opened: the bot starts it. Not a map the
-    // rules refuse, nor one osu! hasn't described yet.
+    // Everyone is ready on the warmup the team chose: the bot starts it. Not before the
+    // team chose one, nor a map the rules refuse, nor one osu! hasn't described yet.
     fn warmup_ready(&mut self, s: &Snapshot, out: &mut Vec<Action>) {
-        let Phase::Warmup { played: false, .. } = self.phase else {
+        let Phase::Warmup {
+            played: false,
+            beatmap: Some(_),
+            starting: false,
+            ..
+        } = self.phase
+        else {
             return;
         };
         let Some(beatmap) = s.room.beatmap_id else {

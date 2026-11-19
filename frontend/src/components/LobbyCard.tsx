@@ -85,7 +85,13 @@ export function LobbyCard<P extends Player>({
             </dd>
           </dl>
           <div className="lobby-card-links">
-            <MatchPageLink matchId={lobby.id} live={isLobbyLive(lobby)} variant="text" />
+            <MatchPageLink
+              matchId={lobby.id}
+              live={isLobbyLive(lobby)}
+              variant="text"
+              teamIds={lobby.teams.map((t) => t.id)}
+              concluded={lobby.concluded_at !== null}
+            />
             <RoomLinks rooms={lobby.rooms} />
           </div>
         </div>

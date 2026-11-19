@@ -7,7 +7,9 @@ import { LiveMark } from "../../../components/LiveMark";
 import { TeamCard } from "../../../components/TeamCard";
 import { normalizeName, type SlotTeam } from "../../../lib/bancho";
 import { stageLabel } from "../../../lib/bestOf";
-import { bracketMatchPath } from "../../../lib/bracket";
+import { bracketMatchPath, isOwnMatch, roomPagePath } from "../../../lib/bracket";
+import { useAuth } from "../../../auth/AuthContext";
+import { Icon } from "../../../components/Icon";
 import { formatMatchTime } from "../../../lib/format";
 import { MapClock } from "../../../components/match/MapClock";
 import { ScoreSheet } from "../../../components/match/ScoreSheet";
@@ -43,6 +45,7 @@ function MatchView({ matchId }: { matchId: string }) {
   const { match, loadError, roomChats, roster, connected } = page;
   const { tab, select, compact, pageRef, barRef, tabsRef } = useCockpit(match !== null);
   const [chatUnread, setChatUnread] = useState(0);
+  const { user } = useAuth();
 
   const colors = useMemo(() => {
     const map = new Map<string, SlotTeam | null>();
@@ -90,6 +93,16 @@ function MatchView({ matchId }: { matchId: string }) {
               <span className="referee-title-teams">· {match.teams.length} takım</span>
             )}
           </h1>
+          {isOwnMatch(
+            user?.team_id,
+            match.teams.map((t) => t.id),
+            match.concluded_at !== null,
+          ) && (
+            <Link to={roomPagePath(match.id)} className="btn btn-primary btn-sm match-room-link">
+              <Icon name="door" size={14} />
+              Maç odası
+            </Link>
+          )}
         </div>
         <p className="referee-meta match-meta">
           {match.starts_at && (

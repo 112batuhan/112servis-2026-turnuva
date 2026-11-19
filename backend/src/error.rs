@@ -148,6 +148,8 @@ pub enum ErrorCode {
     Arg(#[from] ArgError),
     #[error(transparent)]
     Rules(#[from] RulesError),
+    #[error(transparent)]
+    Player(#[from] PlayerError),
 }
 
 impl ErrorCode {
@@ -168,6 +170,7 @@ impl ErrorCode {
             ErrorCode::Pickem(e) => e.status(),
             ErrorCode::Arg(e) => e.status(),
             ErrorCode::Rules(e) => e.status(),
+            ErrorCode::Player(e) => e.status(),
         }
     }
 }
@@ -198,7 +201,8 @@ into_app_error!(
     DiscordError,
     PickemError,
     ArgError,
-    RulesError
+    RulesError,
+    PlayerError
 );
 
 /// Not about any one feature, or a failure on our side or osu!'s.
@@ -830,6 +834,74 @@ impl RulesError {
         match self {
             Self::TooLong => StatusCode::BAD_REQUEST,
             Self::Changed => StatusCode::CONFLICT,
+        }
+    }
+}
+
+/// What a match's players do from its room page (or type in the room): bans, picks,
+/// warmups, aborts, reports and the emergency stop.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlayerError {
+    #[error("you aren't playing in this match")]
+    NotInMatch,
+    #[error("the room's bot isn't running this match right now")]
+    NotRunning,
+    #[error("the auto referee isn't running this match; a referee runs it")]
+    Manual,
+    #[error("it isn't your team's turn to ban or pick")]
+    NotYourTurn,
+    #[error("the tiebreaker can't be banned or picked")]
+    Tiebreaker,
+    #[error("that map is banned")]
+    MapBanned,
+    #[error("that map was already picked")]
+    MapTaken,
+    #[error("your team can't pick the same mod twice in a row (NoMod aside)")]
+    SameCategory,
+    #[error("it isn't your team's turn to choose a warmup")]
+    NotYourWarmup,
+    #[error("a warmup is being played")]
+    WarmupPlaying,
+    #[error("pool maps and their other difficulties can't be played as warmups")]
+    WarmupInPool,
+    #[error("a warmup can't be longer than 4 minutes")]
+    WarmupTooLong,
+    #[error("a warmup has to be an osu!standard map")]
+    WarmupNotStandard,
+    #[error("no map is being played")]
+    NoMapPlaying,
+    #[error("a map can only be aborted in its first 30 seconds")]
+    AbortTooLate,
+    #[error("your team has no aborts left")]
+    NoAbortsLeft,
+    #[error("write what you're reporting")]
+    ReportEmpty,
+    #[error("wait a minute before sending that again")]
+    TooSoon,
+}
+
+impl PlayerError {
+    fn status(self) -> StatusCode {
+        match self {
+            Self::NotInMatch => StatusCode::FORBIDDEN,
+            Self::ReportEmpty => StatusCode::BAD_REQUEST,
+            Self::WarmupInPool | Self::WarmupTooLong | Self::WarmupNotStandard => {
+                StatusCode::UNPROCESSABLE_ENTITY
+            }
+            Self::TooSoon => StatusCode::TOO_MANY_REQUESTS,
+            Self::NotRunning
+            | Self::Manual
+            | Self::NotYourTurn
+            | Self::Tiebreaker
+            | Self::MapBanned
+            | Self::MapTaken
+            | Self::SameCategory
+            | Self::NotYourWarmup
+            | Self::WarmupPlaying
+            | Self::NoMapPlaying
+            | Self::AbortTooLate
+            | Self::NoAbortsLeft => StatusCode::CONFLICT,
         }
     }
 }

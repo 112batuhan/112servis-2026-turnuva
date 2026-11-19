@@ -1,10 +1,11 @@
 //! The auto referee: the room's bot runs the match by itself, from the moment everyone
 //! is in the room to the end, the way a referee would. A qualifier lobby plays its pool
-//! map by map; a bracket match has its warmups, the roll, the bans and picks the players
-//! type in the room, each map started once everyone is ready, the score read from osu!
-//! after every map and the match concluded once a team has won. Players steer it with
-//! `-abort`, `-durdur` (back to manual), `-rapor`, `-warmup-gec` (and `-davet` in a private message, which
-//! the manager answers). It keeps the room locked, so players stay where the bot put them.
+//! map by map; a bracket match has its warmups and its bans and picks, which the players
+//! choose on the match's room page (`/match/:id/oda`), the roll, each map started once
+//! everyone is ready, the score read from osu! after every map and the match concluded
+//! once a team has won. Players also steer it with `-abort`, `-durdur` (back to manual)
+//! and `-rapor`, in the room or on the page (and `-davet` in a private message, which the
+//! manager answers). It keeps the room locked, so players stay where the bot put them.
 //!
 //! It is a state machine with no I/O: the manager (manager/auto_referee.rs) feeds it the room's lines,
 //! the players' commands and the clock along with a `Snapshot` of the match, and does the
@@ -26,6 +27,7 @@ mod view;
 mod warmups;
 
 pub use countdown::{span, Countdown, CountdownKind, GRACE};
+pub use players::Web;
 pub use view::AutorefView;
 
 use std::collections::{HashMap, HashSet};
@@ -54,7 +56,7 @@ pub const ABORTS: u8 = 2;
 const ABORT_WINDOW: Duration = Duration::seconds(30);
 // How long after the match's time the bot waits for everyone to join.
 pub const NO_SHOW_WAIT: Duration = Duration::minutes(10);
-// The time each team has to open a warmup, and the longest one it may play.
+// The time each team has to choose a warmup, and the longest one it may play.
 const WARMUP_TIME: Duration = Duration::minutes(3);
 const WARMUP_MAX_SECS: i32 = 4 * 60;
 // A warmup played past this long is aborted, whatever its length said.
@@ -141,15 +143,21 @@ pub enum Phase {
     // Before the match: waiting for its time and its players.
     #[default]
     Waiting,
-    // Bracket: team `team` (0 or 1) has the host to open a warmup.
+    // Bracket: team `team` (0 or 1) chooses a warmup on the room page.
     Warmup {
         team: usize,
         #[serde(with = "time::serde::rfc3339")]
         until: OffsetDateTime,
-        // They started one.
+        // It's being played (or was).
         played: bool,
-        // Teams that said -warmup-gec before their turn.
+        // Teams that said they'd skip theirs before their turn.
         skipped: [bool; 2],
+        // The beatmap the team chose, which the bot put on.
+        #[serde(default)]
+        beatmap: Option<i64>,
+        // The turn ran out with it on: !mp start went out.
+        #[serde(default)]
+        starting: bool,
     },
     // Bracket: both teams' first !roll.
     Roll {
@@ -157,12 +165,10 @@ pub enum Phase {
         until: OffsetDateTime,
         rolls: [Option<i32>; 2],
     },
-    // Bracket: a team is to name its ban or pick by `until`; `candidate` waits for them
-    // to say it again.
+    // Bracket: a team is to choose its ban or pick on the room page by `until`.
     Draft {
         team_id: Uuid,
         kind: StepKind,
-        candidate: Option<Uuid>,
         #[serde(default = "OffsetDateTime::now_utc", with = "time::serde::rfc3339")]
         until: OffsetDateTime,
     },
@@ -274,6 +280,8 @@ pub struct Snapshot<'a> {
     pub no_fail: bool,
     // The team (1 or 2) of the stage's first ban or pick: the roll's winner is 1.
     pub first_step_team: u8,
+    // The match's room page, where the players choose their warmups, bans and picks.
+    pub page: &'a str,
 }
 
 impl Snapshot<'_> {
@@ -310,21 +318,6 @@ impl Snapshot<'_> {
 
     fn entry(&self, map_id: Uuid) -> Option<&PoolEntry> {
         self.entries.iter().find(|e| e.map_id == map_id)
-    }
-
-    // The pool slot a player typed: "hd1", "HD 1", "tb".
-    fn entry_named(&self, text: &str) -> Option<&PoolEntry> {
-        let typed: String = text
-            .chars()
-            .filter(|c| !c.is_whitespace())
-            .collect::<String>()
-            .to_uppercase();
-        if typed.is_empty() || typed.len() > 8 {
-            return None;
-        }
-        self.entries
-            .iter()
-            .find(|e| e.label.to_uppercase().replace(' ', "") == typed)
     }
 
     // The team whose pick just ran out and passed to the other team: the latest turn

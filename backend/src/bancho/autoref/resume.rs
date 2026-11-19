@@ -74,6 +74,8 @@ impl AutoRef {
                         until: s.now + WARMUP_TIME,
                         played: true,
                         skipped: [false, false],
+                        beatmap: s.room.beatmap_id,
+                        starting: false,
                     };
                 }
             }
