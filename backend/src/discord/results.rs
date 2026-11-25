@@ -35,6 +35,10 @@ pub async fn post(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResult {
         channels::delete_message(bot, old_channel, old_message).await?;
         db::discord::set_results(&state.db, match_id, None).await?;
     }
+    // Paused (jobs::post): the stale post still goes, but no new one is sent.
+    if db::discord::channels_paused(&state.db).await? {
+        return Ok(());
+    }
     let embed = results_embed(state, &info).await?;
     let message = snowflake::channel(channel)
         .send_message(

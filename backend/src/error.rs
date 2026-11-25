@@ -765,6 +765,8 @@ pub enum DiscordError {
     PlayerNotInServer,
     #[error("that player was just pinged, wait a little")]
     PingCooldown,
+    #[error("match channels are paused, the bot sends no messages")]
+    ChannelsPaused,
 }
 
 impl DiscordError {
@@ -774,7 +776,8 @@ impl DiscordError {
             | Self::BotOff
             | Self::NoChannel
             | Self::PlayerNotInServer
-            | Self::PingCooldown => StatusCode::CONFLICT,
+            | Self::PingCooldown
+            | Self::ChannelsPaused => StatusCode::CONFLICT,
         }
     }
 }

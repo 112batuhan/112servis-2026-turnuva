@@ -173,6 +173,7 @@ export const ERROR_TEXT = {
     no_channel: "Bu maçın henüz Discord kanalı yok.",
     player_not_in_server: "Bu oyuncu Discord sunucusunda değil.",
     ping_cooldown: "Bu oyuncu az önce etiketlendi, biraz bekle.",
+    channels_paused: "Maç kanalları duraklatıldı; bot şu an mesaj göndermiyor.",
   },
   pickem: {
     closed: "Bu aşamanın pick'emi açık değil.",

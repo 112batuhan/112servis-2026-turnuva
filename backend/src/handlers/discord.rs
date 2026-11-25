@@ -219,8 +219,8 @@ pub struct PausedBody {
 }
 
 // PUT /api/discord/channels/paused — host-only. Stops new match channels from opening
-// (the ones there are still kept up to date and archived), or lets them open again, in
-// which case every match that needs one gets it.
+// and the bot from sending any message (the ones there are still kept up to date and
+// archived), or lets them open again, in which case every match that needs one gets it.
 async fn set_channels_paused(
     State(state): State<AppState>,
     user: AuthUser,
@@ -333,6 +333,9 @@ async fn ping(
     }
     if db::discord::channel_of(&state.db, id).await?.is_none() {
         return Err(DiscordError::NoChannel.into());
+    }
+    if db::discord::channels_paused(&state.db).await? {
+        return Err(DiscordError::ChannelsPaused.into());
     }
     if !bot.take_ping(body.user_id) {
         return Err(DiscordError::PingCooldown.into());

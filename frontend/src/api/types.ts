@@ -1051,7 +1051,7 @@ export interface DiscordView {
   /** Hosts have it switched on (PUT /api/discord/active); while off it's disconnected and queues nothing. */
   active: boolean;
   connected: boolean;
-  /** Hosts stopped new match channels from opening; the ones there are still kept up to date. */
+  /** Hosts paused match channels: no new one opens and the bot sends no messages anywhere; the ones there are still kept up to date. */
   channels_paused: boolean;
   /** How many matches have a Discord channel. */
   channel_count: number;

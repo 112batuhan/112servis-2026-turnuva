@@ -46,6 +46,10 @@ pub async fn post(state: &AppState, bot: &Bot, match_id: Uuid) -> BotResult {
     if stored.announced_for != info.starts_at {
         return Ok(());
     }
+    // Paused (jobs::post): this time's announcement is skipped, not posted later.
+    if db::discord::channels_paused(&state.db).await? {
+        return Ok(());
+    }
     let players = db::discord::match_players(&state.db, match_id).await?;
     let message = messages::announcement(state, &info, &players, stored.announced_for);
     let synced = key(&message);

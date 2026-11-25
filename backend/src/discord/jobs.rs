@@ -536,6 +536,12 @@ async fn post(
     message: &OutMessage,
     status_of: Option<Uuid>,
 ) -> BotResult {
+    // While hosts have match channels paused, the bot sends no messages anywhere (match
+    // channels, the staff and public channels, DMs); what it would have sent is
+    // dropped, not held for later.
+    if db::discord::channels_paused(&state.db).await? {
+        return Ok(());
+    }
     let channel = match to {
         Target::Channel(id) => snowflake::channel(*id),
         Target::MatchChannel(match_id) => {

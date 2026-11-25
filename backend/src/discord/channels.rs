@@ -378,6 +378,11 @@ async fn sync_card(
     if info.concluded_at.is_some() {
         return Ok(());
     }
+    // The bot posts nothing while match channels are paused (an existing card is still
+    // edited, silently); unpausing syncs every match, which posts it then.
+    if db::discord::channels_paused(&state.db).await? {
+        return Ok(());
+    }
     let message = channel.send_message(&bot.http, card.build()).await?;
     db::discord::set_card(&state.db, info.id, message.id.get() as i64, &key).await?;
     // Pinning needs Manage Messages, which the bot may not have been given; the card

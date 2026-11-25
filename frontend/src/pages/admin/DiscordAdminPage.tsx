@@ -189,8 +189,8 @@ export function DiscordAdminPage() {
       setView({ ...view, channels_paused: paused });
       setNote(
         paused
-          ? "Yeni maç kanalı açılması duraklatıldı. Var olan kanallar güncellenmeye devam ediyor."
-          : "Maç kanalları yeniden açılıyor: kanalı olması gereken maçlar arka planda kanalını alacak.",
+          ? "Maç kanalları duraklatıldı: yeni kanal açılmıyor ve bot hiçbir yere mesaj göndermiyor (kanallar, duyurular, sonuçlar, DM'ler). Var olan kanallar ve mesajlar sessizce güncellenmeye devam ediyor."
+          : "Maç kanalları yeniden açılıyor: kanalı olması gereken maçlar arka planda kanalını alacak, bot yeniden mesaj gönderecek. Duraklatılmışken gönderilmeyenler gönderilmeyecek.",
       );
     } catch (e) {
       setError(errorMessage(e));
@@ -285,7 +285,7 @@ export function DiscordAdminPage() {
           <div className="discord-channels-text">
             <span className="discord-label">Maç kanalları</span>
             {view.channels_paused ? (
-              <span className="badge badge-warning">Açma duraklatıldı</span>
+              <span className="badge badge-warning">Duraklatıldı</span>
             ) : (
               <span className="badge badge-success">Açılıyor</span>
             )}
@@ -298,7 +298,7 @@ export function DiscordAdminPage() {
               disabled={channelsBusy}
               onClick={toggleChannels}
             >
-              {view.channels_paused ? "Kanal açmayı sürdür" : "Kanal açmayı duraklat"}
+              {view.channels_paused ? "Kanalları sürdür" : "Kanalları duraklat"}
             </button>
             <button
               type="button"
