@@ -11,16 +11,18 @@ import {
  * A press held for `ms` before it counts: the room page's bans and picks, where a slip of the
  * finger shouldn't cost a team its map. A pointer held on the element (a touch that starts
  * scrolling instead lets go), or Space or Enter held while it's focused. `left` is the time still
- * to hold, while it's held; letting go early cancels.
+ * to hold, while it's held; letting go early cancels. `onStart` is told as each hold begins.
  */
-export function useHold(ms: number, onDone: () => void, enabled: boolean) {
+export function useHold(ms: number, onDone: () => void, enabled: boolean, onStart?: () => void) {
   const [holding, setHolding] = useState(false);
   const [left, setLeft] = useState(ms);
   const timer = useRef<number | null>(null);
   const ticker = useRef<number | null>(null);
   const doneRef = useRef(onDone);
+  const startRef = useRef(onStart);
   useEffect(() => {
     doneRef.current = onDone;
+    startRef.current = onStart;
   });
 
   const stop = useCallback(() => {
@@ -37,6 +39,7 @@ export function useHold(ms: number, onDone: () => void, enabled: boolean) {
     const began = Date.now();
     setHolding(true);
     setLeft(ms);
+    startRef.current?.();
     ticker.current = window.setInterval(() => setLeft(Math.max(0, ms - (Date.now() - began))), 100);
     timer.current = window.setTimeout(() => {
       stop();

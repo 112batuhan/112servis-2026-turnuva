@@ -519,7 +519,7 @@ pub async fn notify_banned(
     .await
 }
 
-// Something the staff running matches should see at once (a player's -rapor or -durdur,
+// Something the staff running matches should see at once (a player's !rapor or !panik,
 // the auto referee handing a match over): to every host and referee. `actor` is the
 // player who wrote it, `team` their team.
 pub async fn notify_match_staff(

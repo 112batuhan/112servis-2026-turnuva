@@ -504,8 +504,8 @@ export type MatchStaffRole = "referee" | "streamer";
  * match or team); teammate_banned says they banned the recipient's teammate (the actor; no reason).
  * For the hosts but the one who did it, player_banned says a player (the actor) was banned, with the
  * reason and their team if they're in one.
- * From the auto referee, to every host and referee: player_report is a player's -rapor (the actor,
- * their team, what they wrote), emergency_stop a player's -durdur (the match went to manual), autoref_stopped that it handed the
+ * From the auto referee, to every host and referee: player_report is a player's !rapor (the actor,
+ * their team, what they wrote), emergency_stop a player's !panik (the match went to manual), autoref_stopped that it handed the
  * match over to the staff (why, in `message`). To players: no_show_forfeit says a bracket match was
  * forfeited for the team that didn't show up (`team_id`; to both teams), lobby_no_show that their
  * team was taken out of its qualifier lobby for not showing up.
@@ -851,7 +851,7 @@ export interface AutorefView {
   warmup_skipped: string[];
   /** Roll: each team's first !roll so far. */
   rolls: { team_id: string; roll: number }[];
-  /** Each team's -abort uses left. */
+  /** Each team's !abort uses left. */
   teams: { team_id: string; aborts_left: number }[];
   /** DEV_LOGIN: the dummy accounts (negative osu! ids) count as in the room. */
   stand_ins: boolean;
@@ -860,9 +860,13 @@ export interface AutorefView {
 /** POST /api/matches/:id/player: what a match's player does on its room page. */
 export type PlayerAction =
   | { type: "draft"; map_id: string }
+  /** A hold on that map began: the turn waits for it if it runs out meanwhile. */
+  | { type: "hold"; map_id: string }
   | { type: "warmup"; beatmap_id: number }
   | { type: "skip_warmup" }
   | { type: "abort" }
+  /** A new invite to the match's room, by its bot. */
+  | { type: "invite" }
   | { type: "stop" }
   | { type: "report"; text: string };
 

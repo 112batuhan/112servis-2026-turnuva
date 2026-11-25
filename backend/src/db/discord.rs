@@ -934,6 +934,14 @@ pub async fn find_team_by_name(pool: &PgPool, name: &str) -> sqlx::Result<Option
         .await
 }
 
+// The site's account linked to this Discord account.
+pub async fn user_of_discord(pool: &PgPool, discord_id: &str) -> sqlx::Result<Option<Uuid>> {
+    sqlx::query_scalar("SELECT osu_user_id FROM discord_accounts WHERE discord_id = $1")
+        .bind(discord_id)
+        .fetch_optional(pool)
+        .await
+}
+
 pub async fn team_of_discord(pool: &PgPool, discord_id: &str) -> sqlx::Result<Option<Uuid>> {
     sqlx::query_scalar(
         r#"

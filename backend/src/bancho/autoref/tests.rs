@@ -14,7 +14,7 @@ fn uid(osu_id: i64) -> Uuid {
     Uuid::from_u128((osu_id + 1000) as u128)
 }
 
-const PAGE: &str = "https://site/match/m/oda";
+const PAGE: &str = "https://site/match/m/players";
 
 fn player(name: &str, osu_id: i64, team: Uuid) -> RosterPlayer {
     RosterPlayer {
@@ -241,9 +241,10 @@ fn qualifier_removes_incomplete_teams_and_opens_the_first_map() {
 }
 
 #[test]
-fn early_start_when_everyone_is_ready() {
+fn starts_once_everyone_is_in_before_its_time() {
+    // Being in the room is being ready: nobody has to press Ready.
     let mut w = World::bracket();
-    w.everyone_in(SlotStatus::Ready);
+    w.everyone_in(SlotStatus::NotReady);
     let mut ar = AutoRef::default();
     let mut out = Vec::new();
     ar.tick(&w.snap(at(-120)), &mut out);
@@ -268,7 +269,7 @@ fn warmups_then_roll_then_first_turn() {
     assert_eq!(ar.view(&w.snap(at(5)), true).warmup_skipped, vec![B]);
     // Typed in the room, it does nothing now.
     out.clear();
-    ar.player(&w.snap(at(6)), "a1", "-warmup-gec", true, &mut out);
+    ar.player(&w.snap(at(6)), "a1", "!warmup-gec", true, &mut out);
     assert!(out.is_empty());
     let map = WarmupMap {
         seconds: 120,
@@ -471,7 +472,7 @@ fn a_ban_that_runs_out_is_lost() {
         sent(&out),
         [
             "Alfa takımı ban sırası, mapinizi maç odası sayfasından seçin: \
-             https://site/match/m/oda 3 dakika süreniz var, süre dolarsa ban hakkınız yanar."
+             https://site/match/m/players 3 dakika süreniz var, süre dolarsa ban hakkınız yanar."
         ]
     );
     assert_eq!(ar.view(&w.snap(at(0)), true).deadline, Some(at(190)));
@@ -537,7 +538,7 @@ fn a_pick_that_runs_out_passes_then_goes_to_a_referee() {
         sent(&out),
         [
             "Beta takımı pick sırası, mapinizi maç odası sayfasından seçin: \
-             https://site/match/m/oda 2 dakika süreniz var."
+             https://site/match/m/players 2 dakika süreniz var."
         ]
     );
     out.clear();
@@ -588,13 +589,13 @@ fn abort_rules() {
     w.room.playing = true;
     w.room.map_started_at = Some(at(0));
     let mut out = Vec::new();
-    ar.player(&w.snap(at(10)), "a1", "-abort", true, &mut out);
+    ar.player(&w.snap(at(10)), "a1", "!abort", true, &mut out);
     assert_eq!(
         sent(&out),
         ["!mp abort", "a1 abort kullandı. 1 hakkınız kaldı."]
     );
     out.clear();
-    ar.player(&w.snap(at(40)), "a1", "-abort", true, &mut out);
+    ar.player(&w.snap(at(40)), "a1", "!ABORT", true, &mut out);
     assert_eq!(
         sent(&out),
         ["Maç başladıktan 30 saniye sonra abort kullanılamaz."]
@@ -604,7 +605,7 @@ fn abort_rules() {
     ar.bancho(&w.snap(at(5)), "a2 left the game.", &mut out);
     assert_eq!(ar.aborts_left(A), 0);
     out.clear();
-    ar.player(&w.snap(at(6)), "a1", "-abort", true, &mut out);
+    ar.player(&w.snap(at(6)), "a1", "!abort", true, &mut out);
     assert!(sent(&out)[0].contains("hakkı kalmadı"));
     // From the page, the same refusal comes back to it instead.
     out.clear();
@@ -628,7 +629,7 @@ fn stop_goes_to_manual_any_number_of_times() {
     let mut out = Vec::new();
     ar.enter_ready(&w.snap(at(0)), &w.entries[0].clone(), &mut out);
     out.clear();
-    ar.player(&w.snap(at(1)), "b1", "-durdur", true, &mut out);
+    ar.player(&w.snap(at(1)), "b1", "!panik", true, &mut out);
     assert!(out
         .iter()
         .any(|a| matches!(a, Action::Stop { username, .. } if username == "b1")));
@@ -636,10 +637,10 @@ fn stop_goes_to_manual_any_number_of_times() {
     assert!(matches!(ar.phase, Phase::Ready { .. }));
     // In manual mode too, and again by the same team; only flooding is held back.
     out.clear();
-    ar.player(&w.snap(at(2)), "b2", "-durdur", false, &mut out);
+    ar.player(&w.snap(at(2)), "b2", "!panic", false, &mut out);
     assert!(out.iter().any(|a| matches!(a, Action::Stop { .. })));
     out.clear();
-    ar.player(&w.snap(at(3)), "b2", "-durdur", false, &mut out);
+    ar.player(&w.snap(at(3)), "b2", "!durdur", false, &mut out);
     assert!(out.is_empty());
     ar.player(&w.snap(at(70)), "b2", "-durdur", false, &mut out);
     assert!(out.iter().any(|a| matches!(a, Action::Stop { .. })));
@@ -668,7 +669,7 @@ fn reports_work_in_manual_mode_too() {
     ar.player(
         &w.snap(at(0)),
         "a1",
-        "-rapor rakip hile yapıyor",
+        "!rapor rakip hile yapıyor",
         false,
         &mut out,
     );
@@ -676,10 +677,10 @@ fn reports_work_in_manual_mode_too() {
         .iter()
         .any(|a| matches!(a, Action::Report { text, .. } if text == "rakip hile yapıyor")));
     out.clear();
-    ar.player(&w.snap(at(10)), "a1", "-rapor tekrar", false, &mut out);
+    ar.player(&w.snap(at(10)), "a1", "!report tekrar", false, &mut out);
     assert!(!out.iter().any(|a| matches!(a, Action::Report { .. })));
     out.clear();
-    ar.player(&w.snap(at(10)), "a1", "-abort", false, &mut out);
+    ar.player(&w.snap(at(10)), "a1", "!abort", false, &mut out);
     assert!(out.is_empty());
     assert_eq!(
         ar.web(
@@ -1101,13 +1102,11 @@ fn stand_ins_count_as_in_the_room() {
     assert!(sent(&out).contains(&"!mp invite #-3"));
     assert!(!ar.view(&w.snap(at(1)), true).stand_ins);
 
-    // With it, the one real player is everyone: the match begins at its time.
+    // With it, the one real player is everyone: the match begins at once, before its time.
     let w = stand_in_world(true);
     let mut ar = AutoRef::default();
     let mut out = Vec::new();
     ar.tick(&w.snap(at(-60)), &mut out);
-    assert_eq!(ar.phase, Phase::Waiting);
-    ar.tick(&w.snap(at(1)), &mut out);
     assert!(matches!(ar.phase, Phase::Warmup { team: 0, .. }));
     assert!(!sent(&out).iter().any(|t| t.starts_with("!mp invite")));
     assert!(ar.view(&w.snap(at(1)), true).stand_ins);
@@ -1153,4 +1152,109 @@ fn a_team_of_stand_ins_rolls_by_itself() {
     ar.start_roll(&w.snap(at(0)), "!roll", &mut out);
     assert_eq!(ar.phase, Phase::Next);
     assert!(out.iter().any(|a| matches!(a, Action::FirstTurn(_))));
+}
+
+#[test]
+fn commands_take_either_prefix_and_both_languages() {
+    assert_eq!(
+        command("!rapor  oyun çöktü "),
+        Some((Command::Report, "oyun çöktü"))
+    );
+    assert_eq!(command("!Report x"), Some((Command::Report, "x")));
+    assert_eq!(command("-rapor x"), Some((Command::Report, "x")));
+    for word in ["!panik", "!PANIC", "!durdur", "-durdur"] {
+        assert_eq!(command(word), Some((Command::Stop, "")), "{word}");
+    }
+    assert_eq!(command("!abort"), Some((Command::Abort, "")));
+    assert_eq!(command("!davet"), Some((Command::Invite, "")));
+    assert_eq!(command(" !invite "), Some((Command::Invite, "")));
+    assert_eq!(command("!roll"), None);
+    assert_eq!(command("!mp abort"), None);
+    assert_eq!(command("rapor x"), None);
+    assert_eq!(command("!"), None);
+}
+
+#[test]
+fn a_renamed_player_is_known_by_their_slot() {
+    // a1 renamed on osu! since signing in: the room shows the new name with their id.
+    let mut w = World::bracket();
+    w.everyone_in(SlotStatus::NotReady);
+    w.room.slots[0].username = "a1_new".into();
+    let mut ar = AutoRef::default();
+    let mut out = Vec::new();
+    ar.player(&w.snap(at(0)), "a1_new", "!rapor test", false, &mut out);
+    assert!(out
+        .iter()
+        .any(|a| matches!(a, Action::Report { user_id, .. } if *user_id == uid(1))));
+}
+
+#[test]
+fn a_hold_begun_in_time_is_waited_for() {
+    let mut w = World::bracket();
+    w.everyone_in(SlotStatus::NotReady);
+    w.turn = Some(Turn {
+        kind: StepKind::Ban,
+        team_id: Some(A),
+    });
+    let mut ar = AutoRef {
+        phase: Phase::Next,
+        ..AutoRef::default()
+    };
+    let mut out = Vec::new();
+    for t in 0..187 {
+        ar.tick(&w.snap(at(t)), &mut out);
+    }
+    let hd1 = Uuid::from_u128(20);
+    // The other team's hold doesn't count, nor does a map the team may not ban.
+    assert_eq!(
+        ar.web(&w.snap(at(187)), uid(3), Web::Hold(hd1), true, &mut out),
+        Err(PlayerError::NotYourTurn)
+    );
+    assert!(ar
+        .web(
+            &w.snap(at(187)),
+            uid(1),
+            Web::Hold(Uuid::from_u128(90)),
+            true,
+            &mut out
+        )
+        .is_err());
+    // a1 begins holding HD1 three seconds before the bot would act.
+    assert_eq!(
+        ar.web(&w.snap(at(187)), uid(1), Web::Hold(hd1), true, &mut out),
+        Ok(())
+    );
+    out.clear();
+    ar.tick(&w.snap(at(190)), &mut out);
+    assert!(!out.iter().any(|a| matches!(a, Action::Missed { .. })));
+    // The hold's ban lands past the time and is taken.
+    assert_eq!(
+        ar.web(&w.snap(at(190)), uid(1), Web::Draft(hd1), true, &mut out),
+        Ok(())
+    );
+    assert!(out.contains(&Action::Ban {
+        map_id: hd1,
+        team_id: A
+    }));
+
+    // A hold let go isn't waited for long.
+    let mut ar = AutoRef {
+        phase: Phase::Next,
+        ..AutoRef::default()
+    };
+    let mut out = Vec::new();
+    for t in 0..187 {
+        ar.tick(&w.snap(at(t)), &mut out);
+    }
+    assert_eq!(
+        ar.web(&w.snap(at(187)), uid(1), Web::Hold(hd1), true, &mut out),
+        Ok(())
+    );
+    ar.tick(&w.snap(at(192)), &mut out);
+    assert!(!out.iter().any(|a| matches!(a, Action::Missed { .. })));
+    ar.tick(&w.snap(at(193)), &mut out);
+    assert!(out.contains(&Action::Missed {
+        team_id: A,
+        kind: StepKind::Ban
+    }));
 }

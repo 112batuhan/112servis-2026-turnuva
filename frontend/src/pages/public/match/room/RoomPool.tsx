@@ -17,6 +17,8 @@ interface Props {
   /** The map whose ban or pick was just sent. */
   pending: string | null;
   onChoose: (entry: PoolEntry, kind: StepKind) => void;
+  /** A hold on the map began (the bot waits for it if the turn runs out meanwhile). */
+  onHold: (entry: PoolEntry) => void;
 }
 
 /**
@@ -24,7 +26,7 @@ interface Props {
  * of it. On the team's turn every map it may take is held for three seconds to ban or pick it; the
  * ones it may not say why.
  */
-export function RoomPool({ page, me, turn, pending, onChoose }: Props) {
+export function RoomPool({ page, me, turn, pending, onChoose, onHold }: Props) {
   const { match, draft, played, currentEntry, teams } = page;
   const entries = useMemo(() => (match ? poolEntries(match) : []), [match]);
   if (!match) return null;
@@ -95,6 +97,7 @@ export function RoomPool({ page, me, turn, pending, onChoose }: Props) {
                       pending={pending === id}
                       locked={pending !== null}
                       onChoose={onChoose}
+                      onHold={onHold}
                     />
                   </li>
                 );
@@ -119,6 +122,7 @@ interface TileProps {
   /** Another map is being sent. */
   locked: boolean;
   onChoose: (entry: PoolEntry, kind: StepKind) => void;
+  onHold: (entry: PoolEntry) => void;
 }
 
 function MapTile({
@@ -132,10 +136,16 @@ function MapTile({
   pending,
   locked,
   onChoose,
+  onHold,
 }: TileProps) {
   const { map, label } = entry;
   const armed = turn !== null && refusal === null && !locked;
-  const { holding, left, bind } = useHold(HOLD_MS, () => turn && onChoose(entry, turn), armed);
+  const { holding, left, bind } = useHold(
+    HOLD_MS,
+    () => turn && onChoose(entry, turn),
+    armed,
+    () => onHold(entry),
+  );
   const verb = turn === "ban" ? "Banla" : "Seç";
   const state = bannedBy ? "is-banned" : pickedBy || played ? "is-played" : "";
   const classes = [
@@ -151,7 +161,9 @@ function MapTile({
     .join(" ");
 
   const status = holding ? (
-    <span className="room-map-state is-action">Bırakma…</span>
+    <span className="room-map-state is-action">
+      {turn === "ban" ? "Banlanıyor…" : "Seçiliyor…"}
+    </span>
   ) : (
     tileState({
       bannedBy,

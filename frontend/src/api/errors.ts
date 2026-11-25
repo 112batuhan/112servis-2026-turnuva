@@ -203,6 +203,7 @@ export const ERROR_TEXT = {
     no_aborts_left: "Takımının abort hakkı kalmadı.",
     report_empty: "Ne bildirdiğini yaz.",
     too_soon: "Tekrar göndermek için bir dakika bekle.",
+    invite_too_soon: "Davet az önce gönderildi; yenisi için birkaç saniye bekle.",
   },
   rules: {
     too_long: "Kurallar çok uzun.",

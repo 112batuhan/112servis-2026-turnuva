@@ -21,6 +21,7 @@ use crate::{
         matches::MatchKind,
         notifications::Response,
     },
+    error::{AppError, ErrorCode, PlayerError},
     services, team_rank, AppState,
 };
 
@@ -72,6 +73,8 @@ pub fn definitions() -> Vec<CreateCommand> {
         CreateCommand::new("gecmis")
             .description("Takımın maç geçmişi")
             .add_option(team_option()),
+        CreateCommand::new("davet")
+            .description("Oynadığın maçın osu! odasına yeniden davet gönderir"),
         CreateCommand::new("mac")
             .description("Maç detayları, bitmişse sonuçları")
             .add_option(
@@ -204,8 +207,31 @@ async fn run_command(state: &AppState, cmd: &CommandInteraction) -> super::BotRe
                 None => Ok(Reply::Text("Maç bulunamadı.".into())),
             }
         }
+        "davet" => invite(state, cmd).await,
         _ => Ok(Reply::Text("Bilinmeyen komut.".into())),
     }
+}
+
+// /davet: the caller's match room's bot invites them again, as !davet in a private
+// message to it does. Only the caller sees the answer.
+async fn invite(state: &AppState, cmd: &CommandInteraction) -> super::BotResult<Reply> {
+    let Some(user_id) = db::discord::user_of_discord(&state.db, &cmd.user.id.to_string()).await?
+    else {
+        return Ok(Reply::Text(
+            "Discord hesabın sitedeki bir osu! hesabına bağlı değil.".into(),
+        ));
+    };
+    if db::ban::find(&state.db, user_id).await?.is_some() {
+        return Ok(Reply::Text("Turnuvadan banlısın.".into()));
+    }
+    let text = match state.bancho.invite(user_id).await {
+        Ok(mp_id) => format!("Davet gönderildi: #mp_{mp_id}. osu!'da gelen davete tıkla."),
+        Err(AppError::Code(ErrorCode::Player(PlayerError::InviteTooSoon))) => {
+            "Davet az önce gönderildi; yenisi için birkaç saniye bekle.".into()
+        }
+        Err(_) => "Şu an oynadığın, odası açık bir maç yok.".into(),
+    };
+    Ok(Reply::Text(text))
 }
 
 // The named team, or the caller's own.

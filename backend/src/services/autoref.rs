@@ -1,5 +1,5 @@
 //! What the auto referee (bancho/autoref/) does to the site's data beyond the room:
-//! telling the staff (a player's -rapor or -durdur, or that it handed a match over),
+//! telling the staff (a player's !rapor or !panik, or that it handed a match over),
 //! switching a match to manual, and settling the teams that didn't show up. The
 //! referee page's switch (handlers/referee.rs) goes through `set_enabled` too.
 
@@ -47,7 +47,7 @@ pub async fn set_enabled(
     Ok(())
 }
 
-// A player's -rapor or -durdur, or the auto referee stopping: every host and referee
+// A player's !rapor or !panik, or the auto referee stopping: every host and referee
 // gets a notification, and the referee channel a ping.
 pub async fn alert(
     state: &AppState,
@@ -88,7 +88,7 @@ pub async fn alert(
     Ok(())
 }
 
-// A player's -durdur: a match the auto referee runs goes to manual (a referee switches
+// A player's !panik: a match the auto referee runs goes to manual (a referee switches
 // it back, and it continues where it stopped), and the staff hear it either way.
 pub async fn emergency_stop(
     state: &AppState,

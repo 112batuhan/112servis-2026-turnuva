@@ -882,6 +882,8 @@ pub enum PlayerError {
     ReportEmpty,
     #[error("wait a minute before sending that again")]
     TooSoon,
+    #[error("an invite was just sent; wait a few seconds before asking for another")]
+    InviteTooSoon,
 }
 
 impl PlayerError {
@@ -892,7 +894,7 @@ impl PlayerError {
             Self::WarmupInPool | Self::WarmupTooLong | Self::WarmupNotStandard => {
                 StatusCode::UNPROCESSABLE_ENTITY
             }
-            Self::TooSoon => StatusCode::TOO_MANY_REQUESTS,
+            Self::TooSoon | Self::InviteTooSoon => StatusCode::TOO_MANY_REQUESTS,
             Self::NotRunning
             | Self::Manual
             | Self::NotYourTurn

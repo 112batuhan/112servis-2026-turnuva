@@ -82,7 +82,7 @@ const AUTOREF_TICK: Duration = Duration::from_secs(1);
 const REPOSITION_SETTLE: Duration = Duration::from_secs(3);
 const REPOSITION_EVERY: Duration = Duration::from_secs(10);
 const REPOSITION_TRIES: u8 = 3;
-// A player can ask for an invite (-davet) this often.
+// A player can ask for an invite (!davet) this often.
 const INVITE_EVERY: Duration = Duration::from_secs(20);
 
 struct Bot {
@@ -162,7 +162,7 @@ struct Run {
     // The auto referee was running the match when it was last driven: once it runs again
     // (switched back to auto, the bot back in the room, a restart) it resumes first.
     auto_live: bool,
-    // The auto referee itself switched the match to manual (a -durdur or a handover) and
+    // The auto referee itself switched the match to manual (a !panik or a handover) and
     // the room was told why, so the switch isn't announced again.
     auto_told_off: bool,
 }

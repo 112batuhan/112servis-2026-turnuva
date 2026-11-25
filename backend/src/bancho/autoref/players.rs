@@ -1,4 +1,4 @@
-//! What the players do: their commands in the room (-rapor, -durdur, -abort), and on the
+//! What the players do: their commands in the room (!rapor, !panik, !abort), and on the
 //! match's room page those three plus their bans, picks and warmups, which only the page
 //! takes.
 
@@ -9,7 +9,7 @@ use crate::{db::autoref::LogLevel, draft::StepKind, error::PlayerError};
 
 use super::draft::refusal;
 use super::{
-    command, log, send, span, Action, AutoRef, CountdownKind, Phase, Snapshot, WarmupMap,
+    command, log, send, span, Action, AutoRef, Command, CountdownKind, Phase, Snapshot, WarmupMap,
     ABORT_WINDOW, REPORT_EVERY, REPORT_MAX, WARMUP_MAX_SECS,
 };
 use crate::bancho::room::commands::{map_command, mods_command};
@@ -23,6 +23,8 @@ const WARMUP_LEAD: i64 = 60;
 pub enum Web {
     // Their team's ban or pick, held for three seconds on the page.
     Draft(Uuid),
+    // They began holding that map: the turn waits for the hold (HOLD_WAIT).
+    Hold(Uuid),
     // Their team's warmup, as osu! described it.
     Warmup(i64, WarmupMap),
     // Their team won't play a warmup (now, or when its turn comes).
@@ -33,8 +35,8 @@ pub enum Web {
 }
 
 impl AutoRef {
-    // A line a player wrote in the room. `enabled`: the match is in auto mode; -rapor
-    // and -durdur work either way. Bans, picks and warmups aren't taken here: the room
+    // A line a player wrote in the room. `enabled`: the match is in auto mode; !rapor
+    // and !panik work either way. Bans, picks and warmups aren't taken here: the room
     // page takes them (`web`).
     pub fn player(
         &mut self,
@@ -47,29 +49,29 @@ impl AutoRef {
         let Some(p) = s.player(name).cloned() else {
             return;
         };
-        let Some((word, rest)) = command(text) else {
+        let Some((command, rest)) = command(text) else {
             return;
         };
-        match word.as_str() {
-            "-rapor" => {
+        match command {
+            Command::Report => {
                 if let Err(err) = self.report(s, &p, rest, out) {
                     let line = match err {
-                        PlayerError::ReportEmpty => "kullanım: -rapor <mesajınız>",
+                        PlayerError::ReportEmpty => "kullanım: !rapor <mesajınız>",
                         _ => "bir dakikada bir rapor gönderebilirsiniz.",
                     };
                     send(out, format!("{}: {line}", p.username));
                 }
             }
             // Pressed again within the minute, it's quietly ignored.
-            "-durdur" => {
+            Command::Stop => {
                 let _ = self.stop(s, &p, out);
             }
-            "-abort" if enabled && self.phase != Phase::Done => {
+            Command::Abort if enabled && self.phase != Phase::Done => {
                 if let Err(err) = self.abort(s, &p, out) {
                     send(out, abort_refusal(err, &p.username));
                 }
             }
-            _ => {}
+            Command::Abort | Command::Invite => {}
         }
     }
 
@@ -100,6 +102,7 @@ impl AutoRef {
         match action {
             Web::Abort => self.abort(s, &p, out),
             Web::Draft(map_id) => self.draft(s, &p, map_id, out),
+            Web::Hold(map_id) => self.hold(s, &p, map_id),
             Web::Warmup(beatmap, map) => self.choose_warmup(s, &p, beatmap, map, out),
             Web::SkipWarmup => self.skip_warmup(s, &p, out),
             Web::Report(_) | Web::Stop => Ok(()),
@@ -142,7 +145,7 @@ impl AutoRef {
         Ok(())
     }
 
-    // -durdur, for emergencies, any number of times: the bot stops (the match goes to
+    // !panik, for emergencies, any number of times: the bot stops (the match goes to
     // manual until a referee switches it back) and the staff hear it. Once a minute per
     // player, so it can't flood them.
     fn stop(
@@ -166,8 +169,8 @@ impl AutoRef {
         });
         send(
             out,
-            "Durdur komutu kullanıldı. Bu komut sadece acil durumlarda kullanılmalıdır. Hostlar \
-             bilgilendirildi, eğer bu komut kötü niyetle kullanıldıysa -rapor komutuyla bildiriniz.",
+            "Panik komutu kullanıldı. Bu komut sadece acil durumlarda kullanılmalıdır. Hostlar \
+             bilgilendirildi, eğer bu komut kötü niyetle kullanıldıysa !rapor komutuyla bildiriniz.",
         );
         out.push(Action::Stop {
             user_id: p.user_id,
@@ -261,6 +264,24 @@ impl AutoRef {
                 self.enter_ready(s, &entry, out);
             }
         }
+        Ok(())
+    }
+
+    // A player began holding a map the team may take: until HOLD_WAIT has passed, the
+    // turn doesn't run out (the hold's ban or pick, three seconds later, is taken even
+    // past its time).
+    fn hold(&mut self, s: &Snapshot, p: &RosterPlayer, map_id: Uuid) -> Result<(), PlayerError> {
+        let Phase::Draft { team_id, kind, .. } = self.phase else {
+            return Err(PlayerError::NotYourTurn);
+        };
+        if p.team_id != team_id {
+            return Err(PlayerError::NotYourTurn);
+        }
+        let entry = s.entry(map_id).ok_or(PlayerError::NotYourTurn)?;
+        if let Some(reason) = refusal(s, entry, kind, team_id) {
+            return Err(reason);
+        }
+        self.held = Some((team_id, s.now));
         Ok(())
     }
 
@@ -408,7 +429,7 @@ impl AutoRef {
     }
 }
 
-// What the room hears when a player's -abort is refused.
+// What the room hears when a player's !abort is refused.
 fn abort_refusal(err: PlayerError, name: &str) -> String {
     match err {
         PlayerError::AbortTooLate => "Maç başladıktan 30 saniye sonra abort kullanılamaz.".into(),

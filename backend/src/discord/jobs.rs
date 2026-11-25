@@ -190,9 +190,9 @@ pub enum Job {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Alert {
-    // A player's -rapor.
+    // A player's !rapor.
     Report,
-    // A team's -durdur.
+    // A team's !panik.
     Stop,
     // The auto referee couldn't go on and switched the match to manual.
     Handover,

@@ -879,7 +879,7 @@ async fn match_event(
                 id,
                 format!(
                     "🎮 Maç odası kuruldu: {}\nOdanızın botu **{bot}**. Eğer davetiye almadıysanız \
-                     oyundan bu bota DM atıp `-davet` yazın.\n{all}",
+                     oyundan bu bota DM atıp `!davet` ya da burada `/davet` yazın.\n{all}",
                     room_url(*mp_id)
                 ),
                 p,
@@ -894,7 +894,7 @@ async fn match_event(
                     "⏰ {}\nMaçınız 20 dakika sonra başlayacak. Bot, oda davetlerini 10 dakika \
                      sonra yollayacak. Oyundaki özel mesajlarınızın bottan mesaj almaya hazır \
                      olduğundan emin olun. Eğer bottan davet almazsanız odanızın botuna özelden \
-                     `-davet` yazarak tekrar davet yollamasını sağlayabilirsiniz. Bir sorun \
+                     `!davet` ya da burada `/davet` yazarak tekrar davet yollamasını sağlayabilirsiniz. Bir sorun \
                      yaşarsanız hostlardan yardım alın.",
                     names.join(" ")
                 ),

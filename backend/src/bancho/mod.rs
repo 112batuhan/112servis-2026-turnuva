@@ -106,19 +106,24 @@ pub enum RoomCommand {
 }
 
 // What a player of the match does on its room page (POST /api/matches/:id/player). Bans,
-// picks and warmups are only taken there; -abort, -durdur and -rapor also in the room.
+// picks and warmups are only taken there; !abort, !panik and !rapor also in the room.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum PlayerAction {
     // The team's ban or pick, whichever its turn is.
     Draft { map_id: Uuid },
+    // A player began holding a map for the team's ban or pick: a turn that runs out
+    // meanwhile waits for the hold to finish.
+    Hold { map_id: Uuid },
     // The team's warmup, by beatmap id.
     Warmup { beatmap_id: i64 },
     // The team won't play a warmup (now, or when its turn comes).
     SkipWarmup,
     Abort,
-    // -durdur: the match goes to manual and the staff hear it.
+    // !panik: the match goes to manual and the staff hear it.
     Stop,
+    // A new invite to the match's room (as !davet does).
+    Invite,
     Report { text: String },
 }
 
@@ -202,6 +207,12 @@ enum Request {
         user_id: Uuid,
         action: PlayerAction,
         reply: oneshot::Sender<Result<(), AppError>>,
+    },
+    // A new invite for the player to the room of their match being played (Discord's
+    // /davet); answered with the room's id.
+    Invite {
+        user_id: Uuid,
+        reply: oneshot::Sender<Result<i64, AppError>>,
     },
     // A player's warmup as osu! describes it, to be chosen now.
     PlayerWarmup {
@@ -311,6 +322,14 @@ impl Bancho {
         })
         .await
         .unwrap_or(Err(GONE.into()))
+    }
+
+    // A new invite for the player to the room of their match being played, by its bot;
+    // the room's id.
+    pub async fn invite(&self, user_id: Uuid) -> Result<i64, AppError> {
+        self.ask(|reply| Request::Invite { user_id, reply })
+            .await
+            .unwrap_or(Err(GONE.into()))
     }
 
     // Saves the score as the bots count it, now; returns once it's saved.

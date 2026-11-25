@@ -9,12 +9,12 @@ import "./AutorefBar.css";
 
 /** How long before its time the bot opens a match's room (backend: OPEN_BEFORE). */
 const OPENS_BEFORE_MS = 10 * 60 * 1000;
-/** -abort uses each team has (backend: autoref::ABORTS). */
+/** !abort uses each team has (backend: autoref::ABORTS). */
 const ABORTS = 2;
 
 /**
  * The switch in the room bar between the auto referee and manual control. Off (by a referee, or a
- * player's -durdur), the bot only answers -rapor, -durdur and -davet; back on, it continues where
+ * player's !panik), the bot only answers !rapor, !panik and !davet; back on, it continues where
  * it left off. The old controls work either way.
  */
 export function AutorefSwitch({ referee }: { referee: RefereeRoomState }) {
@@ -39,7 +39,7 @@ export function AutorefSwitch({ referee }: { referee: RefereeRoomState }) {
 
 /**
  * Where the auto referee stands, one line under the room bar: what it's waiting for and until when,
- * then each team's -abort uses. Switched to manual, the line says so and what it picks up again;
+ * then each team's !abort uses. Switched to manual, the line says so and what it picks up again;
  * before the room, whether the bot will open it.
  */
 export function AutorefStatus({ referee }: { referee: RefereeRoomState }) {
@@ -92,7 +92,7 @@ export function AutorefStatus({ referee }: { referee: RefereeRoomState }) {
         <span className="autoref-dot" aria-hidden="true" />
         <strong>Manuel kontrol</strong>
         <span className="autoref-note">
-          Bot sadece -rapor, -durdur ve -davet'e cevap veriyor. Açınca devam eder: {phase.plain}
+          Bot sadece !rapor, !panik ve !davet'e cevap veriyor. Açınca devam eder: {phase.plain}
         </span>
       </p>
     );
@@ -117,7 +117,7 @@ export function AutorefStatus({ referee }: { referee: RefereeRoomState }) {
                 <span className={`autoref-team-name is-team-${t.color}`}>{t.name}</span>
                 <span
                   className={`autoref-use ${aborts === 0 ? "is-spent" : ""}`}
-                  title={`-abort: ${aborts}/${ABORTS} hakkı kaldı`}
+                  title={`!abort: ${aborts}/${ABORTS} hakkı kaldı`}
                 >
                   abort <span className="num">{aborts}</span>
                 </span>
@@ -153,7 +153,7 @@ function phaseText(
     case "waiting":
       return before
         ? {
-            node: <>Maç saati bekleniyor, herkes hazırsa erken başlar</>,
+            node: <>Maç saati bekleniyor, herkes odaya gelince başlar</>,
             plain: "maç saati bekleniyor",
             clockTitle: "Maç saatine",
           }

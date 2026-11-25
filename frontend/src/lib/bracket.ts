@@ -17,7 +17,7 @@ export function matchPagePath(matchId: string): string {
 
 /** The match's room page, where its own players choose their warmups, bans and picks. */
 export function roomPagePath(matchId: string): string {
-  return `/match/${matchId}/oda`;
+  return `/match/${matchId}/players`;
 }
 
 /**

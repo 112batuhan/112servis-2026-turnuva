@@ -1,4 +1,4 @@
-//! The match's room page for its players (`/match/:id/oda`): what they do there goes to
+//! The match's room page for its players (`/match/:id/players`): what they do there goes to
 //! the room's bot, which runs the match (bancho/autoref/players.rs).
 
 use axum::{

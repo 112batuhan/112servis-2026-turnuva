@@ -48,6 +48,9 @@ impl Manager {
                 let _ = reply.send(self.command(match_id, command));
             }
             Request::SaveScore { match_id, reply } => self.save_now(match_id, reply),
+            Request::Invite { user_id, reply } => {
+                let _ = reply.send(self.invite_player(None, user_id, "Discord /davet"));
+            }
             Request::Player {
                 match_id,
                 user_id,

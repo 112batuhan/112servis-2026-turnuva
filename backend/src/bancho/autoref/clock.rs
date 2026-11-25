@@ -2,10 +2,7 @@
 
 use time::Duration;
 
-use crate::bancho::{
-    context::MatchTeam, names::same_name, room::commands::player_ref, room::SlotStatus,
-    tally::RosterPlayer,
-};
+use crate::bancho::{context::MatchTeam, room::commands::player_ref, tally::RosterPlayer};
 use crate::db::autoref::LogLevel;
 
 use super::{
@@ -93,7 +90,7 @@ impl AutoRef {
                 kind,
                 until,
                 ..
-            } if now >= until => self.missed(s, team_id, kind, out),
+            } if now >= until && !self.holding(team_id, now) => self.missed(s, team_id, kind, out),
             Phase::Ready {
                 until,
                 nf_warned,
@@ -165,8 +162,8 @@ impl AutoRef {
         send(out, "!mp lock");
     }
 
-    // Before the match: once everyone is in (at its time, or earlier if they're all
-    // ready), it begins; at its time the missing are invited again; ten minutes after,
+    // Before the match: once everyone is in, it begins, even before its time (being in the
+    // room is being ready); at its time the missing are invited again; ten minutes after,
     // whoever isn't complete is out.
     fn waiting(&mut self, s: &Snapshot, out: &mut Vec<Action>) {
         if s.roster.is_empty() {
@@ -175,15 +172,7 @@ impl AutoRef {
         let now = s.now;
         let due = s.starts_at.is_none_or(|t| now >= t);
         if s.everyone_present() {
-            let ready = s.room.slots.iter().all(|slot| {
-                slot.status == SlotStatus::Ready
-                    || !s.roster.iter().any(|p| {
-                        slot.user_id == Some(p.osu_id) || same_name(&slot.username, &p.username)
-                    })
-            });
-            if due || ready {
-                self.begin(s, out);
-            }
+            self.begin(s, out);
             return;
         }
         if s.starts_at.is_some() && due && !self.called {

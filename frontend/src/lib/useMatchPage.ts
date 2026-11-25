@@ -148,6 +148,9 @@ export function useMatchPage(matchId: string, { spectate = true }: { spectate?: 
     tally,
     played,
     live: isLive,
+    /** The bots' latest reading of the room, kept current over the socket (`match.live` is only
+     * the one the match was loaded with). */
+    liveRoom: live,
     draft,
     turn,
     standing,

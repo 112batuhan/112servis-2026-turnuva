@@ -20,7 +20,7 @@ type Open = "report" | "stop" | null;
 /**
  * What a player can reach for at any moment: abort a map in its first 30 seconds (on the team's
  * account), report something to the hosts and referees, and the emergency stop that hands the match
- * to a referee. The same as -abort, -rapor and -durdur in the room, which keep working there.
+ * to a referee. The same as !abort, !rapor and !panik in the room, which keep working there.
  */
 export function RoomActions({ page, me, now, busy, onAbort, onReport, onStop }: Props) {
   const [open, setOpen] = useState<Open>(null);
@@ -29,7 +29,7 @@ export function RoomActions({ page, me, now, busy, onAbort, onReport, onStop }: 
   const { match, mapStartedAt } = page;
   if (!match) return null;
 
-  const autoref = match.live?.autoref ?? null;
+  const autoref = page.liveRoom?.autoref ?? null;
   const hasRoom = match.rooms.length > 0 && !match.concluded_at;
   const aborts = autoref?.teams.find((t) => t.team_id === me.teamId)?.aborts_left ?? null;
   const windowLeft =

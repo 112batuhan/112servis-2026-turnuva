@@ -107,6 +107,74 @@
   padding: 0 var(--space-4);
 }
 
+/* The header's second line: who plays. */
+.player-room .match-header {
+  grid-template-areas:
+    "lead meta state"
+    "roster roster roster";
+}
+
+.player-room-roster {
+  grid-area: roster;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+.player-room-roster-team {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.player-room-roster-team.is-team-blue {
+  --roster-side: var(--color-team-blue);
+  color: var(--color-team-blue);
+}
+
+.player-room-roster-team.is-team-red {
+  --roster-side: var(--color-team-red);
+  color: var(--color-team-red);
+}
+
+.player-room-roster-label {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.player-room-player {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+/* In the room: a dot filled in the side's colour; not in it: a hollow ring, the name muted. */
+.player-room-presence {
+  flex: none;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid currentcolor;
+  border-radius: 50%;
+}
+
+.player-room-player.is-in .player-room-presence {
+  border-color: var(--roster-side, var(--color-primary));
+  background: var(--roster-side, var(--color-primary));
+}
+
+.player-room-player.is-out {
+  color: var(--color-text-muted);
+}
+
 .player-room-tab-yours {
   color: var(--color-primary);
 }
@@ -136,6 +204,13 @@
 /* A phone: the turn bar stays over whichever panel the tabs show, and the panel fills the rest of
    the screen. */
 @container referee-page (max-width: 760px) {
+  .player-room .match-header {
+    grid-template-areas:
+      "lead state"
+      "meta meta"
+      "roster roster";
+  }
+
   /* A phone's header stays a line or two: the code and the names on one line, cut short. */
   .player-room .match-header-lead {
     min-width: 0;

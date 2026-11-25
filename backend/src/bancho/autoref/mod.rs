@@ -1,11 +1,11 @@
 //! The auto referee: the room's bot runs the match by itself, from the moment everyone
 //! is in the room to the end, the way a referee would. A qualifier lobby plays its pool
 //! map by map; a bracket match has its warmups and its bans and picks, which the players
-//! choose on the match's room page (`/match/:id/oda`), the roll, each map started once
+//! choose on the match's room page (`/match/:id/players`), the roll, each map started once
 //! everyone is ready, the score read from osu! after every map and the match concluded
-//! once a team has won. Players also steer it with `-abort`, `-durdur` (back to manual)
-//! and `-rapor`, in the room or on the page (and `-davet` in a private message, which the
-//! manager answers). It keeps the room locked, so players stay where the bot put them.
+//! once a team has won. Players also steer it with `!abort`, `!panik` (back to manual)
+//! and `!rapor`, in the room or on the page (and `!davet` in a private message, which the
+//! manager answers; `command`). It keeps the room locked, so players stay where the bot put them.
 //!
 //! It is a state machine with no I/O: the manager (manager/auto_referee.rs) feeds it the room's lines,
 //! the players' commands and the clock along with a `Snapshot` of the match, and does the
@@ -50,7 +50,7 @@ use crate::{
     draft::{StepKind, Turn},
 };
 
-// How many maps each team can abort, by -abort or by dropping out early.
+// How many maps each team can abort, by !abort or by dropping out early.
 pub const ABORTS: u8 = 2;
 // A map can be aborted this long after it starts.
 const ABORT_WINDOW: Duration = Duration::seconds(30);
@@ -85,7 +85,11 @@ const START_TIMEOUT: Duration = Duration::seconds(25);
 // up to SCORE_TRIES times while it doesn't have them yet.
 pub const SCORE_DELAY: Duration = Duration::seconds(3);
 const SCORE_TRIES: u8 = 5;
-// A player can send one -rapor this often, of at most REPORT_MAX characters.
+// A ban or pick a player began holding on the room page (3 s there) before its turn ran
+// out is waited for this long from when the hold began, so the last seconds aren't lost
+// to the hold or the network.
+const HOLD_WAIT: Duration = Duration::seconds(6);
+// A player can send one !rapor this often, of at most REPORT_MAX characters.
 const REPORT_EVERY: Duration = Duration::seconds(60);
 pub const REPORT_MAX: usize = 300;
 // Said when the match is over; the manager closes the room that long after
@@ -125,7 +129,7 @@ pub enum Action {
         team_id: Uuid,
         text: String,
     },
-    // A player's -durdur: the match goes to manual and the staff hear it.
+    // A player's !panik: the match goes to manual and the staff hear it.
     Stop {
         user_id: Uuid,
         team_id: Uuid,
@@ -210,7 +214,7 @@ pub enum Phase {
     Done,
 }
 
-// How many of its -abort uses a team has spent.
+// How many of its !abort uses a team has spent.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Uses {
     pub team_id: Uuid,
@@ -229,7 +233,7 @@ pub struct AutoRef {
     // The wait the room is being counted down through (countdown.rs).
     #[serde(default)]
     pub countdown: Option<Countdown>,
-    // When each player last sent -rapor, and -durdur, by osu! id.
+    // When each player last sent !rapor, and !panik, by osu! id.
     #[serde(skip)]
     reports: HashMap<i64, OffsetDateTime>,
     #[serde(skip)]
@@ -240,6 +244,9 @@ pub struct AutoRef {
     // When the bot last asked Bancho to lock the room.
     #[serde(skip)]
     lock_asked: Option<OffsetDateTime>,
+    // The team that began holding a map for its ban or pick on the room page, and when.
+    #[serde(skip)]
+    held: Option<(Uuid, OffsetDateTime)>,
 }
 
 // A warmup beatmap: its length in seconds and its set, to tell a pool map's other
@@ -302,8 +309,21 @@ impl Snapshot<'_> {
             })
     }
 
+    // The player who wrote a line in the room: by name, or by the osu! id of the slot under
+    // that name (a player who renamed on osu! since they last signed in).
     fn player(&self, name: &str) -> Option<&RosterPlayer> {
-        self.roster.iter().find(|p| same_name(&p.username, name))
+        self.roster
+            .iter()
+            .find(|p| same_name(&p.username, name))
+            .or_else(|| {
+                let id = self
+                    .room
+                    .slots
+                    .iter()
+                    .find(|s| same_name(&s.username, name))?
+                    .user_id?;
+                self.roster.iter().find(|p| p.osu_id == id)
+            })
     }
 
     fn members(&self, team_id: Uuid) -> impl Iterator<Item = &RosterPlayer> {
@@ -415,14 +435,30 @@ pub fn parse_roll(text: &str) -> Option<(&str, i32)> {
     Some((name, n.parse().ok()?))
 }
 
-// The command a player wrote, lowercased, and what follows it.
-fn command(text: &str) -> Option<(String, &str)> {
+// A command a player can type: in the room (`Report`, `Stop`, `Abort`), or in a private
+// message to the room's bot (`Invite`, which the manager answers).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Command {
+    Report,
+    Stop,
+    Abort,
+    Invite,
+}
+
+// The command a player wrote and what follows it: `!` before it (`-`, the first prefix,
+// still works), in Turkish or English, without case.
+pub fn command(text: &str) -> Option<(Command, &str)> {
     let text = text.trim();
-    if !text.starts_with('-') {
-        return None;
-    }
-    let (word, rest) = text.split_once(char::is_whitespace).unwrap_or((text, ""));
-    Some((word.to_lowercase().replace('ç', "c"), rest.trim()))
+    let body = text.strip_prefix('!').or_else(|| text.strip_prefix('-'))?;
+    let (word, rest) = body.split_once(char::is_whitespace).unwrap_or((body, ""));
+    let command = match word.to_lowercase().as_str() {
+        "rapor" | "report" => Command::Report,
+        "panik" | "panic" | "durdur" => Command::Stop,
+        "abort" => Command::Abort,
+        "davet" | "invite" => Command::Invite,
+        _ => return None,
+    };
+    Some((command, rest.trim()))
 }
 
 // The Ready phase's fields that change in place.
@@ -442,6 +478,13 @@ impl AutoRef {
         }
         self.uses.push(Uses { team_id, aborts: 0 });
         self.uses.last_mut().unwrap()
+    }
+
+    // A player of the team began holding a map on the room page within HOLD_WAIT: its turn
+    // doesn't run out under them.
+    fn holding(&self, team_id: Uuid, now: OffsetDateTime) -> bool {
+        self.held
+            .is_some_and(|(team, at)| team == team_id && now - at < HOLD_WAIT)
     }
 
     pub fn aborts_left(&self, team_id: Uuid) -> u8 {

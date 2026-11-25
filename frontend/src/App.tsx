@@ -117,7 +117,7 @@ export function App() {
               <Route path="/bracket" element={<BracketPage />} />
               <Route path="/match/:matchId" element={<MatchPage />} />
               <Route
-                path="/match/:matchId/oda"
+                path="/match/:matchId/players"
                 element={
                   <RequireAuth>
                     <PlayerRoomPage />

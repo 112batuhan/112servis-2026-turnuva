@@ -14,7 +14,12 @@ interface Props {
   busy: boolean;
   onWarmup: (beatmapId: number) => void;
   onSkipWarmup: () => void;
+  /** A new invite to the room, by its bot; whether it went out. */
+  onInvite: () => Promise<boolean>;
 }
+
+/** The bot sends a player one invite this often at most (backend: manager INVITE_EVERY). */
+const INVITE_EVERY_MS = 20_000;
 
 /** Whose the moment is: the viewer's team (frost), a side (its colour), or nobody's. */
 type Tone = "yours" | "blue" | "red" | "neutral" | "done";
@@ -35,8 +40,18 @@ interface Turn {
  * moment, from the room's bot (`LiveRoom.autoref`). Frost when it's the viewer's team's turn. The
  * team's warmup is chosen here, and a roll's figures show as they come.
  */
-export function TurnBar({ page, me, now, busy, onWarmup, onSkipWarmup }: Props) {
+export function TurnBar({ page, me, now, busy, onWarmup, onSkipWarmup, onInvite }: Props) {
   const turn = describe(page, me, now, busy, onWarmup, onSkipWarmup);
+  const autoref = page.liveRoom?.autoref ?? null;
+  const rooms = page.liveRoom?.rooms ?? [];
+  const bot = rooms.length > 0 ? rooms[rooms.length - 1].bot : null;
+  // While the room is open and its bot runs it, a viewer who isn't in it can ask for a new invite;
+  // it goes as soon as they join.
+  const missing =
+    page.live &&
+    autoref !== null &&
+    !(autoref.stand_ins && me.osuId < 0) &&
+    !page.lobby.slots.some((s) => page.findRoster(s)?.player.id === me.userId);
   const left = turn.end !== null ? turn.end - now : null;
   const urgent = turn.tone === "yours" && left !== null && left <= 30_000;
   return (
@@ -56,8 +71,66 @@ export function TurnBar({ page, me, now, busy, onWarmup, onSkipWarmup }: Props) 
           <span className="turn-clock-unit">{turn.unit ?? "kaldı"}</span>
         </div>
       )}
+      {missing && <InviteStrip bot={bot} now={now} onInvite={onInvite} />}
       {turn.extra && <div className="turn-extra">{turn.extra}</div>}
     </section>
+  );
+}
+
+/**
+ * The viewer isn't in the room: a new invite from the room's bot, on a button that counts down until
+ * the bot will send another.
+ */
+function InviteStrip({
+  bot,
+  now,
+  onInvite,
+}: {
+  bot: string | null;
+  now: number;
+  onInvite: () => Promise<boolean>;
+}) {
+  const [sentAt, setSentAt] = useState<number | null>(null);
+  const [sending, setSending] = useState(false);
+  const wait = sentAt !== null ? sentAt + INVITE_EVERY_MS - now : 0;
+  const send = async () => {
+    setSending(true);
+    const ok = await onInvite();
+    setSending(false);
+    if (ok) setSentAt(Date.now());
+  };
+  return (
+    <div className="turn-invite" role="group" aria-label="Oda daveti">
+      <p className="turn-invite-text">
+        <span className="turn-invite-mark" aria-hidden="true" />
+        <span>
+          <strong>Odada değilsin.</strong>{" "}
+          {sentAt !== null ? (
+            <span className="turn-invite-sent">Davet gönderildi; osu!'da gelen davete tıkla.</span>
+          ) : (
+            <>
+              Davet gelmediyse yenisini gönder
+              {bot && (
+                <>
+                  {" "}
+                  ya da osu!'da <span className="turn-names">{bot}</span> hesabına özelden !davet
+                  yaz
+                </>
+              )}
+              .
+            </>
+          )}
+        </span>
+      </p>
+      <button
+        type="button"
+        className="btn btn-primary btn-sm turn-invite-button"
+        disabled={sending || wait > 0}
+        onClick={send}
+      >
+        {sending ? "Gönderiliyor…" : wait > 0 ? `Tekrar ${clock(wait)}` : "Davet gönder"}
+      </button>
+    </div>
   );
 }
 
@@ -71,7 +144,7 @@ function describe(
 ): Turn {
   const { match, lobby, roster, currentEntry, teams } = page;
   if (!match) return { tone: "neutral", title: "Yükleniyor…", end: null };
-  const autoref: AutorefView | null = match.live?.autoref ?? null;
+  const autoref: AutorefView | null = page.liveRoom?.autoref ?? null;
   const bracket = match.kind === "bracket";
   const teamName = (id: string | null) => match.teams.find((t) => t.id === id)?.name ?? "?";
   const sideTone = (id: string | null): Tone => {
@@ -133,8 +206,6 @@ function describe(
   }
 
   const end = shownEnd(autoref.deadline, startsAt);
-  const badges = match.live?.rooms ?? [];
-  const bot = badges.length > 0 ? badges[badges.length - 1].bot : null;
 
   switch (autoref.phase) {
     case "waiting": {
@@ -146,7 +217,13 @@ function describe(
       const future = startsAt !== null && new Date(startsAt).getTime() > now;
       return {
         tone: "neutral",
-        title: future ? "Maç saati bekleniyor" : "Eksik oyuncular bekleniyor",
+        title:
+          missing.length === 0
+            ? "Herkes odada"
+            : future
+              ? "Maç saati bekleniyor"
+              : "Eksik oyuncular bekleniyor",
+        // Being in the room is being ready: the match begins as soon as everyone is in.
         detail: (
           <>
             {missing.length > 0 ? (
@@ -155,18 +232,16 @@ function describe(
                 <span className="turn-names">
                   {missing.map((r) => r.player.username).join(", ")}
                 </span>
-                .{" "}
+                . Herkes odaya gelince maç başlar.{" "}
               </>
             ) : (
-              "Herkes odada; herkes hazır olunca maç erken başlar. "
+              "Herkes odada, maç başlıyor. "
             )}
             {!future &&
+              missing.length > 0 &&
               (bracket
                 ? "Süre dolunca tam kadro gelmeyen takım hükmen kaybeder."
                 : "Süre dolunca tam kadro gelmeyen takımlar lobiden çıkarılır.")}
-            {bot && missing.some((r) => r.player.id === me.userId) && (
-              <> Davet gelmediyse osu!'da {bot} hesabına özelden -davet yaz.</>
-            )}
           </>
         ),
         end,

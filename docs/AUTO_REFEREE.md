@@ -2,7 +2,7 @@
 
 The site's Bancho bots can referee a match on their own. A bot opens the osu! room, invites the players and waits for them. For a bracket match it then runs the warmups, the roll, the bans and the picks. It starts each map, reads the scores from osu!, and concludes the match when it's over. Referees watch from the referee page and can take over at any moment.
 
-The players run their side of it from the match's **room page** ("Maç odası" *(Match room)*, `/match/<match>/oda`): they choose their warmup and their bans and picks there, see whose turn it is with its countdown, and can abort, report or stop the match. Bans, picks and warmups are taken **only** on that page, not in the osu! chat. See [The room page](#the-room-page-players).
+The players run their side of it from the match's **room page** ("Maç odası" *(Match room)*, `/match/<match>/players`): they choose their warmup and their bans and picks there, see whose turn it is with its countdown, and can abort, report or stop the match. Bans, picks and warmups are taken **only** on that page, not in the osu! chat. See [The room page](#the-room-page-players).
 
 This guide is for the tournament committee, hosts, referees and players.
 
@@ -20,7 +20,7 @@ This guide is for the tournament committee, hosts, referees and players.
 | Moves players to their slot and team colour, kicks strangers | Room only. | Yes (slot picker, `!mp` commands in manual mode). |
 | Gives a team the room's host for its warmup | Room only. | Yes. |
 | Records bans and picks the players confirmed | Saved on the site. | Yes: a referee takes them back in manual mode. |
-| Sets maps and mods, starts maps, aborts a map on `-abort` or an early disconnect | Room only. | n/a |
+| Sets maps and mods, starts maps, aborts a map on `!abort` or an early disconnect | Room only. | n/a |
 | Reads the scores from osu!'s match record and saves the running score | Saved on the site. | Yes: "Sayma" *(don't count)*, a referee's award, or saving the score by hand. |
 | **Forfeits** a bracket team that isn't complete 10 minutes after the match time | Match concluded as W / FF; the other team advances. | A **host** reopens the match. |
 | **Removes** an incomplete team from its qualifier lobby 10 minutes after the time | The team can sign up for another lobby that hasn't started. | A host puts the team back. |
@@ -31,19 +31,19 @@ This guide is for the tournament committee, hosts, referees and players.
 
 - It never bans or edits a player, a team, a stage or a map pool.
 - It never deletes a match or a result.
-- It never acts on a match a referee has switched to manual (except answering `-rapor`, `-durdur` and `-davet`).
+- It never acts on a match a referee has switched to manual (except answering `!rapor`, `!panik` and `!davet`).
 - It never decides a case it isn't sure about: if neither side is complete, if the stage has no best of, if the pick order runs out, if both teams let the same pick run out, if the score is impossible, it stops and calls the staff (see [When the bot stops by itself](#when-the-bot-stops-by-itself)).
 
 ### Safeguards
 
 - **Off by default where it matters.** Rooms only open on their own after a host turns on "Odaları otomatik aç" *(Open rooms automatically)*.
 - **A person can always take over.** Every match has an "Otomatik hakem" *(Auto referee)* switch on its referee page. Turning it off stops the bot at once; turning it back on resumes from the same step.
-- **Players can stop it.** Any player can type `-durdur` *(stop)* to put the match in manual mode and alert every host and referee.
+- **Players can stop it.** Any player can type `!panik` *(panic)* to put the match in manual mode and alert every host and referee.
 - **No conflicting clicks.** While the bot runs a match, the referee page disables the controls that would fight it.
 - **The score comes from osu!.** After every map, osu!'s own match record replaces what the chat said.
 - **Everything is logged.** Each decision is written to the match's "Otomatik hakem" log tab on the referee page, with time and reason.
 - **It survives restarts.** Its progress is saved after every step; after a server restart it rejoins the room and continues.
-- **Flood limits.** `-rapor` and `-durdur` work once a minute per player, `-davet` once every 20 seconds.
+- **Flood limits.** `!rapor` and `!panik` work once a minute per player, `!davet` once every 20 seconds.
 
 ### Manual check: what to test
 
@@ -55,7 +55,7 @@ Each line is one scenario to run on a test match (a test server with dummy accou
 |---|---|---|
 | 1 | Leave "Odaları otomatik aç" off; give a match a time 5 minutes from now. | No room opens, no Discord reminder. |
 | 2 | Turn it on. | Within 15 s the room opens, every player is invited, Discord posts the room and the bot's name. |
-| 3 | A missing player DMs the room's bot `-davet`. | They're invited again and the bot replies "Davet gönderildi" *(Invite sent)*. |
+| 3 | A missing player DMs the room's bot `!davet`; then, 20 s later, presses "Davet gönder" on the room page; then uses `/davet` in Discord. | Each time they're invited again: the bot replies "Davet gönderildi" *(Invite sent)*, the page's button counts 20 s down before it can be pressed again, and Discord answers only them. The button is gone once they're in the room. |
 | 4 | Let the match time pass with one player missing. | The bot re-invites them and announces the 10-minute wait. |
 | 5 | Keep a bracket team incomplete for 10 more minutes. | The incomplete team forfeits; both teams get a notification, the absent one a DM. |
 | 6 | Same in a qualifier lobby. | The incomplete team is kicked and removed from the lobby; its players get a notification and a DM; the lobby goes on. |
@@ -63,17 +63,17 @@ Each line is one scenario to run on a test match (a test server with dummy accou
 | 7a | Paste a warmup link on the room page; all four ready up. | The bot puts it on with Freemod and says "… warmup mapini seçti…"; once all four are ready it says "Herkes hazır, warmup başlıyor." and starts it with a 10-second countdown. Nobody ready: it starts when the turn's time runs out (at least a minute after it was chosen). |
 | 7b | `!mp unlock` the room from the referee page in manual mode, switch back to auto. | Within 30 s the bot locks it again. A player who changes slot or colour by themselves is moved back. |
 | 8 | Both teams `!roll`. | Only each team's first roll counts; the higher one is asked to ban or pick first per the stage's order. |
-| 9 | On the room page, hold a map for 3 seconds on the team's turn (let go after 2 seconds once first). | Let go early, nothing happens; held through, the pick is recorded and the map opens with its mods. Typing `hd1` in the osu! chat does nothing. |
+| 9 | On the room page, hold a map for 3 seconds on the team's turn (let go after 2 seconds once first). Then, on a later turn, begin holding just as the clock reaches 0:00. | Let go early, nothing happens; held through, the tile says "Seçiliyor…" (or "Banlanıyor…") with the seconds left, then the pick is recorded and the map opens with its mods. The hold begun at the end still counts. Typing `hd1` in the osu! chat does nothing. |
 | 10 | Try a banned map, an already played map, TB, or the same mod twice in a row (not NM). | The room page doesn't offer them (each tile says why); the other team's tiles can't be held. |
 | 10a | On a ban, wait 3 minutes without choosing. | Reminders at every minute, 30 s and 10 s; then "ban süresi doldu", the ban is lost (a timer chip in the draft strip) and the next turn is asked. |
 | 10b | On a pick, wait 2 minutes; then let the other team wait 2 minutes too. | The pick passes to the other team; when it runs out again the match goes to manual. Taking the missed turn back (undo on its chip, in manual mode) gives the team its turn again. |
 | 11 | On an FM map, one player without NoFail readies. | The bot names them and asks for NF before starting. |
 | 11a | On an FM map, a team where nobody picks HD, HR, EZ or FL readies. | The bot names the team and asks for a mod. Still none when the time and the 30-second grace run out: the match stops, goes to manual and the referees are pinged. |
-| 12 | `-abort` within 30 s; then again after 30 s; then a third time. Then the room page's "Abort" button. | First aborts ("1 hakkınız kaldı" *(1 left)*); the late one is refused; once 2 are used, refused. The page's button is lit only in the first 30 s, with the seconds and the team's aborts left. |
+| 12 | `!abort` within 30 s; then again after 30 s; then a third time. Then the room page's "Abort" button. | First aborts ("1 hakkınız kaldı" *(1 left)*); the late one is refused; once 2 are used, refused. The page's button is lit only in the first 30 s, with the seconds and the team's aborts left. |
 | 13 | A player drops in the first 30 s. | The map is aborted on their team's account. |
 | 14 | Finish a map. | 3 s later the score is confirmed from osu! and posted; the next turn is asked. |
-| 15 | `-rapor <text>`, and "Rapor" on the room page. | Every host and referee gets a notification with the text and a ping in the Discord referee channel. |
-| 16 | `-durdur`, and "Durdur" → "Maçı durdur" on the room page. | The match goes to manual; staff are notified and pinged; the room page says a referee runs the match. Switching back to auto resumes at the same step. |
+| 15 | `!rapor <text>`, and "Rapor" on the room page. | Every host and referee gets a notification with the text and a ping in the Discord referee channel. |
+| 16 | `!panik`, and "Durdur" → "Maçı durdur" on the room page. | The match goes to manual; staff are notified and pinged; the room page says a referee runs the match. Switching back to auto resumes at the same step. |
 | 17 | Switch the match to manual on the referee page, act by hand, switch back. | The room hears both switches. The bot does nothing while manual, then resumes from the current state. |
 | 17a | In manual mode, start a pool map yourself, then switch to auto while it plays. | The bot follows the map (no countdown, no other map opened) and goes on from the next step once it finishes. |
 | 17b | Stop the bot during a team's pick, put a pool map on by clicking it, switch back. | The map counts as that team's pick, and it's played. |
@@ -88,7 +88,7 @@ Each line is one scenario to run on a test match (a test server with dummy accou
 |---|---|
 | **20 min before** | Discord pings the players in the match channel: the bot will invite them in 10 minutes. |
 | **10 min before** | The bot opens the room, sets it up, invites everyone and posts the room and the bot's name in Discord. |
-| **Match time** | If anyone is missing, the bot invites them again and says the 10-minute wait has started. If everyone is in, the match starts. If everyone is in **and ready** earlier, it starts early. |
+| **Match time** | If anyone is missing, the bot invites them again and says the 10-minute wait has started. If everyone is in, the match has already started. |
 | **Match time + 10 min** | Anyone still incomplete is out. In a bracket match the missing team forfeits. In a qualifier lobby the incomplete teams are removed from the lobby. |
 | **Bracket match** | Warmups → roll → bans and picks → maps, until a team wins (tiebreaker if needed). |
 | **Qualifier lobby** | The pool's maps one by one, in pool order. |
@@ -104,7 +104,7 @@ The 20- and 10-minute steps only happen while "Odaları otomatik aç" *(Open roo
 | Switch | Where | Who | Default | What it does |
 |---|---|---|---|---|
 | "Odaları otomatik aç" *(Open rooms automatically)* | Bancho bots page, `/admin/bancho` | Hosts | **Off** | Tournament-wide. On: the bot opens the room of every match in auto mode 10 minutes before its time, and the 20-minute Discord reminder goes out. Off: referees open the rooms, and no reminder is sent. |
-| "Otomatik hakem" *(Auto referee)* | Referee page, room bar | Referees, hosts | **On** | Per match. On: the bot referees the match. Off: manual control, and the bot only answers `-rapor`, `-durdur` and `-davet`. Turning it back on makes the bot **continue where it left off**. |
+| "Otomatik hakem" *(Auto referee)* | Referee page, room bar | Referees, hosts | **On** | Per match. On: the bot referees the match. Off: manual control, and the bot only answers `!rapor`, `!panik` and `!davet`. Turning it back on makes the bot **continue where it left off**. |
 
 With the global switch off and a match's switch on, the bot still referees the match once a referee opens its room with "Oda oluştur" *(Create room)*.
 
@@ -123,7 +123,7 @@ With the global switch off and a match's switch on, the bot still referees the m
 ### 2. Waiting for the players (both kinds)
 
 - **Everyone is in at match time:** the match starts.
-- **Everyone is in and ready before match time:** the match starts early.
+- **Everyone is in the room before match time:** the match starts then. Being in the room counts as being ready; nobody needs to press Ready.
 - **Someone is missing at match time:** the bot re-invites them and says "Maç saati geldi. Eksik oyuncular için 10 dakika bekleniyor, gelmeyen takım kaybetmiş sayılacak." *(It's match time. Waiting 10 minutes for the missing players; a team that doesn't come will be counted as having lost.)* In a qualifier lobby: "…, gelmeyen takımlar lobiden çıkarılacak." *(…; teams that don't come will be removed from the lobby.)*
 - **10 minutes after match time:**
   - **Bracket:** a team missing anyone forfeits, and the other team wins (W / FF). Both teams' players get a site notification, and the absent team also gets a Discord DM.
@@ -168,6 +168,7 @@ If a referee opened the room late, the 10 minutes count from when the room was o
    - A **ban** that runs out is **lost**: no map is banned for it, and the draft goes on to the next step.
    - A **pick** that runs out **passes to the other team**, which picks in its place. The stage's order then goes on as before, and the team that missed keeps its later turns.
    - If the other team also lets the passed pick run out, the bot stops and a referee takes over.
+   - **A hold begun in time counts.** The bot acts 10 seconds after the end it announced, and a player who began holding a tile before then gets their hold: the page tells the bot as the hold begins, and the turn doesn't run out for 6 seconds after that, so the ban or pick lands even past its time.
    - A missed ban or pick shows as a timer chip in the draft strip, on the referee page and the match page. A referee can take it back (manual mode) to give the team its turn again.
 5. The bot **refuses** (the room page doesn't offer them, and each tile says why):
    - the tiebreaker
@@ -207,9 +208,9 @@ If a referee opened the room late, the 10 minutes count from when the room was o
 
 ## The room page (players)
 
-Every match has a room page for its own players: `/match/<match>/oda`. Wherever the site links a player to their own match it says "Maç odası" *(Match room)* instead of "Canlı takip et" *(Watch live)* or "Maç sayfası" *(Match page)*: in the bracket, the fixture lists, the lobby cards, the spectators' page and "Takımım" *(My team)*, whose next match has a "Maç odası" button under it. The bot's announcements in the room carry its link too. Anyone else opening it is sent to the spectators' page.
+Every match has a room page for its own players: `/match/<match>/players`. Wherever the site links a player to their own match it says "Maç odası" *(Match room)* instead of "Canlı takip et" *(Watch live)* or "Maç sayfası" *(Match page)*: in the bracket, the fixture lists, the lobby cards, the spectators' page and "Takımım" *(My team)*, whose next match has a "Maç odası" button under it. The bot's announcements in the room carry its link too. Anyone else opening it is sent to the spectators' page.
 
-- **At the top**, what the match waits for and its countdown, all the time: the match time, the missing players (and the -davet hint for a player who isn't in), the warmup turn (with the link field on the team's own turn), the roll (each team's first roll as it comes), whose ban or pick it is, the map opened with how many are ready, the map being played with its time left. It's lit when it's the viewer's team's turn.
+- **At the top**, what the match waits for and its countdown, all the time: the match time, the missing players, and for a viewer who isn't in the room (while it's open, at any point of the match) a "Davet gönder" *(Send invite)* button that has the bot invite them again (then waits 20 s before it can be pressed again) and disappears once they're in, the warmup turn (with the link field on the team's own turn), the roll (each team's first roll as it comes), whose ban or pick it is, the map opened with how many are ready, the map being played with its time left. It's lit when it's the viewer's team's turn.
 - **On the left, the pool**: every map over its cover, by category, with what became of it (banned, picked, who won it, on in the room). On the team's ban or pick, the maps it may take are held for 3 seconds; the others say why not.
 - **On the right, the score** (the score sheet of the match page), with **Abort** (lit only in a map's first 30 seconds, with the seconds and the team's aborts left), **Rapor** (a message of up to 300 characters to the hosts and referees) and **Durdur** (the emergency stop, confirmed first).
 - **At the bottom, the room's chat**, read only.
@@ -218,14 +219,14 @@ On a phone the countdown stays at the top and the pool, the score and the chat a
 
 ## Player commands
 
-Typed in the **match room**, unless the table says otherwise. Abort, report and stop also work from the room page; bans, picks and warmups work **only** there.
+Typed in the **match room**, unless the table says otherwise, starting with `!` (in either case; the older `-` prefix still works). Abort, report and stop also work from the room page; bans, picks and warmups work **only** there.
 
 | Command | Meaning | What it does | Limits | Works in manual mode |
 |---|---|---|---|---|
-| `-davet` | *invite* | **In a DM to the room's bot:** sends a new room invite. | Once every 20 s | Yes |
-| `-abort` | *abort* | Aborts the map being played. The bot says "<oyuncu> abort kullandı. N hakkınız kaldı." *(<player> used an abort. You have N left.)* | **2 per team** per match, and only in the **first 30 seconds** of a map. Later: "Maç başladıktan 30 saniye sonra abort kullanılamaz" *(Abort can't be used 30 seconds after the map has started)* | No |
-| `-rapor <mesaj>` | *report <message>* | Sends the message to every host and referee: a site notification, plus a ping in the Discord referee channel. | Once a minute per player, 300 characters | Yes |
-| `-durdur` | *stop* | **Emergency stop.** The match switches to **manual mode**, and every host and referee is notified and pinged in Discord. A referee switches it back to auto when it's sorted, and the bot continues where it stopped. | No use limit. Once a minute per player, so it can't be spammed. | Yes (it just alerts, since the match is already manual) |
+| `!davet` (`!invite`) | *invite* | **In a DM to the room's bot:** sends a new room invite. The room page's "Davet gönder" button and the Discord command `/davet` do the same. | Once every 20 s, however it's asked | Yes |
+| `!abort` | *abort* | Aborts the map being played. The bot says "<oyuncu> abort kullandı. N hakkınız kaldı." *(<player> used an abort. You have N left.)* | **2 per team** per match, and only in the **first 30 seconds** of a map. Later: "Maç başladıktan 30 saniye sonra abort kullanılamaz" *(Abort can't be used 30 seconds after the map has started)* | No |
+| `!rapor <mesaj>` (`!report`) | *report <message>* | Sends the message to every host and referee: a site notification, plus a ping in the Discord referee channel. | Once a minute per player, 300 characters | Yes |
+| `!panik` (`!panic`, `!durdur`) | *panic* | **Emergency stop.** The match switches to **manual mode**, and every host and referee is notified and pinged in Discord. A referee switches it back to auto when it's sorted, and the bot continues where it stopped. | No use limit. Once a minute per player, so it can't be spammed. | Yes (it just alerts, since the match is already manual) |
 | `!roll` | *osu!'s roll* | The team's first roll decides the pick/ban order. | 1–100 only | n/a |
 
 **Disconnects:** a player who drops in the first 30 seconds of a map gets it aborted. That uses one of their team's 2 aborts. In a qualifier this only applies to the first map.
@@ -247,7 +248,7 @@ Typed in the **match room**, unless the table says otherwise. Abort, report and 
 | NoFail / FM mod grace | 30 s extra, once |
 | Room lock | asked again every 30 s while Bancho says it's unlocked |
 | Start countdown | 10 s |
-| `-abort` | 2 per team, within 30 s of the map starting |
+| `!abort` | 2 per team, within 30 s of the map starting |
 | Score read from osu! | 3 s after the map, up to 5 tries |
 | Room closes | 30 s after the match is over |
 | Grace after every countdown | 10 s (the bot acts 10 s after the time it announced) |
@@ -285,7 +286,7 @@ When the bot can't continue safely, it **switches the match to manual**. It says
 | "Maçın iki takımı belli değil." | *The match's two teams aren't known.* | Set both teams on the bracket. |
 | "FM mapinde mod seçilmedi (<takım>): takımdan en az bir oyuncu HD, HR, EZ ya da FL seçmeli." | *No mod picked on the FM map (<team>): at least one player of the team must pick HD, HR, EZ or FL.* | Talk to the team; once someone has a mod, switch back to auto (the map opens again) or start it by hand. |
 
-A player's `-durdur` also puts the match in manual (see above).
+A player's `!panik` also puts the match in manual (see above).
 
 ---
 
@@ -323,7 +324,7 @@ The lock is on the page only. The server doesn't refuse these actions if they're
 
 **Chat column, "Otomatik hakem" tab** *(Auto referee)*. The bot's log: every decision with its time and level. The levels are "bilgi" *(info)*, "uyarı" *(warning)* and "hata" *(error)*.
 - **bilgi:** each step: room opened, roll results, bans and picks confirmed, maps opened, scores confirmed from osu!, switches to manual or auto and who flipped them.
-- **uyarı:** reports, `-durdur`, no-shows, a map started without NF, osu! scores that couldn't be read.
+- **uyarı:** reports, `!panik`, no-shows, a map started without NF, osu! scores that couldn't be read.
 - **hata:** handovers and failed actions.
 
 New warnings and errors put a badge on the tab. Every log line is translated in [Appendix A](#a6-auto-referee-log-referee-page).
@@ -336,8 +337,8 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 
 | Notification | Who gets it | Means |
 |---|---|---|
-| "Oyuncu raporu" *(Player report)* | Hosts, referees | A player's `-rapor` (or the room page's report), with their message. Links to the referee page. |
-| "Acil durdurma" *(Emergency stop)* | Hosts, referees | A player stopped the match (`-durdur` or the room page); the match is now manual. |
+| "Oyuncu raporu" *(Player report)* | Hosts, referees | A player's `!rapor` (or the room page's report), with their message. Links to the referee page. |
+| "Acil durdurma" *(Emergency stop)* | Hosts, referees | A player stopped the match (`!panik` or the room page); the match is now manual. |
 | "Otomatik hakem durdu" *(Auto referee stopped)* | Hosts, referees | The bot handed the match over, with the reason. |
 | "Maç hükmen bitti" *(Match ended by forfeit)* | Both teams' players | A bracket match was forfeited for a team that didn't show up. |
 | "Eleme lobisinden çıkarıldınız" *(You were removed from the qualifier lobby)* | The removed team's players | Their team was taken out of its lobby for not showing up, so they can join another. |
@@ -348,7 +349,7 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 |---|---|
 | 20-minute reminder (pings the players) | Match channel |
 | "Maç odası kuruldu…" *(The match room is set up…)* with the room link and the bot's name | Match channel |
-| `-rapor`, `-durdur` and handover alerts (ping the hosts and the match's referee, or every referee if the match has none) | Referee channel |
+| `!rapor`, `!panik` and handover alerts (ping the hosts and the match's referee, or every referee if the match has none) | Referee channel |
 | No-show notice | DM to the absent team's players; for a lobby, also a line in the lobby's channel |
 | Forfeit / results | As usual: match channel and results channel |
 
@@ -442,11 +443,11 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 | Süre doldu, map NoFail'siz oyuncularla başlıyor. | Time's up; the map starts with players who don't have NoFail. | NF still missing after the grace |
 | <takımlar>: FM mapinde takımdan en az bir oyuncu HD, HR, EZ veya FL seçmeli. Seçmezseniz maç durdurulup hakem çağrılacak. | <teams>: on an FM map at least one player of the team must pick HD, HR, EZ or FL. If you don't, the match will be stopped and a referee called. | FM, a team without a mod |
 | <takımlar>: FM mapinde takımdan en az bir oyuncu HD, HR, EZ veya FL seçmeli. Seçilmediği için maç durduruldu, hakemler çağrıldı. | <teams>: on an FM map at least one player of the team must pick HD, HR, EZ or FL. Since none was picked, the match was stopped and the referees were called. | FM mod still missing when time runs out (then the bot stops) |
-| <oyuncu> abort kullandı. N hakkınız kaldı. | <player> used an abort. You have N left. | `-abort` or the room page's Abort accepted |
+| <oyuncu> abort kullandı. N hakkınız kaldı. | <player> used an abort. You have N left. | `!abort` or the room page's Abort accepted |
 | <oyuncu> oyundan düştü. Abort kullanıldı. N hakkınız kaldı. | <player> disconnected. Abort used. You have N left. | Early disconnect |
-| Maç başladıktan 30 saniye sonra abort kullanılamaz. | Abort can't be used 30 seconds after the map has started. | Late `-abort` |
-| <oyuncu>: takımınızın abort hakkı kalmadı. | <player>: your team has no aborts left. | `-abort` with none left |
-| <oyuncu>: şu an oynanan bir map yok. | <player>: no map is being played right now. | `-abort` between maps |
+| Maç başladıktan 30 saniye sonra abort kullanılamaz. | Abort can't be used 30 seconds after the map has started. | Late `!abort` |
+| <oyuncu>: takımınızın abort hakkı kalmadı. | <player>: your team has no aborts left. | `!abort` with none left |
+| <oyuncu>: şu an oynanan bir map yok. | <player>: no map is being played right now. | `!abort` between maps |
 | Skor: <takım> a - b <takım> | Score: <team> a - b <team> | After each bracket map |
 | Tiebreaker! | Tiebreaker! | Score reaches the tiebreaker |
 
@@ -477,10 +478,10 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 
 | Turkish | English | When |
 |---|---|---|
-| <oyuncu>: raporun hostlara ve hakemlere iletildi. | <player>: your report was passed on to the hosts and referees. | `-rapor` or the room page's report accepted |
-| <oyuncu>: kullanım: -rapor <mesajınız> | <player>: usage: -rapor <your message> | `-rapor` with no text |
-| <oyuncu>: bir dakikada bir rapor gönderebilirsiniz. | <player>: you can send one report per minute. | `-rapor` too often |
-| Durdur komutu kullanıldı. Bu komut sadece acil durumlarda kullanılmalıdır. Hostlar bilgilendirildi, eğer bu komut kötü niyetle kullanıldıysa -rapor komutuyla bildiriniz. | The stop command was used. This command should only be used in emergencies. The hosts have been informed; if it was used in bad faith, report it with the -rapor command. | `-durdur`, or "Maçı durdur" on the room page |
+| <oyuncu>: raporun hostlara ve hakemlere iletildi. | <player>: your report was passed on to the hosts and referees. | `!rapor` or the room page's report accepted |
+| <oyuncu>: kullanım: !rapor <mesajınız> | <player>: usage: !rapor <your message> | `!rapor` with no text |
+| <oyuncu>: bir dakikada bir rapor gönderebilirsiniz. | <player>: you can send one report per minute. | `!rapor` too often |
+| Panik komutu kullanıldı. Bu komut sadece acil durumlarda kullanılmalıdır. Hostlar bilgilendirildi, eğer bu komut kötü niyetle kullanıldıysa !rapor komutuyla bildiriniz. | The panic command was used. This command should only be used in emergencies. The hosts have been informed; if it was used in bad faith, report it with the !rapor command. | `!panik`, or "Maçı durdur" on the room page |
 | Otomatik hakem durdu, maçı bir hakem devralacak. | The auto referee stopped; a referee will take over the match. | The bot hands over |
 | Maç manuel moda alındı: bundan sonra maçı hakem yönetiyor, otomatik hakem durdu. | The match was put in manual mode: a referee runs the match from now on; the auto referee stopped. | A referee switches the match to manual |
 | Otomatik hakem tekrar devrede: maç otomatik modda, bot kaldığı yerden devam ediyor. | The auto referee is back on: the match is in auto mode, and the bot continues from where it stands. | A referee switches the match back to auto |
@@ -489,8 +490,8 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 
 | Turkish | English | When |
 |---|---|---|
-| Davet gönderildi: #mp_N | Invite sent: #mp_N | `-davet` accepted |
-| Şu an seni bekleyen, bu botun yönettiği bir maç odası yok. | There's no match room run by this bot waiting for you right now. | `-davet` with no match |
+| Davet gönderildi: #mp_N | Invite sent: #mp_N | `!davet` accepted |
+| Şu an seni bekleyen, bu botun yönettiği bir maç odası yok. | There's no match room run by this bot waiting for you right now. | `!davet` with no match |
 
 ### A.3 Discord
 
@@ -498,8 +499,8 @@ Embeds (the referee channel alerts and the DMs) are shown as *title — text*. `
 
 | Turkish | English | Where |
 |---|---|---|
-| ⏰ <oyuncular> Maçınız 20 dakika sonra başlayacak. Bot, oda davetlerini 10 dakika sonra yollayacak. Oyundaki özel mesajlarınızın bottan mesaj almaya hazır olduğundan emin olun. Eğer bottan davet almazsanız odanızın botuna özelden `-davet` yazarak tekrar davet yollamasını sağlayabilirsiniz. Bir sorun yaşarsanız hostlardan yardım alın. | ⏰ <players> Your match starts in 20 minutes. The bot will send the room invites in 10 minutes. Make sure your in-game private messages can receive messages from the bot. If you don't get an invite, DM your room's bot `-davet` to have it send one again. If you have a problem, ask the hosts for help. | Match channel |
-| 🎮 Maç odası kuruldu: <link> Odanızın botu **<bot>**. Eğer davetiye almadıysanız oyundan bu bota DM atıp `-davet` yazın. | 🎮 The match room is set up: <link> Your room's bot is **<bot>**. If you didn't get an invite, DM this bot in game and type `-davet`. | Match channel |
+| ⏰ <oyuncular> Maçınız 20 dakika sonra başlayacak. Bot, oda davetlerini 10 dakika sonra yollayacak. Oyundaki özel mesajlarınızın bottan mesaj almaya hazır olduğundan emin olun. Eğer bottan davet almazsanız odanızın botuna özelden `!davet` ya da burada `/davet` yazarak tekrar davet yollamasını sağlayabilirsiniz. Bir sorun yaşarsanız hostlardan yardım alın. | ⏰ <players> Your match starts in 20 minutes. The bot will send the room invites in 10 minutes. Make sure your in-game private messages can receive messages from the bot. If you don't get an invite, DM your room's bot `!davet`, or type `/davet` here, to have it send one again. If you have a problem, ask the hosts for help. | Match channel |
+| 🎮 Maç odası kuruldu: <link> Odanızın botu **<bot>**. Eğer davetiye almadıysanız oyundan bu bota DM atıp `!davet` ya da burada `/davet` yazın. | 🎮 The match room is set up: <link> Your room's bot is **<bot>**. If you didn't get an invite, DM this bot in game and type `!davet`, or type `/davet` here. | Match channel |
 | 📣 Oyuncu raporu: <maç> — <oyuncu> (<takım>): <mesaj> | 📣 Player report: <match> — <player> (<team>): <message> | Referee channel |
 | 🛑 Maç durduruldu: <maç> — <oyuncu> (<takım>) maçı acil durumda durdurdu: maç manuel kontrole geçti, bir hakemin bakması gerekiyor. | 🛑 Match stopped: <match> — <player> (<team>) stopped the match in an emergency: the match went to manual control and needs a referee to look at it. | Referee channel |
 | ⚠️ Otomatik hakem durdu: <maç> — <neden> Maç manuel kontrole geçti, bir hakemin devralması gerekiyor. | ⚠️ Auto referee stopped: <match> — <reason> The match went to manual control; a referee needs to take over. | Referee channel |
@@ -526,7 +527,7 @@ Embeds (the referee channel alerts and the DMs) are shown as *title — text*. `
 | Manuel kontrol. Açınca otomatik hakem kaldığı yerden devam eder. | Manual control. Turning it on makes the auto referee continue where it left off. (switch tooltip, off) |
 | Otomatik hakem odayı açıp oyuncuları davet edecek | The auto referee will open the room and invite the players |
 | Otomatik oda açma kapalı (Bancho botları sayfası): odayı bir hakem açınca otomatik hakem maçı yönetir. | Automatic room opening is off (Bancho bots page): once a referee opens the room, the auto referee runs the match. |
-| Maç saati bekleniyor, herkes hazırsa erken başlar | Waiting for the match time; starts early if everyone is ready |
+| Maç saati bekleniyor, herkes odaya gelince başlar | Waiting for the match time; starts once everyone is in the room |
 | Oyuncular bekleniyor; gelmeyen takım elenir | Waiting for the players; a team that doesn't come is out |
 | Warmup: <takım> maç odası sayfasından seçiyor / seçti, hazır olunca başlar / oynuyor | Warmup: <team> is choosing on the match room page / chose one, it starts once everyone is ready / is playing it |
 | !roll bekleniyor | Waiting for !roll |
@@ -538,7 +539,7 @@ Embeds (the referee channel alerts and the DMs) are shown as *title — text*. `
 | <slot> skorları osu!'dan okunuyor | Reading <slot>'s scores from osu! |
 | Sıradaki adım hazırlanıyor | Preparing the next step |
 | Maç bitti | The match is over |
-| Manuel kontrol — Bot sadece -rapor, -durdur ve -davet'e cevap veriyor. Açınca devam eder: <adım> | Manual control — The bot only answers -rapor, -durdur and -davet. When switched on, it continues with: <step> |
+| Manuel kontrol — Bot sadece !rapor, !panik ve !davet'e cevap veriyor. Açınca devam eder: <adım> | Manual control — The bot only answers !rapor, !panik and !davet. When switched on, it continues with: <step> |
 | Otomatik hakem maçı yönetiyor. Komutlar, havuz ve skor araçları manuel kontrolde açılır; sohbet açık. | The auto referee is running the match. Commands, the pool and the score tools open in manual control; the chat stays open. |
 | Manuel kontrole geç | Switch to manual control |
 | Odada henüz map yok. Otomatik hakem sırası gelince açacak. | No map in the room yet. The auto referee will open one when it's time. |
@@ -559,7 +560,9 @@ Embeds (the referee channel alerts and the DMs) are shown as *title — text*. `
 | bilgi | Oda açıldı: #mp_N (<bot>), oyuncular davet edildi. | Room opened: #mp_N (<bot>), players invited. |
 | hata | Oda açılamadı, 1 dakika sonra tekrar denenecek: <hata> | Couldn't open the room; trying again in 1 minute: <error> |
 | bilgi | Maç saati geldi, eksikler tekrar davet edildi: <oyuncular> | Match time; the missing players were invited again: <players> |
-| bilgi | <oyuncu> -davet ile tekrar davet edildi. | <player> was invited again with -davet. |
+| bilgi | <oyuncu> !davet ile tekrar davet edildi. | <player> was invited again with !davet. |
+| bilgi | <oyuncu> maç odası sayfası ile tekrar davet edildi. | <player> was invited again from the match room page. |
+| bilgi | <oyuncu> Discord /davet ile tekrar davet edildi. | <player> was invited again with Discord's /davet. |
 | uyarı | <takım> gelmedi: hükmen <takım> kazandı. | <team> didn't show: <team> wins by forfeit. |
 | uyarı | Tam kadro gelmeyen takımlar lobiden çıkarıldı: <takımlar> | Teams without a full roster were removed from the lobby: <teams> |
 | bilgi | Herkes odada, maç başlıyor. | Everyone's in the room; the match is starting. |

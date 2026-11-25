@@ -8,7 +8,7 @@ use tokio::time::Instant;
 use uuid::Uuid;
 
 use crate::bancho::{
-    autoref::{Action, AutoRef, Snapshot, WarmupMap, Web},
+    autoref::{self, Action, AutoRef, Command, Snapshot, WarmupMap, Web},
     connection::{
         bot::Priority,
         irc::{room_channel, valid_name},
@@ -33,7 +33,7 @@ use super::{AutoWrite, Manager, INVITE_EVERY};
 // The match's room page, where its players choose their warmups, bans and picks
 // (frontend/src/pages/public/match/room/).
 pub fn room_page_url(frontend_url: &str, id: Uuid) -> String {
-    format!("{}/match/{id}/oda", frontend_url.trim_end_matches('/'))
+    format!("{}/match/{id}/players", frontend_url.trim_end_matches('/'))
 }
 
 // A player's answer: what the room page hears back.
@@ -245,7 +245,13 @@ impl Manager {
             return;
         }
         let web = match action {
+            PlayerAction::Invite => {
+                let result = self.invite_player(Some(id), user_id, "maç odası sayfası");
+                let _ = reply.send(result.map(|_| ()));
+                return;
+            }
             PlayerAction::Draft { map_id } => Web::Draft(map_id),
+            PlayerAction::Hold { map_id } => Web::Hold(map_id),
             PlayerAction::SkipWarmup => Web::SkipWarmup,
             PlayerAction::Abort => Web::Abort,
             PlayerAction::Stop => Web::Stop,
@@ -473,34 +479,66 @@ impl Manager {
         Some((t.team1, t.team2, t.maps))
     }
 
-    // A player wrote to one of the bots: "-davet" invites them again to their match's
-    // room, if that bot runs it.
+    // A player wrote to one of the bots: "!davet" (or "!invite") invites them again to
+    // their match's room, if that bot runs it.
     pub(super) fn private_message(&mut self, bot_id: Uuid, from: &str, text: &str) {
-        if !text.trim().eq_ignore_ascii_case("-davet") || !valid_name(from) {
+        if !matches!(autoref::command(text), Some((Command::Invite, _))) || !valid_name(from) {
             return;
         }
         let found = self.runs.iter().find_map(|(id, run)| {
-            let mp_id = self.latest_room(*id)?;
-            let room = self.rooms.get(&mp_id)?;
-            if room.bot != Some(bot_id) || room.closed || !room.joined || run.ctx.concluded() {
-                return None;
-            }
             let p = run
                 .ctx
                 .roster
                 .iter()
                 .find(|p| same_name(&p.username, from))?;
-            Some((*id, mp_id, p.osu_id, p.username.clone()))
+            let mp_id = self.invite_room(*id)?;
+            (self.rooms.get(&mp_id)?.bot == Some(bot_id)).then_some((*id, p.user_id))
         });
+        let reply = match found {
+            None => "Şu an seni bekleyen, bu botun yönettiği bir maç odası yok.".to_string(),
+            Some((match_id, user_id)) => {
+                match self.invite_player(Some(match_id), user_id, "!davet") {
+                    Ok(mp_id) => format!("Davet gönderildi: #mp_{mp_id}"),
+                    // Asked again within the 20 seconds: quietly ignored.
+                    Err(_) => return,
+                }
+            }
+        };
+        self.bot_send(bot_id, from.to_string(), reply, None, Priority::Normal);
+    }
+
+    // The match's room a player can be invited to: its latest, with its bot in it, while
+    // the match goes on.
+    fn invite_room(&self, match_id: Uuid) -> Option<i64> {
+        let run = self.runs.get(&match_id)?;
+        let mp_id = self.latest_room(match_id)?;
+        let room = self.rooms.get(&mp_id)?;
+        (room.bot.is_some() && room.joined && !room.closed && !run.ctx.concluded()).then_some(mp_id)
+    }
+
+    // A new invite for the player to their match's room (`match_id`, or whichever of their
+    // matches is being played), by the room's bot, at most every INVITE_EVERY: !davet in a
+    // private message, the room page's button and Discord's /davet. `via` is for the log.
+    pub(super) fn invite_player(
+        &mut self,
+        match_id: Option<Uuid>,
+        user_id: Uuid,
+        via: &str,
+    ) -> Result<i64, AppError> {
+        let found = self
+            .runs
+            .iter()
+            .filter(|(id, _)| match_id.is_none_or(|m| m == **id))
+            .find_map(|(id, run)| {
+                let p = run.ctx.roster.iter().find(|p| p.user_id == user_id)?;
+                let mp_id = self.invite_room(*id)?;
+                Some((*id, mp_id, p.osu_id, p.username.clone()))
+            });
         let Some((match_id, mp_id, osu_id, username)) = found else {
-            self.bot_send(
-                bot_id,
-                from.to_string(),
-                "Şu an seni bekleyen, bu botun yönettiği bir maç odası yok.".into(),
-                None,
-                Priority::Normal,
-            );
-            return;
+            return Err(PlayerError::NotRunning.into());
+        };
+        let Some(bot_id) = self.rooms.get(&mp_id).and_then(|r| r.bot) else {
+            return Err(PlayerError::NotRunning.into());
         };
         let now = Instant::now();
         if self
@@ -508,7 +546,7 @@ impl Manager {
             .get(&osu_id)
             .is_some_and(|&t| now.duration_since(t) < INVITE_EVERY)
         {
-            return;
+            return Err(PlayerError::InviteTooSoon.into());
         }
         self.invited.insert(osu_id, now);
         self.bot_send(
@@ -518,17 +556,11 @@ impl Manager {
             Some(mp_id),
             Priority::High,
         );
-        self.bot_send(
-            bot_id,
-            from.to_string(),
-            format!("Davet gönderildi: #mp_{mp_id}"),
-            None,
-            Priority::Normal,
-        );
         self.auto_log(
             match_id,
             LogLevel::Info,
-            format!("{username} -davet ile tekrar davet edildi."),
+            format!("{username} {via} ile tekrar davet edildi."),
         );
+        Ok(mp_id)
     }
 }

@@ -38,13 +38,15 @@ import "./PlayerRoomPage.css";
 /** The viewer as a player of the match: their team, and its side in a bracket match. */
 export interface RoomMe {
   userId: string;
+  osuId: number;
   teamId: string;
   teamName: string;
   color: SlotTeam | null;
 }
 
 /**
- * /match/:matchId/oda — the room page of a match's own players, beside the osu! client: the pool
+ * /match/:matchId/players — the room page of a match's own players, beside the osu! client: who plays
+ * (and, while the room is open, who's in it), the pool
  * they ban and pick from (held for three seconds), the team's warmup, whose turn it is with its
  * clock, the score, abort / rapor / durdur, and the room's chat as it happens (read only). Bans,
  * picks and warmups are only taken here; the room's bot runs the rest.
@@ -74,9 +76,11 @@ function PlayerRoom({ matchId }: { matchId: string }) {
 
   const me = useMemo<RoomMe | null>(() => {
     const team = match?.teams.find((t) => t.players.some((p) => p.id === user.id));
-    if (!team) return null;
+    const player = team?.players.find((p) => p.id === user.id);
+    if (!team || !player) return null;
     return {
       userId: user.id,
+      osuId: player.osu_id,
       teamId: team.id,
       teamName: team.name,
       color: teams.find((t) => t.id === team.id)?.color ?? null,
@@ -98,6 +102,16 @@ function PlayerRoom({ matchId }: { matchId: string }) {
       else window.setTimeout(() => setPending((p) => (p === id ? null : p)), 8000);
     },
     [act],
+  );
+
+  // A hold began: the bot is told, so a turn that runs out under it waits for the hold to finish.
+  // Nothing to show for it (a refused one is refused again when the hold ends), so it doesn't go
+  // through `run`, which would mark the page busy and drop the hold's tile.
+  const hold = useCallback(
+    (entry: PoolEntry) => {
+      playerAction(matchId, { type: "hold", map_id: entry.map.id }).catch(() => {});
+    },
+    [matchId],
   );
 
   // The ban or pick lands through the live socket; it's no longer pending once it's on the match.
@@ -139,7 +153,7 @@ function PlayerRoom({ matchId }: { matchId: string }) {
     );
   }
 
-  const autoref = match.live?.autoref ?? null;
+  const autoref = page.liveRoom?.autoref ?? null;
   const myTurn: StepKind | null =
     autoref?.enabled && autoref.phase === "draft" && autoref.team_id === me.teamId
       ? (autoref.step ?? null)
@@ -200,6 +214,7 @@ function PlayerRoom({ matchId }: { matchId: string }) {
             Hakem <span className="match-meta-value">{match.referee?.username ?? "henüz yok"}</span>
           </span>
         </p>
+        <RoomRoster page={page} />
         {page.live ? (
           <div className="match-onair player-room-onair">
             <LiveMark large />
@@ -241,10 +256,18 @@ function PlayerRoom({ matchId }: { matchId: string }) {
             busy={busy}
             onWarmup={(beatmap_id) => act({ type: "warmup", beatmap_id })}
             onSkipWarmup={() => act({ type: "skip_warmup" })}
+            onInvite={() => act({ type: "invite" })}
           />
         </div>
         <div className="player-room-pool" {...(compact && panelProps("pool"))}>
-          <RoomPool page={page} me={me} turn={myTurn} pending={pending} onChoose={choose} />
+          <RoomPool
+            page={page}
+            me={me}
+            turn={myTurn}
+            pending={pending}
+            onChoose={choose}
+            onHold={hold}
+          />
         </div>
         <div className="player-room-side" {...(compact && panelProps("room"))}>
           <section className="player-room-sheet" aria-label="Skor">
@@ -325,6 +348,57 @@ function SideName({ name, side, own }: { name: string; side: SlotTeam; own: bool
   );
 }
 
+/**
+ * Who plays, under the heading: a bracket match's players in their side's colours (the heading names
+ * the teams), a lobby's under each team's name. While the room is open each name carries whether
+ * they're in it, as the room's bot reads it (a DEV_LOGIN dummy counts as in).
+ */
+function RoomRoster({ page }: { page: MatchPageState }) {
+  const { match, roster, lobby, findRoster, live } = page;
+  if (!match || roster.length === 0) return null;
+  const bracket = match.kind === "bracket";
+  const standIns = page.liveRoom?.autoref?.stand_ins === true;
+  const inRoom = new Set(lobby.slots.map((s) => findRoster(s)?.player.id));
+  const order = bracket
+    ? [match.team1_id, match.team2_id].filter((id): id is string => id !== null)
+    : match.teams.map((t) => t.id);
+  const groups = order
+    .map((id) => roster.filter((r) => r.team.id === id))
+    .filter((players) => players.length > 0);
+  return (
+    <ul className="player-room-roster" aria-label="Oyuncular">
+      {groups.map((players) => {
+        const { team, color } = players[0];
+        return (
+          <li
+            key={team.id}
+            className={
+              color ? `player-room-roster-team is-team-${color}` : "player-room-roster-team"
+            }
+          >
+            {!bracket && <span className="player-room-roster-label">{team.name}</span>}
+            {players.map((r) => {
+              const present = inRoom.has(r.player.id) || (standIns && r.player.osu_id < 0);
+              const where = present ? "odada" : "odada değil";
+              return (
+                <span
+                  key={r.player.id}
+                  className={`player-room-player${live ? (present ? " is-in" : " is-out") : ""}`}
+                  title={live ? `${r.player.username}: ${where}` : undefined}
+                >
+                  {live && <span className="player-room-presence" aria-hidden="true" />}
+                  {r.player.username}
+                  {live && <span className="sr-only">, {where}</span>}
+                </span>
+              );
+            })}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 /** The clock every countdown on the page reads, ticking twice a second while the match is on. */
 function useNow(running: boolean): number {
   const [now, setNow] = useState(() => Date.now());
@@ -346,7 +420,7 @@ function SheetStatus({ page }: { page: MatchPageState }) {
 
 /** The phone's pool tab: the team's own turn and its clock, otherwise how many maps. */
 function PoolTabStatus({ page, me, now }: { page: MatchPageState; me: RoomMe; now: number }) {
-  const autoref = page.match?.live?.autoref;
+  const autoref = page.liveRoom?.autoref;
   const mine = autoref?.enabled && autoref.team_id === me.teamId;
   if (mine && (autoref.phase === "draft" || autoref.phase === "warmup")) {
     const end = shownEnd(autoref.deadline, page.match?.starts_at ?? null);
