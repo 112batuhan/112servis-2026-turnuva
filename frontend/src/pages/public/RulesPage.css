@@ -61,14 +61,14 @@
   color: var(--color-primary);
 }
 
-/* Narrow: the contents become a wrapped row of links above the text. */
+/* Narrow: the contents stay the same ruled list, moved above the text instead of beside it. */
 @media (max-width: 900px) {
   .rules-layout.has-toc {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--space-6);
   }
 
-  /* Lined up with the text's measure, so the row starts where the text does. */
+  /* Lined up with the text's measure, so the list starts where the text does. */
   .rules-toc {
     position: static;
     width: 100%;
@@ -76,16 +76,14 @@
     margin-inline: auto;
   }
 
+  /* The page header's rule sits right above, so the list doesn't draw a second one. */
   .rules-toc ol {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0 var(--space-4);
     border-top: 0;
   }
 
+  /* A comfortable tap height for each row. */
   .rules-toc a {
-    padding: var(--space-1) 0;
-    border-bottom: 0;
+    padding: var(--space-3) 0;
   }
 
   /* Without the sticky column the frost would only flicker as the page scrolls past. */

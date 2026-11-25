@@ -14,7 +14,7 @@ H="$WORK/helv/helvetica-neue-lt-pro"
 "$PY" -I design/fonts/patch_hecate.py "$WORK/hecate/Hecate Display-Regular.otf" "$WORK/hecate-regular.otf"
 "$PY" -I design/fonts/patch_hecate.py "$WORK/hecate/Hecate Display-Italic.otf" "$WORK/hecate-italic.otf"
 
-U="U+0020-007E,U+00A0-017F,U+0192,U+02C6-02DD,U+2000-206F,U+20AC,U+2122,U+2212,U+FB01-FB02"
+U="U+0020-007E,U+00A0-017F,U+0192,U+02C6-02DD,U+2000-206F,U+20AC,U+2122,U+2212,U+221A,U+FB01-FB02"
 sub() {
   "$PY" -I -m fontTools.subset "$1" --unicodes="$U" --layout-features='*' --name-IDs='*' \
     --name-languages='*' --flavor=woff2 --output-file="$OUT/$2.woff2"

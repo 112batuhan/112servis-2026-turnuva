@@ -18,7 +18,15 @@ How they were made (`design/fonts/build.sh`, rerun it to rebuild them):
 - Helvetica Neue LT Pro's own files turn Ş ş into the Romanian Ș ș (comma below) under the `locl`
   feature of every language, Turkish included. `design/fonts/patch_helvetica.py` leaves that swap
   under Romanian only.
-- Every face is subset to Latin-1, Latin Extended-A and general punctuation with all its OpenType
-  features and name records kept, and saved as WOFF2.
+- Helvetica Neue LT Pro 65 Medium builds its accented letters (every one but Ç Ş, so Ö Ü Ğ İ ö ü ğ
+  too) with the old `seac` operator, hidden at the end of a subroutine. DirectWrite (Chrome and Edge
+  on Windows) draws those as a smear. The same script redraws each one as a plain outline, the shape
+  FreeType draws, and checks that none is left and each keeps its exact bounds.
+- Every face is subset to Latin-1, Latin Extended-A, general punctuation and √ (the statistics
+  page's formula) with all its OpenType features and name records kept, and saved as WOFF2. The
+  arrows, ★, ⚠ and Greek letters the UI uses aren't in either typeface and come from a system font.
+
+To rebuild on Windows, run `build.sh` from Git Bash with `PY` set to a Python that has `fonttools`
+and `brotli`. If the checkout has CRLF line endings, run an LF copy of it (`tr -d '\r'`).
 
 Only the Helvetica weights the CSS asks for are shipped. A face downloads only when a page renders text in it.
