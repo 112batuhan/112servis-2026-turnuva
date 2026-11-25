@@ -91,6 +91,7 @@ impl Manager {
             no_fail: ctx.settings.no_fail,
             first_step_team: ctx.draft_order.steps.first().map_or(1, |s| s.team),
             page: &page,
+            stand_ins: self.app.config.dev_login,
         };
         Some(f(&snapshot))
     }

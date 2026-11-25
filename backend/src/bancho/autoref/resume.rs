@@ -104,6 +104,7 @@ impl AutoRef {
                     ),
                     out,
                 );
+                self.stand_in_rolls(s, out);
             }
             // The turn is read again: a referee may have marked bans or picks meanwhile.
             Phase::Draft { kind, .. } => {

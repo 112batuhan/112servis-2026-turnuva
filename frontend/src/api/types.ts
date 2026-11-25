@@ -853,6 +853,8 @@ export interface AutorefView {
   rolls: { team_id: string; roll: number }[];
   /** Each team's -abort uses left. */
   teams: { team_id: string; aborts_left: number }[];
+  /** DEV_LOGIN: the dummy accounts (negative osu! ids) count as in the room. */
+  stand_ins: boolean;
 }
 
 /** POST /api/matches/:id/player: what a match's player does on its room page. */

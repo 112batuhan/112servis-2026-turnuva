@@ -87,6 +87,7 @@ impl AutoRef {
                     aborts_left: self.aborts_left(t.id),
                 })
                 .collect(),
+            stand_ins: s.stand_ins,
         }
     }
 }
@@ -142,6 +143,8 @@ pub struct AutorefView {
     // Roll: each team's first !roll so far.
     pub rolls: Vec<RollView>,
     pub teams: Vec<TeamUsesView>,
+    // DEV_LOGIN: the dummy accounts (negative osu! ids) count as in the room.
+    pub stand_ins: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]

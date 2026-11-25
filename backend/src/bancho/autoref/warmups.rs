@@ -82,6 +82,40 @@ impl AutoRef {
             format!("{lead} {} süreniz var.", span(secs)),
             out,
         );
+        self.stand_in_rolls(s, out);
+    }
+
+    // DEV_LOGIN: a team of only dummies (`Snapshot::stand_ins`) can't !roll, so it rolls
+    // as soon as the roll opens, never the other team's number, so two of them don't tie
+    // round and round.
+    pub(super) fn stand_in_rolls(&mut self, s: &Snapshot, out: &mut Vec<Action>) {
+        for team in s.teams.iter().take(2) {
+            let Some(p) = s.members(team.id).next() else {
+                continue;
+            };
+            if !s.members(team.id).all(|p| s.stand_in(p)) {
+                continue;
+            }
+            let Phase::Roll { rolls, .. } = &self.phase else {
+                return;
+            };
+            let i = if team.id == s.teams[0].id { 0 } else { 1 };
+            if rolls[i].is_some() {
+                continue;
+            }
+            let other = rolls[1 - i];
+            let n = loop {
+                let n = rand::Rng::gen_range(&mut rand::thread_rng(), 1..=100);
+                if Some(n) != other {
+                    break n;
+                }
+            };
+            send(
+                out,
+                format!("{} adına roll: {n} (test hesabı, bot attı).", p.username),
+            );
+            self.take_roll(s, &p.username, n, out);
+        }
     }
 
     pub(super) fn take_roll(&mut self, s: &Snapshot, name: &str, n: i32, out: &mut Vec<Action>) {

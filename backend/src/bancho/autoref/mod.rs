@@ -282,14 +282,24 @@ pub struct Snapshot<'a> {
     pub first_step_team: u8,
     // The match's room page, where the players choose their warmups, bans and picks.
     pub page: &'a str,
+    // DEV_LOGIN: the dummy accounts (negative osu! ids), who can't join a room, count as
+    // in it and ready, and a team of only dummies rolls by itself, so one real player can
+    // run a match alone, choosing for every team on the room page.
+    pub stand_ins: bool,
 }
 
 impl Snapshot<'_> {
+    // A dummy standing in for a player (`stand_ins`).
+    fn stand_in(&self, p: &RosterPlayer) -> bool {
+        self.stand_ins && p.osu_id < 0
+    }
+
     fn present(&self, p: &RosterPlayer) -> bool {
-        self.room.slots.iter().any(|s| match s.user_id {
-            Some(id) => id == p.osu_id,
-            None => same_name(&s.username, &p.username),
-        })
+        self.stand_in(p)
+            || self.room.slots.iter().any(|s| match s.user_id {
+                Some(id) => id == p.osu_id,
+                None => same_name(&s.username, &p.username),
+            })
     }
 
     fn player(&self, name: &str) -> Option<&RosterPlayer> {

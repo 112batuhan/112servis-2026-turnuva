@@ -11,7 +11,7 @@ fn at(secs: i64) -> OffsetDateTime {
 
 // The site's id of the player with this osu! id.
 fn uid(osu_id: i64) -> Uuid {
-    Uuid::from_u128(osu_id as u128 + 100)
+    Uuid::from_u128((osu_id + 1000) as u128)
 }
 
 const PAGE: &str = "https://site/match/m/oda";
@@ -67,6 +67,7 @@ struct World {
     turn: Option<Turn>,
     score: Option<(i32, i32)>,
     bracket: bool,
+    stand_ins: bool,
 }
 
 impl World {
@@ -108,6 +109,7 @@ impl World {
             turn: None,
             score: Some((0, 0)),
             bracket: true,
+            stand_ins: false,
         }
     }
 
@@ -141,6 +143,7 @@ impl World {
             no_fail: true,
             first_step_team: 1,
             page: PAGE,
+            stand_ins: self.stand_ins,
         }
     }
 }
@@ -1071,4 +1074,83 @@ fn a_pool_map_started_by_someone_else_is_followed() {
     let mut out = Vec::new();
     ar.bancho(&w.snap(at(0)), MATCH_STARTED, &mut out);
     assert!(matches!(ar.phase, Phase::Playing { map_id, .. } if map_id == Uuid::from_u128(11)));
+}
+
+// DEV_LOGIN: one real player (a1) with dummies (negative osu! ids) for the other three.
+fn stand_in_world(stand_ins: bool) -> World {
+    let mut w = World::bracket();
+    w.roster = vec![
+        player("a1", 1, A),
+        player("DevA2", -2, A),
+        player("DevB1", -3, B),
+        player("DevB2", -4, B),
+    ];
+    w.room.slots = vec![slot(1, "a1", 1, SlotStatus::NotReady, "")];
+    w.stand_ins = stand_ins;
+    w
+}
+
+#[test]
+fn stand_ins_count_as_in_the_room() {
+    // Without DEV_LOGIN the dummies are missing: the match waits for them.
+    let w = stand_in_world(false);
+    let mut ar = AutoRef::default();
+    let mut out = Vec::new();
+    ar.tick(&w.snap(at(1)), &mut out);
+    assert_eq!(ar.phase, Phase::Waiting);
+    assert!(sent(&out).contains(&"!mp invite #-3"));
+    assert!(!ar.view(&w.snap(at(1)), true).stand_ins);
+
+    // With it, the one real player is everyone: the match begins at its time.
+    let w = stand_in_world(true);
+    let mut ar = AutoRef::default();
+    let mut out = Vec::new();
+    ar.tick(&w.snap(at(-60)), &mut out);
+    assert_eq!(ar.phase, Phase::Waiting);
+    ar.tick(&w.snap(at(1)), &mut out);
+    assert!(matches!(ar.phase, Phase::Warmup { team: 0, .. }));
+    assert!(!sent(&out).iter().any(|t| t.starts_with("!mp invite")));
+    assert!(ar.view(&w.snap(at(1)), true).stand_ins);
+
+    // A map starts once the real player is ready, though the dummies never join.
+    let mut ar = AutoRef::default();
+    let mut out = Vec::new();
+    ar.enter_ready(&w.snap(at(0)), &w.entries[0].clone(), &mut out);
+    out.clear();
+    ar.bancho(&w.snap(at(5)), "All players are ready", &mut out);
+    assert!(sent(&out).contains(&"!mp start 10"));
+}
+
+#[test]
+fn a_team_of_stand_ins_rolls_by_itself() {
+    // Team B is only dummies: it rolls as the roll opens, and a1's roll settles it.
+    let w = stand_in_world(true);
+    let mut ar = AutoRef::default();
+    let mut out = Vec::new();
+    ar.start_roll(&w.snap(at(0)), "!roll", &mut out);
+    let Phase::Roll { rolls, .. } = ar.phase else {
+        panic!("not rolling: {:?}", ar.phase);
+    };
+    assert!(rolls[0].is_none());
+    let b = rolls[1].expect("team B rolled");
+    assert!((1..=100).contains(&b));
+    assert!(sent(&out)
+        .iter()
+        .any(|t| t.starts_with(&format!("DevB1 adına roll: {b} "))));
+    // Team A has a real player, so its dummy doesn't roll for it.
+    let a = if b == 100 { 1 } else { 100 };
+    ar.bancho(&w.snap(at(5)), &format!("a1 rolls {a} point(s)"), &mut out);
+    let winner = if a > b { A } else { B };
+    assert!(out.contains(&Action::FirstTurn(winner)));
+    assert_eq!(ar.phase, Phase::Next);
+
+    // Two teams of dummies settle it at once, without a tie.
+    let mut w = stand_in_world(true);
+    w.roster[0] = player("DevA1", -1, A);
+    w.room.slots.clear();
+    let mut ar = AutoRef::default();
+    let mut out = Vec::new();
+    ar.start_roll(&w.snap(at(0)), "!roll", &mut out);
+    assert_eq!(ar.phase, Phase::Next);
+    assert!(out.iter().any(|a| matches!(a, Action::FirstTurn(_))));
 }

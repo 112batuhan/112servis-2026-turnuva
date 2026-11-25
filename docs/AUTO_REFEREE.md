@@ -49,6 +49,8 @@ This guide is for the tournament committee, hosts, referees and players.
 
 Each line is one scenario to run on a test match (a test server with dummy accounts, or a real room with staff playing). The bot's messages are in [Appendix A](#appendix-a-every-message-in-turkish-and-english).
 
+**Testing alone.** With `DEV_LOGIN` on, the dummy accounts (negative osu! ids) count as in the room and ready, and a team of only dummies rolls by itself. In the dev switcher's "Auto referee test…", put yourself in one slot and dummies in the other three. Join the room in osu! alone, then switch to a dummy on the room page (in a private window, so both sides stay open) to choose the other team's warmups, bans and picks. The dummies never get a score, so your team wins every map it plays (award a map by hand on the referee page to test the other side winning). The NoFail and FM mod checks only look at the players in the room, so the dummies never fail them. Without `DEV_LOGIN` this does nothing: the dummies are missing like anyone else.
+
 | # | Do this | Expect |
 |---|---|---|
 | 1 | Leave "Odaları otomatik aç" off; give a match a time 5 minutes from now. | No room opens, no Discord reminder. |
@@ -415,6 +417,7 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 | <takım> rollü kazandı (a - b). | <team> won the roll (a - b). | Both rolled |
 | <takım> rollü kazandı (rakibi roll atmadı). | <team> won the roll (their opponent didn't roll). | One team didn't roll |
 | <takım> rollü kazandı (iki takım da roll atmadı, bot rastgele seçti). | <team> won the roll (neither team rolled; the bot chose at random). | Neither team rolled |
+| <oyuncu> adına roll: N (test hesabı, bot attı). | Roll for <player>: N (a test account; the bot rolled). | `DEV_LOGIN` only: a team of only dummies, as the roll opens |
 
 **Bans and picks**
 

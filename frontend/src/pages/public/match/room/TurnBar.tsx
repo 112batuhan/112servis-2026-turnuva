@@ -138,7 +138,11 @@ function describe(
 
   switch (autoref.phase) {
     case "waiting": {
-      const missing = roster.filter((r) => !page.lobby.slots.some((s) => page.findRoster(s) === r));
+      const missing = roster.filter(
+        (r) =>
+          !(autoref.stand_ins && r.player.osu_id < 0) &&
+          !page.lobby.slots.some((s) => page.findRoster(s) === r),
+      );
       const future = startsAt !== null && new Date(startsAt).getTime() > now;
       return {
         tone: "neutral",
