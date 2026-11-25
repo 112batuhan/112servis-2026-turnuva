@@ -70,10 +70,11 @@ typography:
     fontWeight: 400
     lineHeight: 1
   score:
-    fontFamily: "Hecate Display, Didot, Georgia, serif"
+    fontFamily: "Helvetica Neue LT Pro Condensed, Helvetica Neue LT Pro, Arial Narrow, sans-serif"
     fontSize: "30px"
-    fontWeight: 400
+    fontWeight: 600
     lineHeight: 1
+    fontFeature: '"tnum"'
   figure:
     fontFamily: "Helvetica Neue LT Pro Condensed, Helvetica Neue LT Pro, Arial Narrow, sans-serif"
     fontSize: "18px"
