@@ -15,8 +15,7 @@
 
 .zval-num {
   min-width: 3.4em;
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-lg);
   font-weight: 700;
   line-height: 1;

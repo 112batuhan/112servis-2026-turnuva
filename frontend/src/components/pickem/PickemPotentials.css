@@ -17,10 +17,8 @@
 .pickem-potentials-code {
   color: var(--color-text);
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
   font-size: var(--text-lg);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
+  font-weight: 400;
   line-height: 1;
   text-decoration: none;
 }

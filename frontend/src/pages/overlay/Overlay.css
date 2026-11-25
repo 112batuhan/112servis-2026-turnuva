@@ -110,9 +110,8 @@ html.is-overlay body::after {
 }
 
 .ov-banner-initial {
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 52px;
   line-height: 1;
   color: var(--ov-side);
@@ -122,9 +121,8 @@ html.is-overlay body::after {
   position: absolute;
   margin: 0;
   max-width: 620px;
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 34px;
   line-height: 1;
   letter-spacing: 0.005em;
@@ -142,9 +140,8 @@ html.is-overlay body::after {
   margin: 0 0 0 -75px;
   text-align: center;
   text-wrap: balance;
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 32px;
   line-height: 0.86;
   color: var(--color-text);
@@ -162,9 +159,8 @@ html.is-overlay body::after {
 
 .ov-masthead h1 {
   margin: 0;
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 64px;
   line-height: 1;
   color: var(--color-text);
@@ -172,8 +168,7 @@ html.is-overlay body::after {
 
 .ov-masthead p {
   margin: 10px 0 0;
-  font-family: var(--font-display);
-  font-stretch: var(--font-wordmark-stretch);
+  font-family: var(--font-wide);
   font-weight: 300;
   font-size: 22px;
   line-height: 1;
@@ -197,9 +192,8 @@ html.is-overlay body::after {
 }
 
 .ov-banner-chip > span {
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 0.5em;
   line-height: 1;
   color: var(--ov-side);
@@ -378,8 +372,7 @@ html.is-overlay body::after {
   place-items: center;
   background: color-mix(in srgb, var(--ov-cat) 74%, var(--color-navy));
   color: var(--color-text);
-  font-family: var(--font-display);
-  font-stretch: var(--font-wordmark-stretch);
+  font-family: var(--font-wide);
   font-weight: 500;
   font-size: calc(var(--pill-tag-h) * 0.62);
   line-height: 1;
@@ -397,16 +390,27 @@ html.is-overlay body::after {
   background: color-mix(in srgb, var(--ov-cat) 66%, var(--color-navy));
   color: var(--color-text);
   font-family: var(--font-display);
-  font-stretch: 80%;
-  font-weight: 600;
-  font-size: calc(var(--pill-title-h) * 0.68);
+  font-weight: 400;
+  font-size: calc(var(--pill-title-h) * 0.7);
   line-height: var(--pill-title-h);
+}
+
+/* A pill's title is a fixed band placed from its bottom, so it takes no room below (that would move
+   the band); its type is sized for the descenders to stay inside it instead. Declared with the
+   marquee's class so it outranks the marquee's own rule further down. */
+.ov-pill-title.ov-marquee {
+  margin-bottom: 0;
+  padding-bottom: 0;
 }
 
 /* ---------- scrolling text ---------- */
 
+/* The clip reaches 0.2em lower than the line, given back by the margin, so the display face's long
+   descenders aren't cut. */
 .ov-marquee {
   display: block;
+  margin-bottom: -0.2em;
+  padding-bottom: 0.2em;
   overflow: hidden;
   white-space: nowrap;
   text-align: center;

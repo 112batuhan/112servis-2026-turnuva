@@ -126,8 +126,8 @@
 }
 
 .notif-code {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  font-family: var(--font-display);
 }
 
 .notif-code.is-winners {

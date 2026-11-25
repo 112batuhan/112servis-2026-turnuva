@@ -16,3 +16,9 @@
   flex: 1;
   min-width: 0;
 }
+
+/* The match's code in the display face, like every bracket match code. */
+.match-sub-title > strong {
+  font-family: var(--font-display);
+  font-weight: 400;
+}

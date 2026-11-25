@@ -15,7 +15,7 @@ interface Props {
   title?: string;
 }
 
-/** A match's state as a squared chip in condensed display type, led by a mark that says it at a glance. */
+/** A match's state as a squared chip in the condensed figure face, led by a mark that says it at a glance. */
 export function StatusChip({ state, children, title }: Props) {
   return (
     <span className={`status-chip is-${state}`} title={title}>

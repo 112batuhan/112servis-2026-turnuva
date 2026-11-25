@@ -1,6 +1,9 @@
+/* One column held to the card's width: a crowded header can't widen the rows and push the score
+   cells out past the clipped edge. */
 .bm-card {
   display: grid;
   grid-template-rows: var(--bracket-header-h) 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr);
   width: 100%;
   height: 100%;
   overflow: hidden;
@@ -10,21 +13,26 @@
   font-size: var(--text-sm);
 }
 
+/* The icons after the time sit close as one cluster; the code, stage, live mark and time keep a
+   full step between them, so the time still fits on a card that has every icon. */
 .bm-card-header {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   padding: 0 var(--space-2);
   background: var(--color-surface-raised);
   font-size: var(--text-xs);
 }
 
+.bm-card-header > .bm-card-stage,
+.bm-card-header > .live-mark {
+  margin-left: var(--space-1);
+}
+
 .bm-card-code {
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
   font-size: var(--text-md);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
+  font-weight: 400;
 }
 
 .bm-card-code.is-winners {
@@ -40,8 +48,7 @@
   padding-left: var(--space-2);
   border-left: 1px solid var(--color-border-strong);
   color: var(--color-text-muted);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-sm);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -58,14 +65,19 @@
 .bm-card-time {
   flex: 1;
   min-width: 0;
+  margin: 0 var(--space-1);
   overflow: hidden;
   color: var(--color-text-muted);
+  font-family: var(--font-figure);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-/* Not a time yet: the matches of its week decide which pairing it is. */
+/* Not a time yet: the matches of its week decide which pairing it is. Words, not a figure, so it
+   leaves the time's condensed face for the sans italic, as the bracket list's says it. */
 .bm-card-undecided {
+  font-family: var(--font-sans);
   font-style: italic;
 }
 
@@ -95,6 +107,7 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  font-size: var(--text-md);
   font-weight: 600;
 }
 
@@ -112,8 +125,7 @@
   justify-content: center;
   min-width: 2.25em;
   margin: 0 calc(-1 * var(--space-2)) 0 auto;
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-lg);
   font-weight: 700;
   font-variant-numeric: tabular-nums;

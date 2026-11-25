@@ -94,8 +94,7 @@
   width: 5.25rem;
   text-align: center;
   text-transform: uppercase;
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-md);
   font-weight: 700;
   letter-spacing: 0.02em;

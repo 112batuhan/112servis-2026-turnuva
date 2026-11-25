@@ -5,6 +5,7 @@ import { App } from "./App";
 import { AuthProvider } from "./auth/AuthContext";
 import { LiveProvider } from "./live/LiveContext";
 import { PlayerProvider } from "./player/PlayerContext";
+import "./styles/fonts.css";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/controls.css";

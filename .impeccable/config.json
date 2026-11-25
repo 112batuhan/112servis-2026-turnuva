@@ -38,6 +38,30 @@
         ],
         "createdAt": "2026-10-17T01:57:29.104Z",
         "reason": "Claude triage: flagged rules are 3px bottom/top inset rules (team-colour underline on slot chips like the score halves, and top edge marking the blue 1-2 / red 3-4 zones in the slot picker), per DESIGN.md's team-colour underline and ruled-top conventions; not side borders"
+      },
+      {
+        "rule": "overused-font",
+        "value": "helvetica",
+        "createdAt": "2026-11-25T19:45:47.283Z",
+        "reason": "user's choice: they supplied design/helvetica-neue-lt-pro.zip and asked for Helvetica Neue as the site's text face (2026-11-25)"
+      },
+      {
+        "rule": "overused-font",
+        "value": "helvetica neue lt pro",
+        "createdAt": "2026-11-25T20:24:35.062Z",
+        "reason": "user's choice: they supplied design/helvetica-neue-lt-pro.zip and asked for Helvetica Neue as the site's text face (2026-11-25)"
+      },
+      {
+        "rule": "overused-font",
+        "value": "helvetica neue lt pro condensed",
+        "createdAt": "2026-11-25T20:24:35.067Z",
+        "reason": "user's choice: they supplied design/helvetica-neue-lt-pro.zip and asked for Helvetica Neue as the site's text face (2026-11-25)"
+      },
+      {
+        "rule": "overused-font",
+        "value": "helvetica neue lt pro extended",
+        "createdAt": "2026-11-25T20:24:35.072Z",
+        "reason": "user's choice: they supplied design/helvetica-neue-lt-pro.zip and asked for Helvetica Neue as the site's text face (2026-11-25)"
       }
     ]
   }

@@ -203,10 +203,10 @@ function NextStep({
             <>
               <span className="wn-next-vs">vs</span>
               <BannerChip team={opponent} className="wn-next-banner" />
-              {opponent.name}
+              <span className="wn-next-name">{opponent.name}</span>
             </>
           ) : (
-            next.match.stage?.name
+            <span className="wn-next-name">{next.match.stage?.name}</span>
           )}
         </span>
       ) : (

@@ -109,22 +109,20 @@
   margin-top: calc(-1 * var(--space-1));
 }
 
-/* The wordmark in the banner's lettering: the display face expanded and light. */
+/* The wordmark in the display face at its biggest. */
 .landing-title {
-  font-stretch: var(--font-wordmark-stretch);
   font-size: var(--text-hero);
-  font-weight: var(--font-wordmark-weight);
-  letter-spacing: -0.03em;
+  font-weight: 400;
   line-height: 0.95;
 }
 
-/* The banner's line, set as type in the same expanded light voice as the wordmark. */
+/* The banner's line, set as type in the display face's italic under the wordmark. */
 .landing-tagline {
   color: var(--color-text-muted);
   font-family: var(--font-display);
-  font-stretch: var(--font-wordmark-stretch);
   font-size: var(--text-xl);
-  font-weight: var(--font-wordmark-weight);
+  font-style: italic;
+  font-weight: 400;
   line-height: 1.2;
 }
 
@@ -176,9 +174,8 @@
 .my-team-label {
   color: var(--color-primary);
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
   font-size: var(--text-lg);
-  font-weight: 800;
+  font-weight: 400;
   white-space: nowrap;
 }
 
@@ -258,9 +255,8 @@
 
 .lobby-line-name {
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
   font-size: var(--text-xl);
-  font-weight: 800;
+  font-weight: 400;
 }
 
 .lobby-line-time {

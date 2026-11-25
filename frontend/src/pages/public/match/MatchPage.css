@@ -55,8 +55,7 @@
 
 .match-meta-time {
   color: var(--color-text);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-base);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -94,8 +93,7 @@
   grid-area: state;
   align-self: center;
   color: var(--color-success);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-xl);
   font-weight: 800;
   line-height: 1;
@@ -178,9 +176,8 @@
   gap: var(--space-1) var(--space-3);
   margin: 0;
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
   font-size: var(--text-xl);
-  font-weight: 800;
+  font-weight: 400;
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
 }

@@ -1,5 +1,5 @@
 /* osu! BBCode read like the rest of the sheet: headings open with a heavy rule, numbered rules sit
-   on hairlines with their numbers in the display face, and line breaks stay where the author put
+   on hairlines with their numbers in the figure face, and line breaks stay where the author put
    them. */
 .bbcode {
   max-width: 72ch;
@@ -89,8 +89,7 @@ ol.bbcode-list > li::before {
   top: var(--space-3);
   left: 0;
   width: var(--space-6);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-lg);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -153,7 +152,7 @@ ul.bbcode-list > li::before {
 
 .bbcode-code,
 .bbcode-inline-code {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-sm);
   background: var(--color-surface-sunken);
   border-radius: var(--radius-sm);

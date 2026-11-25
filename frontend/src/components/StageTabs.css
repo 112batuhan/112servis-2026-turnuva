@@ -121,7 +121,6 @@ span.stage-tab.is-lit {
 
 .stage-tab-name {
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
   font-size: var(--text-lg);
   font-weight: 700;
   line-height: 1.1;
@@ -140,11 +139,10 @@ span.stage-tab.is-lit {
   font-weight: 600;
 }
 
-/* How many maps the stage's matches go to, as a quiet display figure after the name. */
+/* How many maps the stage's matches go to, as a quiet figure after the name. */
 .stage-tab-bo {
   color: var(--color-text-subtle);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-md);
   font-weight: 700;
   line-height: 1.1;

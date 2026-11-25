@@ -128,9 +128,8 @@
 
 .pool-board.is-public .pool-section-title {
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
   font-size: var(--text-3xl);
-  font-weight: 800;
+  font-weight: 400;
   line-height: 1;
 }
 
@@ -153,14 +152,15 @@
   border-radius: 0;
 }
 
+/* On the public mappool the slot labels (NM1, HD2…) are set in the display face, under the
+   categories' own headings; everywhere else a slot label is a figure. */
 .pool-board.is-public .slot-number {
   min-width: 4.5rem;
   padding-top: 0;
   color: var(--color-text);
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
   font-size: var(--text-2xl);
-  font-weight: 800;
+  font-weight: 400;
 }
 
 /* One line at every width above phones: the details shrink (the title truncates) so the id and

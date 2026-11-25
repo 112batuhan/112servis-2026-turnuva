@@ -19,8 +19,7 @@
 
 .dock-head h1 {
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
-  font-weight: 800;
+  font-weight: 400;
   font-size: var(--text-2xl);
   line-height: 1;
 }
@@ -83,8 +82,7 @@
 .dock-section > h2,
 .dock-setup > summary {
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
-  font-weight: 800;
+  font-weight: 400;
   font-size: var(--text-lg);
   line-height: 1;
   padding-bottom: var(--space-2);
@@ -100,7 +98,7 @@
 }
 
 .dock-hint code {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   color: var(--color-text);
 }
 
@@ -126,8 +124,7 @@
   border: 0;
   background: transparent;
   color: var(--color-text-muted);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-weight: 800;
   font-size: var(--text-lg);
   background: var(--color-bg);
@@ -170,8 +167,7 @@
 }
 
 .dock-pending-count {
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-weight: 800;
   font-size: var(--text-xl);
   font-variant-numeric: tabular-nums;
@@ -328,8 +324,7 @@
 }
 
 .dock-zoom-level {
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-weight: 700;
   font-size: var(--text-lg);
   font-variant-numeric: tabular-nums;
@@ -366,7 +361,7 @@
 
 .dock-group h3 {
   margin: 0 0 var(--space-1);
-  font-size: var(--text-xs);
+  font-size: var(--text-md);
   font-weight: 600;
   color: var(--color-text-subtle);
 }
@@ -416,10 +411,8 @@
 
 .dock-code {
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
-  font-weight: 800;
+  font-weight: 400;
   font-size: var(--text-lg);
-  font-variant-numeric: tabular-nums;
 }
 
 .dock-code.is-winners {
@@ -445,6 +438,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   min-width: 0;
+  font-family: var(--font-display);
 }
 
 .dock-teams > .is-side-1 {
@@ -457,16 +451,14 @@
 
 .dock-vs {
   flex: none;
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   color: var(--color-text-muted);
 }
 
 .dock-when {
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-weight: 600;
   font-size: var(--text-md);
   color: var(--color-text-muted);
@@ -535,7 +527,7 @@
 }
 
 .dock-source-url {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-xs);
   color: var(--color-text-muted);
   overflow: hidden;

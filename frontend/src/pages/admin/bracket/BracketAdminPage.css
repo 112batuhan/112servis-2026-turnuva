@@ -217,8 +217,7 @@
 
 .match-panel-potential-time {
   flex-shrink: 0;
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }

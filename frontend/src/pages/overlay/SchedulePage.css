@@ -17,9 +17,8 @@
 
 .sc-col h2 {
   margin: 0 0 34px;
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 40px;
   line-height: 1;
   color: var(--color-text);
@@ -39,8 +38,7 @@
 
 .sc-empty {
   margin: 0;
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
+  font-family: var(--font-sans);
   font-size: 28px;
   color: var(--color-text-subtle);
 }
@@ -105,9 +103,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 30px;
   line-height: 1.1;
   color: var(--color-text);
@@ -150,8 +147,7 @@
   align-items: baseline;
   justify-content: center;
   gap: 10px;
-  font-family: var(--font-display);
-  font-stretch: var(--font-wordmark-stretch);
+  font-family: var(--font-wide);
   font-weight: 300;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -186,7 +182,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-weight: 600;
   font-size: 17px;
   font-variant-numeric: tabular-nums;
@@ -201,9 +197,9 @@
   min-width: 72px;
   justify-content: center;
   background: var(--color-navy);
-  font-stretch: var(--font-wordmark-stretch);
-  font-weight: 500;
-  font-size: 18px;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 20px;
 }
 
 .sc-code.is-winners {

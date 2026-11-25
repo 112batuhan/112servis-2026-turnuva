@@ -85,9 +85,8 @@
 
 .seeding-format-name {
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
   font-size: var(--text-xl);
-  font-weight: 800;
+  font-weight: 400;
   line-height: 1.1;
 }
 
@@ -309,6 +308,7 @@
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--font-display);
 }
 
 .seeding-team-players {
@@ -398,8 +398,7 @@
 }
 
 .seeding-state {
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-md);
   font-weight: 700;
 }
@@ -433,8 +432,7 @@
 .seeding-cut-label {
   grid-column: grip / team;
   color: var(--color-danger);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-lg);
   font-weight: 800;
   white-space: nowrap;

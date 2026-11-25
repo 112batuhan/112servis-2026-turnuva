@@ -36,8 +36,7 @@
 }
 
 .fixture-time {
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-lg);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -47,8 +46,7 @@
 
 .fixture-countdown {
   color: var(--color-text-muted);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-md);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -86,7 +84,8 @@
 .fixture-team-name {
   min-width: 0;
   overflow: hidden;
-  font-size: var(--text-base);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -128,8 +127,7 @@
     100% 100%;
   background-position: bottom, center;
   background-repeat: no-repeat;
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
@@ -138,8 +136,8 @@
   padding: var(--space-2) var(--space-2);
   color: var(--color-text-muted);
   font-size: var(--text-2xl);
-  font-weight: 600;
   text-align: center;
+  font-weight: 600;
 }
 
 .fixture-score > .is-winner {
@@ -210,10 +208,8 @@
 
 .fixture-code {
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
   font-size: var(--text-lg);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
+  font-weight: 400;
   line-height: 1;
 }
 
@@ -278,7 +274,7 @@
   }
 
   .fixture-team-name {
-    font-size: var(--text-md);
+    font-size: var(--text-base);
   }
 
   .fixture-score {

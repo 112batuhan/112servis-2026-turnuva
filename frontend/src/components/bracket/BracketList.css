@@ -94,10 +94,8 @@
   border: none;
   background: none;
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
   font-size: var(--text-lg);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
+  font-weight: 400;
 }
 
 button.bracket-list-code:hover {
@@ -190,10 +188,8 @@ button.bracket-list-code:hover {
 
 .bracket-list-branch-code {
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
-  font-size: var(--text-sm);
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
+  font-size: var(--text-md);
+  font-weight: 400;
   color: var(--color-text-muted);
 }
 
@@ -262,8 +258,7 @@ button.bracket-list-code:hover {
     100% 100%;
   background-position: bottom, center;
   background-repeat: no-repeat;
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-xl);
   font-variant-numeric: tabular-nums;
   line-height: 1;

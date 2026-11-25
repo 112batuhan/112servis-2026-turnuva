@@ -26,7 +26,9 @@
 
 .match-pickem-title {
   margin: 0;
+  font-family: var(--font-display);
   font-size: var(--text-xl);
+  font-weight: 400;
   line-height: 1;
 }
 
@@ -48,8 +50,7 @@
 .match-pickem-countdown {
   word-spacing: 0.15em;
   color: var(--color-text);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-md);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -78,9 +79,8 @@
 .match-pickem-ask {
   margin: 0;
   font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
   font-size: var(--text-lg);
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .match-pickem-ballot .pickem-chip {

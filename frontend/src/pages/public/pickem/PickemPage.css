@@ -25,8 +25,7 @@
 .pickem-open-call-time {
   word-spacing: 0.15em;
   color: var(--color-text);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-lg);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -69,8 +68,7 @@
 
 .pickem-stage-bo {
   color: var(--color-text-muted);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-xl);
   font-weight: 700;
 }
@@ -97,8 +95,7 @@
 
 .pickem-stage-mine-figure {
   color: var(--color-text);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-3xl);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
@@ -247,8 +244,7 @@
 
 .pickem-standing-rank {
   color: var(--color-text-muted);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-lg);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -290,6 +286,7 @@
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--font-display);
 }
 
 .pickem-standing-name:hover {
@@ -317,8 +314,7 @@
 
 .pickem-standing-points {
   color: var(--color-text);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-xl);
   font-weight: 800;
   font-variant-numeric: tabular-nums;

@@ -26,8 +26,7 @@
 }
 
 .room-links-number {
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-md);
   font-weight: 800;
   font-variant-numeric: tabular-nums;

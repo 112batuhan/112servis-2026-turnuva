@@ -51,9 +51,8 @@
 }
 
 .wn-banner-initial {
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 150px;
   line-height: 1;
   color: var(--ov-side);
@@ -66,9 +65,8 @@
   right: 120px;
   margin: 0;
   text-align: center;
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 124px;
   line-height: 1;
   color: var(--ov-side);
@@ -96,8 +94,9 @@
   display: flex;
   align-items: center;
   gap: 14px;
+  font-family: var(--font-display);
   font-size: 26px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--color-text);
 }
 
@@ -121,8 +120,7 @@
   align-items: baseline;
   justify-content: center;
   gap: 18px;
-  font-family: var(--font-display);
-  font-stretch: var(--font-wordmark-stretch);
+  font-family: var(--font-wide);
   font-weight: 300;
   font-variant-numeric: tabular-nums;
   line-height: 1;
@@ -145,9 +143,8 @@
 
 .wn-against {
   margin-left: 14px;
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
-  font-weight: 500;
+  font-family: var(--font-sans);
+  font-weight: 400;
   font-size: 34px;
   color: var(--color-text-muted);
 }
@@ -155,6 +152,7 @@
 .wn-against > span {
   font-weight: 600;
   color: var(--ov-side);
+  font-family: var(--font-display);
 }
 
 /* ---------- the maps in the order they were played ---------- */
@@ -212,9 +210,8 @@
 }
 
 .wn-next-team {
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 30px;
   line-height: 1;
   color: var(--ov-side);
@@ -233,7 +230,7 @@
   padding: 0 20px;
   border-radius: var(--radius-full);
   background: linear-gradient(90deg, var(--color-chip), var(--color-chip-light));
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-weight: 600;
   font-size: 20px;
   color: var(--color-text);
@@ -241,8 +238,8 @@
 }
 
 .wn-next-code {
-  font-stretch: var(--font-wordmark-stretch);
-  font-weight: 500;
+  font-family: var(--font-display);
+  font-weight: 400;
 }
 
 .wn-next-code.is-winners {
@@ -254,7 +251,7 @@
 }
 
 .wn-next-vs {
-  font-stretch: var(--font-wordmark-stretch);
+  font-family: var(--font-wide);
   font-weight: 300;
   color: var(--color-text-subtle);
 }
@@ -287,9 +284,8 @@
   justify-content: center;
   align-items: baseline;
   gap: 40px;
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 72px;
   line-height: 1;
 }
@@ -300,8 +296,7 @@
 }
 
 .wn-waiting-score {
-  font-family: var(--font-display);
-  font-stretch: var(--font-wordmark-stretch);
+  font-family: var(--font-wide);
   font-weight: 300;
   font-size: 64px;
   color: var(--color-text-muted);
@@ -309,8 +304,7 @@
 
 .wn-waiting-note {
   margin: 32px 0 0;
-  font-family: var(--font-display);
-  font-stretch: var(--font-wordmark-stretch);
+  font-family: var(--font-wide);
   font-weight: 300;
   font-size: 24px;
   color: var(--color-text-subtle);
@@ -325,4 +319,10 @@
   .wn-next-row {
     animation: none;
   }
+}
+
+/* A team or stage name in the line under the winner: the display face, like every name. */
+.wn-next-name {
+  font-family: var(--font-display);
+  font-size: 24px;
 }

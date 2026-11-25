@@ -3,8 +3,7 @@
   align-items: center;
   gap: 6px;
   color: var(--color-primary);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-md);
   font-weight: 800;
   line-height: 1;

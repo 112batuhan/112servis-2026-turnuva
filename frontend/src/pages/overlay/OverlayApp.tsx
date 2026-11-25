@@ -20,9 +20,6 @@ import { WinnerPage } from "./WinnerPage";
 // the winner after it, the stage's schedule, or the bracket.
 // /overlay/control is the streamer's dock that drives it.
 
-const SERIF_FONT =
-  "https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wdth,wght@62.5..100,400..800&display=swap";
-
 export default function OverlayApp() {
   return (
     <Routes>
@@ -33,19 +30,12 @@ export default function OverlayApp() {
   );
 }
 
-/** Makes the page transparent and loads the designs' serif while the overlay is open. */
+/** Makes the page transparent while the overlay is open. */
 function useOverlayDocument() {
   useEffect(() => {
     const root = document.documentElement;
     root.classList.add("is-overlay");
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = SERIF_FONT;
-    document.head.appendChild(link);
-    return () => {
-      root.classList.remove("is-overlay");
-      link.remove();
-    };
+    return () => root.classList.remove("is-overlay");
   }, []);
 }
 

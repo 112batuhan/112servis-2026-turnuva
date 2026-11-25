@@ -99,7 +99,6 @@
 .player-room-own {
   color: var(--color-text-muted);
   font-family: var(--font-sans);
-  font-stretch: normal;
   font-size: var(--text-md);
   font-weight: 600;
 }

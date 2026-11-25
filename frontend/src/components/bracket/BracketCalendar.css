@@ -252,6 +252,8 @@
 
 .cal-match-head > strong {
   color: var(--color-code-winners);
+  font-family: var(--font-display);
+  font-weight: 400;
 }
 
 .cal-match.is-losers .cal-match-head > strong {

@@ -65,8 +65,7 @@
 }
 
 .pickem-split-pct {
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-lg);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
@@ -80,6 +79,7 @@
 
 .pickem-split-unit {
   margin-right: 1px;
+  font-family: var(--font-figure);
   font-size: var(--text-sm);
 }
 
@@ -99,8 +99,9 @@
   display: flex;
   justify-content: space-between;
   gap: var(--space-3);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: 600;
+  font-family: var(--font-display);
 }
 
 .pickem-split-names > span {
@@ -206,8 +207,7 @@
   left: 50%;
   transform: translateX(-50%);
   color: var(--color-text);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-sm);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -216,8 +216,7 @@
 
 .pickem-chart-label {
   color: var(--color-text-muted);
-  font-family: var(--font-display);
-  font-stretch: var(--font-display-stretch);
+  font-family: var(--font-figure);
   font-size: var(--text-sm);
   font-weight: 600;
   font-variant-numeric: tabular-nums;

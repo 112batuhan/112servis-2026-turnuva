@@ -108,17 +108,20 @@
   --rule-heavy: 3px solid var(--color-text);
   --rule: 1px solid var(--color-border);
 
-  /* type
-     display: headings, match codes, scores, countdowns and values (condensed, heavy, tabular)
-     sans: body text and controls
-     mono: ids and code only */
-  --font-display: "Archivo", "Arial Narrow", system-ui, sans-serif;
-  --font-display-stretch: 68%;
-  /* the wordmark's voice, from the banner's lettering: the same face, expanded and light */
-  --font-wordmark-stretch: 125%;
-  --font-wordmark-weight: 300;
-  --font-sans: "Fira Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* type (faces in fonts.css), by role, not by size
+     display: Hecate Display, for titles (every heading), stage names, team names, player names, map
+       names, bracket match codes (W12, L3) and the top bar's links and buttons, plus team
+       monograms. A name inside a sentence stays with the
+       sentence's face. One weight, so nothing is told apart by weight in it.
+     sans: Helvetica Neue, for everything else: body text, controls, labels, map details
+     figure: condensed Helvetica Neue, for numbers and codes: scores, times, countdowns, clocks,
+       values, counts and ids (tabular digits)
+     wide: extended Helvetica Neue, for the broadcast overlay's numbers and codes */
+  --font-display: "Hecate Display", Didot, Georgia, serif;
+  --font-sans: "Helvetica Neue LT Pro", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-figure:
+    "Helvetica Neue LT Pro Condensed", "Helvetica Neue LT Pro", "Arial Narrow", Arial, sans-serif;
+  --font-wide: "Helvetica Neue LT Pro Extended", "Helvetica Neue LT Pro", Arial, sans-serif;
   --text-xs: 12px;
   --text-sm: 13px;
   --text-md: 14px;
@@ -154,8 +157,8 @@
 
   /* the broadcast overlays (pages/overlay), after the designers' tournament-client designs
      (design/tournament-client-*.png): a ban's crimson over a map's cover, the black well the chat
-     sits in, the current map's frost-teal card and the dark chips set on it, and the display serif
-     the designs set names and titles in */
+     sits in, the current map's frost-teal card and the dark chips set on it (names and titles there
+     are in the display face) */
   --color-ban: #d4213d;
   --color-well: #040607;
   --color-strip: #a6d5d1;
@@ -163,8 +166,6 @@
   --color-on-strip: var(--color-on-primary);
   --color-chip: #112029;
   --color-chip-light: #1f3a48;
-  --font-overlay-serif: "Noto Serif Display", Georgia, serif;
-  --font-overlay-serif-stretch: 72%;
 
   --control-height: 36px;
   --control-height-sm: 30px;

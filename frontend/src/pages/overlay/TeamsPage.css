@@ -40,9 +40,8 @@
 .tm-name {
   margin: 30px 0 0;
   max-width: 100%;
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
-  font-weight: 600;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 66px;
   line-height: 1.05;
   color: var(--ov-side);
@@ -66,14 +65,14 @@
   padding: 0 18px;
   border-radius: var(--radius-full);
   background: linear-gradient(90deg, var(--color-chip), var(--color-chip-light));
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
   font-weight: 500;
   font-size: 19px;
   color: var(--color-text-muted);
 }
 
 .tm-fact b {
-  font-stretch: var(--font-wordmark-stretch);
+  font-family: var(--font-wide);
   font-weight: 500;
   font-size: 22px;
   font-variant-numeric: tabular-nums;
@@ -128,14 +127,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--font-display);
   font-size: 28px;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--color-text);
 }
 
 .tm-rank {
-  font-family: var(--font-display);
-  font-stretch: var(--font-wordmark-stretch);
+  font-family: var(--font-wide);
   font-weight: 300;
   font-size: 26px;
   font-variant-numeric: tabular-nums;
@@ -146,9 +145,8 @@
 
 .tm-history-head {
   margin: 34px 0 12px;
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
-  font-weight: 500;
+  font-family: var(--font-display);
+  font-weight: 400;
   font-size: 26px;
   line-height: 1;
   color: var(--color-text-muted);
@@ -185,9 +183,8 @@
 
 .tm-code {
   font-family: var(--font-display);
-  font-stretch: var(--font-wordmark-stretch);
-  font-weight: 500;
-  font-size: 19px;
+  font-weight: 400;
+  font-size: 21px;
 }
 
 .tm-code.is-winners {
@@ -203,14 +200,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--font-display);
   font-size: 22px;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--color-text-muted);
 }
 
 .tm-score {
-  font-family: var(--font-display);
-  font-stretch: var(--font-wordmark-stretch);
+  font-family: var(--font-wide);
   font-weight: 300;
   font-size: 26px;
   font-variant-numeric: tabular-nums;
@@ -230,9 +227,8 @@
   width: 200px;
   margin-left: -100px;
   text-align: center;
-  font-family: var(--font-overlay-serif);
-  font-stretch: var(--font-overlay-serif-stretch);
-  font-weight: 500;
+  font-family: var(--font-wide);
+  font-weight: 300;
   font-size: 120px;
   line-height: 1;
   color: var(--color-text-subtle);

@@ -248,7 +248,7 @@ export function Marquee({
         setOverflow(copy.current.scrollWidth > box.current.clientWidth + 1);
     };
     measure();
-    // The serif and condensed faces load after the first layout.
+    // The display and condensed faces load after the first layout.
     document.fonts?.ready.then(measure).catch(() => {});
   }, [text]);
   return (
@@ -311,7 +311,7 @@ export function MapPill({
 
 /**
  * A page's title over the middle of the frame, for the pages that aren't one match's: the title in
- * the designs' serif with a wide light line under it.
+ * the display face with a wide light line under it.
  */
 export function Masthead({ title, line }: { title: string; line?: string | null }) {
   return (
