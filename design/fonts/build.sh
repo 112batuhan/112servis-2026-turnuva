@@ -23,5 +23,6 @@ sub "$WORK/hecate-regular.otf" hecate-display-regular
 sub "$WORK/hecate-italic.otf" hecate-display-italic
 for pair in Roman:roman It:italic Md:medium Bd:bold BdIt:bold-italic \
   MdCn:medium-cn BdCn:bold-cn HvCn:heavy-cn LtEx:light-ex MdEx:medium-ex; do
-  sub "$H/HelveticaNeueLTPro${pair%%:*}.otf" "helvetica-neue-${pair##*:}"
+  "$PY" -I design/fonts/patch_helvetica.py "$H/HelveticaNeueLTPro${pair%%:*}.otf" "$WORK/helv-${pair##*:}.otf"
+  sub "$WORK/helv-${pair##*:}.otf" "helvetica-neue-${pair##*:}"
 done

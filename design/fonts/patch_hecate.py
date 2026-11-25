@@ -61,7 +61,16 @@ for cp, (name, base, accent, lift, dx) in plan.items():
         continue
     tx, ty = accent_shift(base, accent, lift, dx)
     width = gs[base].width
-    pen = T2CharStringPen(width, gs)
+    # A CFF charstring stores its advance as an offset from the Private dict's nominalWidthX, or
+    # none at all when it equals defaultWidthX. FreeType (Linux) reads advances from hmtx and never
+    # sees this one, but DirectWrite (Windows) reads it, so a raw width there widens the letter by
+    # nominalWidthX.
+    priv = top.Private
+    if width == getattr(priv, "defaultWidthX", 0):
+        cs_width = None
+    else:
+        cs_width = width - getattr(priv, "nominalWidthX", 0)
+    pen = T2CharStringPen(cs_width, gs)
     gs[base].draw(pen)
     gs[accent].draw(TransformPen(pen, (1, 0, 0, 1, round(tx), round(ty))))
     charstring = pen.getCharString(private=top.Private, globalSubrs=cff.GlobalSubrs)
@@ -112,4 +121,10 @@ if gpos:
                         if base in cd.classDefs and new not in cd.classDefs:
                             cd.classDefs[new] = cd.classDefs[base]
 f.save(dst)
+
+# Every renderer must see the same advance: check the saved CFF widths against hmtx.
+out = TTFont(dst)
+out_gs = out.getGlyphSet()
+bad = [n for n in out.getGlyphOrder() if out_gs[n].width != out["hmtx"][n][0]]
+assert not bad, f"CFF and hmtx advances disagree for {bad}"
 print("saved", dst)
