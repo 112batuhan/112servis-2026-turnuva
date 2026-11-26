@@ -99,7 +99,7 @@ function MatchView({ matchId }: { matchId: string }) {
             match.concluded_at !== null,
           ) && (
             <Link to={roomPagePath(match.id)} className="btn btn-primary btn-sm match-room-link">
-              <Icon name="door" size={14} />
+              <Icon name="swords" size={14} />
               Maç odası
             </Link>
           )}

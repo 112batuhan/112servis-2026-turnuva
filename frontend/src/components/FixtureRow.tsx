@@ -149,7 +149,7 @@ export function FixtureRow({ match, to, team1, team2, sources, ownTeamId }: Prop
         </span>
         {room ? (
           <span className="fixture-watch is-room">
-            <Icon name="door" size={13} />
+            <Icon name="swords" size={13} />
             Maç odası
           </span>
         ) : live ? (

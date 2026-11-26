@@ -76,9 +76,9 @@ const ICONS = {
     </g>
   ),
   list: <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />,
-  // An open door: a match's room page, for its own players.
-  door: (
-    <path d="M13 4h3a2 2 0 0 1 2 2v14M2 20h3M13 20h9M10 12v.01M13 4.56v16.16a1 1 0 0 1-1.24.97L5 20V5.56a2 2 0 0 1 1.52-1.94l4-1A2 2 0 0 1 13 4.56z" />
+  // Two crossed swords (Lucide's "swords"): a match's room page, for its own players.
+  swords: (
+    <path d="M14.5 17.5 3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M14.5 6.5 18 3h3v3l-3.5 3.5M5 14l4 4M7 17l-3 3M3 19l2 2" />
   ),
   // A metronome, for a map's BPM.
   metronome: <path d="M9.5 3h5l4.5 18h-14zM12 15l5-9M7 17h10" />,

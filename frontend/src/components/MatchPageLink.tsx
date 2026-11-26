@@ -60,7 +60,7 @@ export function MatchPageLink({
       onKeyDown={(e) => e.stopPropagation()}
       draggable={false}
     >
-      <Icon name={own ? "door" : "monitor"} size={variant === "row" ? 16 : 14} />
+      <Icon name={own ? "swords" : "monitor"} size={variant === "row" ? 16 : 14} />
       {variant === "text" && <span>{label}</span>}
     </Link>
   );

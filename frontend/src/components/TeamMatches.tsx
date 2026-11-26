@@ -91,7 +91,7 @@ export function TeamMatches({ teamId }: { teamId: string }) {
                     to={roomPagePath(next.id)}
                     className={`btn btn-secondary btn-sm match-page-link is-text is-live`}
                   >
-                    <Icon name="door" size={14} />
+                    <Icon name="swords" size={14} />
                     Maç odası
                   </Link>
                   <span>Warmup, ban ve pick'lerinizi maç sırasında buradan seçersiniz.</span>
