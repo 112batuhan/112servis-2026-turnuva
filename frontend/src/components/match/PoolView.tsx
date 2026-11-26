@@ -21,19 +21,28 @@ export function draftPhase(turn: DraftTurn | null, standing: Standing | null): s
   return turn ? `${stepLabel(turn.kind)} sırası` : null;
 }
 
-/** The next ban or pick in a phone tab's status: the step, and the team in its colour once known. */
+/**
+ * The next ban or pick in a phone tab's status: the step's icon in the colour of the team whose
+ * turn it is, as the draft strip marks it, and the step. A team name doesn't fit a third of a
+ * phone, and the pool the tab opens names the team on the draft strip's ringed step; here it's
+ * only read out and in the tooltip.
+ */
 export function TurnStatus({ turn }: { turn: DraftTurn }) {
+  const step = stepLabel(turn.kind);
+  const icon = turn.kind === "ban" ? "ban" : "target";
+  if (!turn.team) {
+    return (
+      <span className="referee-tab-turn">
+        <Icon name={icon} size={13} />
+        {step} sırası
+      </span>
+    );
+  }
   return (
-    <span>
-      {stepLabel(turn.kind)}
-      {turn.team ? (
-        <>
-          {" · "}
-          <span className={`referee-tab-team is-team-${turn.team.color}`}>{turn.team.name}</span>
-        </>
-      ) : (
-        " sırası"
-      )}
+    <span className="referee-tab-turn" title={`${step} sırası: ${turn.team.name}`}>
+      <Icon name={icon} size={13} className={`is-team-${turn.team.color}`} />
+      {step}
+      <span className="sr-only"> sırası: {turn.team.name}</span>
     </span>
   );
 }

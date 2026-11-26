@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { AutorefLogEntry } from "../../../api/types";
 import { useSignedInUser } from "../../../auth/AuthContext";
 import type { SlotTeam } from "../../../lib/bancho";
 import { formatClockSeconds } from "../../../lib/format";
+import { useFollowLog } from "../../../lib/useFollowLog";
 import type { ChatLine } from "../../../lib/roomChat";
 import type { RoomChatView } from "./useRefereeRoom";
 import { ChatRow } from "../../../components/match/ChatRow";
@@ -57,8 +58,6 @@ export function ChatPanel({ rooms, colors, visible = true, onUnread, say, log }:
   const [seen, setSeen] = useState<Record<string, number>>({});
   // The log's warnings and errors count until it's looked at (opening the page counts as looking).
   const [logSeenAt, setLogSeenAt] = useState(() => Date.now());
-  const scroller = useRef<HTMLDivElement>(null);
-  const stuckToBottom = useRef(true);
 
   useEffect(() => setActive(latest), [latest]);
 
@@ -84,12 +83,8 @@ export function ChatPanel({ rooms, colors, visible = true, onUnread, say, log }:
     (l) => l.level !== "info" && new Date(l.created_at).getTime() > logSeenAt,
   ).length;
 
-  // Follows new lines unless the referee has scrolled up to read. A hidden log can't scroll, so
-  // coming back into view catches up.
-  useLayoutEffect(() => {
-    const el = scroller.current;
-    if (visible && el && stuckToBottom.current) el.scrollTop = el.scrollHeight;
-  }, [visible, lines.length, log.length, activeKey]);
+  // Follows new lines unless the referee has scrolled up to read.
+  const follow = useFollowLog(visible, `${activeKey}:${lines.length}:${log.length}`);
 
   const unread = (key: string, tabLines: ChatLine[]) =>
     tabLines.filter((l) => l.id > (seen[key] ?? 0)).length;
@@ -110,7 +105,7 @@ export function ChatPanel({ rooms, colors, visible = true, onUnread, say, log }:
         if (sent) setDraft("");
       })
       .finally(() => setSending(false));
-    stuckToBottom.current = true;
+    follow.toEnd();
   }
 
   let placeholder: string;
@@ -171,14 +166,7 @@ export function ChatPanel({ rooms, colors, visible = true, onUnread, say, log }:
         </p>
       )}
 
-      <div
-        className="chat-log"
-        ref={scroller}
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          stuckToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
-        }}
-      >
+      <div className="chat-log" ref={follow.ref} onScroll={follow.onScroll}>
         {showingLog ? (
           log.length === 0 ? (
             <p className="chat-empty muted">

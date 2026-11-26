@@ -201,8 +201,8 @@
   }
 }
 
-/* A phone: the turn bar stays over whichever panel the tabs show, and the panel fills the rest of
-   the screen. */
+/* A phone: the turn bar stays over whichever panel the tabs show, stuck under the tab bar, and the
+   panel takes its full height, the page scrolling it. */
 @container referee-page (max-width: 760px) {
   .player-room .match-header {
     grid-template-areas:
@@ -236,17 +236,32 @@
     white-space: nowrap;
   }
 
+  /* At least the screen under the bar, and as tall as the panel shown: the page is the one
+     scroller, as on the other cockpits. */
   .player-room-grid {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
     grid-template-areas:
       "turn"
       "panel";
     gap: var(--space-3);
-    height: max(
+    height: auto;
+    min-height: max(
       460px,
       calc(100svh - var(--nav-height, 0px) - var(--referee-bar-height, 60px) - var(--space-3))
     );
+  }
+
+  /* The turn bar sticks under the tab bar, so whose turn it is and the clock stay in sight down a
+     long pool or chat. The page's ground backs it (its "yours" wash is see-through) and a strip of
+     it runs on under the bar, so what scrolls beneath doesn't touch it. */
+  .player-room-turn {
+    position: sticky;
+    top: calc(var(--nav-height, 0px) + var(--referee-bar-height, 60px));
+    z-index: 4;
+    margin-bottom: calc(-1 * var(--space-2));
+    padding-bottom: var(--space-2);
+    background: var(--color-bg);
   }
 
   .player-room-pool,
@@ -255,8 +270,8 @@
     grid-area: panel;
   }
 
-  .player-room-pool .room-pool-scroll {
-    overflow-y: auto;
+  .player-room-grid :is(.room-pool-scroll, .player-room-sheet, .chat-log) {
+    overflow: visible;
   }
 
   .player-room-grid[data-tab="pool"] > :is(.player-room-side, .player-room-chat),

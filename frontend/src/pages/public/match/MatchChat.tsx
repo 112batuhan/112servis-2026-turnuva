@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { isRoomNoise, type SlotTeam } from "../../../lib/bancho";
 import { readJson, writeJson } from "../../../lib/storage";
+import { useFollowLog } from "../../../lib/useFollowLog";
 import { ChatRow } from "../../../components/match/ChatRow";
 import type { PublicRoomChat } from "../../../lib/useMatchPage";
 import "../../../components/match/ChatRow.css";
@@ -71,12 +72,7 @@ export function MatchChat({
   useEffect(() => onUnread(unread), [onUnread, unread]);
 
   // Follows new lines unless the reader has scrolled up.
-  const log = useRef<HTMLDivElement>(null);
-  const stuckToBottom = useRef(true);
-  useLayoutEffect(() => {
-    const el = log.current;
-    if (visible && el && stuckToBottom.current) el.scrollTop = el.scrollHeight;
-  }, [visible, shown, active, filtered]);
+  const follow = useFollowLog(visible, `${room?.mpId}:${shown}:${filtered}`);
 
   return (
     <section className="chat-panel match-chat" aria-label="Oda sohbeti">
@@ -118,13 +114,10 @@ export function MatchChat({
 
       <div
         className="chat-log"
-        ref={log}
+        ref={follow.ref}
         role="log"
         aria-label="Mesajlar"
-        onScroll={(e) => {
-          const el = e.currentTarget;
-          stuckToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 24;
-        }}
+        onScroll={follow.onScroll}
       >
         {!room && <p className="chat-empty muted">Oda açılınca sohbeti burada canlı akar.</p>}
         {room && lines.length === 0 && (

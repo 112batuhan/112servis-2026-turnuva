@@ -147,9 +147,9 @@
   display: none;
 }
 
-/* A phone: one panel at a time under a tab bar that sticks below the top bar, the panel filling
-   the rest of the screen and scrolling inside, so the referee switches instead of scrolling past
-   the other two. */
+/* A phone: one panel at a time under a tab bar that sticks below the top bar, so the referee
+   switches instead of scrolling past the other two. The panel takes its full height and the page
+   scrolls it: one scroller, never a panel scrolling inside a scrolling page. */
 @container referee-page (max-width: 760px) {
   .referee-header {
     gap: var(--space-1) var(--space-2);
@@ -216,13 +216,14 @@
     line-height: 1.2;
   }
 
-  /* Where the panel stands, in one short line. */
+  /* Where the panel stands, in one short line, clipped to its own tab. */
   .referee-tab-status {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     max-width: 100%;
     min-height: 16px;
+    overflow: hidden;
     color: var(--color-text-muted);
     font-size: var(--text-xs);
     font-weight: 600;
@@ -235,10 +236,11 @@
     font-weight: 800;
   }
 
-  .referee-tab-team {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  /* The next ban or pick: its icon in the colour of the team whose turn it is. */
+  .referee-tab-turn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
   }
 
   .referee-tab-score {
@@ -281,11 +283,14 @@
     color: var(--color-success);
   }
 
+  /* At least the screen under the bar, and as tall as the panel shown: the page is the one
+     scroller, so a swipe anywhere moves the same thing. */
   .referee-cockpit {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr);
+    grid-template-rows: auto;
     grid-template-areas: none;
-    height: max(
+    height: auto;
+    min-height: max(
       420px,
       calc(100svh - var(--nav-height, 0px) - var(--referee-bar-height, 60px) - var(--space-3))
     );
@@ -301,10 +306,27 @@
     display: none;
   }
 
-  /* Back to one scrolling list: the panel has the screen's height again. */
+  /* Back to one list, at its full length. */
   .referee-cockpit-pool .pool-panel-list {
     display: flex;
-    overflow-y: auto;
+  }
+
+  .referee-cockpit :is(.pool-panel-list, .lobby-body, .chat-log) {
+    overflow: visible;
+  }
+
+  /* The chat's input stays at the foot of the screen over a long log. (Clipped rather than hidden,
+     so the panel isn't a scroller the input would stick in.) */
+  .referee-cockpit .chat-panel {
+    overflow: clip;
+  }
+
+  .referee-cockpit .chat-input {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    padding-bottom: max(var(--space-2), env(safe-area-inset-bottom));
+    background: var(--color-surface);
   }
 }
 
