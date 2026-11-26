@@ -712,17 +712,87 @@
   cursor: pointer;
 }
 
-/* A narrow column: slimmer team columns, "Sayma" down to its box, the players' names in from the
-   edge rather than under the label. */
+/* A narrow column (a phone): slimmer team columns, and no columns of their own for "Sayma" and the
+   toggle, so the map gets the width they took. The whole map cell opens its players, its chevron
+   at the cell's edge by the scores, and "Sayma" goes down to its box under the map's number. */
 @container sheet (max-width: 560px) {
   .sheet-head,
   .sheet-row {
-    --sheet-cols: 1.25rem minmax(0, 1fr) 4.75rem 4.75rem 1.75rem 2rem;
+    --sheet-cols: 1.25rem minmax(0, 1fr) 4.75rem 4.75rem;
   }
 
   .sheet.is-lobby .sheet-head,
   .sheet.is-lobby .sheet-row {
-    --sheet-cols: 1.25rem minmax(0, 1fr) minmax(5rem, auto) 1.75rem 2rem;
+    --sheet-cols: 1.25rem minmax(0, 1fr) minmax(5rem, auto);
+  }
+
+  /* The rule under the trailing columns, and the cells that held them, go with them. */
+  .sheet-head-end,
+  .sheet-row > span:not([class]) {
+    display: none;
+  }
+
+  /* A map's line is one row, every cell in its column (two of them share the first two). */
+  .sheet-map > .sheet-row > * {
+    grid-row: 1;
+  }
+
+  .sheet-map > .sheet-row > .sheet-order {
+    grid-column: 1;
+  }
+
+  .sheet-map > .sheet-row > .sheet-map-cell {
+    grid-column: 2;
+  }
+
+  .sheet-map > .sheet-row > :nth-child(3) {
+    grid-column: 3;
+  }
+
+  .sheet-map > .sheet-row > .sheet-cell:nth-child(4) {
+    grid-column: 4;
+  }
+
+  /* A map's number at the top, level with its label; its "Sayma" box (the referee's) under it. */
+  .sheet-map > .sheet-row > .sheet-order {
+    align-items: flex-start;
+    padding-top: var(--space-2);
+  }
+
+  .sheet-row > .sheet-ignore {
+    grid-row: 1;
+    grid-column: 1;
+    align-self: end;
+    justify-self: center;
+    padding-bottom: var(--space-2);
+  }
+
+  /* The toggle is the map cell itself: over it, see-through, its chevron at the right edge. */
+  .sheet-row > .sheet-toggle[aria-expanded] {
+    grid-row: 1;
+    grid-column: 2;
+    justify-self: stretch;
+    align-self: stretch;
+    justify-content: flex-end;
+    width: auto;
+    height: auto;
+    padding-right: var(--space-1);
+    border-radius: 0;
+  }
+
+  .sheet-map-cell {
+    padding-right: calc(16px + var(--space-2));
+  }
+
+  /* A referee's ruling keeps its undo button, at the end of the map cell. */
+  .sheet-list.is-manual .sheet-row > .sheet-toggle {
+    grid-row: 1;
+    grid-column: 2;
+    justify-self: end;
+  }
+
+  .sheet-list.is-manual .sheet-map-cell {
+    padding-right: var(--icon-button-size);
   }
 
   .sheet-ignore-text {
@@ -734,16 +804,24 @@
     white-space: nowrap;
   }
 
-  /* The label over the name, the name on up to two lines. */
+  /* The label over the name, the name on up to two lines, the pick under it: each held to the
+     cell's width, cut short rather than running under the scores. */
   .sheet-map-cell {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     justify-content: center;
     gap: 2px;
     padding-block: var(--space-2);
   }
 
+  .sheet-pick {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
   .sheet-label {
+    align-self: flex-start;
     min-width: 36px;
     font-size: var(--text-sm);
   }
