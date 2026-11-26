@@ -273,7 +273,7 @@ function describe(
             ya da süre dolunca başlar.
           </>
         ) : mine ? (
-          "osu! linkini ya da beatmap ID'sini yapıştır; bot odaya koyar. Warmup 4 dakikayı geçmemeli, havuzdan bir map olamaz."
+          "osu! linkini ya da beatmap ID'sini yapıştır. Warmup 4 dakikayı geçmemeli, Mappooldan bir map olamaz."
         ) : myOrder > order ? (
           skipped ? (
             "Sıranız gelince warmup'ınız geçilecek."
@@ -301,7 +301,7 @@ function describe(
       return {
         tone: "neutral",
         title: "Roll",
-        detail: "osu!'da !roll yazın; her takımın ilk roll'u sayılır. Kazanan ilk adımı alır.",
+        detail: "osu!'da !roll yazın; her takımın ilk roll'u sayılır.",
         end,
         extra: (
           <ul className="turn-rolls" aria-label="Roll'lar">
@@ -332,9 +332,9 @@ function describe(
         ),
         detail: mine
           ? kind === "ban"
-            ? "Banlamak istediğin mapin üstüne 3 saniye basılı tut. Süre dolarsa ban hakkınız yanar."
-            : "Seçmek istediğin mapin üstüne 3 saniye basılı tut. Süre dolarsa pick sırası rakibe geçer."
-          : "Rakibin seçimi buraya ve havuza anında düşer.",
+            ? "Banlamak istediğiniz mapin üstüne 3 saniye basılı tutun. Süre dolunca ban hakkınızı kaybedeceksiniz."
+            : "Seçmek istediğin mapin üstüne 3 saniye basılı tutun. Süre dolarsa pick sırası rakibe geçer."
+          : "Rakibin seçimleri bekleniyor.",
         end,
       };
     }
@@ -355,7 +355,7 @@ function describe(
             <span className="num">
               {ready}/{roster.length}
             </span>{" "}
-            hazır. Herkes hazır olunca ya da süre dolunca başlar.
+            hazır. Herkes hazır olunca ya da süre dolunca map başlayacak.
             {currentEntry?.freemod && " Freemod: NoFail'i unutma."}
           </>
         ),

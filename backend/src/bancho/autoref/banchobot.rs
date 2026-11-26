@@ -67,7 +67,7 @@ impl AutoRef {
     }
 
     // The map that was aborted goes back on.
-    pub(super) fn reopen(&mut self, s: &Snapshot, out: &mut Vec<Action>) {
+    fn reopen(&mut self, s: &Snapshot, out: &mut Vec<Action>) {
         let Phase::Playing { map_id, .. } = self.phase.clone() else {
             return;
         };

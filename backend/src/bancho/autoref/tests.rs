@@ -1258,3 +1258,107 @@ fn a_hold_begun_in_time_is_waited_for() {
         kind: StepKind::Ban
     }));
 }
+
+#[test]
+fn switched_back_after_an_abort_opens_the_map_the_referee_put_on() {
+    // A lobby: the bot started NM1 on its timer, the referee switched to manual, aborted it
+    // and put NM2 on.
+    let mut w = World::bracket();
+    w.bracket = false;
+    w.everyone_in(SlotStatus::NotReady);
+    w.room.beatmap_id = Some(11);
+    let mut ar = AutoRef {
+        phase: Phase::Playing {
+            map_id: Uuid::from_u128(10),
+            results: 0,
+        },
+        ..AutoRef::default()
+    };
+    let mut out = Vec::new();
+    ar.resume(&w.snap(at(300)), &mut out);
+    assert!(matches!(ar.phase, Phase::Ready { map_id, .. } if map_id == Uuid::from_u128(11)));
+    assert!(sent(&out).contains(&"!mp map 11 0"));
+    // Left on the map it had, it opens that one again.
+    w.room.beatmap_id = Some(10);
+    let mut ar = AutoRef {
+        phase: Phase::Ready {
+            map_id: Uuid::from_u128(10),
+            until: at(10),
+            nf_warned: false,
+            fm_warned: false,
+            check_at: None,
+            forced: true,
+            starting: Some(at(10)),
+        },
+        ..AutoRef::default()
+    };
+    out.clear();
+    ar.resume(&w.snap(at(300)), &mut out);
+    assert!(matches!(ar.phase, Phase::Ready { map_id, until, .. }
+        if map_id == Uuid::from_u128(10) && until > at(300)));
+    assert!(sent(&out).contains(&"!mp map 10 0"));
+}
+
+#[test]
+fn switched_back_after_a_pick_changed_by_hand_opens_the_new_pick() {
+    // B's pick HD1 was on; in manual mode the referee took it back and marked HD2.
+    let mut w = World::bracket();
+    w.everyone_in(SlotStatus::NotReady);
+    w.picks.push(PickRow {
+        map_id: Uuid::from_u128(21),
+        team_id: B,
+        created_at: at(200),
+    });
+    w.turn = Some(Turn {
+        kind: StepKind::Ban,
+        team_id: Some(A),
+    });
+    w.room.beatmap_id = Some(20);
+    let mut ar = AutoRef {
+        phase: Phase::Ready {
+            map_id: Uuid::from_u128(20),
+            until: at(100),
+            nf_warned: false,
+            fm_warned: false,
+            check_at: None,
+            forced: false,
+            starting: None,
+        },
+        ..AutoRef::default()
+    };
+    let mut out = Vec::new();
+    // The room still has HD1: it isn't opened again, nor taken as a pick.
+    ar.resume(&w.snap(at(300)), &mut out);
+    assert_eq!(ar.phase, Phase::Next);
+    assert!(!out.iter().any(|a| matches!(a, Action::Pick { .. })));
+    ar.tick(&w.snap(at(301)), &mut out);
+    assert!(matches!(ar.phase, Phase::Ready { map_id, .. } if map_id == Uuid::from_u128(21)));
+    assert!(sent(&out).contains(&"!mp map 21 0"));
+}
+
+#[test]
+fn switched_back_with_the_pick_taken_back_takes_the_map_put_on_as_the_pick() {
+    // B's pick HD1 was being played; the referee aborted it, took the pick back and put
+    // NM2 on.
+    let mut w = World::bracket();
+    w.everyone_in(SlotStatus::NotReady);
+    w.turn = Some(Turn {
+        kind: StepKind::Pick,
+        team_id: Some(B),
+    });
+    w.room.beatmap_id = Some(11);
+    let mut ar = AutoRef {
+        phase: Phase::Playing {
+            map_id: Uuid::from_u128(20),
+            results: 0,
+        },
+        ..AutoRef::default()
+    };
+    let mut out = Vec::new();
+    ar.resume(&w.snap(at(300)), &mut out);
+    assert!(out.contains(&Action::Pick {
+        map_id: Uuid::from_u128(11),
+        team_id: B
+    }));
+    assert!(matches!(ar.phase, Phase::Ready { map_id, .. } if map_id == Uuid::from_u128(11)));
+}

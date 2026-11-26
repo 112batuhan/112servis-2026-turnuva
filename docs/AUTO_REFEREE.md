@@ -367,6 +367,8 @@ New warnings and errors put a badge on the tab. Every log line is translated in 
 
 **A player's game crashed after the 30 seconds.** That's not an auto-abort. Use manual mode: abort, then switch back. The bot reopens the same map.
 
+**I aborted the bot's map in manual mode and want another one played.** Put it on before switching back (in a bracket, take the pick back and mark the new one, or just put the map on during the team's pick). Switched back, the bot opens the map in the room if the match may play it now (a lobby's unplayed map; a bracket's unplayed pick, or TB at the tiebreaker); otherwise it goes on with the match's next step, not with the map it had on.
+
 **The bot restarted (server update) in the middle of a match.** Its state is saved after every step. It rejoins the room and continues from the same step, with that step's timer restarted.
 
 **Can a referee play along without switching to manual?** Yes, for chatting, pinging and fixing rooms. Anything that changes the match (maps, picks, scores, concluding) needs manual mode first.
@@ -611,5 +613,6 @@ Embeds (the referee channel alerts and the DMs) are shown as *title — text*. `
 | bilgi | Devam ediyor: bir warmup oynanıyor, bitince sıradaki warmup. | Continuing: a warmup is being played; the next warmup comes once it finishes. |
 | bilgi | Hakem <slot> mapini açmıştı: <takım> takımının pick'i olarak işaretlendi. | The referee had opened <slot>: marked as <team>'s pick. |
 | bilgi | <slot> seçildi ama henüz oynanmadı, açılıyor. | <slot> was picked but hasn't been played yet; opening it. |
+| bilgi | Hakem odaya <slot> mapini açmış, o oynanacak. | The referee put <slot> on in the room; that one will be played. |
 | hata | Manuel kontrole geçildi: <neden> | Switched to manual control: <reason> |
 | hata | İşlem başarısız: <hata> | Action failed: <error> |

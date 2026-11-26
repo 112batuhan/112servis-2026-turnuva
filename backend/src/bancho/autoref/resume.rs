@@ -2,6 +2,9 @@
 //! stretch: what happened meanwhile is read from the room and the match, and the bot goes
 //! on from there rather than from where it stopped.
 
+use uuid::Uuid;
+
+use crate::bancho::tally::{standing_of, PoolEntry, Standing};
 use crate::{db::autoref::LogLevel, draft::StepKind};
 
 use super::draft::refusal;
@@ -116,13 +119,7 @@ impl AutoRef {
             }
             Phase::Ready { map_id, .. } => {
                 self.resumed(out);
-                if s.played.contains(&map_id) {
-                    self.phase = Phase::Next;
-                } else if let Some(entry) = s.entry(map_id) {
-                    self.enter_ready(s, entry, out);
-                } else {
-                    self.phase = Phase::Next;
-                }
+                self.open_again(s, map_id, out);
             }
             Phase::Playing { map_id, results } => {
                 self.resumed(out);
@@ -133,7 +130,8 @@ impl AutoRef {
                         tries: 0,
                     };
                 } else if !s.room.playing {
-                    self.reopen(s, out);
+                    // Aborted by the referee meanwhile.
+                    self.open_again(s, map_id, out);
                 }
             }
             Phase::Scoring { map_id, tries, .. } => {
@@ -144,6 +142,31 @@ impl AutoRef {
                     tries,
                 };
             }
+        }
+    }
+
+    // The bot stopped with a map on, or being played and aborted since. The referee may
+    // have put another map on, taken the pick back or marked another meanwhile, so the map
+    // isn't simply opened again: the one in the room is, if the match may play it now;
+    // otherwise the match says what comes next (`next_step`), or, in a bracket, a pool map
+    // the referee put on during a team's pick is that pick.
+    fn open_again(&mut self, s: &Snapshot, was: Uuid, out: &mut Vec<Action>) {
+        self.countdown = None;
+        self.phase = Phase::Next;
+        let on = s.room_entry();
+        if let Some(entry) = on.filter(|e| playable_now(s, e)) {
+            if entry.map_id != was {
+                log(
+                    out,
+                    LogLevel::Info,
+                    format!("Hakem odaya {} mapini açmış, o oynanacak.", entry.label),
+                );
+            }
+            return self.enter_ready(s, entry, out);
+        }
+        // Left on from before, it's no sign of a pick.
+        if on.is_some_and(|e| e.map_id != was) {
+            self.take_room_pick(s, out);
         }
     }
 
@@ -195,5 +218,28 @@ impl AutoRef {
             team_id,
         });
         self.enter_ready(s, entry, out);
+    }
+}
+
+// Whether the match may play this pool map now: a lobby's unplayed maps (not the
+// tiebreaker); in a bracket, a pick not yet played, or the tiebreaker once the score
+// calls for it (`next_step`).
+fn playable_now(s: &Snapshot, entry: &PoolEntry) -> bool {
+    if !s.bracket {
+        return !entry.tiebreaker && !s.played.contains(&entry.map_id);
+    }
+    if s.finished.contains(&entry.map_id) {
+        return false;
+    }
+    let standing = match (s.best_of, s.score) {
+        (Some(best_of), Some((a, b))) => standing_of(best_of, a, b),
+        _ => Standing::Open,
+    };
+    match standing {
+        Standing::Tiebreaker => entry.tiebreaker,
+        Standing::Open | Standing::MatchPoint => {
+            !entry.tiebreaker && s.picks.iter().any(|p| p.map_id == entry.map_id)
+        }
+        Standing::Won | Standing::Over => false,
     }
 }
